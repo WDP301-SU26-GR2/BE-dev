@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkflowStatus {
+  DRAFTING
+  REVIEWING
+  APPROVED
+  PUBLISHED
+}
+
+model Manga {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  synopsis    String?
+  authorName  String
+  tags        String[]
+  status      WorkflowStatus @default(DRAFTING)
+  publishedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}

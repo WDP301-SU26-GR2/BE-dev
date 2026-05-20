@@ -1,0 +1,12 @@
+# dependencies
+/node_modules
+
+# build output
+/dist
+/coverage
+
+# env
+.env
+
+# prisma generated output (if custom output is used)
+/generated/prisma
