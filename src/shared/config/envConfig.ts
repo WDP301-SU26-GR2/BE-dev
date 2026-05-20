@@ -4,7 +4,8 @@ import path from 'path'
 import z from 'zod'
 config()
 //Kiểm tra xem file .env có tồn tại hay không, nếu không tồn tại thì sẽ log ra thông báo và thoát chương trình
-if (!fs.existsSync(path.resolve('.env'))) {
+//Bỏ qua check khi chạy production (vd: trong container) — biến môi trường được nạp sẵn từ orchestrator.
+if (process.env.NODE_ENV !== 'production' && !fs.existsSync(path.resolve('.env'))) {
   console.log('Ko tìm thấy file env')
   process.exit(1)
 }
