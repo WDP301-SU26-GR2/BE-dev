@@ -1,0 +1,42 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: mangaka-mongo
+    restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Khởi tạo replica set lần đầu, các lần sau chỉ check status.
+      # Prisma yêu cầu MongoDB chạy ở chế độ replica set.
+      test: |
+        mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}).ok }"
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      retries: 30
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mangaka-api:latest
+    container_name: mangaka-api
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Ghi đè DATABASE_URL để trỏ tới service `mongo` trong network của compose.
+      DATABASE_URL: mongodb://mongo:27017/Mangaka?replicaSet=rs0&directConnection=true
+    ports:
+      - "3000:3000"
+
+volumes:
+  mongo-data:

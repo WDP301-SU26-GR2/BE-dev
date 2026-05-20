@@ -28,21 +28,107 @@
 ## Project setup
 
 ```bash
-$ npm install
+$ pnpm install
 ```
 
 ## Compile and run the project
 
 ```bash
 # development
-$ npm run start
+$ pnpm start
 
 # watch mode
-$ npm run start:dev
+$ pnpm start:dev
 
 # production mode
-$ npm run start:prod
+$ pnpm start:prod
 ```
+
+## Chạy bằng Docker (khuyến nghị khi setup ở máy local mới)
+
+Cách này sẽ bật cả **BE (NestJS)** lẫn **MongoDB** chỉ với một lệnh — không cần cài Node, pnpm hay Mongo lên máy.
+
+### Yêu cầu
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (đã bao gồm `docker compose`).
+- Cổng `3000` (API) và `27017` (Mongo) còn trống trên máy.
+
+### Các bước
+
+1. Clone repo và vào thư mục project:
+
+   ```bash
+   git clone <repo-url>
+   cd BE-dev
+   ```
+
+2. Tạo file `.env` từ template rồi điền secret thật:
+
+   ```bash
+   # Windows (PowerShell)
+   copy .env.example .env
+
+   # macOS / Linux
+   cp .env.example .env
+   ```
+
+   Mở `.env` lên và điền các giá trị thật cho:
+   - `PORT` (vd: `3000`)
+   - `SALT_OR_ROUNDS` (vd: `10`)
+   - `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`
+   - `API_KEY`, `AUTH_TYPE_KEY`
+   - `ADMIN_NAME`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PHONE`
+
+   > `DATABASE_URL` trong `.env` **không cần đụng đến** — `docker-compose.yml` đã override sẵn để trỏ vào service `mongo` trong network của compose.
+
+3. Build & chạy stack:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   - BE sẽ chạy tại: <http://localhost:3000>
+   - MongoDB lắng nghe ở: `localhost:27017`
+
+4. Xem log nếu cần debug:
+
+   ```bash
+   docker compose logs -f api    # log của BE
+   docker compose logs -f mongo  # log của Mongo
+   ```
+
+5. Dừng stack:
+
+   ```bash
+   docker compose down           # giữ lại dữ liệu trong volume `mongo-data`
+   docker compose down -v        # xoá luôn dữ liệu Mongo (reset DB)
+   ```
+
+### Các tác vụ Prisma trong container
+
+```bash
+# Push schema lên Mongo
+docker compose exec api pnpm prisma db push
+
+# Mở Prisma Studio (cần map thêm port nếu muốn truy cập từ host)
+docker compose exec api pnpm prisma studio
+```
+
+### Connect Mongo từ máy host (vd: bằng Compass)
+
+Connection string:
+
+```text
+mongodb://localhost:27017/?replicaSet=rs0&directConnection=true
+```
+
+> Prisma + MongoDB yêu cầu **replica set** — `docker-compose.yml` đã cấu hình replica set 1 node (`rs0`) và auto khởi tạo qua healthcheck, không cần làm tay.
+
+### Troubleshooting
+
+- **BE exit ngay khi start**: thường do thiếu biến trong `.env`. Check `docker compose logs api` xem Zod báo field nào.
+- **`Server selection timeout`**: đợi vài giây cho Mongo healthcheck init xong replica set rồi BE sẽ tự retry connect, hoặc `docker compose restart api`.
+- **Sửa code mà container không cập nhật**: image đang build production. Để dev mode (hot reload) thì chạy `pnpm start:dev` ở host và chỉ dùng compose để bật Mongo: `docker compose up -d mongo`, rồi đổi `DATABASE_URL` trong `.env` thành `mongodb://localhost:27017/Mangaka?replicaSet=rs0&directConnection=true`.
 
 ## Run tests
 
