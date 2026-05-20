@@ -1,0 +1,41 @@
+import { config } from 'dotenv'
+import fs from 'fs'
+import path from 'path'
+import z from 'zod'
+config()
+//Kiểm tra xem file .env có tồn tại hay không, nếu không tồn tại thì sẽ log ra thông báo và thoát chương trình
+if (!fs.existsSync(path.resolve('.env'))) {
+  console.log('Ko tìm thấy file env')
+  process.exit(1)
+}
+const configSchema = z.object({
+  ////PORT
+  PORT: z.coerce.number(),
+  SALT_OR_ROUNDS: z.coerce.number(),
+  ////DATABASE URL
+  DATABASE_URL: z.string(),
+  ////JWT
+  ACCESS_TOKEN_SECRET: z.string(),
+  REFRESH_TOKEN_SECRET: z.string(),
+  ACCESS_TOKEN_EXPIRES_IN: z.string(),
+  REFRESH_TOKEN_EXPIRES_IN: z.string(),
+  API_KEY: z.string(),
+  AUTH_TYPE_KEY: z.string().default('authType'),
+  ////SEED DATA
+  ADMIN_NAME: z.string(),
+  ADMIN_PASSWORD: z.string(),
+  ADMIN_EMAIL: z.string(),
+  ADMIN_PHONE: z.string(),
+  //OTP
+  OTP_EXPIRES_IN: z.string(),
+})
+
+const congfigServer = configSchema.safeParse(process.env)
+if (!congfigServer.success) {
+  console.log('Lỗi cấu hình env: ')
+  console.error(congfigServer.error)
+  process.exit(1)
+}
+
+const envConfig = congfigServer.data
+export default envConfig
