@@ -29,7 +29,10 @@
 
 ```bash
 $ pnpm install
+$ pnpm prisma generate   # sinh Prisma Client từ schema.prisma — bắt buộc chạy ít nhất 1 lần sau khi clone, hoặc mỗi khi schema thay đổi
 ```
+
+> Nếu bỏ qua `prisma generate`, TypeScript sẽ báo `Module '@prisma/client' has no exported member 'PrismaClient'` và các method `$connect`/`$disconnect` không tồn tại.
 
 ## Compile and run the project
 
