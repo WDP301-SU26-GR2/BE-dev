@@ -114,9 +114,14 @@ docker compose up --build
 
 ### Connect MongoDB bằng Compass (tuỳ chọn)
 
-```text
-mongodb://localhost:27017/?replicaSet=rs0&directConnection=true
-```
+Mặc định `docker-compose.yml` **không expose** cổng MongoDB ra host. Nếu muốn dùng Compass, thêm port mapping sau vào service `app`:
+
+    ports:
+      - "27017:27017"
+
+Sau đó dùng connection string:
+
+    mongodb://localhost:27017/?replicaSet=rs0&directConnection=true
 
 ### Troubleshooting
 
