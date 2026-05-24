@@ -18,23 +18,136 @@
     <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
   <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
 </p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
 ## Description
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
-## Project setup
+---
+
+## Dành cho FE devs — Chạy bằng Docker
+
+> Không cần cài Node, pnpm hay MongoDB lên máy. Chỉ cần Docker Desktop.
+> MongoDB và NestJS chạy **trong cùng 1 container**, 1 lệnh duy nhất.
+
+### Yêu cầu
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- 1 cổng còn trống (mặc định `3000`, đổi được qua `.env`)
+
+### Các bước
 
 ```bash
-$ pnpm install
-$ pnpm prisma generate   # sinh Prisma Client từ schema.prisma — bắt buộc chạy ít nhất 1 lần sau khi clone, hoặc mỗi khi schema thay đổi
+# 1. Clone về
+git clone <repo-url>
+cd BE-dev
+
+# 2. Tạo file .env từ template, điền các giá trị thật
+cp .env.example .env        # macOS / Linux
+# copy .env.example .env   # Windows PowerShell
+
+# 3. Build image và khởi động (lần đầu ~5-7 phút do cài MongoDB)
+docker compose up --build
+
+# Các lần sau (image đã build rồi, không cần --build)
+docker compose up
 ```
 
-> Nếu bỏ qua `prisma generate`, TypeScript sẽ báo `Module '@prisma/client' has no exported member 'PrismaClient'` và các method `$connect`/`$disconnect` không tồn tại.
+Khi thấy log `Nest application successfully started`, API đã sẵn sàng.
 
-## Compile and run the project
+### Endpoints
+
+> Thay `3000` bằng `PORT` bạn đặt trong `.env` nếu đã đổi.
+
+| Địa chỉ | Mô tả |
+| --- | --- |
+| <http://localhost:3000> | API base URL |
+| <http://localhost:3000/api> | Swagger UI — danh sách toàn bộ API |
+
+### Điền .env như thế nào
+
+Mở file `.env` vừa tạo, điền các giá trị:
+
+```env
+# Đổi PORT nếu bị xung đột với FE dev server (vd: 3001, 4000, 8080)
+PORT=3000
+SALT_OR_ROUNDS=10
+
+# DATABASE_URL không cần đúng — docker-compose.yml tự override
+DATABASE_URL=MONGODB_URL_example
+
+ACCESS_TOKEN_SECRET=<chuỗi bất kỳ, vd: my_secret_123>
+REFRESH_TOKEN_SECRET=<chuỗi bất kỳ, vd: my_refresh_456>
+ACCESS_TOKEN_EXPIRES_IN=1h
+REFRESH_TOKEN_EXPIRES_IN=7d
+
+API_KEY=<chuỗi bất kỳ>
+AUTH_TYPE_KEY=authType
+
+ADMIN_NAME=Admin
+ADMIN_PASSWORD=admin@123
+ADMIN_EMAIL=admin@example.com
+ADMIN_PHONE=0900000000
+
+OTP_EXPIRES_IN=5m
+```
+
+### Lệnh hữu ích khác
+
+```bash
+# Xem log realtime
+docker compose logs -f app
+
+# Dừng (giữ DB)
+docker compose down
+
+# Dừng và xoá toàn bộ data DB
+docker compose down -v
+
+# Pull code mới + restart (watch mode tự reload file thay đổi)
+git pull
+docker compose restart app
+
+# Rebuild image (khi thêm package mới vào package.json)
+docker compose up --build
+```
+
+### Connect MongoDB bằng Compass (tuỳ chọn)
+
+```text
+mongodb://localhost:27017/?replicaSet=rs0&directConnection=true
+```
+
+### Troubleshooting
+
+**BE crash — log báo "Lỗi cấu hình env"**
+→ Thiếu hoặc sai kiểu trong `.env`. `PORT` và `SALT_OR_ROUNDS` phải là số nguyên.
+
+**`MongoServerSelectionError`**
+→ MongoDB trong container chưa lên kịp. Đợi vài giây rồi `docker compose restart app`.
+
+**Port bị chiếm (address already in use)**
+→ Đổi `PORT` trong `.env` sang số khác (vd: `4000`), sau đó `docker compose up --build`.
+
+---
+
+## Dành cho BE devs — Chạy trực tiếp
+
+### Yêu cầu (BE devs)
+
+- Node.js 22+, pnpm 10+
+- MongoDB đang chạy (local hoặc Atlas)
+
+### Project setup
+
+```bash
+pnpm install
+pnpm prisma generate   # bắt buộc sau khi clone hoặc mỗi khi schema.prisma thay đổi
+```
+
+> Bỏ qua `prisma generate` → TypeScript báo lỗi `Module '@prisma/client' has no exported member 'PrismaClient'`.
+
+### Compile and run the project
 
 ```bash
 # development
@@ -47,117 +160,32 @@ $ pnpm start:dev
 $ pnpm start:prod
 ```
 
-## Chạy bằng Docker (khuyến nghị khi setup ở máy local mới)
+### Swagger
 
-Cách này sẽ bật cả **BE (NestJS)** lẫn **MongoDB** chỉ với một lệnh — không cần cài Node, pnpm hay Mongo lên máy.
+Sau khi server chạy, mở trình duyệt vào <http://localhost:3000/api>
 
-### Yêu cầu
-
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (đã bao gồm `docker compose`).
-- Cổng `3000` (API) và `27017` (Mongo) còn trống trên máy.
-
-### Các bước
-
-1. Clone repo và vào thư mục project:
-
-   ```bash
-   git clone <repo-url>
-   cd BE-dev
-   ```
-
-2. Tạo file `.env` từ template rồi điền secret thật:
-
-   ```bash
-   # Windows (PowerShell)
-   copy .env.example .env
-
-   # macOS / Linux
-   cp .env.example .env
-   ```
-
-   Mở `.env` lên và điền các giá trị thật cho:
-   - `PORT` (vd: `3000`)
-   - `SALT_OR_ROUNDS` (vd: `10`)
-   - `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`
-   - `API_KEY`, `AUTH_TYPE_KEY`
-   - `ADMIN_NAME`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PHONE`
-
-   > `DATABASE_URL` trong `.env` **không cần đụng đến** — `docker-compose.yml` đã override sẵn để trỏ vào service `mongo` trong network của compose.
-
-3. Build & chạy stack:
-
-   ```bash
-   docker compose up -d --build
-   ```
-
-   - BE sẽ chạy tại: <http://localhost:3000>
-   - MongoDB lắng nghe ở: `localhost:27017`
-
-4. Xem log nếu cần debug:
-
-   ```bash
-   docker compose logs -f api    # log của BE
-   docker compose logs -f mongo  # log của Mongo
-   ```
-
-5. Dừng stack:
-
-   ```bash
-   docker compose down           # giữ lại dữ liệu trong volume `mongo-data`
-   docker compose down -v        # xoá luôn dữ liệu Mongo (reset DB)
-   ```
-
-### Các tác vụ Prisma trong container
+### Prisma commands hay dùng
 
 ```bash
-# Push schema lên Mongo
-docker compose exec api pnpm prisma db push
-
-# Mở Prisma Studio (cần map thêm port nếu muốn truy cập từ host)
-docker compose exec api pnpm prisma studio
+pnpm prisma generate      # tái tạo Prisma Client sau khi sửa schema
+pnpm prisma db push       # áp dụng schema mới lên DB (tạo/cập nhật index)
+pnpm prisma studio        # GUI quản lý data
 ```
 
-### Connect Mongo từ máy host (vd: bằng Compass)
-
-Connection string:
-
-```text
-mongodb://localhost:27017/?replicaSet=rs0&directConnection=true
-```
-
-> Prisma + MongoDB yêu cầu **replica set** — `docker-compose.yml` đã cấu hình replica set 1 node (`rs0`) và auto khởi tạo qua healthcheck, không cần làm tay.
-
-### Troubleshooting
-
-- **BE exit ngay khi start**: thường do thiếu biến trong `.env`. Check `docker compose logs api` xem Zod báo field nào.
-- **`Server selection timeout`**: đợi vài giây cho Mongo healthcheck init xong replica set rồi BE sẽ tự retry connect, hoặc `docker compose restart api`.
-- **Sửa code mà container không cập nhật**: image đang build production. Để dev mode (hot reload) thì chạy `pnpm start:dev` ở host và chỉ dùng compose để bật Mongo: `docker compose up -d mongo`, rồi đổi `DATABASE_URL` trong `.env` thành `mongodb://localhost:27017/Mangaka?replicaSet=rs0&directConnection=true`.
-
-## Run tests
+### Run tests
 
 ```bash
 # unit tests
-$ npm run test
+$ pnpm run test
 
 # e2e tests
-$ npm run test:e2e
+$ pnpm run test:e2e
 
 # test coverage
-$ npm run test:cov
+$ pnpm run test:cov
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
 ## Resources
 

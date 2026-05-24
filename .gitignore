@@ -56,3 +56,6 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
+
+# pnpm local store (xuất hiện khi pnpm config store-dir trỏ vào project)
+.pnpm-store
