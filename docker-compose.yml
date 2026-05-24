@@ -1,42 +1,40 @@
-services:
-  mongo:
-    image: mongo:7
-    container_name: mangaka-mongo
-    restart: unless-stopped
-    command: ["--replSet", "rs0", "--bind_ip_all"]
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-    healthcheck:
-      # Khởi tạo replica set lần đầu, các lần sau chỉ check status.
-      # Prisma yêu cầu MongoDB chạy ở chế độ replica set.
-      test: |
-        mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}).ok }"
-      interval: 5s
-      timeout: 30s
-      start_period: 0s
-      retries: 30
+# Docker Compose dành cho FE devs chạy BE ở máy local.
+# Chạy MongoDB + NestJS trong 1 container duy nhất.
+# BE devs không cần dùng file này.
+#
+# Cách dùng:
+#   cp .env.example .env   # điền giá trị thật, đổi PORT nếu muốn
+#   docker compose up
 
-  api:
+services:
+  app:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: mangaka-api:latest
-    container_name: mangaka-api
+      dockerfile: Dockerfile.dev
+    image: mangaka-app-dev
+    container_name: mangaka-app
     restart: unless-stopped
-    depends_on:
-      mongo:
-        condition: service_healthy
     env_file:
       - ./.env
     environment:
-      NODE_ENV: production
-      PORT: 3000
-      # Ghi đè DATABASE_URL để trỏ tới service `mongo` trong network của compose.
-      DATABASE_URL: mongodb://mongo:27017/Mangaka?replicaSet=rs0&directConnection=true
+      NODE_ENV: development
+      # Trỏ Prisma vào MongoDB nội bộ trong cùng container
+      DATABASE_URL: mongodb://localhost:27017/Mangaka?replicaSet=rs0&directConnection=true
     ports:
-      - "3000:3000"
+      # Lấy PORT từ .env — đổi PORT trong .env nếu bị xung đột với FE dev server
+      - "${PORT:-3000}:${PORT:-3000}"
+    volumes:
+      # Mount toàn bộ source code (kể cả .env) vào container
+      - .:/app
+      # Volume riêng cho node_modules tránh bị ghi đè bởi thư mục host
+      - app_node_modules:/app/node_modules
+      # Cache pnpm store để install nhanh hơn
+      - pnpm_store:/root/.local/share/pnpm/store
+      # Persist MongoDB data
+      - mongo_data:/data/db
+    entrypoint: ["/bin/bash", "/app/docker-entrypoint.dev.sh"]
 
 volumes:
-  mongo-data:
+  mongo_data:
+  app_node_modules:
+  pnpm_store:

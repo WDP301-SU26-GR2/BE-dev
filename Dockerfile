@@ -27,8 +27,7 @@ RUN pnpm build
 FROM node:22-slim AS runtime
 WORKDIR /app
 
-ENV NODE_ENV=production \
-    PORT=3000
+ENV NODE_ENV=production
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
@@ -42,6 +41,8 @@ COPY --from=build /app/package.json ./package.json
 
 USER app
 
-EXPOSE 3000
+# PORT được nạp từ env lúc runtime, EXPOSE chỉ để document
+ARG PORT=3000
+EXPOSE ${PORT}
 
 CMD ["node", "dist/main.js"]
