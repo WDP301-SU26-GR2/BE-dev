@@ -1,4 +1,5 @@
 node_modules
+.pnpm-store
 dist
 coverage
 .git
@@ -13,6 +14,8 @@ pnpm-debug.log*
 .idea
 .DS_Store
 Dockerfile
+Dockerfile.dev
+docker-entrypoint.dev.sh
 .dockerignore
 README.md
 test
