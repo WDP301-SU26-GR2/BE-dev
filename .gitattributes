@@ -1,0 +1,2 @@
+# Ép Git luôn giữ định dạng LF cho các file bash script, dù tải về trên hệ điều hành nào
+*.sh text eol=lf
