@@ -1,0 +1,50 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: mangaka-mongo
+    restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: |
+        mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}).ok }"
+      interval: 5s
+      timeout: 30s
+      retries: 30
+
+  api:
+    image: ghcr.io/wdp301-su26-gr2/mangaka-api:latest
+    container_name: mangaka-api
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: mongodb://mongo:27017/Mangaka?replicaSet=rs0&directConnection=true
+    # Không expose port ra ngoài, đi qua caddy nội bộ
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: mangaka-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+
+volumes:
+  mongo-data:
+  caddy-data:
+  caddy-config:
