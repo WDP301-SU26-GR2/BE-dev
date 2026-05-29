@@ -13,6 +13,19 @@ services:
       timeout: 30s
       retries: 30
 
+  redis:
+    image: redis:7-alpine
+    container_name: mangaka-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
   api:
     image: ghcr.io/wdp301-su26-gr2/mangaka-api:latest
     container_name: mangaka-api
@@ -20,12 +33,15 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - ./.env
     environment:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: mongodb://mongo:27017/Mangaka?replicaSet=rs0&directConnection=true
+      REDIS_URL: redis://redis:6379
     # Không expose port ra ngoài, đi qua caddy nội bộ
     expose:
       - "3000"
@@ -46,5 +62,6 @@ services:
 
 volumes:
   mongo-data:
+  redis-data:
   caddy-data:
   caddy-config:

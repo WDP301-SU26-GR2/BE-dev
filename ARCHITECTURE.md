@@ -14,6 +14,7 @@
 | **Language** | TypeScript | 5.7+ | Strict mode, `NodeNext` module system |
 | **ORM** | Prisma | 6.19+ | Schema-first, type-safe database access |
 | **Database** | MongoDB | 7.x | Replica set (`rs0`) bắt buộc cho Prisma |
+| **Cache/Queue** | Redis | 7.x | Caching, session, và job queue |
 | **Validation** | Zod + nestjs-zod | zod 4.x | Schema validation cho cả request và response |
 | **Auth** | JWT (HS256) | @nestjs/jwt 11.x | Access + Refresh token pair |
 | **Hashing** | bcrypt | 6.x | Password hashing |
@@ -187,6 +188,7 @@ const configSchema = z.object({
 | `PORT` | number | Port server listen |
 | `SALT_OR_ROUNDS` | number | bcrypt salt rounds |
 | `DATABASE_URL` | string | MongoDB connection string (cần replica set) |
+| `REDIS_URL` | string | Redis connection string |
 | `ACCESS_TOKEN_SECRET` | string | Secret key cho access JWT |
 | `REFRESH_TOKEN_SECRET` | string | Secret key cho refresh JWT |
 | `ACCESS_TOKEN_EXPIRES_IN` | string | TTL access token (vd: `1h`) |
@@ -296,10 +298,11 @@ Multi-stage build:
 ```
 Single container "all-in-one":
   1. Start MongoDB 7 (replica set rs0)
-  2. pnpm install
-  3. prisma generate
-  4. prisma db push
-  5. nest start --watch (hot reload)
+  2. Start Redis 7
+  3. pnpm install
+  4. prisma generate
+  5. prisma db push
+  6. nest start --watch (hot reload)
 ```
 
 > Docker dev setup dành cho **FE devs** — không cần cài Node/pnpm/MongoDB trên máy.
@@ -354,6 +357,7 @@ Single container "all-in-one":
 graph LR
     subgraph "External"
         MONGO[(MongoDB)]
+        REDIS[(Redis)]
     end
 
     subgraph "NestJS App"
@@ -373,6 +377,7 @@ graph LR
     JWT_MOD --> TOKEN_SVC
     PRISMA_SVC --> MONGO
     FILTER2 -.-> |isUniqueConstrainError| MONGO
+    ENV -.-> REDIS
 ```
 
 ---

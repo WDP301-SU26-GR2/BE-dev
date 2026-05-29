@@ -27,8 +27,8 @@
 
 ## Dành cho FE devs — Chạy bằng Docker
 
-> Không cần cài Node, pnpm hay MongoDB lên máy. Chỉ cần Docker Desktop.
-> MongoDB và NestJS chạy **trong cùng 1 container**, 1 lệnh duy nhất.
+> Không cần cài Node, pnpm, MongoDB hay Redis lên máy. Chỉ cần Docker Desktop.
+> MongoDB, Redis và NestJS chạy **trong cùng 1 container**, 1 lệnh duy nhất.
 
 ### Yêu cầu
 
@@ -46,7 +46,7 @@ cd BE-dev
 cp .env.example .env        # macOS / Linux
 # copy .env.example .env   # Windows PowerShell
 
-# 3. Build image và khởi động (lần đầu ~5-7 phút do cài MongoDB)
+# 3. Build image và khởi động (lần đầu ~5-7 phút do cài MongoDB và Redis)
 docker compose up --build
 
 # Các lần sau (image đã build rồi, không cần --build)
@@ -75,6 +75,7 @@ SALT_OR_ROUNDS=10
 
 # DATABASE_URL không cần đúng — docker-compose.yml tự override
 DATABASE_URL=MONGODB_URL_example
+REDIS_URL=redis://localhost:6379
 
 ACCESS_TOKEN_SECRET=<chuỗi bất kỳ, vd: my_secret_123>
 REFRESH_TOKEN_SECRET=<chuỗi bất kỳ, vd: my_refresh_456>
