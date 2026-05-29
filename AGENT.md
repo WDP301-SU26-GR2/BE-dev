@@ -16,7 +16,7 @@
 | Câu hỏi | Trả lời |
 |---------|---------|
 | Framework? | NestJS 11 (TypeScript) |
-| Database? | MongoDB 7 (qua Prisma ORM) |
+| Database? | MongoDB 7 (qua Prisma ORM) + Redis 7 |
 | Validation? | **Zod** (qua `nestjs-zod`) — KHÔNG dùng `class-validator` |
 | Auth? | JWT HS256 (access + refresh token) |
 | Package manager? | **pnpm** (KHÔNG npm/yarn) |
@@ -362,6 +362,7 @@ const isMatch = await hashingService.compare('plain_password', hash)
 cp .env.example .env  # điền giá trị
 docker compose up --build
 ```
+> Khởi động MongoDB, Redis, và NestJS chung trong 1 container.
 
 ### BE devs (chạy trực tiếp)
 
@@ -387,6 +388,7 @@ http://localhost:{PORT}/api
 | `PORT` | number | Server port (default: 4000) |
 | `SALT_OR_ROUNDS` | number | bcrypt complexity |
 | `DATABASE_URL` | string | MongoDB URI (cần replica set) |
+| `REDIS_URL` | string | Redis connection string |
 | `ACCESS_TOKEN_SECRET` | string | JWT access secret |
 | `REFRESH_TOKEN_SECRET` | string | JWT refresh secret |
 | `ACCESS_TOKEN_EXPIRES_IN` | string | Access token TTL (vd: `1h`) |

@@ -1,5 +1,5 @@
 # Docker Compose dành cho FE devs chạy BE ở máy local.
-# Chạy MongoDB + NestJS trong 1 container duy nhất.
+# Chạy MongoDB + Redis + NestJS trong 1 container duy nhất.
 # BE devs không cần dùng file này.
 #
 # Cách dùng:
@@ -20,6 +20,8 @@ services:
       NODE_ENV: development
       # Trỏ Prisma vào MongoDB nội bộ trong cùng container
       DATABASE_URL: mongodb://localhost:27017/Mangaka?replicaSet=rs0&directConnection=true
+      # Trỏ Redis vào instance nội bộ trong cùng container
+      REDIS_URL: redis://localhost:6379
     ports:
       # Lấy PORT từ .env — đổi PORT trong .env nếu bị xung đột với FE dev server
       - "${PORT:-3000}:${PORT:-3000}"
@@ -32,9 +34,12 @@ services:
       - pnpm_store:/root/.local/share/pnpm/store
       # Persist MongoDB data
       - mongo_data:/data/db
+      # Persist Redis data
+      - redis_data:/var/lib/redis
     entrypoint: ["/bin/bash", "/app/docker-entrypoint.dev.sh"]
 
 volumes:
   mongo_data:
+  redis_data:
   app_node_modules:
   pnpm_store:

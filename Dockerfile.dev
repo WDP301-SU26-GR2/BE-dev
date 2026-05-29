@@ -12,9 +12,9 @@ RUN apt-get update \
     https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" \
     > /etc/apt/sources.list.d/mongodb-org-7.0.list \
  && apt-get update \
- && apt-get install -y --no-install-recommends mongodb-org \
+ && apt-get install -y --no-install-recommends mongodb-org redis-server \
  && rm -rf /var/lib/apt/lists/* \
  && corepack enable \
- && mkdir -p /data/db /var/log/mongodb
+ && mkdir -p /data/db /var/log/mongodb /var/lib/redis
 
 WORKDIR /app

@@ -15,6 +15,7 @@ const configSchema = z.object({
   SALT_OR_ROUNDS: z.coerce.number(),
   ////DATABASE URL
   DATABASE_URL: z.string(),
+  REDIS_URL: z.string(),
   ////JWT
   ACCESS_TOKEN_SECRET: z.string(),
   REFRESH_TOKEN_SECRET: z.string(),
