@@ -288,8 +288,7 @@ export class AuthService {
     const [accessToken, refreshToken] = await Promise.all([
       this.tokenService.signAccessToken({
         userId: user.id,
-        roleId: user.roleId,
-        roleName: user.roleId
+        roleName: user.role.code
       }),
       this.tokenService.signRefreshToken({ userId: user.id })
     ])

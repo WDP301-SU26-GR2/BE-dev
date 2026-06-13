@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { JwtService, JwtSignOptions } from '@nestjs/jwt'
 import envConfig from 'src/shared/config/envConfig'
 import {
@@ -43,6 +43,8 @@ export class TokenService {
   }
 
   decodeRefreshToken(token: string): JwtRefreshTokenPayload {
-    return this.jwtService.decode(token)
+    const decoded = this.jwtService.decode(token)
+    if (!decoded || typeof decoded === 'string') throw new UnauthorizedException('Invalid token')
+    return decoded as JwtRefreshTokenPayload
   }
 }

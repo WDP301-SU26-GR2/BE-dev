@@ -121,7 +121,7 @@ export const LoginResSchema = extendApi(
 export const RefreshTokenSchema = extendApi(
   z.object({
     token: z.string(),
-    userId: z.number(),
+    userId: z.string(),
     expiresAt: z.date(),
     createdAt: z.date()
   }),

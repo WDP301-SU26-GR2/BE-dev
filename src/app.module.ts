@@ -26,8 +26,7 @@ import { AuthModule } from './modules/auth/auth.module'
     {
       provide: APP_FILTER,
       useClass: CatchEverythingFilter // Sử dụng CatchEverythingFilter để bắt tất cả các lỗi chưa được xử lý trong ứng dụng, giúp cho việc xử lý lỗi trở nên dễ dàng hơn và đảm bảo rằng tất cả các lỗi đều được ghi log và trả về phản hồi lỗi phù hợp cho client, điều này cũng giúp tăng cường tính ổn định và độ tin cậy của ứng dụng của bạn.
-    },
-    AuthModule
+    }
   ]
 })
 export class AppModule {}

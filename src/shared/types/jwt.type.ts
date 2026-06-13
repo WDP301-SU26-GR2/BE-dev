@@ -1,6 +1,5 @@
 export interface AccessTokenPayloadCreate {
   userId: string
-  roleId: string
   roleName: string
 }
 export interface JwtAccessTokenPayload extends AccessTokenPayloadCreate {
