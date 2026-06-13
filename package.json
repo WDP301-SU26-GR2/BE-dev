@@ -9,7 +9,7 @@
     "prisma:generate": "prisma generate",
     "seed": "ts-node -r tsconfig-paths/register src/initialScript/seed.ts",
     "build": "nest build",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" \"test/**/*.{ts,tsx}\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",

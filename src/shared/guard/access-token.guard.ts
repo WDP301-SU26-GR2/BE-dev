@@ -10,17 +10,17 @@ export class AccessTokenGuard implements CanActivate {
     const request = context.switchToHttp().getRequest()
 
     const authHeader = request.headers['authorization']
-    console.log('Auth header:', authHeader)
+    // console.log('Auth header:', authHeader)
 
     const accessToken = authHeader?.split(' ')[1]
-    console.log('Access token:', accessToken)
+    // console.log('Access token:', accessToken)
 
     if (!accessToken) {
       throw new UnauthorizedException('Access token is required')
     }
     try {
       const decodedAccessToken = await this.tokenService.verifyAccessToken(accessToken as string)
-      console.log('Decoded:', decodedAccessToken)
+      // console.log('Decoded:', decodedAccessToken)
       request[REQUEST_USER_KEY] = decodedAccessToken
       return true
     } catch (error) {
