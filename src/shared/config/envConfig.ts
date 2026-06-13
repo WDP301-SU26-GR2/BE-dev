@@ -13,6 +13,9 @@ const configSchema = z.object({
   ////PORT
   PORT: z.coerce.number(),
   SALT_OR_ROUNDS: z.coerce.number(),
+  NAME_APP: z.string(),
+  API_KEY: z.string(),
+  AUTH_TYPE_KEY: z.string(),
   ////DATABASE URL
   DATABASE_URL: z.string(),
   REDIS_URL: z.string(),
@@ -21,8 +24,6 @@ const configSchema = z.object({
   REFRESH_TOKEN_SECRET: z.string(),
   ACCESS_TOKEN_EXPIRES_IN: z.string(),
   REFRESH_TOKEN_EXPIRES_IN: z.string(),
-  API_KEY: z.string(),
-  AUTH_TYPE_KEY: z.string().default('authType'),
   ////SEED DATA
   ADMIN_NAME: z.string(),
   ADMIN_PASSWORD: z.string(),
@@ -30,6 +31,7 @@ const configSchema = z.object({
   ADMIN_PHONE: z.string(),
   //OTP
   OTP_EXPIRES_IN: z.string(),
+  RESEND_API_KEY: z.string()
 })
 
 const congfigServer = configSchema.safeParse(process.env)
