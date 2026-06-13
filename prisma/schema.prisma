@@ -3,22 +3,396 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
-  url      = env("DATABASE_URL")
+  provider  = "mongodb"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
 }
 
 model User {
-  id    String  @id @default(auto()) @map("_id") @db.ObjectId
-  email String  @unique
-  name  String?
-  posts Post[]
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  email       String  @unique
+  name        String
+  displayName String?
+  password    String
+  phoneNumber String
+  avatar      String?
+
+  roleId String @db.ObjectId
+
+  status UserStatus @default(INACTIVE)
+
+  emailVerified Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  role          Role           @relation(fields: [roleId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@index([deletedAt])
 }
 
-model Post {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  title     String
-  content   String?
-  published Boolean @default(false)
-  author    User    @relation(fields: [authorId], references: [id])
-  authorId  String  @db.ObjectId
+model RefreshToken {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  token String @unique
+
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Role {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  code        String  @unique
+  description String?
+  isSystem    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+}
+
+model OtpRequest {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  email       String // email
+  otpCodeHash String
+  ip          String?
+  purpose     OtpPurpose
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  attempts  Int      @default(3)
+  isUsed    Boolean  @default(false)
+
+  @@unique([email, purpose, otpCodeHash])
+  @@index([expiresAt])
+}
+
+enum OtpPurpose {
+  REGISTER
+  FORGOT_PASSWORD
+  SIGNING_CONTRACT
+}
+
+enum UserStatus {
+  INACTIVE
+  ACTIVE
+  BANNED
+  BLOCKED
+}
+
+model Series {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  mangakaId       String   @db.ObjectId
+  editorId        String?  @db.ObjectId
+  title           String
+  genre           String
+  demographic     String
+  publicationType String
+  status          String
+  statusReason    String?
+  createdAt       DateTime @default(now())
+}
+
+model SeriesProposal {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId          String   @db.ObjectId
+  nameId            String?  @db.ObjectId
+  synopsis          String
+  characterDesigns  String?
+  targetDemographic String
+  estimatedLength   Int
+  status            String
+  createdAt         DateTime @default(now())
+}
+
+model Name {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId      String    @db.ObjectId
+  chapterNumber Int
+  status        String
+  version       Int
+  submittedAt   DateTime?
+}
+
+model NamePage {
+  id         String @id @default(auto()) @map("_id") @db.ObjectId
+  nameId     String @db.ObjectId
+  pageNumber Int
+  fileUrl    String
+}
+
+model Chapter {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId      String    @db.ObjectId
+  nameId        String?   @db.ObjectId
+  chapterNumber Int
+  title         String
+  totalPages    Int
+  status        String
+  publishedAt   DateTime?
+}
+
+model Schedule {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId        String   @unique @db.ObjectId
+  originalDeadline DateTime
+  currentDeadline  DateTime
+  extended         Boolean
+}
+
+model ScheduleExtension {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  scheduleId       String   @db.ObjectId
+  extendedBy       String   @db.ObjectId
+  previousDeadline DateTime
+  newDeadline      DateTime
+  reason           String
+  extendedAt       DateTime
+}
+
+model Manuscript {
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId           String    @unique @db.ObjectId
+  status              String
+  finalFile           String?
+  submittedToEditorAt DateTime?
+  approvedAt          DateTime?
+}
+
+model Page {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId     String   @db.ObjectId
+  pageNumber    Int
+  originalFile  String?
+  compositeFile String?
+  status        String
+  createdAt     DateTime @default(now())
+}
+
+model Region {
+  id                 String  @id @default(auto()) @map("_id") @db.ObjectId
+  pageId             String  @db.ObjectId
+  regionType         String
+  createdBy          String
+  xMin               Float
+  yMin               Float
+  xMax               Float
+  yMax               Float
+  confirmedByMangaka Boolean
+  confidenceScore    Float?
+}
+
+model Task {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  pageId      String?   @db.ObjectId
+  regionId    String?   @db.ObjectId
+  assistantId String?   @db.ObjectId
+  taskType    String
+  status      String
+  priority    Int
+  deadline    DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model TaskVersion {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId        String   @db.ObjectId
+  submittedBy   String   @db.ObjectId
+  versionNumber Int
+  file          String
+  reviewStatus  String
+  reviewerNote  String?
+  submittedAt   DateTime
+}
+
+model Annotation {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  targetType     String
+  targetId       String
+  reviewStage    String?
+  taskId         String?   @db.ObjectId
+  authorId       String    @db.ObjectId
+  authorRole     String
+  annotationType String
+  xMin           Float
+  yMin           Float
+  xMax           Float
+  yMax           Float
+  content        String
+  isResolved     Boolean
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+model Asset {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  uploadedBy String   @db.ObjectId
+  name       String
+  filePath   String
+  assetType  String
+  uploadedAt DateTime
+}
+
+model SurveyPeriod {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  issueNumber          Int
+  reflectedIssueNumber Int
+  startDate            DateTime
+  endDate              DateTime
+  status               String
+  createdBy            String   @db.ObjectId
+}
+
+model ReaderVote {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  surveyPeriodId String   @db.ObjectId
+  identityHash   String
+  authMethod     String
+  ipHash         String?
+  captchaScore   Float?
+  voteWeight     Float
+  isFlagged      Boolean
+  votedAt        DateTime
+}
+
+model ReaderVoteSeries {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  readerVoteId String @db.ObjectId
+  seriesId     String @db.ObjectId
+}
+
+model SurveyData {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  surveyPeriodId String   @db.ObjectId
+  surveyDate     DateTime
+  importedBy     String   @db.ObjectId
+  importedAt     DateTime
+}
+
+model SurveyEntry {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  surveyDataId String @db.ObjectId
+  seriesId     String @db.ObjectId
+  voteCount    Int
+}
+
+model RankingRecord {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId       String   @db.ObjectId
+  surveyPeriodId String   @db.ObjectId
+  rankPosition   Int
+  voteCount      Float
+  previousRank   Int?
+  rankChange     Int?
+  isAtRisk       Boolean
+  isReliable     Boolean
+  recordedAt     DateTime
+}
+
+model BoardDecision {
+  id                     String   @id @default(auto()) @map("_id") @db.ObjectId
+  targetSeriesId         String   @db.ObjectId
+  decisionType           String
+  result                 String
+  totalVotes             Int
+  approveCount           Int
+  rejectCount            Int
+  quorumMet              Boolean
+  endingChapterAllowance Int?
+  details                String?
+  decidedAt              DateTime
+}
+
+model Vote {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  boardDecisionId String   @db.ObjectId
+  voterId         String   @db.ObjectId
+  voteValue       String
+  note            String?
+  votedAt         DateTime
+}
+
+model SeriesReport {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId        String   @db.ObjectId
+  boardDecisionId String?  @db.ObjectId
+  reportType      String
+  content         String
+  preparedBy      String   @db.ObjectId
+  createdAt       DateTime
+}
+
+model ReportAttachment {
+  id             String @id @default(auto()) @map("_id") @db.ObjectId
+  seriesReportId String @db.ObjectId
+  assetId        String @db.ObjectId
+}
+
+model TaskAsset {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  taskId  String @db.ObjectId
+  assetId String @db.ObjectId
+}
+
+model Notification {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  recipientId   String   @db.ObjectId
+  type          String
+  referenceId   String?
+  referenceType String?
+  content       String
+  isRead        Boolean
+  createdAt     DateTime
+}
+
+model PaymentConfig {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  mangakaId     String   @db.ObjectId
+  taskType      String
+  ratePerTask   Float
+  currency      String
+  effectiveFrom DateTime
+}
+
+model EarningRecord {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  assistantId  String   @db.ObjectId
+  taskId       String   @db.ObjectId
+  amount       Float
+  month        Int
+  year         Int
+  status       String
+  calculatedAt DateTime
+}
+
+model VotingConfig {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  authMode         String
+  maxSeriesPerVote Int
+  otpExpirySeconds Int
+  otpMaxAttempts   Int
+  ipRateLimit      Int
+  phoneRateLimit   Int
+  captchaThreshold Float
+  updatedBy        String   @db.ObjectId
+  updatedAt        DateTime
+}
+
+model BoardConfig {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  boardTotalMembers    Int
+  quorumMin            Int
+  approveMajorityRatio Float
+  updatedBy            String   @db.ObjectId
+  updatedAt            DateTime
 }

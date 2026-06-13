@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "jsx": "react",
     "module": "NodeNext",
     "moduleResolution": "nodenext",
     "resolvePackageJsonExports": true,
