@@ -6,7 +6,7 @@ import envConfig from 'src/shared/config/envConfig'
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
     super({
-      datasourceUrl: envConfig.DATABASE_URL,
+      datasourceUrl: envConfig.DATABASE_URL
     })
   }
 

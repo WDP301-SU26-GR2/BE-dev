@@ -16,11 +16,11 @@ const CustomZodValidationPipe: any = createZodValidationPipe({
       error.issues.map((err) => {
         return {
           ...err,
-          path: err.path.join('.'),
+          path: err.path.join('.')
         }
-      }),
+      })
     )
-  },
+  }
 })
 
 export default CustomZodValidationPipe

@@ -1,4 +1,4 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common'
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common'
 import { HttpAdapterHost } from '@nestjs/core'
 import { isUniqueConstrainError } from 'src/shared/helper/helper.prisma'
 
@@ -25,7 +25,7 @@ export class CatchEverythingFilter implements ExceptionFilter {
 
     const responseBody = {
       statusCode: httpStatus,
-      message,
+      message
     }
     console.log('Unhandled exception occurred:', exception)
     httpAdapter.reply(ctx.getResponse(), responseBody, httpStatus)

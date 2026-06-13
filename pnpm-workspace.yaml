@@ -6,6 +6,7 @@ allowBuilds:
   unrs-resolver: true
   bcrypt: true
   '@scarf/scarf': true
+  esbuild: true
 onlyBuiltDependencies:
   - "@prisma/client"
   - prisma
