@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common'
+﻿import { Injectable } from '@nestjs/common'
 import { compare, hash } from 'bcrypt'
-import envConfig from 'src/shared/config/envConfig'
+import envConfig from 'src/core/config/envConfig'
 
 const saltRounds = envConfig.SALT_OR_ROUNDS
 

@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common'
 import { REQUEST_USER_KEY } from '../auth-type'
-import { TokenService } from '../token.service'
+import { TokenService } from 'src/infrastructure/token/token.service'
 
 @Injectable()
 export class AccessTokenGuard implements CanActivate {

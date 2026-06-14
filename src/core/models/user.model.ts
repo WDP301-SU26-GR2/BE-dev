@@ -1,5 +1,9 @@
-import { UserStatus } from 'src/shared/constant/auth.constant'
+import { $Enums } from '@prisma/client'
 import z from 'zod'
+
+// UserStatus comes from Prisma as the single source of truth.
+export const UserStatus = $Enums.UserStatus
+export type UserStatusType = $Enums.UserStatus
 
 export const UserSchema = z.object({
   id: z.string(),
@@ -9,7 +13,7 @@ export const UserSchema = z.object({
   phoneNumber: z.string().min(9).max(15),
   avatar: z.string().nullable(),
   displayName: z.string().min(2).max(100).nullable(),
-  status: z.enum([UserStatus.ACTIVE, UserStatus.INACTIVE, UserStatus.BANNED, UserStatus.BLOCKED]),
+  status: z.nativeEnum($Enums.UserStatus),
   roleId: z.string(),
   deletedAt: z.date().nullable(),
   createdAt: z.date(),

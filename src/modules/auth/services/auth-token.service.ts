@@ -1,11 +1,10 @@
-import { Injectable } from '@nestjs/common'
+﻿import { Injectable } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
-import { HashingService } from 'src/shared/security/hashing.service'
-import { TokenService } from 'src/shared/security/token.service'
-import { isNotFoundError } from 'src/shared/database/prisma-error.helper'
-import { UserStatus } from 'src/shared/constant/auth.constant'
-import { JwtRefreshTokenPayload } from 'src/shared/security/jwt.type'
-import { UserType } from 'src/shared/models/shared-user.model'
+import { HashingService } from 'src/infrastructure/crypto/hashing.service'
+import { TokenService } from 'src/infrastructure/token/token.service'
+import { isNotFoundError } from 'src/infrastructure/database/prisma-error.helper'
+import { JwtRefreshTokenPayload } from 'src/infrastructure/token/jwt.type'
+import { UserStatus, UserType } from 'src/core/models/user.model'
 import {
   AccountBannedException,
   EmailNotFoundException,
@@ -71,7 +70,6 @@ export class AuthTokenService {
       throw UnauthorizedAccessException
     }
 
-    //Xóa refresh token cũ (rotate), nếu không tìm thấy nghĩa là token đã bị dùng/rotate trước đó:
     try {
       await this.authRepository.deleteRefreshToken(body.refreshToken)
     } catch (error) {

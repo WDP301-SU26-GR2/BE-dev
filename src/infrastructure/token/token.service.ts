@@ -1,6 +1,6 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common'
+﻿import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { JwtService, JwtSignOptions } from '@nestjs/jwt'
-import envConfig from 'src/shared/config/envConfig'
+import envConfig from 'src/core/config/envConfig'
 import {
   AccessTokenPayloadCreate,
   JwtAccessTokenPayload,

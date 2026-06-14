@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { OtpPurposeType } from 'src/shared/constant/auth.constant'
+import { OtpPurposeType } from '../auth.constant'
 import {
   ChangePasswordBodyType,
   ForgotPasswordBodyType,

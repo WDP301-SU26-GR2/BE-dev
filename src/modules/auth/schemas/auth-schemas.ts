@@ -1,7 +1,6 @@
-import { z } from 'zod'
-import { UserSchema } from 'src/shared/models/shared-user.model'
-import { OtpPurpose } from 'src/shared/constant/auth.constant'
-import { RoleName } from 'src/shared/security/role.constant'
+﻿import { z } from 'zod'
+import { UserSchema } from 'src/core/models/user.model'
+import { RoleName } from 'src/core/security/role.constant'
 import { extendApi } from '@anatine/zod-openapi'
 import { OtpCodeSchema } from './auth.model'
 
@@ -35,7 +34,7 @@ export const RegisterBodySchema = extendApi(
   }
 )
 
-//OTP — uses OtpCodeSchema.pick (matching current behavior)
+//OTP â€” uses OtpCodeSchema.pick (matching current behavior)
 export const SendOtpBodySchema = extendApi(
   OtpCodeSchema.pick({
     email: true,

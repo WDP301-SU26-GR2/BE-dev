@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import * as React from 'react'
 import { Resend } from 'resend'
-import envConfig from '../config/envConfig'
+import envConfig from 'src/core/config/envConfig'
 import OTPEmail from './emails/plaid-verify-identity'
 
 @Injectable()
