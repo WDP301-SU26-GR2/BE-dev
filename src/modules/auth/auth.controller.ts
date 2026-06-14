@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common'
+﻿import { Body, Controller, Post } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import {
   ChangePasswordBodyDto,
@@ -11,12 +11,12 @@ import {
   RegisterBodyDto,
   SendOtpBodyDto
 } from './dto/auth.dto'
-import { IsPublic } from 'src/shared/decorators/auth.decorator'
-import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
+import { IsPublic } from 'src/core/security/decorators/auth.decorator'
+import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { AuthService } from './services/auth.service'
 import { ZodResponse } from 'nestjs-zod'
-import { MessageResDto } from 'src/shared/dtos/response.dto'
-import type { JwtAccessTokenPayload } from 'src/shared/types/jwt.type'
+import { MessageResDto } from 'src/core/http/response.dto'
+import type { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
 
 @ApiTags('auth')
 @ApiBearerAuth()
@@ -53,6 +53,7 @@ export class AuthController {
   }
 
   @Post('refresh-token')
+  @IsPublic()
   @ZodResponse({ type: RefreshTokenResDto })
   refreshToken(@Body() body: RefreshTokenBodyDto) {
     return this.authService.refreshTokenService(body)

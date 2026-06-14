@@ -1,8 +1,8 @@
-import { NestFactory } from '@nestjs/core'
+﻿import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { cleanupOpenApiDoc } from 'nestjs-zod'
-import envConfig from 'src/shared/config/envConfig'
+import envConfig from 'src/core/config/envConfig'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
