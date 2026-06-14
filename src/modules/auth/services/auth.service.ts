@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { EmailService } from 'src/shared/services/email.service'
 import { OtpPurposeType } from 'src/shared/constant/auth.constant'
-import { AuthRepository } from '../auth.repo'
 import {
   ChangePasswordBodyType,
   ForgotPasswordBodyType,
@@ -11,9 +9,6 @@ import {
   RegisterBodyType,
   SendOtpBodyType
 } from '../schemas/auth-schemas'
-import { HashingService } from 'src/shared/services/hashing.service'
-import { RoleService } from './role.service'
-import { TokenService } from 'src/shared/services/token.service'
 import { AuthRegistrationService } from './auth-registration.service'
 import { AuthOtpService } from './auth-otp.service'
 import { AuthPasswordService } from './auth-password.service'
@@ -22,12 +17,8 @@ import { AuthTokenService } from './auth-token.service'
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name)
+
   constructor(
-    private readonly emailService: EmailService,
-    private readonly authRepository: AuthRepository,
-    private readonly rolesService: RoleService,
-    private readonly hashingService: HashingService,
-    private readonly tokenService: TokenService,
     private readonly registrationService: AuthRegistrationService,
     private readonly otpService: AuthOtpService,
     private readonly passwordService: AuthPasswordService,
