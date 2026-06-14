@@ -3,7 +3,7 @@ import { config } from 'dotenv'
 import { env } from 'process'
 import { RoleName } from 'src/shared/constant/role.constant'
 import { HashingService } from 'src/shared/services/hashing.service'
-import { PrismaService } from 'src/shared/services/prisma.service'
+import { PrismaService } from 'src/shared/database/prisma.service'
 config()
 
 const prisma = new PrismaService()

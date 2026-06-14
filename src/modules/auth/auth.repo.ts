@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { PrismaService } from 'src/shared/services/prisma.service'
+import { PrismaService } from 'src/shared/database/prisma.service'
 import { OtpCodeType, RoleType } from './schemas/auth.model'
 import { OtpPurposeType } from 'src/shared/constant/auth.constant'
 import { UserType } from 'src/shared/models/shared-user.model'
