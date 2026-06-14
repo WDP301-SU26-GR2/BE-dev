@@ -784,3 +784,82 @@ model MangakaReview {
   @@index([editorId])
   @@index([mangakaId])
 }
+
+model Contract {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId  String  @db.ObjectId
+  mangakaId String  @db.ObjectId
+  editorId  String? @db.ObjectId
+
+  contractType          ContractType
+  valuationAmount       Float?
+  publisherOwnershipPct Float?
+  mangakaOwnershipPct   Float?
+  terminationClause     String?
+  contractStart         DateTime?
+  contractEnd           DateTime?
+  status                ContractStatus @default(DRAFT)
+  mangakaSignedAt       DateTime?
+  boardSignedAt         DateTime?
+  createdAt             DateTime       @default(now())
+
+  conditions PaymentCondition[]
+  payments   PaymentRecord[]
+  amendments ContractAmendment[]
+
+  @@index([seriesId])
+  @@index([mangakaId])
+  @@index([editorId])
+}
+
+model PaymentCondition {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  contractId String   @db.ObjectId
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  conditionType   ConditionType
+  thresholdConfig Json?
+  payoutAmount    Float?
+  payoutPct       Float?
+  isRecurring     Boolean                @default(false)
+  status          PaymentConditionStatus @default(PENDING)
+  achievedAt      DateTime?
+
+  payments PaymentRecord[]
+
+  @@index([contractId])
+}
+
+model PaymentRecord {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  contractId  String            @db.ObjectId
+  contract    Contract          @relation(fields: [contractId], references: [id])
+  conditionId String?           @db.ObjectId
+  condition   PaymentCondition? @relation(fields: [conditionId], references: [id])
+
+  approvedBy  String?             @db.ObjectId
+  paymentType PaymentType
+  amount      Float
+  period      String?
+  status      PaymentRecordStatus @default(PENDING)
+  paidAt      DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@index([contractId])
+  @@index([conditionId])
+  @@index([approvedBy])
+}
+
+model ContractAmendment {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  contractId String   @db.ObjectId
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  changedClauses  String[]
+  reason          String?
+  status          ContractAmendmentStatus @default(DRAFT)
+  fullyExecutedAt DateTime?
+  createdAt       DateTime                @default(now())
+
+  @@index([contractId])
+}
