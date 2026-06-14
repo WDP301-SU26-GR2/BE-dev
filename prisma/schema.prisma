@@ -656,3 +656,131 @@ model Region {
 
   @@index([pageId])
 }
+
+model Task {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  pageId      String  @db.ObjectId
+  regionId    String? @db.ObjectId
+  assistantId String? @db.ObjectId
+
+  taskType  Specialization?
+  status    TaskStatus      @default(ASSIGNED)
+  priority  Int             @default(0)
+  deadline  DateTime?
+  createdAt DateTime        @default(now())
+
+  versions    TaskVersion[]
+  annotations Annotation[]
+
+  @@index([pageId])
+  @@index([regionId])
+  @@index([assistantId])
+}
+
+type TaskVersion {
+  submittedBy   String?                 @db.ObjectId
+  versionNumber Int
+  file          String?
+  reviewStatus  TaskVersionReviewStatus @default(PENDING)
+  reviewerNote  String?
+  submittedAt   DateTime                @default(now())
+}
+
+model Annotation {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  taskId String @db.ObjectId
+  task   Task   @relation(fields: [taskId], references: [id])
+
+  authorId String? @db.ObjectId
+
+  targetType     AnnotationTargetType?
+  targetId       String?               @db.ObjectId
+  coordinates    Json?
+  reviewStage    ReviewStage?
+  authorRole     String?
+  annotationType AnnotationType?
+  content        String?
+  isResolved     Boolean               @default(false)
+  resolvedAt     DateTime?
+  createdAt      DateTime              @default(now())
+
+  @@index([taskId])
+  @@index([authorId])
+}
+
+model Asset {
+  id         String  @id @default(auto()) @map("_id") @db.ObjectId
+  uploadedBy String? @db.ObjectId
+
+  name       String
+  filePath   String
+  assetType  AssetType?
+  uploadedAt DateTime   @default(now())
+
+  @@index([uploadedBy])
+}
+
+model CollaborationInvite {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  mangakaId   String  @db.ObjectId
+  assistantId String  @db.ObjectId
+  seriesId    String? @db.ObjectId
+
+  hireStart DateTime?
+  hireEnd   DateTime?
+  taskTypes Specialization[]
+  status    CollaborationInviteStatus @default(PENDING)
+  createdAt DateTime                  @default(now())
+
+  @@index([mangakaId])
+  @@index([assistantId])
+  @@index([seriesId])
+}
+
+model StudioAssignment {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  mangakaId   String  @db.ObjectId
+  assistantId String  @db.ObjectId
+  seriesId    String? @db.ObjectId
+
+  hireStart         DateTime?
+  hireEnd           DateTime?
+  assignedTaskTypes Specialization[]
+  status            StudioAssignmentStatus @default(ACTIVE)
+  terminatedReason  String?
+  createdAt         DateTime               @default(now())
+
+  @@index([mangakaId])
+  @@index([assistantId])
+  @@index([seriesId])
+}
+
+model AssistantReview {
+  id                 String  @id @default(auto()) @map("_id") @db.ObjectId
+  studioAssignmentId String? @db.ObjectId
+  mangakaId          String  @db.ObjectId
+  assistantId        String  @db.ObjectId
+
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([studioAssignmentId])
+  @@index([mangakaId])
+  @@index([assistantId])
+}
+
+model MangakaReview {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId  String? @db.ObjectId
+  editorId  String  @db.ObjectId
+  mangakaId String  @db.ObjectId
+
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([seriesId])
+  @@index([editorId])
+  @@index([mangakaId])
+}
