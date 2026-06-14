@@ -1,13 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { EmailService } from 'src/shared/services/email.service'
-import { OtpPurposeType, UserStatus } from 'src/shared/constant/auth.constant'
-import {
-  AccountBannedException,
-  EmailNotFoundException,
-  InvalidPasswordException,
-  RefreshTokenAlreadyUsedException,
-  UnauthorizedAccessException
-} from '../errors/auth.errors'
+import { OtpPurposeType } from 'src/shared/constant/auth.constant'
 import { AuthRepository } from '../auth.repo'
 import {
   ChangePasswordBodyType,
@@ -18,16 +11,13 @@ import {
   RegisterBodyType,
   SendOtpBodyType
 } from '../schemas/auth-schemas'
-import { RoleType } from '../schemas/auth.model'
 import { HashingService } from 'src/shared/services/hashing.service'
 import { RoleService } from './role.service'
-import { isNotFoundError } from 'src/shared/helpers/helper.prisma'
 import { TokenService } from 'src/shared/services/token.service'
-import { JwtRefreshTokenPayload } from 'src/shared/types/jwt.type'
-import { UserType } from 'src/shared/models/shared-user.model'
 import { AuthRegistrationService } from './auth-registration.service'
 import { AuthOtpService } from './auth-otp.service'
 import { AuthPasswordService } from './auth-password.service'
+import { AuthTokenService } from './auth-token.service'
 
 @Injectable()
 export class AuthService {
@@ -40,7 +30,8 @@ export class AuthService {
     private readonly tokenService: TokenService,
     private readonly registrationService: AuthRegistrationService,
     private readonly otpService: AuthOtpService,
-    private readonly passwordService: AuthPasswordService
+    private readonly passwordService: AuthPasswordService,
+    private readonly tokenUseCaseService: AuthTokenService
   ) {}
 
   registerService(body: RegisterBodyType) {
@@ -55,73 +46,16 @@ export class AuthService {
     return this.otpService.validateOtpCode(params)
   }
 
-  async loginService(body: LoginBodyType) {
-    const user = await this.authRepository.findUserWithRole({ email: body.email })
-    if (!user) {
-      throw EmailNotFoundException
-    }
-
-    if (user.status === UserStatus.BANNED || user.status === UserStatus.BLOCKED) {
-      throw AccountBannedException
-    }
-
-    const isPasswordMatch = await this.hashingService.compare(body.password, user.password)
-    if (!isPasswordMatch) {
-      throw InvalidPasswordException
-    }
-
-    return await this.generateAuthResponse(user)
+  loginService(body: LoginBodyType) {
+    return this.tokenUseCaseService.loginService(body)
   }
 
-  async logoutService(body: LogoutBodyType) {
-    try {
-      await this.tokenService.verifyRefreshToken(body.refreshToken)
-    } catch {
-      throw UnauthorizedAccessException
-    }
-
-    try {
-      await this.authRepository.deleteRefreshToken(body.refreshToken)
-    } catch (error) {
-      if (isNotFoundError(error)) {
-        throw RefreshTokenAlreadyUsedException
-      }
-      throw error
-    }
-
-    return {
-      message: 'Logout successfully'
-    }
+  logoutService(body: LogoutBodyType) {
+    return this.tokenUseCaseService.logoutService(body)
   }
 
-  async refreshTokenService(body: RefreshTokenBodyType) {
-    let payload: JwtRefreshTokenPayload
-    try {
-      payload = await this.tokenService.verifyRefreshToken(body.refreshToken)
-    } catch {
-      throw UnauthorizedAccessException
-    }
-
-    //Xóa refresh token cũ (rotate), nếu không tìm thấy nghĩa là token đã bị dùng/rotate trước đó:
-    try {
-      await this.authRepository.deleteRefreshToken(body.refreshToken)
-    } catch (error) {
-      if (isNotFoundError(error)) {
-        throw RefreshTokenAlreadyUsedException
-      }
-      throw error
-    }
-
-    const user = await this.authRepository.findUserWithRole({ id: payload.userId })
-    if (!user) {
-      throw UnauthorizedAccessException
-    }
-
-    if (user.status === UserStatus.BANNED || user.status === UserStatus.BLOCKED) {
-      throw AccountBannedException
-    }
-
-    return await this.generateAuthResponse(user)
+  refreshTokenService(body: RefreshTokenBodyType) {
+    return this.tokenUseCaseService.refreshTokenService(body)
   }
 
   forgotPasswordService(body: ForgotPasswordBodyType) {
@@ -130,35 +64,5 @@ export class AuthService {
 
   changePasswordService(body: ChangePasswordBodyType, userId: string) {
     return this.passwordService.changePasswordService(body, userId)
-  }
-
-  private async generateAuthResponse(user: Omit<UserType, 'password'> & { role: Pick<RoleType, 'code'> }) {
-    const [accessToken, refreshToken] = await Promise.all([
-      this.tokenService.signAccessToken({
-        userId: user.id,
-        roleName: user.role.code
-      }),
-      this.tokenService.signRefreshToken({ userId: user.id })
-    ])
-
-    const { exp } = this.tokenService.decodeRefreshToken(refreshToken)
-    await this.authRepository.createRefreshToken({
-      token: refreshToken,
-      userId: user.id,
-      expiresAt: new Date(exp * 1000)
-    })
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        displayName: user.displayName,
-        phoneNumber: user.phoneNumber,
-        role: user.role.code
-      },
-      accessToken,
-      refreshToken
-    }
   }
 }
