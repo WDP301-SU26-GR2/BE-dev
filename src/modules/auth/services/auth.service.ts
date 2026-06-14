@@ -1,7 +1,6 @@
 import { ConflictException, Injectable, Logger } from '@nestjs/common'
 import { EmailService } from 'src/shared/services/email.service'
 import { SendOtpBodyDto } from '../dto/auth.dto'
-import { SharedUsersRepository } from 'src/shared/repositories/shared-users.repo'
 import { OtpPurpose, OtpPurposeType, UserStatus } from 'src/shared/constant/auth.constant'
 import {
   AccountBannedException,
@@ -38,7 +37,6 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name)
   constructor(
     private readonly emailService: EmailService,
-    private readonly sharedUsersRepository: SharedUsersRepository,
     private readonly authRepository: AuthRepository,
     private readonly rolesService: RoleService,
     private readonly hashingService: HashingService,
@@ -97,9 +95,7 @@ export class AuthService {
 
   async sendOTPService(body: SendOtpBodyDto) {
     // Kiểm tra email đã tồn tại trong DB user, ko phải trong VerificationCode, vì nếu có tồn tại trong VerificationCode nhưng không tồn tại trong User thì vẫn có thể gửi OTP được, vì có thể người dùng đã gửi OTP nhưng chưa hoàn thành đăng ký, hoặc đã hết hạn OTP và muốn gửi lại OTP mới, nên chúng ta chỉ cần kiểm tra email đã tồn tại trong DB user hay chưa, nếu đã tồn tại thì sẽ không cho phép gửi OTP nữa vì email này đã được sử dụng để đăng ký rồi, nếu chưa tồn tại thì mới cho phép gửi OTP để đăng ký:
-    const user = await this.sharedUsersRepository.findUnique({
-      email: body.email
-    })
+    const user = await this.authRepository.findUserByEmail(body.email)
     //Type là REGISTER thì sẽ kiểm tra email đã tồn tại trong DB user hay chưa, nếu đã tồn tại thì sẽ không cho phép gửi OTP nữa vì email này đã được sử dụng để đăng ký rồi, nếu chưa tồn tại thì mới cho phép gửi OTP để đăng ký, còn Type là FORGOT_PASSWORD thì sẽ không kiểm tra email đã tồn tại trong DB user hay chưa, vì dù email đó có tồn tại trong DB user hay không thì vẫn có thể gửi OTP được để tránh việc kẻ xấu có thể lợi dụng API gửi OTP để dò tìm xem email nào có tồn tại trong hệ thống và email nào không có tồn tại trong hệ thống, điều này giúp tăng cường bảo mật cho hệ thống của chúng ta:
     if (body.purpose === OtpPurpose.REGISTER && user) {
       throw EmailAlreadyExistsException

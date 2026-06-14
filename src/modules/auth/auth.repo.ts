@@ -84,6 +84,12 @@ export class AuthRepository {
     })
   }
 
+  async findUserByEmail(email: string): Promise<UserType | null> {
+    return await this.prismaService.user.findUnique({
+      where: { email }
+    })
+  }
+
   async updateUserPassword(userId: string, password: string): Promise<void> {
     await this.prismaService.user.update({
       where: { id: userId },
