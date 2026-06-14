@@ -15,7 +15,7 @@ import { IsPublic } from 'src/shared/decorators/auth.decorator'
 import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
 import { AuthService } from './services/auth.service'
 import { ZodResponse } from 'nestjs-zod'
-import { MessageResDto } from 'src/shared/dto/response.dto'
+import { MessageResDto } from 'src/shared/http/response.dto'
 import type { JwtAccessTokenPayload } from 'src/shared/types/jwt.type'
 
 @ApiTags('auth')
