@@ -1,0 +1,10 @@
+# Codex CLI — project-scoped overrides.
+# Only applied when this repo is marked "trusted" (see Codex docs: config-advanced).
+#
+# - Shared rules: AGENTS.md at the repo root is loaded automatically every session.
+#   Do not duplicate that content here.
+# - Shared skills: .agents/skills/ (e.g. backend-development) is auto-discovered as
+#   Agent Skills — no extra wiring needed.
+#
+# Uncomment if AGENTS.md (+ imports) ever grows past Codex's default project-doc limit:
+# project_doc_max_bytes = 65536
