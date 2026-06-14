@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { OtpPurpose } from 'src/shared/constant/auth.constant'
+import { OtpPurpose } from '../auth.constant'
 import { extendApi } from '@anatine/zod-openapi'
 
 //Role

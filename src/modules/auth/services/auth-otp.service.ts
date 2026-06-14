@@ -1,8 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common'
+﻿import { Injectable, Logger } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
-import { EmailService } from 'src/shared/email/email.service'
-import { generateOTP } from 'src/shared/helpers/helperOtp'
-import { OtpPurpose, OtpPurposeType } from 'src/shared/constant/auth.constant'
+import { EmailService } from 'src/infrastructure/email/email.service'
+import { generateOTP } from '../helpers/otp.helper'
+import { OtpPurpose, OtpPurposeType } from '../auth.constant'
 import {
   FailedToSendOTPException,
   InvalidOTPException,

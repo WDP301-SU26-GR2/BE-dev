@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common'
+﻿import { Injectable } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
-import { HashingService } from 'src/shared/security/hashing.service'
+import { HashingService } from 'src/infrastructure/crypto/hashing.service'
 import { AuthOtpService } from './auth-otp.service'
-import { OtpPurpose, UserStatus } from 'src/shared/constant/auth.constant'
+import { OtpPurpose } from '../auth.constant'
+import { UserStatus } from 'src/core/models/user.model'
 import { AccountBannedException, EmailNotFoundException, InvalidPasswordException } from '../errors/auth.errors'
 import { ChangePasswordBodyType, ForgotPasswordBodyType } from '../schemas/auth-schemas'
 
@@ -39,7 +40,6 @@ export class AuthPasswordService {
           purpose: OtpPurpose.FORGOT_PASSWORD
         }
       }),
-      //Revoke toàn bộ session hiện có của user sau khi đổi mật khẩu:
       this.authRepository.deleteRefreshTokensByUserId(user.id)
     ])
 
@@ -62,7 +62,6 @@ export class AuthPasswordService {
     const hashedPassword = await this.hashingService.hash(body.newPassword)
     await Promise.all([
       this.authRepository.updateUserPassword(user.id, hashedPassword),
-      //Revoke toàn bộ session hiện có của user sau khi đổi mật khẩu:
       this.authRepository.deleteRefreshTokensByUserId(user.id)
     ])
 

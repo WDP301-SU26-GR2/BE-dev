@@ -1,55 +1,58 @@
-# AGENT.md — Backend Development Guide
+﻿# AGENT.md â€” Backend Development Guide
 
-> Đọc file này TRƯỚC khi viết/sửa code. Mọi PR phải tuân thủ.
+> Äá»c file nÃ y TRÆ¯á»šC khi viáº¿t/sá»­a code. Má»i PR pháº£i tuÃ¢n thá»§.
 
 ## 1. Project Overview
 
 - **Stack**: NestJS 11, Prisma, Zod, MongoDB (replica set `rs0`), TypeScript.
-- **Module hiện tại**: `auth`. (`users` đang được tái cấu trúc — xem `src/modules/`.)
-- **Quy tắc vàng**: Vertical slice (NestJS chuẩn). Mỗi module tự chứa đủ: controller, service(s), repo, schemas, dto, errors.
+- **Module hiá»‡n táº¡i**: `auth`. (`users` Ä‘ang Ä‘Æ°á»£c tÃ¡i cáº¥u trÃºc â€” xem `src/modules/`.)
+- **Quy táº¯c vÃ ng**: Vertical slice (NestJS chuáº©n). Má»—i module tá»± chá»©a Ä‘á»§: controller, service(s), repo, schemas, dto, errors.
 
 ## 2. Folder Structure
 
 ```
 src/
-├── main.ts
-├── app.module.ts
-├── shared/                  # cross-module utilities
-│   ├── services/            # EmailService, TokenService, HashingService, PrismaService
-│   ├── guards/              # AuthenticationGuard, AccessTokenGuard
-│   ├── decorators/          # ActiveUser, IsPublic, ...
-│   ├── schemas/             # Shared entity schemas (shared-user.model.ts, ...)
-│   ├── pipes/, filters/, helpers/, constant/, types/, config/
-│   └── (no repositories/ — chỉ module repos)
-└── modules/
-    └── <name>/
-        ├── <name>.module.ts
-        ├── <name>.controller.ts
-        ├── <name>.service.ts        # Orchestrator (delegate tới use-case services)
-        ├── <name>.repo.ts           # Module-level repository
-        ├── schemas/
-        │   ├── <name>.model.ts      # Entity schemas
-        │   └── <name>-schemas.ts   # Request/response schemas
-        ├── dto/<name>.dto.ts
-        ├── errors/<name>.errors.ts
-        └── services/                # Optional: use-case services
-            ├── <name>-<usecase>.service.ts
-            └── ...
+â”œâ”€â”€ main.ts
+â”œâ”€â”€ app.module.ts
+|-- core/                    # app-level cross-cutting rules
+|   |-- config/              # envConfig
+|   |-- http/                # filters, pipes, shared response/empty-body DTOs
+|   |-- security/            # guards, decorators, auth type, role constants
+|   `-- models/              # Shared entity schemas (user.model.ts, ...)
+|-- infrastructure/          # external adapters / technology details
+|   |-- database/            # PrismaService, Prisma error helpers
+|   |-- crypto/              # HashingService
+|   |-- token/               # TokenService, JWT payload types
+|   `-- email/               # EmailService + React-email templates
+â””â”€â”€ modules/
+    â””â”€â”€ <name>/
+        â”œâ”€â”€ <name>.module.ts
+        â”œâ”€â”€ <name>.controller.ts
+        â”œâ”€â”€ <name>.service.ts        # Orchestrator (delegate tá»›i use-case services)
+        â”œâ”€â”€ <name>.repo.ts           # Module-level repository
+        â”œâ”€â”€ schemas/
+        â”‚   â”œâ”€â”€ <name>.model.ts      # Entity schemas
+        â”‚   â””â”€â”€ <name>-schemas.ts   # Request/response schemas
+        â”œâ”€â”€ dto/<name>.dto.ts
+        â”œâ”€â”€ errors/<name>.errors.ts
+        â””â”€â”€ services/                # Optional: use-case services
+            â”œâ”€â”€ <name>-<usecase>.service.ts
+            â””â”€â”€ ...
 ```
 
 ## 3. Layer Responsibilities
 
-| Layer | Responsibility | KHÔNG làm |
+| Layer | Responsibility | KHÃ”NG lÃ m |
 |-------|---------------|-----------|
-| **Controller** | HTTP route, call service, return response | Không validate, không gọi repo trực tiếp |
-| **Service** | Business logic, orchestration, validate business rules | Không Prisma detail, không `req`/`res` |
-| **Repository** | Data access (Prisma) | Không business logic |
-| **Schema (Zod)** | Validation + type inference | Không throw HttpException |
-| **DTO** | Swagger + controller return type | Không có logic |
+| **Controller** | HTTP route, call service, return response | KhÃ´ng validate, khÃ´ng gá»i repo trá»±c tiáº¿p |
+| **Service** | Business logic, orchestration, validate business rules | KhÃ´ng Prisma detail, khÃ´ng `req`/`res` |
+| **Repository** | Data access (Prisma) | KhÃ´ng business logic |
+| **Schema (Zod)** | Validation + type inference | KhÃ´ng throw HttpException |
+| **DTO** | Swagger + controller return type | KhÃ´ng cÃ³ logic |
 
 ## 4. Naming Conventions
 
-| Loại | Convention | Ví dụ |
+| Loáº¡i | Convention | VÃ­ dá»¥ |
 |------|-----------|-------|
 | File | `kebab-case.ts` | `auth-registration.service.ts` |
 | Class | `PascalCase` | `AuthRegistrationService` |
@@ -58,45 +61,45 @@ src/
 | Type alias | `PascalCase` + `Type` | `RegisterBodyType` |
 | Zod schema | `PascalCase` + `Schema` | `RegisterBodySchema` |
 | DTO class | `PascalCase` + `Dto` | `RegisterBodyDto` |
-| Exception | `PascalCase` + `Exception` (hoặc const instance) | `InvalidOTPException` |
+| Exception | `PascalCase` + `Exception` (hoáº·c const instance) | `InvalidOTPException` |
 
 ## 5. Repository Placement Rule
 
-| Loại | Vị trí | Khi nào tạo |
+| Loáº¡i | Vá»‹ trÃ­ | Khi nÃ o táº¡o |
 |------|--------|-------------|
-| **Module repository** | `src/modules/<name>/<name>.repo.ts` | Module đó đang dùng method |
-| **Shared repository** | `src/shared/repositories/<name>.repo.ts` | **2+ modules thật sự dùng chung method** |
+| **Module repository** | `src/modules/<name>/<name>.repo.ts` | Module Ä‘Ã³ Ä‘ang dÃ¹ng method |
+| **Shared repository** | Không tạo trong `src/core/` hoặc `src/infrastructure/` | Nếu 2+ modules cần chung data access thì thiết kế lại module boundary trước |
 
 ## 6. Service Boundary
 
-Tách service theo use-case khi **bất kỳ** điều kiện nào:
-- Service > 200 dòng
-- Service có > 4 use-case methods
-- Service có > 6 dependencies inject
-- Có nhóm methods hoàn toàn độc lập
+TÃ¡ch service theo use-case khi **báº¥t ká»³** Ä‘iá»u kiá»‡n nÃ o:
+- Service > 200 dÃ²ng
+- Service cÃ³ > 4 use-case methods
+- Service cÃ³ > 6 dependencies inject
+- CÃ³ nhÃ³m methods hoÃ n toÃ n Ä‘á»™c láº­p
 
 **Pattern**: 1 Orchestrator + N UseCase Services.
-- Controller inject **chỉ** Orchestrator.
+- Controller inject **chá»‰** Orchestrator.
 - Orchestrator delegate sang use-case services.
 
 ## 7. Error Handling
 
-- Exception dùng **const instance** pattern:
+- Exception dÃ¹ng **const instance** pattern:
   ```typescript
   export const InvalidOTPException = new UnprocessableEntityException([
     { message: 'Error.InvalidOTP', path: 'code' }
   ])
   ```
-- Constants messages ở `src/shared/constant/<name>.constant.ts` — KHÔNG hard-code.
+- App-level constants ở concern folder tương ứng (vd `src/core/security/role.constant.ts`); domain constants ở `src/modules/<domain>/` — KHÔNG hard-code messages.
 - Error code format: `<MODULE>_<REASON>` (e.g. `AUTH_OTP_INVALID`).
 
 ## 8. Migration Checklist
 
-Mỗi refactor phải giữ:
+Má»—i refactor pháº£i giá»¯:
 - [ ] `npm run build` exit 0
-- [ ] `npm run start:dev` không lỗi
-- [ ] E2E auth flow pass (nếu touch auth module)
+- [ ] `npm run start:dev` khÃ´ng lá»—i
+- [ ] E2E auth flow pass (náº¿u touch auth module)
 - [ ] Grep: 0 `console.log`/`TODO`/`FIXME` trong production code
-- [ ] Git: mỗi commit = 1 logical change, green build
+- [ ] Git: má»—i commit = 1 logical change, green build
 
-**Chi tiết convention → xem spec**: `docs/superpowers/specs/2026-06-14-backend-codebase-restructure-design.md`
+**Chi tiáº¿t convention â†’ xem spec**: `docs/superpowers/specs/2026-06-14-shared-refactor-design.md`
