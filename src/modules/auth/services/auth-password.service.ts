@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
-import { HashingService } from 'src/shared/services/hashing.service'
+import { HashingService } from 'src/shared/security/hashing.service'
 import { AuthOtpService } from './auth-otp.service'
 import { OtpPurpose, UserStatus } from 'src/shared/constant/auth.constant'
 import { AccountBannedException, EmailNotFoundException, InvalidPasswordException } from '../errors/auth.errors'

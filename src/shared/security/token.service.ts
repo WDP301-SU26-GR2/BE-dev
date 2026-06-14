@@ -6,7 +6,7 @@ import {
   JwtAccessTokenPayload,
   JwtRefreshTokenPayload,
   RefreshTokenPayloadCreate
-} from 'src/shared/types/jwt.type'
+} from './jwt.type'
 
 @Injectable()
 export class TokenService {

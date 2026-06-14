@@ -1,11 +1,11 @@
 import { ConflictException, Injectable } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
-import { HashingService } from 'src/shared/services/hashing.service'
+import { HashingService } from 'src/shared/security/hashing.service'
 import { AuthOtpService } from './auth-otp.service'
 import { RoleService } from './role.service'
 import { isUniqueConstrainError } from 'src/shared/database/prisma-error.helper'
 import { OtpPurpose, UserStatus } from 'src/shared/constant/auth.constant'
-import { RoleName } from 'src/shared/constant/role.constant'
+import { RoleName } from 'src/shared/security/role.constant'
 import { EmailAlreadyExistsException } from '../errors/auth.errors'
 import { RegisterBodyType } from '../schemas/auth-schemas'
 
