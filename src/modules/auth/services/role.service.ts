@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { RoleName } from 'src/shared/constant/role.constant'
+import { RoleName } from 'src/shared/security/role.constant'
 import { PrismaService } from 'src/shared/database/prisma.service'
 
 @Injectable()

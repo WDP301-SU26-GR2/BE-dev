@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
-import { HashingService } from 'src/shared/services/hashing.service'
-import { TokenService } from 'src/shared/services/token.service'
+import { HashingService } from 'src/shared/security/hashing.service'
+import { TokenService } from 'src/shared/security/token.service'
 import { isNotFoundError } from 'src/shared/database/prisma-error.helper'
 import { UserStatus } from 'src/shared/constant/auth.constant'
-import { JwtRefreshTokenPayload } from 'src/shared/types/jwt.type'
+import { JwtRefreshTokenPayload } from 'src/shared/security/jwt.type'
 import { UserType } from 'src/shared/models/shared-user.model'
 import {
   AccountBannedException,

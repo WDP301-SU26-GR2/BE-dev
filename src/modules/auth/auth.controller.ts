@@ -11,12 +11,12 @@ import {
   RegisterBodyDto,
   SendOtpBodyDto
 } from './dto/auth.dto'
-import { IsPublic } from 'src/shared/decorators/auth.decorator'
-import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
+import { IsPublic } from 'src/shared/security/decorators/auth.decorator'
+import { ActiveUser } from 'src/shared/security/decorators/active-user.decorator'
 import { AuthService } from './services/auth.service'
 import { ZodResponse } from 'nestjs-zod'
 import { MessageResDto } from 'src/shared/http/response.dto'
-import type { JwtAccessTokenPayload } from 'src/shared/types/jwt.type'
+import type { JwtAccessTokenPayload } from 'src/shared/security/jwt.type'
 
 @ApiTags('auth')
 @ApiBearerAuth()
