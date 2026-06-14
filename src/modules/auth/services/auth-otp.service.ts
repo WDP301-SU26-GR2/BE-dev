@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
-import { EmailService } from 'src/shared/services/email.service'
+import { EmailService } from 'src/shared/email/email.service'
 import { generateOTP } from 'src/shared/helpers/helperOtp'
 import { OtpPurpose, OtpPurposeType } from 'src/shared/constant/auth.constant'
 import {
