@@ -495,6 +495,7 @@ model Series {
 
   names               Name[]
   publicationVersions PublicationVersion[]
+  chapters            Chapter[]
 
   createdAt DateTime @default(now())
 
@@ -546,4 +547,112 @@ model PublicationVersion {
   createdAt        DateTime         @default(now())
 
   @@index([seriesId])
+}
+
+model Chapter {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId String @db.ObjectId
+  series   Series @relation(fields: [seriesId], references: [id])
+
+  nameId String? @db.ObjectId
+
+  chapterNumber Int
+  title         String?
+  totalPages    Int?
+  status        ChapterStatus @default(DRAFT)
+  publishedAt   DateTime?
+
+  schedule   Schedule?
+  manuscript Manuscript?
+  pages      Page[]
+
+  @@index([seriesId])
+  @@index([nameId])
+}
+
+model Schedule {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId String  @unique @db.ObjectId
+  chapter   Chapter @relation(fields: [chapterId], references: [id])
+
+  originalDeadline DateTime?
+  currentDeadline  DateTime?
+  extended         Boolean   @default(false)
+
+  extensions       ScheduleExtension[]
+  deadlineRequests DeadlineRequest[]
+}
+
+type ScheduleExtension {
+  extendedBy       String?   @db.ObjectId
+  previousDeadline DateTime?
+  newDeadline      DateTime?
+  reason           String?
+  extendedAt       DateTime  @default(now())
+}
+
+model DeadlineRequest {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  scheduleId String   @db.ObjectId
+  schedule   Schedule @relation(fields: [scheduleId], references: [id])
+
+  chapterId       String? @db.ObjectId
+  seriesId        String? @db.ObjectId
+  boardReviewedBy String? @db.ObjectId
+
+  requestedBy       String?
+  currentDeadline   DateTime?
+  requestedDeadline DateTime?
+  reason            String?
+  affectsSlot       Boolean               @default(false)
+  status            DeadlineRequestStatus @default(PROPOSED)
+  resolvedAt        DateTime?
+  createdAt         DateTime              @default(now())
+
+  @@index([scheduleId])
+  @@index([chapterId])
+  @@index([seriesId])
+}
+
+model Manuscript {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId String  @unique @db.ObjectId
+  chapter   Chapter @relation(fields: [chapterId], references: [id])
+
+  status              ManuscriptStatus @default(DRAFT)
+  finalFile           String?
+  submittedToEditorAt DateTime?
+  approvedAt          DateTime?
+}
+
+model Page {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId String  @db.ObjectId
+  chapter   Chapter @relation(fields: [chapterId], references: [id])
+
+  pageNumber    Int
+  originalFile  String?
+  compositeFile String?
+  status        PageStatus @default(DRAFT)
+  createdAt     DateTime   @default(now())
+
+  regions Region[]
+
+  @@index([chapterId])
+}
+
+model Region {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  pageId String @db.ObjectId
+  page   Page   @relation(fields: [pageId], references: [id])
+
+  coordinates        Json?
+  regionType         RegionType?
+  detectedSubtype    String?
+  createdBy          String?
+  confirmedByMangaka Boolean     @default(false)
+  confidenceScore    Float?
+  aiModelVersion     String?
+
+  @@index([pageId])
 }
