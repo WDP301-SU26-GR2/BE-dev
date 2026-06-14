@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common'
-import { PrismaService } from 'src/shared/services/prisma.service'
+﻿import { Injectable } from '@nestjs/common'
+import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { OtpCodeType, RoleType } from './schemas/auth.model'
-import { OtpPurposeType } from 'src/shared/constant/auth.constant'
-import { UserType } from 'src/shared/models/shared-user.model'
+import { OtpPurposeType } from './auth.constant'
+import { UserType } from 'src/core/models/user.model'
 
 @Injectable()
 export class AuthRepository {
@@ -20,7 +20,6 @@ export class AuthRepository {
   async createOtpRequest(
     payload: Pick<OtpCodeType, 'email' | 'otpCodeHash' | 'purpose' | 'expiresAt'>
   ): Promise<OtpCodeType> {
-    //tìm kiếm bản ghi theo email, purpose và otpCodeHash
     const existingOtpRequest = await this.prismaService.otpRequest.findUnique({
       where: {
         email_purpose_otpCodeHash: {
@@ -81,6 +80,12 @@ export class AuthRepository {
     return await this.prismaService.user.findUnique({
       where: uniqueValue,
       include: { role: { select: { code: true } } }
+    })
+  }
+
+  async findUserByEmail(email: string): Promise<UserType | null> {
+    return await this.prismaService.user.findUnique({
+      where: { email }
     })
   }
 

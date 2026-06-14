@@ -1,74 +1,71 @@
-# 🏗️ Kiến trúc hệ thống — Mangaka Backend
+﻿# ðŸ—ï¸ Kiáº¿n trÃºc há»‡ thá»‘ng â€” Mangaka Backend
 
-> Tài liệu mô tả kiến trúc tổng thể, data flow, và các design pattern được áp dụng trong dự án.
-> **Đọc file này TRƯỚC khi bắt tay vào code.**
+> TÃ i liá»‡u mÃ´ táº£ kiáº¿n trÃºc tá»•ng thá»ƒ, data flow, vÃ  cÃ¡c design pattern Ä‘Æ°á»£c Ã¡p dá»¥ng trong dá»± Ã¡n.
+> **Äá»c file nÃ y TRÆ¯á»šC khi báº¯t tay vÃ o code.**
 
 ---
 
 ## 1. Tech Stack Overview
 
-| Layer | Công nghệ | Version | Ghi chú |
+| Layer | CÃ´ng nghá»‡ | Version | Ghi chÃº |
 |-------|-----------|---------|---------|
-| **Runtime** | Node.js | 22+ | LTS, chạy trên ES2022 target |
-| **Framework** | NestJS | 11.x | Sử dụng module pattern, Dependency Injection |
+| **Runtime** | Node.js | 22+ | LTS, cháº¡y trÃªn ES2022 target |
+| **Framework** | NestJS | 11.x | Sá»­ dá»¥ng module pattern, Dependency Injection |
 | **Language** | TypeScript | 5.7+ | Strict mode, `NodeNext` module system |
 | **ORM** | Prisma | 6.19+ | Schema-first, type-safe database access |
-| **Database** | MongoDB | 7.x | Replica set (`rs0`) bắt buộc cho Prisma |
-| **Cache/Queue** | Redis | 7.x | Caching, session, và job queue |
-| **Validation** | Zod + nestjs-zod | zod 4.x | Schema validation cho cả request và response |
+| **Database** | MongoDB | 7.x | Replica set (`rs0`) báº¯t buá»™c cho Prisma |
+| **Cache/Queue** | Redis | 7.x | Caching, session, vÃ  job queue |
+| **Validation** | Zod + nestjs-zod | zod 4.x | Schema validation cho cáº£ request vÃ  response |
 | **Auth** | JWT (HS256) | @nestjs/jwt 11.x | Access + Refresh token pair |
 | **Hashing** | bcrypt | 6.x | Password hashing |
-| **API Docs** | Swagger | @nestjs/swagger 11.x | Auto-generated tại `/api` |
+| **API Docs** | Swagger | @nestjs/swagger 11.x | Auto-generated táº¡i `/api` |
 | **Package Manager** | pnpm | 10+ | Workspace-aware, lockfile `pnpm-lock.yaml` |
 | **Container** | Docker | Multi-stage build | Production (`Dockerfile`) + Dev all-in-one (`Dockerfile.dev`) |
-| **CI** | GitHub Actions | - | Build verification trên `main` và `develop` |
+| **CI** | GitHub Actions | - | Build verification trÃªn `main` vÃ  `develop` |
 | **Linting** | ESLint + Prettier | Flat config (`eslint.config.mjs`) | No semicolons, single quotes, 120 printWidth |
 
 ---
 
-## 2. Cấu trúc thư mục
+## 2. Cáº¥u trÃºc thÆ° má»¥c
 
 ```
 BE-dev/
-├── prisma/
-│   └── schema.prisma              # Database schema (MongoDB)
-├── src/
-│   ├── main.ts                     # Bootstrap — khởi tạo app, Swagger, listen port
-│   ├── app.module.ts               # Root module — import SharedModule, đăng ký global pipes/filters/interceptors
-│   ├── app.controller.ts           # Health check endpoint (GET /)
-│   ├── app.service.ts              # Hello world service (placeholder)
-│   └── shared/                     # ⭐ Shared module — core infrastructure, @Global()
-│       ├── shared.module.ts        # Export PrismaService, HashingService, TokenService
-│       ├── config/
-│       │   └── envConfig.ts        # Zod-validated env variables (fail-fast startup)
-│       ├── filters/
-│       │   ├── http-exception.filter.ts      # Catch HttpException — log ZodSerializationException
-│       │   └── catch-everything.filter.ts    # Catch ALL — safety net, handle Prisma unique constraint
-│       ├── pipes/
-│       │   └── custom-zod-validation.pipe.ts # 422 thay vì 400 cho validation errors
-│       ├── services/
-│       │   ├── prisma.service.ts   # PrismaClient wrapper — lifecycle hooks
-│       │   ├── hashing.service.ts  # bcrypt hash/compare
-│       │   └── token.service.ts    # JWT sign/verify (access + refresh)
-│       ├── helper/
-│       │   ├── helper.prisma.ts    # Type guards cho Prisma errors (P2002, P2025)
-│       │   └── helperOtp.ts        # Generate 6-digit OTP
-│       └── types/
-│           └── jwt.type.ts         # JwtPayload interface
-├── test/                           # E2E tests (Jest)
-├── .env                            # Env variables (KHÔNG commit lên git)
-├── .env.example                    # Template env
-├── docker-compose.yml              # Dev one-click: MongoDB + NestJS (cho FE devs)
-├── Dockerfile                      # Production multi-stage build
-├── Dockerfile.dev                  # Dev image (Node + MongoDB cùng container)
-├── docker-entrypoint.dev.sh        # Init script: MongoDB replica → pnpm install → prisma → NestJS
-├── .github/workflows/ci.yml        # CI: build Docker image verification
-├── package.json                    # Dependencies + scripts
-├── pnpm-lock.yaml                  # Lockfile
-├── pnpm-workspace.yaml             # pnpm build allowlist (native modules)
-├── tsconfig.json                   # TS config — strict, NodeNext modules
-├── eslint.config.mjs               # ESLint flat config
-└── .prettierrc                     # Code formatting rules
+â”œâ”€â”€ prisma/
+â”‚   â””â”€â”€ schema.prisma              # Database schema (MongoDB)
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ main.ts                     # Bootstrap â€” khá»Ÿi táº¡o app, Swagger, listen port
+â”‚   â”œâ”€â”€ app.module.ts               # Root module â€” import CoreModule + feature modules, Ä‘Äƒng kÃ½ global pipes/filters/interceptor
+â”‚   â”œâ”€â”€ initialScript/              # Seed script (admin, roles) â€” cháº¡y báº±ng `pnpm seed`
+â”‚   â”œâ”€â”€ modules/                    # â­ Feature modules (vertical slice)
+â”‚   â”‚   â””â”€â”€ auth/                   # Module máº«u: controller + services/ + repo + schemas + dto + errors
+│   ├── core/                       # App-level cross-cutting rules, @Global()
+│   │   ├── core.module.ts          # Export infra services + register global guards
+│   │   ├── config/
+│   │   │   └── envConfig.ts
+│   │   ├── http/                   # filters, pipes, shared HTTP DTOs
+│   │   ├── security/               # guards, decorators, auth type, role constants
+│   │   └── models/
+│   │       └── user.model.ts       # User schema + Prisma-sourced UserStatus
+│   ├── infrastructure/             # External adapters / technology details
+│   │   ├── database/               # PrismaService + Prisma error helpers
+│   │   ├── crypto/
+│   │   │   └── hashing.service.ts
+│   │   ├── token/                  # TokenService + JWT payload types
+│   │   └── email/                  # EmailService + React-email templates
+â”œâ”€â”€ test/                           # E2E tests (Jest)
+â”œâ”€â”€ .env                            # Env variables (KHÃ”NG commit lÃªn git)
+â”œâ”€â”€ .env.example                    # Template env
+â”œâ”€â”€ docker-compose.yml              # Dev one-click: MongoDB + NestJS (cho FE devs)
+â”œâ”€â”€ Dockerfile                      # Production multi-stage build
+â”œâ”€â”€ Dockerfile.dev                  # Dev image (Node + MongoDB cÃ¹ng container)
+â”œâ”€â”€ docker-entrypoint.dev.sh        # Init script: MongoDB replica â†’ pnpm install â†’ prisma â†’ NestJS
+â”œâ”€â”€ .github/workflows/ci.yml        # CI: build Docker image verification
+â”œâ”€â”€ package.json                    # Dependencies + scripts
+â”œâ”€â”€ pnpm-lock.yaml                  # Lockfile
+â”œâ”€â”€ pnpm-workspace.yaml             # pnpm build allowlist (native modules)
+â”œâ”€â”€ tsconfig.json                   # TS config â€” strict, NodeNext modules
+â”œâ”€â”€ eslint.config.mjs               # ESLint flat config
+â””â”€â”€ .prettierrc                     # Code formatting rules
 ```
 
 ---
@@ -89,11 +86,14 @@ graph TD
         FILTER_ALL["CatchEverythingFilter<br/>(APP_FILTER)"]
     end
 
-    subgraph "SharedModule (@Global)"
+    subgraph "CoreModule (@Global)"
         PRISMA["PrismaService"]
         HASHING["HashingService"]
         TOKEN["TokenService"]
+        EMAIL["EmailService"]
         JWT_MOD["JwtModule"]
+        AUTH_GUARD["AuthenticationGuard<br/>(APP_GUARD)"]
+        ROLES_GUARD["RolesGuard<br/>(APP_GUARD)"]
     end
 
     MAIN --> APP_MOD
@@ -101,16 +101,28 @@ graph TD
     APP_MOD --> INTERCEPTOR
     APP_MOD --> FILTER_HTTP
     APP_MOD --> FILTER_ALL
-    APP_MOD --> SharedModule
-    SharedModule --> PRISMA
-    SharedModule --> HASHING
-    SharedModule --> TOKEN
-    SharedModule --> JWT_MOD
+    APP_MOD --> CoreModule
+    CoreModule --> PRISMA
+    CoreModule --> HASHING
+    CoreModule --> TOKEN
+    CoreModule --> EMAIL
+    CoreModule --> JWT_MOD
+    CoreModule --> AUTH_GUARD
+    CoreModule --> ROLES_GUARD
 ```
 
-### SharedModule là `@Global()`
-- Tất cả services trong `SharedModule` (PrismaService, HashingService, TokenService) đều **tự động available** ở mọi module khác mà KHÔNG cần import lại.
-- Khi tạo module mới, chỉ cần inject service qua constructor là dùng được.
+### CoreModule lÃ  `@Global()`
+- Táº¥t cáº£ services exported (PrismaService, HashingService, TokenService, EmailService) Ä‘á»u **tá»± Ä‘á»™ng available** á»Ÿ má»i module khÃ¡c mÃ  KHÃ”NG cáº§n import láº¡i.
+- Khi táº¡o module má»›i, chá»‰ cáº§n inject service qua constructor lÃ  dÃ¹ng Ä‘Æ°á»£c.
+- `CoreModule` registers `AuthenticationGuard` as the first global guard (`APP_GUARD`): routes require Bearer auth by default unless marked with `@IsPublic()`.
+- `RolesGuard` is registered as the second global guard, after `AuthenticationGuard`, so it can read `request.user` and enforce `@Roles(...)`.
+- Core/infrastructure-vs-module rule: `core/` contains app-level cross-cutting rules, `infrastructure/` contains external adapters, and domain logic belongs in `modules/<domain>/` (for example `OtpPurpose` and OTP generation live in `modules/auth/`).
+
+### RBAC (Authorization)
+
+- Routes without `@Roles()` behave as authenticated routes without role restriction.
+- Routes with `@Roles(RoleName.ADMIN, ...)` require the access-token `roleName` to be in the allowed list; missing user or wrong role returns 403.
+- The current authorization tier is role-based. Permission-based authorization can be added later when granular business rules require it.
 
 ---
 
@@ -144,7 +156,7 @@ sequenceDiagram
         end
     end
     
-    Note over FilterAll: Safety net — bắt MỌI exception chưa xử lý
+    Note over FilterAll: Safety net â€” báº¯t Má»ŒI exception chÆ°a xá»­ lÃ½
     
     alt Prisma Unique Constraint (P2002)
         FilterAll-->>Client: 409 Conflict
@@ -153,55 +165,55 @@ sequenceDiagram
     end
 ```
 
-### Chi tiết Error Flow
+### Chi tiáº¿t Error Flow
 
-| Thứ tự ưu tiên | Filter | Bắt gì | Response |
+| Thá»© tá»± Æ°u tiÃªn | Filter | Báº¯t gÃ¬ | Response |
 |----------------|--------|--------|----------|
-| 1 | `CustomZodValidationPipe` | Zod validation errors | **422** — mảng `{code, message, path}` |
-| 2 | `HttpExceptionFilter` | Mọi `HttpException` | Log `ZodSerializationException`, rồi xử lý mặc định |
-| 3 | `CatchEverythingFilter` | **Mọi thứ còn lại** | Prisma P2002 → **409**, còn lại → **500** |
+| 1 | `CustomZodValidationPipe` | Zod validation errors | **422** â€” máº£ng `{code, message, path}` |
+| 2 | `HttpExceptionFilter` | Má»i `HttpException` | Log `ZodSerializationException`, rá»“i xá»­ lÃ½ máº·c Ä‘á»‹nh |
+| 3 | `CatchEverythingFilter` | **Má»i thá»© cÃ²n láº¡i** | Prisma P2002 â†’ **409**, cÃ²n láº¡i â†’ **500** |
 
-> ⚠️ **Quan trọng**: Validation errors trả về **422** (KHÔNG phải 400). Đây là design decision có chủ đích để client phân biệt validation error vs bad request.
+> âš ï¸ **Quan trá»ng**: Validation errors tráº£ vá» **422** (KHÃ”NG pháº£i 400). ÄÃ¢y lÃ  design decision cÃ³ chá»§ Ä‘Ã­ch Ä‘á»ƒ client phÃ¢n biá»‡t validation error vs bad request.
 
 ---
 
-## 5. Env Configuration — Fail-Fast Strategy
+## 5. Env Configuration â€” Fail-Fast Strategy
 
-File `envConfig.ts` sử dụng Zod để validate toàn bộ biến môi trường **ngay khi app khởi động**:
+File `envConfig.ts` sá»­ dá»¥ng Zod Ä‘á»ƒ validate toÃ n bá»™ biáº¿n mÃ´i trÆ°á»ng **ngay khi app khá»Ÿi Ä‘á»™ng**:
 
 ```typescript
-// Nếu thiếu hoặc sai kiểu bất kỳ env var nào → process.exit(1) ngay lập tức
+// Náº¿u thiáº¿u hoáº·c sai kiá»ƒu báº¥t ká»³ env var nÃ o â†’ process.exit(1) ngay láº­p tá»©c
 const configSchema = z.object({
   PORT: z.coerce.number(),
   SALT_OR_ROUNDS: z.coerce.number(),
   DATABASE_URL: z.string(),
   ACCESS_TOKEN_SECRET: z.string(),
   REFRESH_TOKEN_SECRET: z.string(),
-  // ... tất cả các biến bắt buộc
+  // ... táº¥t cáº£ cÃ¡c biáº¿n báº¯t buá»™c
 })
 ```
 
-### Danh sách env variables
+### Danh sÃ¡ch env variables
 
-| Variable | Type | Mô tả |
+| Variable | Type | MÃ´ táº£ |
 |----------|------|--------|
 | `PORT` | number | Port server listen |
 | `SALT_OR_ROUNDS` | number | bcrypt salt rounds |
-| `DATABASE_URL` | string | MongoDB connection string (cần replica set) |
+| `DATABASE_URL` | string | MongoDB connection string (cáº§n replica set) |
 | `REDIS_URL` | string | Redis connection string |
 | `ACCESS_TOKEN_SECRET` | string | Secret key cho access JWT |
 | `REFRESH_TOKEN_SECRET` | string | Secret key cho refresh JWT |
 | `ACCESS_TOKEN_EXPIRES_IN` | string | TTL access token (vd: `1h`) |
 | `REFRESH_TOKEN_EXPIRES_IN` | string | TTL refresh token (vd: `7d`) |
 | `API_KEY` | string | API key cho internal services |
-| `AUTH_TYPE_KEY` | string | Header key chỉ định loại auth (default: `authType`) |
+| `AUTH_TYPE_KEY` | string | Header key chá»‰ Ä‘á»‹nh loáº¡i auth (default: `authType`) |
 | `ADMIN_NAME` | string | Seed admin name |
 | `ADMIN_PASSWORD` | string | Seed admin password |
 | `ADMIN_EMAIL` | string | Seed admin email |
 | `ADMIN_PHONE` | string | Seed admin phone |
-| `OTP_EXPIRES_IN` | string | TTL mã OTP (vd: `5m`) |
+| `OTP_EXPIRES_IN` | string | TTL mÃ£ OTP (vd: `5m`) |
 
-> **Lưu ý**: Khi chạy production (`NODE_ENV=production`), không cần file `.env` vật lý — env vars được inject từ orchestrator.
+> **LÆ°u Ã½**: Khi cháº¡y production (`NODE_ENV=production`), khÃ´ng cáº§n file `.env` váº­t lÃ½ â€” env vars Ä‘Æ°á»£c inject tá»« orchestrator.
 
 ---
 
@@ -211,39 +223,58 @@ const configSchema = z.object({
 
 - **Provider**: `mongodb`
 - **Schema location**: `prisma/schema.prisma`
-- **ID strategy**: `@default(auto()) @map("_id") @db.ObjectId` — sử dụng ObjectId gốc của MongoDB
-- **Replica Set**: Bắt buộc (`rs0`) — Prisma yêu cầu transactions/change streams
+- **ID strategy**: `@default(auto()) @map("_id") @db.ObjectId` â€” sá»­ dá»¥ng ObjectId gá»‘c cá»§a MongoDB
+- **Replica Set**: Báº¯t buá»™c (`rs0`) â€” Prisma yÃªu cáº§u transactions/change streams
 
-### Current Models
+### Models
+
+Schema (`prisma/schema.prisma`) Ä‘Ã£ khai bÃ¡o trÆ°á»›c **toÃ n bá»™ domain Mangaka** (~35 models) dÃ¹ má»›i cÃ³ module `auth`. NhÃ³m theo bounded context:
+
+| NhÃ³m | Models |
+|------|--------|
+| **Identity & Access** | `User`, `Role`, `RefreshToken`, `OtpRequest` |
+| **Content & Production** | `Series`, `SeriesProposal`, `Name`, `NamePage`, `Chapter`, `Page`, `Region`, `Manuscript`, `Asset`, `TaskAsset` |
+| **Tasks & Review** | `Task`, `TaskVersion`, `Annotation`, `Schedule`, `ScheduleExtension` |
+| **Survey & Ranking** | `SurveyPeriod`, `SurveyData`, `SurveyEntry`, `ReaderVote`, `ReaderVoteSeries`, `RankingRecord` |
+| **Board & Decisions** | `BoardDecision`, `Vote`, `SeriesReport`, `ReportAttachment` |
+| **Finance** | `PaymentConfig`, `EarningRecord` |
+| **Notification & Config** | `Notification`, `VotingConfig`, `BoardConfig` |
+
+**Enum hiá»‡n cÃ³**: `UserStatus`, `OtpPurpose`. CÃ²n láº¡i nhiá»u trÆ°á»ng `status`/`result`/`reviewStatus` Ä‘ang Ä‘á»ƒ kiá»ƒu `String` tá»± do â€” nÃªn chuyá»ƒn dáº§n sang Prisma enum cho cÃ¡c state machine (Series/Task/Chapter/BoardDecision...) Ä‘á»ƒ type-safe.
 
 ```prisma
 model User {
-  id    String  @id @default(auto()) @map("_id") @db.ObjectId
-  email String  @unique
-  name  String?
-  posts Post[]
-}
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  email         String     @unique
+  name          String
+  displayName   String?
+  password      String
+  phoneNumber   String
+  avatar        String?
+  roleId        String     @db.ObjectId
+  status        UserStatus @default(INACTIVE)
+  emailVerified Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
 
-model Post {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  title     String
-  content   String?
-  published Boolean @default(false)
-  author    User    @relation(fields: [authorId], references: [id])
-  authorId  String  @db.ObjectId
+  role          Role           @relation(fields: [roleId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@index([deletedAt])
 }
 ```
 
 ### PrismaService Lifecycle
 
 ```
-App Start → onModuleInit() → $connect()
-App Stop  → onModuleDestroy() → $disconnect()
+App Start â†’ onModuleInit() â†’ $connect()
+App Stop  â†’ onModuleDestroy() â†’ $disconnect()
 ```
 
 ### Prisma Error Helpers
 
-| Function | Prisma Code | Ý nghĩa |
+| Function | Prisma Code | Ã nghÄ©a |
 |----------|-------------|---------|
 | `isUniqueConstrainError()` | P2002 | Duplicate key / unique constraint violation |
 | `isNotFoundError()` | P2025 | Record not found |
@@ -255,30 +286,39 @@ App Stop  → onModuleDestroy() → $disconnect()
 ### JWT Token Pair
 
 ```
-┌─────────────────────────────────────────────────┐
-│ TokenService                                     │
-├─────────────────────────────────────────────────┤
-│ signAccessToken(userId)  → JWT (HS256, 1h TTL)  │
-│ signRefreshToken(userId) → JWT (HS256, 7d TTL)  │
-│ verifyAccessToken(token) → JwtPayload           │
-│ verifyRefreshToken(token)→ JwtPayload           │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ TokenService                                     â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ signAccessToken(userId)  â†’ JWT (HS256, 1h TTL)  â”‚
+â”‚ signRefreshToken(userId) â†’ JWT (HS256, 7d TTL)  â”‚
+â”‚ verifyAccessToken(token) â†’ JwtPayload           â”‚
+â”‚ verifyRefreshToken(token)â†’ JwtPayload           â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
-### JwtPayload Interface
+### JWT Payload Interfaces
+
+Access token carries `roleName` for RBAC checks; refresh token carries only `userId`.
 
 ```typescript
-interface JwtPayload {
-  userId: number   // ID người dùng
+interface JwtAccessTokenPayload {
+  userId: string   // ID ngÆ°á»i dÃ¹ng (Mongo ObjectId dáº¡ng string)
+  roleName: string // Role code â€” dÃ¹ng cho phÃ¢n quyá»n
   exp: number      // Expiration timestamp
   iat: number      // Issued at timestamp
+}
+
+interface JwtRefreshTokenPayload {
+  userId: string
+  exp: number
+  iat: number
 }
 ```
 
 ### HashingService
 
-- `hash(value)` — bcrypt hash với salt rounds từ env
-- `compare(value, hash)` — so sánh plaintext với hash
+- `hash(value)` â€” bcrypt hash vá»›i salt rounds tá»« env
+- `compare(value, hash)` â€” so sÃ¡nh plaintext vá»›i hash
 
 ---
 
@@ -288,9 +328,9 @@ interface JwtPayload {
 
 ```
 Multi-stage build:
-  Stage 1 (base)    → Node 22-slim + openssl + corepack
-  Stage 2 (build)   → pnpm install → prisma generate → nest build
-  Stage 3 (runtime) → Copy dist + node_modules → non-root user → CMD node dist/main.js
+  Stage 1 (base)    â†’ Node 22-slim + openssl + corepack
+  Stage 2 (build)   â†’ pnpm install â†’ prisma generate â†’ nest build
+  Stage 3 (runtime) â†’ Copy dist + node_modules â†’ non-root user â†’ CMD node dist/main.js
 ```
 
 ### Development (docker-compose.yml + Dockerfile.dev)
@@ -305,7 +345,7 @@ Single container "all-in-one":
   6. nest start --watch (hot reload)
 ```
 
-> Docker dev setup dành cho **FE devs** — không cần cài Node/pnpm/MongoDB trên máy.
+> Docker dev setup dÃ nh cho **FE devs** â€” khÃ´ng cáº§n cÃ i Node/pnpm/MongoDB trÃªn mÃ¡y.
 
 ---
 
@@ -313,8 +353,8 @@ Single container "all-in-one":
 
 ### GitHub Actions (`ci.yml`)
 
-- **Trigger**: Push lên `main`/`develop` hoặc bất kỳ Pull Request
-- **Job**: Build Docker image (production `Dockerfile`) — không push, chỉ verify build thành công
+- **Trigger**: Push lÃªn `main`/`develop` hoáº·c báº¥t ká»³ Pull Request
+- **Job**: Build Docker image (production `Dockerfile`) â€” khÃ´ng push, chá»‰ verify build thÃ nh cÃ´ng
 - **Cache**: GitHub Actions cache (`type=gha`) cho Docker layers
 
 ---
@@ -326,7 +366,7 @@ Single container "all-in-one":
 | Rule | Value |
 |------|-------|
 | Quotes | Single (`'`) |
-| Semicolons | **Không dùng** |
+| Semicolons | **KhÃ´ng dÃ¹ng** |
 | Trailing comma | All |
 | Print width | 120 |
 | Tab width | 2 (spaces) |
@@ -335,7 +375,7 @@ Single container "all-in-one":
 ### ESLint Rules
 
 - TypeScript-ESLint recommended (type-checked)
-- `no-explicit-any`: **OFF** (cho phép dùng `any`)
+- `no-explicit-any`: **OFF** (cho phÃ©p dÃ¹ng `any`)
 - `no-floating-promises`: **WARN**
 - `no-unsafe-argument`: **WARN**
 - `no-unsafe-assignment`: **WARN**
@@ -345,9 +385,9 @@ Single container "all-in-one":
 - Module: `NodeNext` (ESM-style imports)
 - Target: `ES2022`
 - Strict mode: **ON**
-- `noImplicitAny`: **OFF** (cho phép implicit any)
+- `noImplicitAny`: **OFF** (cho phÃ©p implicit any)
 - Decorators: Experimental enabled
-- Path alias: `src/*` → `./src/*`
+- Path alias: `src/*` â†’ `./src/*`
 
 ---
 
@@ -382,14 +422,14 @@ graph LR
 
 ---
 
-## 12. Các Scripts quan trọng
+## 12. CÃ¡c Scripts quan trá»ng
 
-| Script | Lệnh | Mô tả |
+| Script | Lá»‡nh | MÃ´ táº£ |
 |--------|-------|--------|
-| `prisma:generate` | `prisma generate` | Tạo lại Prisma Client (chạy sau khi sửa `schema.prisma`) |
-| `start:dev` | `nest start --watch` | Dev mode với hot reload |
+| `prisma:generate` | `prisma generate` | Táº¡o láº¡i Prisma Client (cháº¡y sau khi sá»­a `schema.prisma`) |
+| `start:dev` | `nest start --watch` | Dev mode vá»›i hot reload |
 | `start:prod` | `node dist/main` | Production mode |
-| `build` | `nest build` | Compile TypeScript → `dist/` |
+| `build` | `nest build` | Compile TypeScript â†’ `dist/` |
 | `lint` | `eslint ... --fix` | Lint + auto-fix |
 | `test` | `jest` | Unit tests |
 | `test:e2e` | `jest --config ./test/jest-e2e.json` | End-to-end tests |

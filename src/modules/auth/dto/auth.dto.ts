@@ -9,7 +9,7 @@ import {
   RefreshTokenResSchema,
   RegisterBodySchema,
   SendOtpBodySchema
-} from '../schemas/auth.model'
+} from '../schemas/auth-schemas'
 
 export class RegisterBodyDto extends createZodDto(RegisterBodySchema) {}
 export class SendOtpBodyDto extends createZodDto(SendOtpBodySchema) {}

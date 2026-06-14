@@ -40,10 +40,12 @@ lerna-debug.log*
 .env
 .env.production
 .env.local
+docs
 
 # temp directory
 .temp
 .tmp
+.worktrees
 
 # Runtime data
 pids

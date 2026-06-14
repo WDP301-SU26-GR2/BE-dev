@@ -1,9 +1,9 @@
-import { UserStatus } from '@prisma/client'
+﻿import { UserStatus } from '@prisma/client'
 import { config } from 'dotenv'
 import { env } from 'process'
-import { RoleName } from 'src/shared/constant/role.constant'
-import { HashingService } from 'src/shared/services/hashing.service'
-import { PrismaService } from 'src/shared/services/prisma.service'
+import { RoleName } from 'src/core/security/role.constant'
+import { HashingService } from 'src/infrastructure/crypto/hashing.service'
+import { PrismaService } from 'src/infrastructure/database/prisma.service'
 config()
 
 const prisma = new PrismaService()
@@ -11,12 +11,10 @@ const hashingService = new HashingService()
 prisma.$connect()
 
 export const main = async () => {
-  //Kiểm tra xem đã tồn tại role nào trong database chưa, nếu đã tồn tại thì sẽ log ra thông báo và thoát chương trình
   const roleCount = await prisma.role.count()
   if (roleCount > 0) {
     throw new Error('Roles already exist in the database. Please clear the roles table before running this script.')
   }
-  //tạo các role và user mặc định vào database
   const roles = await prisma.role.createMany({
     data: [
       {
