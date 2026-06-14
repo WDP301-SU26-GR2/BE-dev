@@ -929,3 +929,131 @@ model TransferContract {
   @@index([transferRequestId])
   @@index([seriesId])
 }
+
+model SurveyPeriod {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  createdBy String? @db.ObjectId
+
+  issueNumber          Int?
+  reflectedIssueNumber Int?
+  startDate            DateTime?
+  endDate              DateTime?
+  status               SurveyStatus @default(DRAFT)
+
+  readerVotes    ReaderVote[]
+  surveyData     SurveyData[]
+  rankingRecords RankingRecord[]
+
+  @@index([createdBy])
+}
+
+model ReaderVote {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  surveyPeriodId String       @db.ObjectId
+  surveyPeriod   SurveyPeriod @relation(fields: [surveyPeriodId], references: [id])
+
+  seriesIds    String[]          @db.ObjectId
+  identityHash String?
+  authMethod   ReaderAuthMethod?
+  ipHash       String?
+  captchaScore Float?
+  voteWeight   Float             @default(1)
+  isFlagged    Boolean           @default(false)
+  votedAt      DateTime          @default(now())
+
+  @@unique([surveyPeriodId, identityHash])
+  @@index([surveyPeriodId])
+}
+
+model VoteOtp {
+  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  identityHash String
+  otpCodeHash  String
+  ipHash       String?
+  authMethod   ReaderAuthMethod?
+  createdAt    DateTime          @default(now())
+  expiresAt    DateTime
+  attempts     Int               @default(3)
+  isUsed       Boolean           @default(false)
+
+  @@index([expiresAt])
+}
+
+model SurveyData {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  surveyPeriodId String       @db.ObjectId
+  surveyPeriod   SurveyPeriod @relation(fields: [surveyPeriodId], references: [id])
+
+  importedBy String?   @db.ObjectId
+  surveyDate DateTime?
+  importedAt DateTime  @default(now())
+
+  entries SurveyEntry[]
+
+  @@index([surveyPeriodId])
+}
+
+type SurveyEntry {
+  seriesId  String? @db.ObjectId
+  voteCount Int     @default(0)
+}
+
+model RankingRecord {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId       String       @db.ObjectId
+  surveyPeriodId String       @db.ObjectId
+  surveyPeriod   SurveyPeriod @relation(fields: [surveyPeriodId], references: [id])
+
+  rankPosition Int?
+  voteCount    Float    @default(0)
+  previousRank Int?
+  rankChange   Int?
+  isAtRisk     Boolean  @default(false)
+  isReliable   Boolean  @default(true)
+  recordedAt   DateTime @default(now())
+
+  @@index([seriesId])
+  @@index([surveyPeriodId])
+}
+
+model BoardDecision {
+  id             String  @id @default(auto()) @map("_id") @db.ObjectId
+  targetSeriesId String? @db.ObjectId
+
+  decisionType           DecisionType?
+  result                 String?
+  totalVotes             Int           @default(0)
+  approveCount           Int           @default(0)
+  rejectCount            Int           @default(0)
+  quorumMet              Boolean       @default(false)
+  endingChapterAllowance Int?
+  details                Json?
+  decidedAt              DateTime?
+
+  votes  Vote[]
+  report SeriesReport?
+
+  @@index([targetSeriesId])
+}
+
+type Vote {
+  voterId   String?  @db.ObjectId
+  voteValue String?
+  note      String?
+  votedAt   DateTime @default(now())
+}
+
+model SeriesReport {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId        String?        @db.ObjectId
+  boardDecisionId String?        @unique @db.ObjectId
+  boardDecision   BoardDecision? @relation(fields: [boardDecisionId], references: [id])
+
+  preparedBy  String?  @db.ObjectId
+  reportType  String?
+  content     String?
+  attachments String[]
+  createdAt   DateTime @default(now())
+
+  @@index([seriesId])
+}
