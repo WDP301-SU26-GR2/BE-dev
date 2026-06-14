@@ -89,3 +89,338 @@ enum UserStatus {
   BANNED
   BLOCKED
 }
+
+// ===== Enums from ERD §3 catalog (exact) =====
+
+enum RegistrationType {
+  SELF_REGISTERED
+  ADMIN_CREATED
+}
+
+enum RoleCode {
+  MANGAKA
+  ASSISTANT
+  EDITOR
+  BOARD_MEMBER
+  SUPER_ADMIN
+}
+
+enum PublicationType {
+  WEEKLY
+  MONTHLY
+  IRREGULAR
+}
+
+enum RelationshipType {
+  SEQUEL
+  SPINOFF
+  SIDE_STORY
+  REBOOT
+}
+
+enum ContractType {
+  FULL_BUYOUT
+  REVENUE_SHARE
+}
+
+enum ContractStatus {
+  DRAFT
+  MANGAKA_REVIEW
+  MANGAKA_APPROVED
+  BOARD_APPROVED
+  NEGOTIATION
+  MANGAKA_SIGNED
+  FULLY_EXECUTED
+  FULFILLED
+  TERMINATED
+  TERMINATED_BY_BREACH
+  EXPIRED
+  VOIDED
+}
+
+enum ConditionType {
+  CHAPTER_MILESTONE
+  RECURRING_CHAPTER
+  RANKING_MILESTONE
+  TIME_BOUND
+}
+
+enum PaymentType {
+  CONDITION_PAYOUT
+  REVENUE_SHARE
+  COMPENSATION
+}
+
+enum ReprintRevisionMode {
+  AS_IS
+  WITH_REVISION
+}
+
+enum TransferType {
+  FULL_TRANSFER
+  PARTIAL_TRANSFER
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  BUSY
+  ON_LEAVE
+  UNAVAILABLE
+}
+
+enum Specialization {
+  BACKGROUND
+  SCREENTONE
+  EFFECT_LINES
+  INKING
+  COLORING
+  LETTERING
+}
+
+enum TaskStatus {
+  ASSIGNED
+  IN_PROGRESS
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REVISION_REQUESTED
+  ON_HOLD
+}
+
+enum ManuscriptStatus {
+  DRAFT
+  IN_PRODUCTION
+  COMPOSITE_REVIEW
+  EDITOR_REVIEW
+  EDITOR_REVISION
+  READY_FOR_PRINT
+  AWAITING_CO_OWNER_APPROVAL
+  PUBLISHED
+}
+
+enum DeadlineRequestStatus {
+  PROPOSED
+  COUNTER_PROPOSED
+  AGREED_BY_PARTIES
+  BOARD_REVIEW
+  ESCALATED
+  APPROVED
+  REJECTED
+}
+
+enum ReadingDirection {
+  RTL
+  LTR
+}
+
+// ===== Inferred enums (NOT in §3) — REVIEW values against flows =====
+
+// REVIEW: inferred
+enum NameStatus {
+  DRAFT
+  SUBMITTED
+  EDITOR_REVIEW
+  REVISION_REQUESTED
+  APPROVED
+}
+
+// REVIEW: inferred
+enum ChapterStatus {
+  DRAFT
+  IN_PRODUCTION
+  COMPLETED
+  PUBLISHED
+}
+
+// REVIEW: inferred
+enum SeriesStatus {
+  PROPOSED
+  SERIALIZED
+  ON_HIATUS
+  ENDED
+  CANCELLED
+}
+
+// REVIEW: inferred
+enum ProposalStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+// REVIEW: inferred
+enum PageStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPOSITE
+  REVIEW
+  APPROVED
+}
+
+// REVIEW: inferred
+enum RegionType {
+  PANEL
+  BACKGROUND
+  SPEECH_BUBBLE
+  SFX
+  CHARACTER
+}
+
+// REVIEW: inferred
+enum ReviewStage {
+  ASSISTANT
+  MANGAKA
+  EDITOR
+}
+
+// REVIEW: inferred
+enum AnnotationType {
+  COMMENT
+  CORRECTION
+  APPROVAL
+  REJECTION
+}
+
+// REVIEW: inferred
+enum AnnotationTargetType {
+  PAGE
+  REGION
+  TASK
+  MANUSCRIPT
+}
+
+// REVIEW: inferred
+enum AssetType {
+  REFERENCE
+  BACKGROUND
+  SCREENTONE
+  BRUSH
+  OTHER
+}
+
+// REVIEW: inferred
+enum NotificationType {
+  SYSTEM
+  CONTRACT
+  TASK
+  DEADLINE
+  SURVEY
+  BOARD
+  REVIEW
+}
+
+// REVIEW: inferred
+enum CollaborationInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+// REVIEW: inferred
+enum StudioAssignmentStatus {
+  ACTIVE
+  COMPLETED
+  TERMINATED
+}
+
+// REVIEW: inferred
+enum ReprintRequestStatus {
+  PENDING
+  MANGAKA_APPROVED
+  BOARD_APPROVED
+  PUBLISHED
+  REJECTED
+}
+
+// REVIEW: inferred
+enum ReprintChapterStatus {
+  PENDING
+  IN_REVISION
+  READY
+  PUBLISHED
+}
+
+// REVIEW: inferred
+enum TransferRequestStatus {
+  PROPOSED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+// REVIEW: inferred
+enum TransferContractStatus {
+  DRAFT
+  A_SIGNED
+  B_SIGNED
+  BOARD_SIGNED
+  FULLY_EXECUTED
+  VOIDED
+}
+
+// REVIEW: inferred
+enum ContractAmendmentStatus {
+  DRAFT
+  PENDING_SIGNATURES
+  FULLY_EXECUTED
+  VOIDED
+}
+
+// REVIEW: inferred
+enum PaymentConditionStatus {
+  PENDING
+  ACHIEVED
+  PAID
+  CANCELLED
+}
+
+// REVIEW: inferred
+enum PaymentRecordStatus {
+  PENDING
+  APPROVED
+  PAID
+  FAILED
+  CANCELLED
+}
+
+// REVIEW: inferred
+enum SurveyStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  REFLECTED
+}
+
+// REVIEW: inferred
+enum DecisionType {
+  CONTINUE
+  CANCEL
+  HIATUS
+  ENDING_ALLOWANCE
+}
+
+// REVIEW: inferred
+enum ReaderAuthMethod {
+  EMAIL_OTP
+  PHONE_OTP
+  CAPTCHA_ONLY
+}
+
+// REVIEW: inferred
+enum VotingAuthMode {
+  OTP
+  CAPTCHA
+  HYBRID
+}
+
+// REVIEW: inferred
+enum TaskVersionReviewStatus {
+  PENDING
+  APPROVED
+  REVISION_REQUESTED
+}
