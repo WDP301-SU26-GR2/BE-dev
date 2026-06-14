@@ -6,9 +6,10 @@ import { HttpExceptionFilter } from 'src/shared/filters/http-exception.filter'
 import CustomZodValidationPipe from 'src/shared/pipes/custom-zod-validation.pipe'
 import { SharedModule } from 'src/shared/shared.module'
 import { AuthModule } from './modules/auth/auth.module'
+import { UsersModule } from './modules/users/users.module'
 
 @Module({
-  imports: [SharedModule, AuthModule],
+  imports: [SharedModule, AuthModule, UsersModule],
   controllers: [],
   providers: [
     {
