@@ -928,6 +928,8 @@ model TransferContract {
 
   @@index([transferRequestId])
   @@index([seriesId])
+  @@index([fromMangakaId])
+  @@index([toMangakaId])
 }
 
 model SurveyPeriod {
@@ -991,6 +993,7 @@ model SurveyData {
   entries SurveyEntry[]
 
   @@index([surveyPeriodId])
+  @@index([importedBy])
 }
 
 type SurveyEntry {
@@ -1056,6 +1059,7 @@ model SeriesReport {
   createdAt   DateTime @default(now())
 
   @@index([seriesId])
+  @@index([preparedBy])
 }
 
 model VotingConfig {
