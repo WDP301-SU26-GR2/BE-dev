@@ -24,12 +24,17 @@ model User {
 
   emailVerified Boolean @default(false)
 
+  registrationType RegistrationType @default(SELF_REGISTERED)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   role          Role           @relation(fields: [roleId], references: [id])
   refreshTokens RefreshToken[]
+
+  mangakaProfile   MangakaProfile?
+  assistantProfile AssistantProfile?
 
   @@index([deletedAt])
 }
@@ -416,6 +421,47 @@ enum VotingAuthMode {
   OTP
   CAPTCHA
   HYBRID
+}
+
+model MangakaProfile {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  penName         String
+  genres          String[]
+  experienceLevel String?
+  bio             String?
+  portfolioFiles  String[]
+
+  reputationScore Float   @default(0)
+  ratingAvg       Float   @default(0)
+  ratingCount     Int     @default(0)
+  isRecommended   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AssistantProfile {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  specializations    Specialization[]
+  experienceLevel    String?
+  portfolioFiles     String[]
+  availabilityStatus AvailabilityStatus @default(AVAILABLE)
+  availabilityFrom   DateTime?
+  availabilityTo     DateTime?
+
+  reputationScore Float   @default(0)
+  ratingAvg       Float   @default(0)
+  ratingCount     Int     @default(0)
+  isRecommended   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // REVIEW: inferred
