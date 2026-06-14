@@ -6,7 +6,7 @@ import { PrismaService } from 'src/shared/services/prisma.service'
 import { TokenService } from 'src/shared/services/token.service'
 import { AccessTokenGuard } from './guards/access-token.guard'
 import { AuthenticationGuard } from './guards/authentication.guard'
-import { EmailService } from './services/otp.service'
+import { EmailService } from './services/email.service'
 import { SharedUsersRepository } from './repositories/shared-users.repo'
 
 const sharedModules = [PrismaService, HashingService, TokenService, EmailService, SharedUsersRepository]

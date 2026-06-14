@@ -1,5 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common'
-import { EmailService } from 'src/shared/services/otp.service'
+import { EmailService } from 'src/shared/services/email.service'
 import { SendOtpBodyDto } from '../dto/auth.dto'
 import { SharedUsersRepository } from 'src/shared/repositories/shared-users.repo'
 import { OtpPurpose, OtpPurposeType, UserStatus } from 'src/shared/constant/auth.constant'
