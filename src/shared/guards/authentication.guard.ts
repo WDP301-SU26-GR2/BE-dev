@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { AuthType, ConditionGuard } from 'src/shared/constant/auth.constant'
-import { AccessTokenGuard } from 'src/shared/guard/access-token.guard'
+import { AccessTokenGuard } from 'src/shared/guards/access-token.guard'
 import envConfig from '../config/envConfig'
 import { AuthTypeDecoratorPayload } from '../types/auth-decoratot.type'
 
