@@ -34,27 +34,37 @@ BE-dev/
 │   └── schema.prisma              # Database schema (MongoDB)
 ├── src/
 │   ├── main.ts                     # Bootstrap — khởi tạo app, Swagger, listen port
-│   ├── app.module.ts               # Root module — import SharedModule, đăng ký global pipes/filters/interceptors
-│   ├── app.controller.ts           # Health check endpoint (GET /)
-│   ├── app.service.ts              # Hello world service (placeholder)
+│   ├── app.module.ts               # Root module — import SharedModule + feature modules, đăng ký global pipes/filters/interceptor
+│   ├── initialScript/              # Seed script (admin, roles) — chạy bằng `pnpm seed`
+│   ├── modules/                    # ⭐ Feature modules (vertical slice)
+│   │   └── auth/                   # Module mẫu: controller + services/ + repo + schemas + dto + errors
 │   └── shared/                     # ⭐ Shared module — core infrastructure, @Global()
-│       ├── shared.module.ts        # Export PrismaService, HashingService, TokenService
+│       ├── shared.module.ts        # Export Prisma/Hashing/Token/Email + đăng ký AuthenticationGuard (APP_GUARD)
 │       ├── config/
 │       │   └── envConfig.ts        # Zod-validated env variables (fail-fast startup)
+│       ├── constant/               # auth.constant.ts, role.constant.ts (KHÔNG hard-code messages)
+│       ├── decorators/             # active-user.decorator.ts, auth.decorator.ts (@IsPublic, @ActiveUser)
+│       ├── dto/                    # request.dto.ts, response.dto.ts (shared DTOs, vd MessageResDto)
+│       ├── emails/                 # React-email templates (.tsx)
 │       ├── filters/
 │       │   ├── http-exception.filter.ts      # Catch HttpException — log ZodSerializationException
 │       │   └── catch-everything.filter.ts    # Catch ALL — safety net, handle Prisma unique constraint
+│       ├── guards/
+│       │   ├── authentication.guard.ts       # Global guard — phân nhánh theo authType (Bearer/None)
+│       │   └── access-token.guard.ts         # Verify JWT access token
+│       ├── helpers/
+│       │   ├── helper.prisma.ts    # Type guards cho Prisma errors (P2002, P2025)
+│       │   └── helperOtp.ts        # Generate 6-digit OTP
+│       ├── models/                 # Shared entity schemas (shared-user.model.ts, ...)
 │       ├── pipes/
 │       │   └── custom-zod-validation.pipe.ts # 422 thay vì 400 cho validation errors
 │       ├── services/
 │       │   ├── prisma.service.ts   # PrismaClient wrapper — lifecycle hooks
 │       │   ├── hashing.service.ts  # bcrypt hash/compare
-│       │   └── token.service.ts    # JWT sign/verify (access + refresh)
-│       ├── helper/
-│       │   ├── helper.prisma.ts    # Type guards cho Prisma errors (P2002, P2025)
-│       │   └── helperOtp.ts        # Generate 6-digit OTP
+│       │   ├── token.service.ts    # JWT sign/verify (access + refresh)
+│       │   └── email.service.tsx   # Gửi email qua Resend (render React-email)
 │       └── types/
-│           └── jwt.type.ts         # JwtPayload interface
+│           └── jwt.type.ts         # JwtAccessTokenPayload / JwtRefreshTokenPayload
 ├── test/                           # E2E tests (Jest)
 ├── .env                            # Env variables (KHÔNG commit lên git)
 ├── .env.example                    # Template env
@@ -93,7 +103,9 @@ graph TD
         PRISMA["PrismaService"]
         HASHING["HashingService"]
         TOKEN["TokenService"]
+        EMAIL["EmailService"]
         JWT_MOD["JwtModule"]
+        AUTH_GUARD["AuthenticationGuard<br/>(APP_GUARD)"]
     end
 
     MAIN --> APP_MOD
@@ -105,12 +117,17 @@ graph TD
     SharedModule --> PRISMA
     SharedModule --> HASHING
     SharedModule --> TOKEN
+    SharedModule --> EMAIL
     SharedModule --> JWT_MOD
+    SharedModule --> AUTH_GUARD
 ```
 
 ### SharedModule là `@Global()`
-- Tất cả services trong `SharedModule` (PrismaService, HashingService, TokenService) đều **tự động available** ở mọi module khác mà KHÔNG cần import lại.
+- Tất cả services exported (PrismaService, HashingService, TokenService, EmailService) đều **tự động available** ở mọi module khác mà KHÔNG cần import lại.
 - Khi tạo module mới, chỉ cần inject service qua constructor là dùng được.
+- `SharedModule` còn đăng ký **`AuthenticationGuard` làm global guard** (`APP_GUARD`) → mọi route mặc định yêu cầu Bearer token, trừ khi gắn `@IsPublic()`.
+
+> ⚠️ **Chưa có tầng Authorization (RBAC).** Guard hiện tại chỉ xác thực (authentication), chưa phân quyền theo `Role`. Khi thêm endpoint nhạy cảm (board vote, payment, duyệt chapter) cần bổ sung `RolesGuard` + `@Roles()` chạy sau `AuthenticationGuard`.
 
 ---
 
@@ -214,23 +231,42 @@ const configSchema = z.object({
 - **ID strategy**: `@default(auto()) @map("_id") @db.ObjectId` — sử dụng ObjectId gốc của MongoDB
 - **Replica Set**: Bắt buộc (`rs0`) — Prisma yêu cầu transactions/change streams
 
-### Current Models
+### Models
+
+Schema (`prisma/schema.prisma`) đã khai báo trước **toàn bộ domain Mangaka** (~35 models) dù mới có module `auth`. Nhóm theo bounded context:
+
+| Nhóm | Models |
+|------|--------|
+| **Identity & Access** | `User`, `Role`, `RefreshToken`, `OtpRequest` |
+| **Content & Production** | `Series`, `SeriesProposal`, `Name`, `NamePage`, `Chapter`, `Page`, `Region`, `Manuscript`, `Asset`, `TaskAsset` |
+| **Tasks & Review** | `Task`, `TaskVersion`, `Annotation`, `Schedule`, `ScheduleExtension` |
+| **Survey & Ranking** | `SurveyPeriod`, `SurveyData`, `SurveyEntry`, `ReaderVote`, `ReaderVoteSeries`, `RankingRecord` |
+| **Board & Decisions** | `BoardDecision`, `Vote`, `SeriesReport`, `ReportAttachment` |
+| **Finance** | `PaymentConfig`, `EarningRecord` |
+| **Notification & Config** | `Notification`, `VotingConfig`, `BoardConfig` |
+
+**Enum hiện có**: `UserStatus`, `OtpPurpose`. Còn lại nhiều trường `status`/`result`/`reviewStatus` đang để kiểu `String` tự do — nên chuyển dần sang Prisma enum cho các state machine (Series/Task/Chapter/BoardDecision...) để type-safe.
 
 ```prisma
 model User {
-  id    String  @id @default(auto()) @map("_id") @db.ObjectId
-  email String  @unique
-  name  String?
-  posts Post[]
-}
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  email         String     @unique
+  name          String
+  displayName   String?
+  password      String
+  phoneNumber   String
+  avatar        String?
+  roleId        String     @db.ObjectId
+  status        UserStatus @default(INACTIVE)
+  emailVerified Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
 
-model Post {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  title     String
-  content   String?
-  published Boolean @default(false)
-  author    User    @relation(fields: [authorId], references: [id])
-  authorId  String  @db.ObjectId
+  role          Role           @relation(fields: [roleId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@index([deletedAt])
 }
 ```
 
@@ -265,13 +301,22 @@ App Stop  → onModuleDestroy() → $disconnect()
 └─────────────────────────────────────────────────┘
 ```
 
-### JwtPayload Interface
+### JWT Payload Interfaces
+
+Access token mang theo `roleName` để chuẩn bị cho RBAC; refresh token chỉ mang `userId`.
 
 ```typescript
-interface JwtPayload {
-  userId: number   // ID người dùng
+interface JwtAccessTokenPayload {
+  userId: string   // ID người dùng (Mongo ObjectId dạng string)
+  roleName: string // Role code — dùng cho phân quyền
   exp: number      // Expiration timestamp
   iat: number      // Issued at timestamp
+}
+
+interface JwtRefreshTokenPayload {
+  userId: string
+  exp: number
+  iat: number
 }
 ```
 

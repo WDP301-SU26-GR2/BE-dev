@@ -3,7 +3,13 @@ import { AuthRepository } from '../auth.repo'
 import { EmailService } from 'src/shared/services/email.service'
 import { generateOTP } from 'src/shared/helpers/helperOtp'
 import { OtpPurpose, OtpPurposeType } from 'src/shared/constant/auth.constant'
-import { FailedToSendOTPException, InvalidOTPException, OTPExpiredException, EmailAlreadyExistsException, EmailNotFoundException } from '../errors/auth.errors'
+import {
+  FailedToSendOTPException,
+  InvalidOTPException,
+  OTPExpiredException,
+  EmailAlreadyExistsException,
+  EmailNotFoundException
+} from '../errors/auth.errors'
 import { SendOtpBodyType } from '../schemas/auth-schemas'
 
 @Injectable()
@@ -43,7 +49,15 @@ export class AuthOtpService {
     }
   }
 
-  async validateOtpCode({ email, otpCodeHash, purpose }: { email: string; otpCodeHash: string; purpose: OtpPurposeType }) {
+  async validateOtpCode({
+    email,
+    otpCodeHash,
+    purpose
+  }: {
+    email: string
+    otpCodeHash: string
+    purpose: OtpPurposeType
+  }) {
     const otpRequest = await this.authRepository.findOtpRequest({
       email_purpose_otpCodeHash: {
         email: email,
