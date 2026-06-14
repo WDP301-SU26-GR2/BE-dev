@@ -22,9 +22,9 @@ import {
   LoginBodyType,
   LogoutBodyType,
   RefreshTokenBodyType,
-  RegisterBodyType,
-  RoleType
-} from '../schemas/auth.model'
+  RegisterBodyType
+} from '../schemas/auth-schemas'
+import { RoleType } from '../schemas/auth.model'
 import { HashingService } from 'src/shared/services/hashing.service'
 import { RoleService } from './role.service'
 import { isNotFoundError, isUniqueConstrainError } from 'src/shared/helpers/helper.prisma'
