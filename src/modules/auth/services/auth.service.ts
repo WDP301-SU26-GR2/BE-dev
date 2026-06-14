@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common'
+import { ConflictException, Injectable, Logger } from '@nestjs/common'
 import { EmailService } from 'src/shared/services/email.service'
 import { SendOtpBodyDto } from '../dto/auth.dto'
 import { SharedUsersRepository } from 'src/shared/repositories/shared-users.repo'
@@ -35,6 +35,7 @@ import { UserType } from 'src/shared/models/shared-user.model'
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name)
   constructor(
     private readonly emailService: EmailService,
     private readonly sharedUsersRepository: SharedUsersRepository,
@@ -122,7 +123,7 @@ export class AuthService {
       code
     })
     if (error) {
-      console.log(error)
+      this.logger.error('Failed to send OTP', { error: error.message, email: body.email })
       throw FailedToSendOTPException
     }
     return {
