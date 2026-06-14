@@ -14,7 +14,7 @@ import {
   RefreshTokenAlreadyUsedException,
   UnauthorizedAccessException
 } from '../errors/auth.errors'
-import { generateOTP } from 'src/shared/helper/helperOtp'
+import { generateOTP } from 'src/shared/helpers/helperOtp'
 import { AuthRepository } from '../auth.repo'
 import {
   ChangePasswordBodyType,
@@ -27,7 +27,7 @@ import {
 } from '../schemas/auth.model'
 import { HashingService } from 'src/shared/services/hashing.service'
 import { RoleService } from './role.service'
-import { isNotFoundError, isUniqueConstrainError } from 'src/shared/helper/helper.prisma'
+import { isNotFoundError, isUniqueConstrainError } from 'src/shared/helpers/helper.prisma'
 import { RoleName } from 'src/shared/constant/role.constant'
 import { TokenService } from 'src/shared/services/token.service'
 import { JwtRefreshTokenPayload } from 'src/shared/types/jwt.type'

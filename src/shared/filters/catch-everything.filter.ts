@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common'
 import { HttpAdapterHost } from '@nestjs/core'
-import { isUniqueConstrainError } from 'src/shared/helper/helper.prisma'
+import { isUniqueConstrainError } from 'src/shared/helpers/helper.prisma'
 
 //tấm lưới bảo hiểm" cuối cùng của cả hệ thống
 // Bất kể lỗi gì xảy ra ở bất kỳ ngóc ngách nào trong code Backend của bạn mà bạn chưa kịp bắt (try...catch), nó đều sẽ nhảy ra hứng trọn.
