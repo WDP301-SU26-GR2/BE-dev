@@ -5,15 +5,12 @@ import { CatchEverythingFilter } from 'src/shared/filters/catch-everything.filte
 import { HttpExceptionFilter } from 'src/shared/filters/http-exception.filter'
 import CustomZodValidationPipe from 'src/shared/pipes/custom-zod-validation.pipe'
 import { SharedModule } from 'src/shared/shared.module'
-import { AppController } from './app.controller'
-import { AppService } from './app.service'
 import { AuthModule } from './modules/auth/auth.module'
 
 @Module({
   imports: [SharedModule, AuthModule],
-  controllers: [AppController],
+  controllers: [],
   providers: [
-    AppService,
     {
       provide: APP_PIPE,
       useClass: CustomZodValidationPipe // Sử dụng CustomZodValidationPipe để thay thế ZodValidationPipe mặc định, CustomZodValidationPipe sẽ trả về lỗi 422 Unprocessable Entity thay vì lỗi 400 Bad Request khi có lỗi validation xảy ra, điều này giúp cho client dễ dàng phân biệt được lỗi nào là lỗi validation và lỗi nào là lỗi khác, đồng thời cũng giúp tăng cường tính chính xác và rõ ràng của các phản hồi lỗi từ API
