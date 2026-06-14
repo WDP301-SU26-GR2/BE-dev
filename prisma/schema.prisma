@@ -1057,3 +1057,45 @@ model SeriesReport {
 
   @@index([seriesId])
 }
+
+model VotingConfig {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  updatedBy String? @db.ObjectId
+
+  authMode         VotingAuthMode @default(OTP)
+  maxSeriesPerVote Int            @default(1)
+  otpExpirySeconds Int            @default(300)
+  otpMaxAttempts   Int            @default(3)
+  ipRateLimit      Int            @default(10)
+  phoneRateLimit   Int            @default(5)
+  captchaThreshold Float          @default(0.5)
+  updatedAt        DateTime       @updatedAt
+
+  @@index([updatedBy])
+}
+
+model BoardConfig {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  updatedBy String? @db.ObjectId
+
+  boardTotalMembers    Int      @default(0)
+  quorumMin            Int      @default(0)
+  approveMajorityRatio Float    @default(0.5)
+  updatedAt            DateTime @updatedAt
+
+  @@index([updatedBy])
+}
+
+model Notification {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  recipientId String @db.ObjectId
+
+  type          NotificationType?
+  referenceId   String?           @db.ObjectId
+  referenceType String?
+  content       String?
+  isRead        Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+
+  @@index([recipientId])
+}
