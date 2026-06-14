@@ -4,8 +4,8 @@
 
 ## 1. Project Overview
 
-- **Stack**: NestJS 10, Prisma, Zod, PostgreSQL, TypeScript.
-- **Module hiện tại**: `auth`, `users`.
+- **Stack**: NestJS 11, Prisma, Zod, MongoDB (replica set `rs0`), TypeScript.
+- **Module hiện tại**: `auth`. (`users` đang được tái cấu trúc — xem `src/modules/`.)
 - **Quy tắc vàng**: Vertical slice (NestJS chuẩn). Mỗi module tự chứa đủ: controller, service(s), repo, schemas, dto, errors.
 
 ## 2. Folder Structure
