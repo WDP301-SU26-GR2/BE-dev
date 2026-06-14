@@ -470,3 +470,80 @@ enum TaskVersionReviewStatus {
   APPROVED
   REVISION_REQUESTED
 }
+
+model Series {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  mangakaId String  @db.ObjectId
+  editorId  String? @db.ObjectId
+  coOwnerId String? @db.ObjectId
+
+  parentSeriesId String?  @db.ObjectId
+  parentSeries   Series?  @relation("SeriesLineage", fields: [parentSeriesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childSeries    Series[] @relation("SeriesLineage")
+
+  title                   String
+  genre                   String?
+  demographic             String?
+  publicationType         PublicationType?
+  status                  SeriesStatus      @default(PROPOSED)
+  statusReason            String?
+  relationshipType        RelationshipType?
+  coOwnerApprovalRequired Boolean           @default(false)
+
+  proposal SeriesProposal?
+
+  names               Name[]
+  publicationVersions PublicationVersion[]
+
+  createdAt DateTime @default(now())
+
+  @@index([mangakaId])
+  @@index([editorId])
+  @@index([coOwnerId])
+  @@index([parentSeriesId])
+}
+
+type SeriesProposal {
+  nameId            String?        @db.ObjectId
+  synopsis          String?
+  characterDesigns  String[]
+  targetDemographic String?
+  estimatedLength   Int?
+  status            ProposalStatus @default(DRAFT)
+  createdAt         DateTime       @default(now())
+}
+
+model Name {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId String @db.ObjectId
+  series   Series @relation(fields: [seriesId], references: [id])
+
+  chapterNumber Int?
+  status        NameStatus @default(DRAFT)
+  version       Int        @default(1)
+  submittedAt   DateTime?
+
+  pages NamePage[]
+
+  @@index([seriesId])
+}
+
+type NamePage {
+  pageNumber Int
+  fileUrl    String
+}
+
+model PublicationVersion {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId String @db.ObjectId
+  series   Series @relation(fields: [seriesId], references: [id])
+
+  language         String
+  readingDirection ReadingDirection @default(RTL)
+  versionType      String?
+  notes            String?
+  createdAt        DateTime         @default(now())
+
+  @@index([seriesId])
+}
