@@ -1,0 +1,14 @@
+---
+description: Project conventions — source of truth is AGENTS.md
+alwaysApply: true
+---
+
+# Project rules
+
+This repo's conventions (architecture, layer responsibilities, naming, error handling,
+migration checklist) live in `AGENTS.md` at the repo root — Cursor loads it
+automatically. Do not duplicate that content here; only add Cursor-specific
+automation/rules in this folder.
+
+Shared skills (e.g. `backend-development`) live in `.agents/skills/` and are
+available to the agent for maintenance, debugging, and implementation tasks.
