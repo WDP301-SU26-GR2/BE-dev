@@ -863,3 +863,69 @@ model ContractAmendment {
 
   @@index([contractId])
 }
+
+model ReprintRequest {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId    String  @db.ObjectId
+  requestedBy String? @db.ObjectId
+
+  revisionMode      ReprintRevisionMode?
+  reason            String?
+  chapterRangeStart Int?
+  chapterRangeEnd   Int?
+  status            ReprintRequestStatus @default(PENDING)
+  mangakaApprovedAt DateTime?
+  boardApprovedAt   DateTime?
+  publishedAt       DateTime?
+  createdAt         DateTime             @default(now())
+
+  chapters ReprintChapter[]
+
+  @@index([seriesId])
+  @@index([requestedBy])
+}
+
+type ReprintChapter {
+  originalChapterId String?              @db.ObjectId
+  manuscriptFile    String?
+  status            ReprintChapterStatus @default(PENDING)
+}
+
+model TransferRequest {
+  id                  String @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId            String @db.ObjectId
+  requestingMangakaId String @db.ObjectId
+  originalMangakaId   String @db.ObjectId
+
+  originalContractType String?
+  proposedType         TransferType?
+  proposedPercentage   Float?
+  planDescription      String?
+  status               TransferRequestStatus @default(PROPOSED)
+  createdAt            DateTime              @default(now())
+
+  @@index([seriesId])
+  @@index([requestingMangakaId])
+  @@index([originalMangakaId])
+}
+
+model TransferContract {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  transferRequestId String? @db.ObjectId
+  seriesId          String? @db.ObjectId
+  fromMangakaId     String? @db.ObjectId
+  toMangakaId       String? @db.ObjectId
+
+  transferType            TransferType?
+  transferAmount          Float?
+  newOwnershipSplit       Json?
+  coOwnerApprovalRequired Boolean                @default(false)
+  status                  TransferContractStatus @default(DRAFT)
+  aSignedAt               DateTime?
+  bSignedAt               DateTime?
+  boardSignedAt           DateTime?
+  createdAt               DateTime               @default(now())
+
+  @@index([transferRequestId])
+  @@index([seriesId])
+}
