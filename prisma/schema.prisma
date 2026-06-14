@@ -24,12 +24,17 @@ model User {
 
   emailVerified Boolean @default(false)
 
+  registrationType RegistrationType @default(SELF_REGISTERED)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   role          Role           @relation(fields: [roleId], references: [id])
   refreshTokens RefreshToken[]
+
+  mangakaProfile   MangakaProfile?
+  assistantProfile AssistantProfile?
 
   @@index([deletedAt])
 }
@@ -90,309 +95,1011 @@ enum UserStatus {
   BLOCKED
 }
 
-model Series {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  mangakaId       String   @db.ObjectId
-  editorId        String?  @db.ObjectId
-  title           String
-  genre           String
-  demographic     String
-  publicationType String
-  status          String
-  statusReason    String?
-  createdAt       DateTime @default(now())
+// ===== Enums from ERD §3 catalog (exact) =====
+
+enum RegistrationType {
+  SELF_REGISTERED
+  ADMIN_CREATED
 }
 
-model SeriesProposal {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  seriesId          String   @db.ObjectId
-  nameId            String?  @db.ObjectId
-  synopsis          String
-  characterDesigns  String?
-  targetDemographic String
-  estimatedLength   Int
-  status            String
-  createdAt         DateTime @default(now())
+enum RoleCode {
+  MANGAKA
+  ASSISTANT
+  EDITOR
+  BOARD_MEMBER
+  SUPER_ADMIN
+}
+
+enum PublicationType {
+  WEEKLY
+  MONTHLY
+  IRREGULAR
+}
+
+enum RelationshipType {
+  SEQUEL
+  SPINOFF
+  SIDE_STORY
+  REBOOT
+}
+
+enum ContractType {
+  FULL_BUYOUT
+  REVENUE_SHARE
+}
+
+enum ContractStatus {
+  DRAFT
+  MANGAKA_REVIEW
+  MANGAKA_APPROVED
+  BOARD_APPROVED
+  NEGOTIATION
+  MANGAKA_SIGNED
+  FULLY_EXECUTED
+  FULFILLED
+  TERMINATED
+  TERMINATED_BY_BREACH
+  EXPIRED
+  VOIDED
+}
+
+enum ConditionType {
+  CHAPTER_MILESTONE
+  RECURRING_CHAPTER
+  RANKING_MILESTONE
+  TIME_BOUND
+}
+
+enum PaymentType {
+  CONDITION_PAYOUT
+  REVENUE_SHARE
+  COMPENSATION
+}
+
+enum ReprintRevisionMode {
+  AS_IS
+  WITH_REVISION
+}
+
+enum TransferType {
+  FULL_TRANSFER
+  PARTIAL_TRANSFER
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  BUSY
+  ON_LEAVE
+  UNAVAILABLE
+}
+
+enum Specialization {
+  BACKGROUND
+  SCREENTONE
+  EFFECT_LINES
+  INKING
+  COLORING
+  LETTERING
+}
+
+enum TaskStatus {
+  ASSIGNED
+  IN_PROGRESS
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REVISION_REQUESTED
+  ON_HOLD
+}
+
+enum ManuscriptStatus {
+  DRAFT
+  IN_PRODUCTION
+  COMPOSITE_REVIEW
+  EDITOR_REVIEW
+  EDITOR_REVISION
+  READY_FOR_PRINT
+  AWAITING_CO_OWNER_APPROVAL
+  PUBLISHED
+}
+
+enum DeadlineRequestStatus {
+  PROPOSED
+  COUNTER_PROPOSED
+  AGREED_BY_PARTIES
+  BOARD_REVIEW
+  ESCALATED
+  APPROVED
+  REJECTED
+}
+
+enum ReadingDirection {
+  RTL
+  LTR
+}
+
+// ===== Inferred enums (NOT in §3) — REVIEW values against flows =====
+
+// REVIEW: inferred
+enum NameStatus {
+  DRAFT
+  SUBMITTED
+  EDITOR_REVIEW
+  REVISION_REQUESTED
+  APPROVED
+}
+
+// REVIEW: inferred
+enum ChapterStatus {
+  DRAFT
+  IN_PRODUCTION
+  COMPLETED
+  PUBLISHED
+}
+
+// REVIEW: inferred
+enum SeriesStatus {
+  PROPOSED
+  SERIALIZED
+  ON_HIATUS
+  ENDED
+  CANCELLED
+}
+
+// REVIEW: inferred
+enum ProposalStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+// REVIEW: inferred
+enum PageStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPOSITE
+  REVIEW
+  APPROVED
+}
+
+// REVIEW: inferred
+enum RegionType {
+  PANEL
+  BACKGROUND
+  SPEECH_BUBBLE
+  SFX
+  CHARACTER
+}
+
+// REVIEW: inferred
+enum ReviewStage {
+  ASSISTANT
+  MANGAKA
+  EDITOR
+}
+
+// REVIEW: inferred
+enum AnnotationType {
+  COMMENT
+  CORRECTION
+  APPROVAL
+  REJECTION
+}
+
+// REVIEW: inferred
+enum AnnotationTargetType {
+  PAGE
+  REGION
+  TASK
+  MANUSCRIPT
+}
+
+// REVIEW: inferred
+enum AssetType {
+  REFERENCE
+  BACKGROUND
+  SCREENTONE
+  BRUSH
+  OTHER
+}
+
+// REVIEW: inferred
+enum NotificationType {
+  SYSTEM
+  CONTRACT
+  TASK
+  DEADLINE
+  SURVEY
+  BOARD
+  REVIEW
+}
+
+// REVIEW: inferred
+enum CollaborationInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+// REVIEW: inferred
+enum StudioAssignmentStatus {
+  ACTIVE
+  COMPLETED
+  TERMINATED
+}
+
+// REVIEW: inferred
+enum ReprintRequestStatus {
+  PENDING
+  MANGAKA_APPROVED
+  BOARD_APPROVED
+  PUBLISHED
+  REJECTED
+}
+
+// REVIEW: inferred
+enum ReprintChapterStatus {
+  PENDING
+  IN_REVISION
+  READY
+  PUBLISHED
+}
+
+// REVIEW: inferred
+enum TransferRequestStatus {
+  PROPOSED
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+// REVIEW: inferred
+enum TransferContractStatus {
+  DRAFT
+  A_SIGNED
+  B_SIGNED
+  BOARD_SIGNED
+  FULLY_EXECUTED
+  VOIDED
+}
+
+// REVIEW: inferred
+enum ContractAmendmentStatus {
+  DRAFT
+  PENDING_SIGNATURES
+  FULLY_EXECUTED
+  VOIDED
+}
+
+// REVIEW: inferred
+enum PaymentConditionStatus {
+  PENDING
+  ACHIEVED
+  PAID
+  CANCELLED
+}
+
+// REVIEW: inferred
+enum PaymentRecordStatus {
+  PENDING
+  APPROVED
+  PAID
+  FAILED
+  CANCELLED
+}
+
+// REVIEW: inferred
+enum SurveyStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  REFLECTED
+}
+
+// REVIEW: inferred
+enum DecisionType {
+  CONTINUE
+  CANCEL
+  HIATUS
+  ENDING_ALLOWANCE
+}
+
+// REVIEW: inferred
+enum ReaderAuthMethod {
+  EMAIL_OTP
+  PHONE_OTP
+  CAPTCHA_ONLY
+}
+
+// REVIEW: inferred
+enum VotingAuthMode {
+  OTP
+  CAPTCHA
+  HYBRID
+}
+
+model MangakaProfile {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  penName         String
+  genres          String[]
+  experienceLevel String?
+  bio             String?
+  portfolioFiles  String[]
+
+  reputationScore Float   @default(0)
+  ratingAvg       Float   @default(0)
+  ratingCount     Int     @default(0)
+  isRecommended   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AssistantProfile {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  specializations    Specialization[]
+  experienceLevel    String?
+  portfolioFiles     String[]
+  availabilityStatus AvailabilityStatus @default(AVAILABLE)
+  availabilityFrom   DateTime?
+  availabilityTo     DateTime?
+
+  reputationScore Float   @default(0)
+  ratingAvg       Float   @default(0)
+  ratingCount     Int     @default(0)
+  isRecommended   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// REVIEW: inferred
+enum TaskVersionReviewStatus {
+  PENDING
+  APPROVED
+  REVISION_REQUESTED
+}
+
+model Series {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  mangakaId String  @db.ObjectId
+  editorId  String? @db.ObjectId
+  coOwnerId String? @db.ObjectId
+
+  parentSeriesId String?  @db.ObjectId
+  parentSeries   Series?  @relation("SeriesLineage", fields: [parentSeriesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childSeries    Series[] @relation("SeriesLineage")
+
+  title                   String
+  genre                   String?
+  demographic             String?
+  publicationType         PublicationType?
+  status                  SeriesStatus      @default(PROPOSED)
+  statusReason            String?
+  relationshipType        RelationshipType?
+  coOwnerApprovalRequired Boolean           @default(false)
+
+  proposal SeriesProposal?
+
+  names               Name[]
+  publicationVersions PublicationVersion[]
+  chapters            Chapter[]
+
+  createdAt DateTime @default(now())
+
+  @@index([mangakaId])
+  @@index([editorId])
+  @@index([coOwnerId])
+  @@index([parentSeriesId])
+}
+
+type SeriesProposal {
+  nameId            String?        @db.ObjectId
+  synopsis          String?
+  characterDesigns  String[]
+  targetDemographic String?
+  estimatedLength   Int?
+  status            ProposalStatus @default(DRAFT)
+  createdAt         DateTime       @default(now())
 }
 
 model Name {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  seriesId      String    @db.ObjectId
-  chapterNumber Int
-  status        String
-  version       Int
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId String @db.ObjectId
+  series   Series @relation(fields: [seriesId], references: [id])
+
+  chapterNumber Int?
+  status        NameStatus @default(DRAFT)
+  version       Int        @default(1)
   submittedAt   DateTime?
+
+  pages NamePage[]
+
+  @@index([seriesId])
 }
 
-model NamePage {
-  id         String @id @default(auto()) @map("_id") @db.ObjectId
-  nameId     String @db.ObjectId
+type NamePage {
   pageNumber Int
   fileUrl    String
 }
 
+model PublicationVersion {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId String @db.ObjectId
+  series   Series @relation(fields: [seriesId], references: [id])
+
+  language         String
+  readingDirection ReadingDirection @default(RTL)
+  versionType      String?
+  notes            String?
+  createdAt        DateTime         @default(now())
+
+  @@index([seriesId])
+}
+
 model Chapter {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  seriesId      String    @db.ObjectId
-  nameId        String?   @db.ObjectId
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId String @db.ObjectId
+  series   Series @relation(fields: [seriesId], references: [id])
+
+  nameId String? @db.ObjectId
+
   chapterNumber Int
-  title         String
-  totalPages    Int
-  status        String
+  title         String?
+  totalPages    Int?
+  status        ChapterStatus @default(DRAFT)
   publishedAt   DateTime?
+
+  schedule   Schedule?
+  manuscript Manuscript?
+  pages      Page[]
+
+  @@index([seriesId])
+  @@index([nameId])
 }
 
 model Schedule {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  chapterId        String   @unique @db.ObjectId
-  originalDeadline DateTime
-  currentDeadline  DateTime
-  extended         Boolean
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId String  @unique @db.ObjectId
+  chapter   Chapter @relation(fields: [chapterId], references: [id])
+
+  originalDeadline DateTime?
+  currentDeadline  DateTime?
+  extended         Boolean   @default(false)
+
+  extensions       ScheduleExtension[]
+  deadlineRequests DeadlineRequest[]
 }
 
-model ScheduleExtension {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  scheduleId       String   @db.ObjectId
-  extendedBy       String   @db.ObjectId
-  previousDeadline DateTime
-  newDeadline      DateTime
-  reason           String
-  extendedAt       DateTime
+type ScheduleExtension {
+  extendedBy       String?   @db.ObjectId
+  previousDeadline DateTime?
+  newDeadline      DateTime?
+  reason           String?
+  extendedAt       DateTime  @default(now())
+}
+
+model DeadlineRequest {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  scheduleId String   @db.ObjectId
+  schedule   Schedule @relation(fields: [scheduleId], references: [id])
+
+  chapterId       String? @db.ObjectId
+  seriesId        String? @db.ObjectId
+  boardReviewedBy String? @db.ObjectId
+
+  requestedBy       String?
+  currentDeadline   DateTime?
+  requestedDeadline DateTime?
+  reason            String?
+  affectsSlot       Boolean               @default(false)
+  status            DeadlineRequestStatus @default(PROPOSED)
+  resolvedAt        DateTime?
+  createdAt         DateTime              @default(now())
+
+  @@index([scheduleId])
+  @@index([chapterId])
+  @@index([seriesId])
 }
 
 model Manuscript {
-  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
-  chapterId           String    @unique @db.ObjectId
-  status              String
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId String  @unique @db.ObjectId
+  chapter   Chapter @relation(fields: [chapterId], references: [id])
+
+  status              ManuscriptStatus @default(DRAFT)
   finalFile           String?
   submittedToEditorAt DateTime?
   approvedAt          DateTime?
 }
 
 model Page {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  chapterId     String   @db.ObjectId
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId String  @db.ObjectId
+  chapter   Chapter @relation(fields: [chapterId], references: [id])
+
   pageNumber    Int
   originalFile  String?
   compositeFile String?
-  status        String
-  createdAt     DateTime @default(now())
+  status        PageStatus @default(DRAFT)
+  createdAt     DateTime   @default(now())
+
+  regions Region[]
+
+  @@index([chapterId])
 }
 
 model Region {
-  id                 String  @id @default(auto()) @map("_id") @db.ObjectId
-  pageId             String  @db.ObjectId
-  regionType         String
-  createdBy          String
-  xMin               Float
-  yMin               Float
-  xMax               Float
-  yMax               Float
-  confirmedByMangaka Boolean
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  pageId String @db.ObjectId
+  page   Page   @relation(fields: [pageId], references: [id])
+
+  coordinates        Json?
+  regionType         RegionType?
+  detectedSubtype    String?
+  createdBy          String?
+  confirmedByMangaka Boolean     @default(false)
   confidenceScore    Float?
+  aiModelVersion     String?
+
+  @@index([pageId])
 }
 
 model Task {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  pageId      String?   @db.ObjectId
-  regionId    String?   @db.ObjectId
-  assistantId String?   @db.ObjectId
-  taskType    String
-  status      String
-  priority    Int
-  deadline    DateTime?
-  createdAt   DateTime  @default(now())
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  pageId      String  @db.ObjectId
+  regionId    String? @db.ObjectId
+  assistantId String? @db.ObjectId
+
+  taskType  Specialization?
+  status    TaskStatus      @default(ASSIGNED)
+  priority  Int             @default(0)
+  deadline  DateTime?
+  createdAt DateTime        @default(now())
+
+  versions    TaskVersion[]
+  annotations Annotation[]
+
+  @@index([pageId])
+  @@index([regionId])
+  @@index([assistantId])
 }
 
-model TaskVersion {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  taskId        String   @db.ObjectId
-  submittedBy   String   @db.ObjectId
+type TaskVersion {
+  submittedBy   String?                 @db.ObjectId
   versionNumber Int
-  file          String
-  reviewStatus  String
+  file          String?
+  reviewStatus  TaskVersionReviewStatus @default(PENDING)
   reviewerNote  String?
-  submittedAt   DateTime
+  submittedAt   DateTime                @default(now())
 }
 
 model Annotation {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  targetType     String
-  targetId       String
-  reviewStage    String?
-  taskId         String?   @db.ObjectId
-  authorId       String    @db.ObjectId
-  authorRole     String
-  annotationType String
-  xMin           Float
-  yMin           Float
-  xMax           Float
-  yMax           Float
-  content        String
-  isResolved     Boolean
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  taskId String @db.ObjectId
+  task   Task   @relation(fields: [taskId], references: [id])
+
+  authorId String? @db.ObjectId
+
+  targetType     AnnotationTargetType?
+  targetId       String?               @db.ObjectId
+  coordinates    Json?
+  reviewStage    ReviewStage?
+  authorRole     String?
+  annotationType AnnotationType?
+  content        String?
+  isResolved     Boolean               @default(false)
   resolvedAt     DateTime?
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime              @default(now())
+
+  @@index([taskId])
+  @@index([authorId])
 }
 
 model Asset {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  uploadedBy String   @db.ObjectId
+  id         String  @id @default(auto()) @map("_id") @db.ObjectId
+  uploadedBy String? @db.ObjectId
+
   name       String
   filePath   String
-  assetType  String
-  uploadedAt DateTime
+  assetType  AssetType?
+  uploadedAt DateTime   @default(now())
+
+  @@index([uploadedBy])
+}
+
+model CollaborationInvite {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  mangakaId   String  @db.ObjectId
+  assistantId String  @db.ObjectId
+  seriesId    String? @db.ObjectId
+
+  hireStart DateTime?
+  hireEnd   DateTime?
+  taskTypes Specialization[]
+  status    CollaborationInviteStatus @default(PENDING)
+  createdAt DateTime                  @default(now())
+
+  @@index([mangakaId])
+  @@index([assistantId])
+  @@index([seriesId])
+}
+
+model StudioAssignment {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  mangakaId   String  @db.ObjectId
+  assistantId String  @db.ObjectId
+  seriesId    String? @db.ObjectId
+
+  hireStart         DateTime?
+  hireEnd           DateTime?
+  assignedTaskTypes Specialization[]
+  status            StudioAssignmentStatus @default(ACTIVE)
+  terminatedReason  String?
+  createdAt         DateTime               @default(now())
+
+  @@index([mangakaId])
+  @@index([assistantId])
+  @@index([seriesId])
+}
+
+model AssistantReview {
+  id                 String  @id @default(auto()) @map("_id") @db.ObjectId
+  studioAssignmentId String? @db.ObjectId
+  mangakaId          String  @db.ObjectId
+  assistantId        String  @db.ObjectId
+
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([studioAssignmentId])
+  @@index([mangakaId])
+  @@index([assistantId])
+}
+
+model MangakaReview {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId  String? @db.ObjectId
+  editorId  String  @db.ObjectId
+  mangakaId String  @db.ObjectId
+
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([seriesId])
+  @@index([editorId])
+  @@index([mangakaId])
+}
+
+model Contract {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId  String  @db.ObjectId
+  mangakaId String  @db.ObjectId
+  editorId  String? @db.ObjectId
+
+  contractType          ContractType
+  valuationAmount       Float?
+  publisherOwnershipPct Float?
+  mangakaOwnershipPct   Float?
+  terminationClause     String?
+  contractStart         DateTime?
+  contractEnd           DateTime?
+  status                ContractStatus @default(DRAFT)
+  mangakaSignedAt       DateTime?
+  boardSignedAt         DateTime?
+  createdAt             DateTime       @default(now())
+
+  conditions PaymentCondition[]
+  payments   PaymentRecord[]
+  amendments ContractAmendment[]
+
+  @@index([seriesId])
+  @@index([mangakaId])
+  @@index([editorId])
+}
+
+model PaymentCondition {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  contractId String   @db.ObjectId
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  conditionType   ConditionType
+  thresholdConfig Json?
+  payoutAmount    Float?
+  payoutPct       Float?
+  isRecurring     Boolean                @default(false)
+  status          PaymentConditionStatus @default(PENDING)
+  achievedAt      DateTime?
+
+  payments PaymentRecord[]
+
+  @@index([contractId])
+}
+
+model PaymentRecord {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  contractId  String            @db.ObjectId
+  contract    Contract          @relation(fields: [contractId], references: [id])
+  conditionId String?           @db.ObjectId
+  condition   PaymentCondition? @relation(fields: [conditionId], references: [id])
+
+  approvedBy  String?             @db.ObjectId
+  paymentType PaymentType
+  amount      Float
+  period      String?
+  status      PaymentRecordStatus @default(PENDING)
+  paidAt      DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@index([contractId])
+  @@index([conditionId])
+  @@index([approvedBy])
+}
+
+model ContractAmendment {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  contractId String   @db.ObjectId
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  changedClauses  String[]
+  reason          String?
+  status          ContractAmendmentStatus @default(DRAFT)
+  fullyExecutedAt DateTime?
+  createdAt       DateTime                @default(now())
+
+  @@index([contractId])
+}
+
+model ReprintRequest {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId    String  @db.ObjectId
+  requestedBy String? @db.ObjectId
+
+  revisionMode      ReprintRevisionMode?
+  reason            String?
+  chapterRangeStart Int?
+  chapterRangeEnd   Int?
+  status            ReprintRequestStatus @default(PENDING)
+  mangakaApprovedAt DateTime?
+  boardApprovedAt   DateTime?
+  publishedAt       DateTime?
+  createdAt         DateTime             @default(now())
+
+  chapters ReprintChapter[]
+
+  @@index([seriesId])
+  @@index([requestedBy])
+}
+
+type ReprintChapter {
+  originalChapterId String?              @db.ObjectId
+  manuscriptFile    String?
+  status            ReprintChapterStatus @default(PENDING)
+}
+
+model TransferRequest {
+  id                  String @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId            String @db.ObjectId
+  requestingMangakaId String @db.ObjectId
+  originalMangakaId   String @db.ObjectId
+
+  originalContractType String?
+  proposedType         TransferType?
+  proposedPercentage   Float?
+  planDescription      String?
+  status               TransferRequestStatus @default(PROPOSED)
+  createdAt            DateTime              @default(now())
+
+  @@index([seriesId])
+  @@index([requestingMangakaId])
+  @@index([originalMangakaId])
+}
+
+model TransferContract {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  transferRequestId String? @db.ObjectId
+  seriesId          String? @db.ObjectId
+  fromMangakaId     String? @db.ObjectId
+  toMangakaId       String? @db.ObjectId
+
+  transferType            TransferType?
+  transferAmount          Float?
+  newOwnershipSplit       Json?
+  coOwnerApprovalRequired Boolean                @default(false)
+  status                  TransferContractStatus @default(DRAFT)
+  aSignedAt               DateTime?
+  bSignedAt               DateTime?
+  boardSignedAt           DateTime?
+  createdAt               DateTime               @default(now())
+
+  @@index([transferRequestId])
+  @@index([seriesId])
+  @@index([fromMangakaId])
+  @@index([toMangakaId])
 }
 
 model SurveyPeriod {
-  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
-  issueNumber          Int
-  reflectedIssueNumber Int
-  startDate            DateTime
-  endDate              DateTime
-  status               String
-  createdBy            String   @db.ObjectId
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  createdBy String? @db.ObjectId
+
+  issueNumber          Int?
+  reflectedIssueNumber Int?
+  startDate            DateTime?
+  endDate              DateTime?
+  status               SurveyStatus @default(DRAFT)
+
+  readerVotes    ReaderVote[]
+  surveyData     SurveyData[]
+  rankingRecords RankingRecord[]
+
+  @@index([createdBy])
 }
 
 model ReaderVote {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  surveyPeriodId String   @db.ObjectId
-  identityHash   String
-  authMethod     String
-  ipHash         String?
-  captchaScore   Float?
-  voteWeight     Float
-  isFlagged      Boolean
-  votedAt        DateTime
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  surveyPeriodId String       @db.ObjectId
+  surveyPeriod   SurveyPeriod @relation(fields: [surveyPeriodId], references: [id])
+
+  seriesIds    String[]          @db.ObjectId
+  identityHash String?
+  authMethod   ReaderAuthMethod?
+  ipHash       String?
+  captchaScore Float?
+  voteWeight   Float             @default(1)
+  isFlagged    Boolean           @default(false)
+  votedAt      DateTime          @default(now())
+
+  @@unique([surveyPeriodId, identityHash])
+  @@index([surveyPeriodId])
 }
 
-model ReaderVoteSeries {
-  id           String @id @default(auto()) @map("_id") @db.ObjectId
-  readerVoteId String @db.ObjectId
-  seriesId     String @db.ObjectId
+model VoteOtp {
+  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  identityHash String
+  otpCodeHash  String
+  ipHash       String?
+  authMethod   ReaderAuthMethod?
+  createdAt    DateTime          @default(now())
+  expiresAt    DateTime
+  attempts     Int               @default(3)
+  isUsed       Boolean           @default(false)
+
+  @@index([expiresAt])
 }
 
 model SurveyData {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  surveyPeriodId String   @db.ObjectId
-  surveyDate     DateTime
-  importedBy     String   @db.ObjectId
-  importedAt     DateTime
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  surveyPeriodId String       @db.ObjectId
+  surveyPeriod   SurveyPeriod @relation(fields: [surveyPeriodId], references: [id])
+
+  importedBy String?   @db.ObjectId
+  surveyDate DateTime?
+  importedAt DateTime  @default(now())
+
+  entries SurveyEntry[]
+
+  @@index([surveyPeriodId])
+  @@index([importedBy])
 }
 
-model SurveyEntry {
-  id           String @id @default(auto()) @map("_id") @db.ObjectId
-  surveyDataId String @db.ObjectId
-  seriesId     String @db.ObjectId
-  voteCount    Int
+type SurveyEntry {
+  seriesId  String? @db.ObjectId
+  voteCount Int     @default(0)
 }
 
 model RankingRecord {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  seriesId       String   @db.ObjectId
-  surveyPeriodId String   @db.ObjectId
-  rankPosition   Int
-  voteCount      Float
-  previousRank   Int?
-  rankChange     Int?
-  isAtRisk       Boolean
-  isReliable     Boolean
-  recordedAt     DateTime
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId       String       @db.ObjectId
+  surveyPeriodId String       @db.ObjectId
+  surveyPeriod   SurveyPeriod @relation(fields: [surveyPeriodId], references: [id])
+
+  rankPosition Int?
+  voteCount    Float    @default(0)
+  previousRank Int?
+  rankChange   Int?
+  isAtRisk     Boolean  @default(false)
+  isReliable   Boolean  @default(true)
+  recordedAt   DateTime @default(now())
+
+  @@index([seriesId])
+  @@index([surveyPeriodId])
 }
 
 model BoardDecision {
-  id                     String   @id @default(auto()) @map("_id") @db.ObjectId
-  targetSeriesId         String   @db.ObjectId
-  decisionType           String
-  result                 String
-  totalVotes             Int
-  approveCount           Int
-  rejectCount            Int
-  quorumMet              Boolean
+  id             String  @id @default(auto()) @map("_id") @db.ObjectId
+  targetSeriesId String? @db.ObjectId
+
+  decisionType           DecisionType?
+  result                 String?
+  totalVotes             Int           @default(0)
+  approveCount           Int           @default(0)
+  rejectCount            Int           @default(0)
+  quorumMet              Boolean       @default(false)
   endingChapterAllowance Int?
-  details                String?
-  decidedAt              DateTime
+  details                Json?
+  decidedAt              DateTime?
+
+  votes  Vote[]
+  report SeriesReport?
+
+  @@index([targetSeriesId])
 }
 
-model Vote {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  boardDecisionId String   @db.ObjectId
-  voterId         String   @db.ObjectId
-  voteValue       String
-  note            String?
-  votedAt         DateTime
+type Vote {
+  voterId   String?  @db.ObjectId
+  voteValue String?
+  note      String?
+  votedAt   DateTime @default(now())
 }
 
 model SeriesReport {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  seriesId        String   @db.ObjectId
-  boardDecisionId String?  @db.ObjectId
-  reportType      String
-  content         String
-  preparedBy      String   @db.ObjectId
-  createdAt       DateTime
-}
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId        String?        @db.ObjectId
+  boardDecisionId String?        @unique @db.ObjectId
+  boardDecision   BoardDecision? @relation(fields: [boardDecisionId], references: [id])
 
-model ReportAttachment {
-  id             String @id @default(auto()) @map("_id") @db.ObjectId
-  seriesReportId String @db.ObjectId
-  assetId        String @db.ObjectId
-}
+  preparedBy  String?  @db.ObjectId
+  reportType  String?
+  content     String?
+  attachments String[]
+  createdAt   DateTime @default(now())
 
-model TaskAsset {
-  id      String @id @default(auto()) @map("_id") @db.ObjectId
-  taskId  String @db.ObjectId
-  assetId String @db.ObjectId
-}
-
-model Notification {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  recipientId   String   @db.ObjectId
-  type          String
-  referenceId   String?
-  referenceType String?
-  content       String
-  isRead        Boolean
-  createdAt     DateTime
-}
-
-model PaymentConfig {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  mangakaId     String   @db.ObjectId
-  taskType      String
-  ratePerTask   Float
-  currency      String
-  effectiveFrom DateTime
-}
-
-model EarningRecord {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  assistantId  String   @db.ObjectId
-  taskId       String   @db.ObjectId
-  amount       Float
-  month        Int
-  year         Int
-  status       String
-  calculatedAt DateTime
+  @@index([seriesId])
+  @@index([preparedBy])
 }
 
 model VotingConfig {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  authMode         String
-  maxSeriesPerVote Int
-  otpExpirySeconds Int
-  otpMaxAttempts   Int
-  ipRateLimit      Int
-  phoneRateLimit   Int
-  captchaThreshold Float
-  updatedBy        String   @db.ObjectId
-  updatedAt        DateTime
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  updatedBy String? @db.ObjectId
+
+  authMode         VotingAuthMode @default(OTP)
+  maxSeriesPerVote Int            @default(1)
+  otpExpirySeconds Int            @default(300)
+  otpMaxAttempts   Int            @default(3)
+  ipRateLimit      Int            @default(10)
+  phoneRateLimit   Int            @default(5)
+  captchaThreshold Float          @default(0.5)
+  updatedAt        DateTime       @updatedAt
+
+  @@index([updatedBy])
 }
 
 model BoardConfig {
-  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
-  boardTotalMembers    Int
-  quorumMin            Int
-  approveMajorityRatio Float
-  updatedBy            String   @db.ObjectId
-  updatedAt            DateTime
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  updatedBy String? @db.ObjectId
+
+  boardTotalMembers    Int      @default(0)
+  quorumMin            Int      @default(0)
+  approveMajorityRatio Float    @default(0.5)
+  updatedAt            DateTime @updatedAt
+
+  @@index([updatedBy])
+}
+
+model Notification {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  recipientId String @db.ObjectId
+
+  type          NotificationType?
+  referenceId   String?           @db.ObjectId
+  referenceType String?
+  content       String?
+  isRead        Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+
+  @@index([recipientId])
 }
