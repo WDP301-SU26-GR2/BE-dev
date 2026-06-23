@@ -3,6 +3,8 @@
 > Tài liệu mô tả kiến trúc tổng thể, data flow, và các design pattern được áp dụng trong dự án.
 > **Đọc file này TRƯỚC khi bắt tay vào code.**
 
+> **System architecture diagram tổng:** Xem bộ 11 diagram (C4 × 4 + ER + Sequence × 5) tại [`../Architecture-Diagrams/README.md`](../Architecture-Diagrams/README.md). File master: `mangaka-architecture.drawio`. Mở nhanh gallery: `../Architecture-Diagrams/exports/gallery.html`.
+
 ---
 
 ## 1. Tech Stack Overview

@@ -1,43 +1,19 @@
-﻿import { Injectable } from '@nestjs/common'
-import { RoleName } from 'src/core/security/role.constant'
+import { Injectable } from '@nestjs/common'
+import { RoleNameType } from 'src/core/security/role.constant'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 
 @Injectable()
 export class RoleService {
-  private mangakaRoleId: string | null = null
-  private assistantRoleId: string | null = null
+  private readonly roleIdCache = new Map<string, string>()
 
   constructor(private readonly prismaService: PrismaService) {}
 
-  async getMangakaRoleId(): Promise<string> {
-    if (this.mangakaRoleId !== null) {
-      return this.mangakaRoleId
-    }
+  async getRoleIdByCode(code: RoleNameType): Promise<string> {
+    const cached = this.roleIdCache.get(code)
+    if (cached) return cached
 
-    this.mangakaRoleId = await this.prismaService.role
-      .findUniqueOrThrow({
-        where: {
-          code: RoleName.MANGAKA
-        }
-      })
-      .then((role) => role.id)
-
-    return this.mangakaRoleId as string
-  }
-
-  async getAssistantRoleId(): Promise<string> {
-    if (this.assistantRoleId !== null) {
-      return this.assistantRoleId
-    }
-
-    this.assistantRoleId = await this.prismaService.role
-      .findUniqueOrThrow({
-        where: {
-          code: RoleName.ASSISTANT
-        }
-      })
-      .then((role) => role.id)
-
-    return this.assistantRoleId as string
+    const role = await this.prismaService.role.findUniqueOrThrow({ where: { code } })
+    this.roleIdCache.set(code, role.id)
+    return role.id
   }
 }

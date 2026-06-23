@@ -18,8 +18,8 @@ export const main = async () => {
   const roles = await prisma.role.createMany({
     data: [
       {
-        code: RoleName.ADMIN,
-        description: 'Administrator with full access to all resources and permissions.',
+        code: RoleName.SUPER_ADMIN,
+        description: 'Super Administrator with full access to all resources and permissions.',
         isSystem: true
       },
       {
@@ -32,18 +32,18 @@ export const main = async () => {
           'View the list of assigned tasks, upload the comic page file to be processed, and any supporting resources.'
       },
       {
-        code: RoleName.TANTOU_EDITOR,
+        code: RoleName.EDITOR,
         description:
           'Review the draft and directly mark on the page the places that need editing in content, dialogue, and script.'
       },
       {
-        code: RoleName.MEMBER_BOARD,
+        code: RoleName.BOARD_MEMBER,
         description: 'Vote for the new series and decide on the publication schedule (weekly or monthly).'
       }
     ]
   })
   const adminRole = await prisma.role.findFirstOrThrow({
-    where: { code: RoleName.ADMIN }
+    where: { code: RoleName.SUPER_ADMIN }
   })
   const createAdmin = await prisma.user.create({
     data: {
@@ -52,6 +52,8 @@ export const main = async () => {
       name: env.ADMIN_NAME as string,
       phoneNumber: env.ADMIN_PHONE as string,
       status: UserStatus.ACTIVE,
+      emailVerified: true,
+      registrationType: 'ADMIN_CREATED',
       roleId: adminRole.id
     }
   })

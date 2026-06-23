@@ -26,6 +26,8 @@ model User {
 
   registrationType RegistrationType @default(SELF_REGISTERED)
 
+  mustChangePassword Boolean @default(false)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -75,10 +77,10 @@ model OtpRequest {
 
   createdAt DateTime @default(now())
   expiresAt DateTime
-  attempts  Int      @default(3)
+  attempts  Int      @default(0)
   isUsed    Boolean  @default(false)
 
-  @@unique([email, purpose, otpCodeHash])
+  @@unique([email, purpose])
   @@index([expiresAt])
 }
 

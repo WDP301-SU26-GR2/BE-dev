@@ -8,10 +8,12 @@ import {
   RefreshTokenBodySchema,
   RefreshTokenResSchema,
   RegisterBodySchema,
-  SendOtpBodySchema
+  SendOtpBodySchema,
+  VerifyEmailBodySchema
 } from '../schemas/auth-schemas'
 
 export class RegisterBodyDto extends createZodDto(RegisterBodySchema) {}
+export class VerifyEmailBodyDto extends createZodDto(VerifyEmailBodySchema) {}
 export class SendOtpBodyDto extends createZodDto(SendOtpBodySchema) {}
 export class LoginBodyDto extends createZodDto(loginBodySchema) {}
 export class LoginResDto extends createZodDto(LoginResSchema) {}
