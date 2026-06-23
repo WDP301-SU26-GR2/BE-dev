@@ -7,9 +7,11 @@ import CustomZodValidationPipe from 'src/core/http/pipes/custom-zod-validation.p
 import { CoreModule } from 'src/core/core.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { UsersModule } from './modules/users/users.module'
+import { NotificationModule } from './modules/notification/notification.module'
+import { ReviewsModule } from './modules/reviews/reviews.module'
 
 @Module({
-  imports: [CoreModule, AuthModule, UsersModule],
+  imports: [CoreModule, AuthModule, UsersModule, NotificationModule, ReviewsModule],
   controllers: [],
   providers: [
     {

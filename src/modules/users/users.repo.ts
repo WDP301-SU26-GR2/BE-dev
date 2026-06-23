@@ -83,4 +83,18 @@ export class UsersRepository {
       include: { user: { select: { displayName: true, avatar: true } } }
     })
   }
+
+  async updateMangakaReputation(
+    userId: string,
+    data: { ratingAvg: number; ratingCount: number; reputationScore: number; isRecommended: boolean }
+  ): Promise<void> {
+    await this.prismaService.mangakaProfile.update({ where: { userId }, data })
+  }
+
+  async updateAssistantReputation(
+    userId: string,
+    data: { ratingAvg: number; ratingCount: number; reputationScore: number; isRecommended: boolean }
+  ): Promise<void> {
+    await this.prismaService.assistantProfile.update({ where: { userId }, data })
+  }
 }

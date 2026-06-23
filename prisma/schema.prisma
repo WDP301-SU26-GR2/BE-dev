@@ -762,6 +762,7 @@ model AssistantReview {
   studioAssignmentId String? @db.ObjectId
   mangakaId          String  @db.ObjectId
   assistantId        String  @db.ObjectId
+  seriesId           String? @db.ObjectId
 
   rating    Int
   comment   String?
@@ -770,6 +771,8 @@ model AssistantReview {
   @@index([studioAssignmentId])
   @@index([mangakaId])
   @@index([assistantId])
+  @@index([seriesId])
+  @@unique([mangakaId, assistantId])
 }
 
 model MangakaReview {
@@ -785,6 +788,7 @@ model MangakaReview {
   @@index([seriesId])
   @@index([editorId])
   @@index([mangakaId])
+  @@unique([editorId, mangakaId])
 }
 
 model Contract {
