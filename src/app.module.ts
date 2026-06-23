@@ -6,9 +6,10 @@ import { HttpExceptionFilter } from 'src/core/http/filters/http-exception.filter
 import CustomZodValidationPipe from 'src/core/http/pipes/custom-zod-validation.pipe'
 import { CoreModule } from 'src/core/core.module'
 import { AuthModule } from './modules/auth/auth.module'
+import { UsersModule } from './modules/users/users.module'
 
 @Module({
-  imports: [CoreModule, AuthModule],
+  imports: [CoreModule, AuthModule, UsersModule],
   controllers: [],
   providers: [
     {

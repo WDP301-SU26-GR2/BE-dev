@@ -20,57 +20,29 @@ export class AuthRepository {
   async createOtpRequest(
     payload: Pick<OtpCodeType, 'email' | 'otpCodeHash' | 'purpose' | 'expiresAt'>
   ): Promise<OtpCodeType> {
-    const existingOtpRequest = await this.prismaService.otpRequest.findUnique({
-      where: {
-        email_purpose_otpCodeHash: {
-          email: payload.email,
-          purpose: payload.purpose,
-          otpCodeHash: payload.otpCodeHash
-        }
-      }
-    })
-
-    if (existingOtpRequest) {
-      return await this.prismaService.otpRequest.update({
-        where: { id: existingOtpRequest.id },
-        data: payload
-      })
-    }
-
-    return await this.prismaService.otpRequest.create({
-      data: payload
+    return await this.prismaService.otpRequest.upsert({
+      where: { email_purpose: { email: payload.email, purpose: payload.purpose } },
+      update: { otpCodeHash: payload.otpCodeHash, expiresAt: payload.expiresAt, attempts: 0, isUsed: false },
+      create: payload
     })
   }
 
-  async findOtpRequest(
-    uniqueValue:
-      | { id: string }
-      | {
-          email_purpose_otpCodeHash: {
-            email: string
-            otpCodeHash: string
-            purpose: OtpPurposeType
-          }
-        }
-  ) {
+  async findOtpRequest(where: { email: string; purpose: OtpPurposeType }) {
     return await this.prismaService.otpRequest.findUnique({
-      where: uniqueValue
+      where: { email_purpose: { email: where.email, purpose: where.purpose } }
     })
   }
 
-  async deleteOtpRequest(
-    uniqueValue:
-      | { id: string }
-      | {
-          email_purpose_otpCodeHash: {
-            email: string
-            otpCodeHash: string
-            purpose: OtpPurposeType
-          }
-        }
-  ): Promise<OtpCodeType> {
-    return await this.prismaService.otpRequest.delete({
-      where: uniqueValue
+  async incrementOtpAttempts(where: { email: string; purpose: OtpPurposeType }): Promise<void> {
+    await this.prismaService.otpRequest.update({
+      where: { email_purpose: { email: where.email, purpose: where.purpose } },
+      data: { attempts: { increment: 1 } }
+    })
+  }
+
+  async deleteOtpRequest(where: { email: string; purpose: OtpPurposeType }): Promise<void> {
+    await this.prismaService.otpRequest.delete({
+      where: { email_purpose: { email: where.email, purpose: where.purpose } }
     })
   }
 
@@ -92,7 +64,14 @@ export class AuthRepository {
   async updateUserPassword(userId: string, password: string): Promise<void> {
     await this.prismaService.user.update({
       where: { id: userId },
-      data: { password }
+      data: { password, mustChangePassword: false }
+    })
+  }
+
+  async activateUser(userId: string): Promise<void> {
+    await this.prismaService.user.update({
+      where: { id: userId },
+      data: { status: 'ACTIVE', emailVerified: true }
     })
   }
 

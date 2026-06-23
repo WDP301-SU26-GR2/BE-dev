@@ -26,20 +26,14 @@ export class AuthPasswordService {
 
     await this.otpService.validateOtpCode({
       email: body.email,
-      otpCodeHash: body.code,
+      code: body.code,
       purpose: OtpPurpose.FORGOT_PASSWORD
     })
 
     const hashedPassword = await this.hashingService.hash(body.newPassword)
     await Promise.all([
       this.authRepository.updateUserPassword(user.id, hashedPassword),
-      this.authRepository.deleteOtpRequest({
-        email_purpose_otpCodeHash: {
-          email: body.email,
-          otpCodeHash: body.code,
-          purpose: OtpPurpose.FORGOT_PASSWORD
-        }
-      }),
+      this.authRepository.deleteOtpRequest({ email: body.email, purpose: OtpPurpose.FORGOT_PASSWORD }),
       this.authRepository.deleteRefreshTokensByUserId(user.id)
     ])
 
