@@ -28,4 +28,11 @@ export class AssistantProfileService {
       availabilityTo: profile.availabilityTo ? profile.availabilityTo.toISOString() : null
     }
   }
+
+  async applyReputation(
+    userId: string,
+    data: { ratingAvg: number; ratingCount: number; reputationScore: number; isRecommended: boolean }
+  ): Promise<void> {
+    await this.usersRepository.updateAssistantReputation(userId, data)
+  }
 }

@@ -19,7 +19,7 @@ const infrastructureServices = [PrismaService, HashingService, TokenService, Ema
   exports: [...infrastructureServices],
   providers: [
     ...infrastructureServices,
-    AccessTokenGuard, // ÄÄƒng kÃ½ AccessTokenGuard Ä‘á»ƒ cÃ³ thá»ƒ sá»­ dá»¥ng trong AuthenticationGuard
+    AccessTokenGuard,
     {
       provide: APP_GUARD,
       useClass: AuthenticationGuard

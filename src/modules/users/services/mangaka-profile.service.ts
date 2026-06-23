@@ -18,4 +18,11 @@ export class MangakaProfileService {
     const { user, ...rest } = profile
     return { ...rest, displayName: user?.displayName ?? null, avatar: user?.avatar ?? null }
   }
+
+  async applyReputation(
+    userId: string,
+    data: { ratingAvg: number; ratingCount: number; reputationScore: number; isRecommended: boolean }
+  ): Promise<void> {
+    await this.usersRepository.updateMangakaReputation(userId, data)
+  }
 }

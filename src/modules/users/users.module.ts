@@ -8,6 +8,7 @@ import { UsersService } from './users.service'
 
 @Module({
   controllers: [UsersController],
-  providers: [UsersService, UsersRepository, AdminUserService, MangakaProfileService, AssistantProfileService]
+  providers: [UsersService, UsersRepository, AdminUserService, MangakaProfileService, AssistantProfileService],
+  exports: [MangakaProfileService, AssistantProfileService]
 })
 export class UsersModule {}
