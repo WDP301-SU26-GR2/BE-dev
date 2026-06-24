@@ -7,6 +7,7 @@ import { JwtRefreshTokenPayload } from 'src/infrastructure/token/jwt.type'
 import { UserStatus, UserType } from 'src/core/models/user.model'
 import {
   AccountBannedException,
+  EmailNotVerifiedException,
   EmailNotFoundException,
   InvalidPasswordException,
   RefreshTokenAlreadyUsedException,
@@ -36,6 +37,10 @@ export class AuthTokenService {
     const isPasswordMatch = await this.hashingService.compare(body.password, user.password)
     if (!isPasswordMatch) {
       throw InvalidPasswordException
+    }
+
+    if (!user.emailVerified || user.status !== UserStatus.ACTIVE) {
+      throw EmailNotVerifiedException
     }
 
     return await this.generateAuthResponse(user)
@@ -88,6 +93,10 @@ export class AuthTokenService {
       throw AccountBannedException
     }
 
+    if (!user.emailVerified || user.status !== UserStatus.ACTIVE) {
+      throw EmailNotVerifiedException
+    }
+
     return await this.generateAuthResponse(user)
   }
 
@@ -95,7 +104,8 @@ export class AuthTokenService {
     const [accessToken, refreshToken] = await Promise.all([
       this.tokenService.signAccessToken({
         userId: user.id,
-        roleName: user.role.code
+        roleName: user.role.code,
+        mustChangePassword: user.mustChangePassword
       }),
       this.tokenService.signRefreshToken({ userId: user.id })
     ])
@@ -116,6 +126,7 @@ export class AuthTokenService {
         phoneNumber: user.phoneNumber,
         role: user.role.code
       },
+      mustChangePassword: user.mustChangePassword,
       accessToken,
       refreshToken
     }

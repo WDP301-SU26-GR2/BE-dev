@@ -23,6 +23,17 @@ COPY . .
 RUN pnpm prisma generate
 RUN pnpm build
 
+# ---------- Prod deps only ----------
+FROM base AS prod-deps
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY prisma ./prisma
+
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prod
+
+RUN pnpx prisma@6 generate
+
 # ---------- Runtime ----------
 FROM node:22-slim AS runtime
 WORKDIR /app
@@ -34,7 +45,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r app && useradd -r -g app app
 
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/package.json ./package.json

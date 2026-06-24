@@ -26,6 +26,8 @@ model User {
 
   registrationType RegistrationType @default(SELF_REGISTERED)
 
+  mustChangePassword Boolean @default(false)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -77,10 +79,10 @@ model OtpRequest {
 
   createdAt DateTime @default(now())
   expiresAt DateTime
-  attempts  Int      @default(3)
+  attempts  Int      @default(0)
   isUsed    Boolean  @default(false)
 
-  @@unique([email, purpose, otpCodeHash])
+  @@unique([email, purpose])
   @@index([expiresAt])
 }
 
@@ -226,8 +228,8 @@ enum ReadingDirection {
 enum NameStatus {
   DRAFT
   SUBMITTED
-  EDITOR_REVIEW
-  REVISION_REQUESTED
+  IN_REVIEW
+  REVISION
   APPROVED
 }
 
@@ -241,20 +243,31 @@ enum ChapterStatus {
 
 // REVIEW: inferred
 enum SeriesStatus {
-  PROPOSED
+  DRAFT
+  IN_REVIEW
+  READY_TO_PITCH
+  PITCHED
   SERIALIZED
-  ON_HIATUS
-  ENDED
+  HIATUS
+  COMPLETING
+  CANCELLING
+  COMPLETED
   CANCELLED
+  REJECTED
+  ABANDONED
+  WITHDRAWN
 }
 
 // REVIEW: inferred
 enum ProposalStatus {
   DRAFT
-  SUBMITTED
-  UNDER_REVIEW
+  PROPOSAL_REVIEW
+  PROPOSAL_REVISION
+  PROPOSAL_APPROVED
+  PITCHED
   APPROVED
   REJECTED
+  WITHDRAWN
 }
 
 // REVIEW: inferred
@@ -488,10 +501,11 @@ model Series {
   genre                   String?
   demographic             String?
   publicationType         PublicationType?
-  status                  SeriesStatus      @default(PROPOSED)
+  status                  SeriesStatus      @default(DRAFT)
   statusReason            String?
   relationshipType        RelationshipType?
   coOwnerApprovalRequired Boolean           @default(false)
+  statusHistory           SeriesStatusHistoryEntry[]
 
   proposal SeriesProposal?
 
@@ -516,6 +530,14 @@ type SeriesProposal {
   estimatedLength   Int?
   status            ProposalStatus @default(DRAFT)
   createdAt         DateTime       @default(now())
+}
+
+type SeriesStatusHistoryEntry {
+  fromStatus String
+  toStatus   String
+  changedBy  String   @db.ObjectId
+  reason     String?
+  at         DateTime
 }
 
 model Name {
@@ -763,6 +785,7 @@ model AssistantReview {
   studioAssignmentId String? @db.ObjectId
   mangakaId          String  @db.ObjectId
   assistantId        String  @db.ObjectId
+  seriesId           String? @db.ObjectId
 
   rating    Int
   comment   String?
@@ -771,6 +794,8 @@ model AssistantReview {
   @@index([studioAssignmentId])
   @@index([mangakaId])
   @@index([assistantId])
+  @@index([seriesId])
+  @@unique([mangakaId, assistantId])
 }
 
 model MangakaReview {
@@ -786,6 +811,7 @@ model MangakaReview {
   @@index([seriesId])
   @@index([editorId])
   @@index([mangakaId])
+  @@unique([editorId, mangakaId])
 }
 
 model Contract {

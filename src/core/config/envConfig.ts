@@ -31,7 +31,13 @@ const configSchema = z.object({
   ADMIN_PHONE: z.string(),
   //OTP
   OTP_EXPIRES_IN: z.string(),
-  RESEND_API_KEY: z.string()
+  RESEND_API_KEY: z.string(),
+  ////OBJECT STORAGE (Cloudflare R2 - S3-compatible)
+  R2_ENDPOINT: z.string(),
+  R2_ACCESS_KEY_ID: z.string(),
+  R2_SECRET_ACCESS_KEY: z.string(),
+  R2_BUCKET: z.string(),
+  R2_REGION: z.string()
 })
 
 const congfigServer = configSchema.safeParse(process.env)

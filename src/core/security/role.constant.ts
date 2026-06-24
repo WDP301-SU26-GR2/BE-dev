@@ -1,8 +1,8 @@
 export const RoleName = {
-  ADMIN: 'ADMIN',
+  SUPER_ADMIN: 'SUPER_ADMIN',
   MANGAKA: 'MANGAKA',
   ASSISTANT: 'ASSISTANT',
-  MEMBER_BOARD: 'MEMBER_BOARD',
-  TANTOU_EDITOR: 'TANTOU_EDITOR'
+  EDITOR: 'EDITOR',
+  BOARD_MEMBER: 'BOARD_MEMBER'
 } as const
 export type RoleNameType = (typeof RoleName)[keyof typeof RoleName]
