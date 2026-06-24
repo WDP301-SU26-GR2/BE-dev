@@ -226,8 +226,8 @@ enum ReadingDirection {
 enum NameStatus {
   DRAFT
   SUBMITTED
-  EDITOR_REVIEW
-  REVISION_REQUESTED
+  IN_REVIEW
+  REVISION
   APPROVED
 }
 
@@ -241,20 +241,31 @@ enum ChapterStatus {
 
 // REVIEW: inferred
 enum SeriesStatus {
-  PROPOSED
+  DRAFT
+  IN_REVIEW
+  READY_TO_PITCH
+  PITCHED
   SERIALIZED
-  ON_HIATUS
-  ENDED
+  HIATUS
+  COMPLETING
+  CANCELLING
+  COMPLETED
   CANCELLED
+  REJECTED
+  ABANDONED
+  WITHDRAWN
 }
 
 // REVIEW: inferred
 enum ProposalStatus {
   DRAFT
-  SUBMITTED
-  UNDER_REVIEW
+  PROPOSAL_REVIEW
+  PROPOSAL_REVISION
+  PROPOSAL_APPROVED
+  PITCHED
   APPROVED
   REJECTED
+  WITHDRAWN
 }
 
 // REVIEW: inferred
@@ -488,10 +499,11 @@ model Series {
   genre                   String?
   demographic             String?
   publicationType         PublicationType?
-  status                  SeriesStatus      @default(PROPOSED)
+  status                  SeriesStatus      @default(DRAFT)
   statusReason            String?
   relationshipType        RelationshipType?
   coOwnerApprovalRequired Boolean           @default(false)
+  statusHistory           SeriesStatusHistoryEntry[]
 
   proposal SeriesProposal?
 
@@ -515,6 +527,14 @@ type SeriesProposal {
   estimatedLength   Int?
   status            ProposalStatus @default(DRAFT)
   createdAt         DateTime       @default(now())
+}
+
+type SeriesStatusHistoryEntry {
+  fromStatus String
+  toStatus   String
+  changedBy  String   @db.ObjectId
+  reason     String?
+  at         DateTime
 }
 
 model Name {
