@@ -35,6 +35,8 @@ model User {
 
   mangakaProfile   MangakaProfile?
   assistantProfile AssistantProfile?
+  mangakaContracts Contract[]        @relation("MangakaRelation")
+  editorContracts  Contract[]        @relation("EditorRelation")
 
   @@index([deletedAt])
 }
@@ -497,7 +499,8 @@ model Series {
   publicationVersions PublicationVersion[]
   chapters            Chapter[]
 
-  createdAt DateTime @default(now())
+  createdAt DateTime   @default(now())
+  contracts Contract[]
 
   @@index([mangakaId])
   @@index([editorId])
@@ -786,10 +789,15 @@ model MangakaReview {
 }
 
 model Contract {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  seriesId  String  @db.ObjectId
-  mangakaId String  @db.ObjectId
-  editorId  String? @db.ObjectId
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId        String         @db.ObjectId
+  series          Series         @relation(fields: [seriesId], references: [id])
+  mangakaId       String         @db.ObjectId
+  mangaka         User           @relation("MangakaRelation", fields: [mangakaId], references: [id])
+  editorId        String?        @db.ObjectId
+  editor          User?           @relation("EditorRelation", fields: [editorId], references: [id])
+  boardDecisionId String?        @db.ObjectId
+  boardDecision   BoardDecision? @relation(fields: [boardDecisionId], references: [id])
 
   contractType          ContractType
   valuationAmount       Float?
@@ -806,10 +814,29 @@ model Contract {
   conditions PaymentCondition[]
   payments   PaymentRecord[]
   amendments ContractAmendment[]
+  versions   ContractVersion[]
 
   @@index([seriesId])
   @@index([mangakaId])
   @@index([editorId])
+  @@index([boardDecisionId])
+}
+
+model ContractVersion {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  contractId String   @db.ObjectId
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  versionNumber         Int
+  valuationAmount       Float?
+  publisherOwnershipPct Float?
+  mangakaOwnershipPct   Float?
+  terminationClause     String?
+  editedById            String   @db.ObjectId
+  note                  String?
+  createdAt             DateTime
+
+  @@index([editedById])
 }
 
 model PaymentCondition {
@@ -1033,8 +1060,9 @@ model BoardDecision {
   details                Json?
   decidedAt              DateTime?
 
-  votes  Vote[]
-  report SeriesReport?
+  votes     Vote[]
+  report    SeriesReport?
+  contracts Contract[]
 
   @@index([targetSeriesId])
 }
