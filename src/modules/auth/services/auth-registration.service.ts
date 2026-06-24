@@ -1,4 +1,4 @@
-﻿import { ConflictException, Injectable } from '@nestjs/common'
+import { ConflictException, Injectable } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
 import { AuthOtpService } from './auth-otp.service'
@@ -6,9 +6,8 @@ import { RoleService } from './role.service'
 import { isUniqueConstrainError } from 'src/infrastructure/database/prisma-error.helper'
 import { OtpPurpose } from '../auth.constant'
 import { UserStatus } from 'src/core/models/user.model'
-import { RoleName } from 'src/core/security/role.constant'
-import { EmailAlreadyExistsException } from '../errors/auth.errors'
-import { RegisterBodyType } from '../schemas/auth-schemas'
+import { EmailAlreadyVerifiedException, EmailNotFoundException } from '../errors/auth.errors'
+import { RegisterBodyType, VerifyEmailBodyType } from '../schemas/auth-schemas'
 
 @Injectable()
 export class AuthRegistrationService {
@@ -20,46 +19,48 @@ export class AuthRegistrationService {
   ) {}
 
   async registerService(body: RegisterBodyType) {
+    const roleId = await this.rolesService.getRoleIdByCode(body.type)
+    const passwordHash = await this.hashingService.hash(body.password)
+
     try {
-      await this.otpService.validateOtpCode({
+      await this.authRepository.createUser({
         email: body.email,
-        otpCodeHash: body.code,
-        purpose: OtpPurpose.REGISTER
+        name: body.name,
+        phoneNumber: body.phoneNumber,
+        password: passwordHash,
+        roleId,
+        status: UserStatus.INACTIVE,
+        displayName: body.displayName
       })
-      if (body.password !== body.confirm_password) {
-        throw new ConflictException('Password and confirm password do not match')
-      }
-      const role =
-        body.type === RoleName.MANGAKA
-          ? await this.rolesService.getMangakaRoleId()
-          : await this.rolesService.getAssistantRoleId()
-      const passwordHash = await this.hashingService.hash(body.password)
-      await Promise.all([
-        this.authRepository.createUser({
-          email: body.email,
-          name: body.name,
-          phoneNumber: body.phoneNumber,
-          password: passwordHash,
-          roleId: role,
-          status: UserStatus.ACTIVE,
-          displayName: body.displayName
-        }),
-        this.authRepository.deleteOtpRequest({
-          email_purpose_otpCodeHash: {
-            email: body.email,
-            otpCodeHash: body.code,
-            purpose: OtpPurpose.REGISTER
-          }
-        })
-      ])
-      return {
-        message: 'User created successfully'
-      }
     } catch (error) {
       if (isUniqueConstrainError(error)) {
-        throw EmailAlreadyExistsException
+        throw new ConflictException('Error.EmailAlreadyExists')
       }
       throw error
     }
+
+    await this.otpService.issueOtp(body.email, OtpPurpose.REGISTER)
+    return { message: 'Registered. Please verify your email with the OTP sent.' }
+  }
+
+  async verifyEmailService(body: VerifyEmailBodyType) {
+    const user = await this.authRepository.findUserByEmail(body.email)
+    if (!user) {
+      throw EmailNotFoundException
+    }
+
+    if (user.emailVerified) {
+      throw EmailAlreadyVerifiedException
+    }
+
+    await this.otpService.validateOtpCode({
+      email: body.email,
+      code: body.code,
+      purpose: OtpPurpose.REGISTER
+    })
+    await this.authRepository.activateUser(user.id)
+    await this.authRepository.deleteOtpRequest({ email: body.email, purpose: OtpPurpose.REGISTER })
+
+    return { message: 'Email verified. Your account is now active.' }
   }
 }

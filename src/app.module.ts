@@ -8,9 +8,24 @@ import { CoreModule } from 'src/core/core.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { ContractModule } from './modules/contract/contract.module'
+import { NotificationModule } from './modules/notification/notification.module'
+import { ReviewsModule } from './modules/reviews/reviews.module'
+import { SeriesModule } from './modules/series/series.module'
+import { StorageModule } from './modules/storage/storage.module'
+import { UsersModule } from './modules/users/users.module'
 
 @Module({
-  imports: [EventEmitterModule.forRoot(), CoreModule, AuthModule, ContractModule],
+  imports: [
+    EventEmitterModule.forRoot(),
+    CoreModule,
+    AuthModule,
+    ContractModule,
+    UsersModule,
+    NotificationModule,
+    ReviewsModule,
+    SeriesModule,
+    StorageModule
+  ],
   controllers: [],
   providers: [
     {
