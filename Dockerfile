@@ -32,7 +32,7 @@ COPY prisma ./prisma
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prod
 
-RUN pnpx prisma generate
+RUN pnpx prisma@6 generate
 
 # ---------- Runtime ----------
 FROM node:22-slim AS runtime
