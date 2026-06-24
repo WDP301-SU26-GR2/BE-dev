@@ -6,9 +6,11 @@ import { HttpExceptionFilter } from 'src/core/http/filters/http-exception.filter
 import CustomZodValidationPipe from 'src/core/http/pipes/custom-zod-validation.pipe'
 import { CoreModule } from 'src/core/core.module'
 import { AuthModule } from './modules/auth/auth.module'
+import { EventEmitterModule } from '@nestjs/event-emitter'
+import { ContractModule } from './modules/contract/contract.module'
 
 @Module({
-  imports: [CoreModule, AuthModule],
+  imports: [EventEmitterModule.forRoot(), CoreModule, AuthModule, ContractModule],
   controllers: [],
   providers: [
     {
