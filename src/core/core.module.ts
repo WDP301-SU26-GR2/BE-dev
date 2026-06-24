@@ -11,8 +11,16 @@ import { PasswordPolicyGuard } from './security/guards/password-policy.guard'
 import { RolesGuard } from './security/guards/roles.guard'
 import { EmailService } from 'src/infrastructure/email/email.service'
 import { DomainEventBus } from './events/domain-event-bus.service'
+import { StorageService } from 'src/infrastructure/storage/storage.service'
 
-const infrastructureServices = [PrismaService, HashingService, TokenService, EmailService, DomainEventBus]
+const infrastructureServices = [
+  PrismaService,
+  HashingService,
+  TokenService,
+  EmailService,
+  DomainEventBus,
+  StorageService
+]
 
 @Global()
 @Module({

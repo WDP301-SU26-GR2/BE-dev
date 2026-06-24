@@ -9,10 +9,11 @@ import { AuthModule } from './modules/auth/auth.module'
 import { NotificationModule } from './modules/notification/notification.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { SeriesModule } from './modules/series/series.module'
+import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 
 @Module({
-  imports: [CoreModule, AuthModule, UsersModule, NotificationModule, ReviewsModule, SeriesModule],
+  imports: [CoreModule, AuthModule, UsersModule, NotificationModule, ReviewsModule, SeriesModule, StorageModule],
   controllers: [],
   providers: [
     {
