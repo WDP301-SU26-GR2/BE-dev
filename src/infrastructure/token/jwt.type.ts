@@ -1,6 +1,7 @@
 export interface AccessTokenPayloadCreate {
   userId: string
   roleName: string
+  mustChangePassword: boolean
 }
 export interface JwtAccessTokenPayload extends AccessTokenPayloadCreate {
   exp: number

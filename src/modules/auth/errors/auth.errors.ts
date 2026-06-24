@@ -1,4 +1,10 @@
-import { ForbiddenException, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common'
+import {
+  ConflictException,
+  ForbiddenException,
+  GoneException,
+  UnauthorizedException,
+  UnprocessableEntityException
+} from '@nestjs/common'
 
 // OTP related errors
 export const InvalidOTPException = new UnprocessableEntityException([
@@ -8,9 +14,11 @@ export const InvalidOTPException = new UnprocessableEntityException([
   }
 ])
 
-export const OTPExpiredException = new UnprocessableEntityException([
+export const OTPExpiredException = new GoneException('Error.OTPExpired')
+
+export const OtpLockedException = new UnprocessableEntityException([
   {
-    message: 'Error.OTPExpired',
+    message: 'Error.OTPLocked',
     path: 'code'
   }
 ])
@@ -36,6 +44,9 @@ export const EmailNotFoundException = new UnprocessableEntityException([
     path: 'email'
   }
 ])
+
+export const EmailAlreadyVerifiedException = new ConflictException('Error.EmailAlreadyVerified')
+export const EmailNotVerifiedException = new ForbiddenException('Error.EmailNotVerified')
 
 // Password related errors
 export const InvalidPasswordException = new UnprocessableEntityException([

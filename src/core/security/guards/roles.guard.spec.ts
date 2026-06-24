@@ -24,23 +24,23 @@ describe('RolesGuard', () => {
   it('allows routes without @Roles()', () => {
     const guard = makeGuard(undefined)
 
-    expect(guard.canActivate(makeContext({ userId: '1', roleName: 'ADMIN' }))).toBe(true)
+    expect(guard.canActivate(makeContext({ userId: '1', roleName: 'SUPER_ADMIN' }))).toBe(true)
   })
 
   it('allows users whose roleName is included in @Roles()', () => {
-    const guard = makeGuard(['ADMIN', 'TANTOU_EDITOR'])
+    const guard = makeGuard(['SUPER_ADMIN', 'EDITOR'])
 
-    expect(guard.canActivate(makeContext({ userId: '1', roleName: 'ADMIN' }))).toBe(true)
+    expect(guard.canActivate(makeContext({ userId: '1', roleName: 'SUPER_ADMIN' }))).toBe(true)
   })
 
   it('throws 403 when roleName is not included in @Roles()', () => {
-    const guard = makeGuard(['ADMIN'])
+    const guard = makeGuard(['SUPER_ADMIN'])
 
     expect(() => guard.canActivate(makeContext({ userId: '1', roleName: 'MANGAKA' }))).toThrow(ForbiddenException)
   })
 
   it('throws 403 when request user is missing', () => {
-    const guard = makeGuard(['ADMIN'])
+    const guard = makeGuard(['SUPER_ADMIN'])
 
     expect(() => guard.canActivate(makeContext(undefined))).toThrow(ForbiddenException)
   })

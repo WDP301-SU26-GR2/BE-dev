@@ -15,6 +15,6 @@ async function bootstrap() {
     .build()
   const documentFactory = () => cleanupOpenApiDoc(SwaggerModule.createDocument(app, config))
   SwaggerModule.setup('api', app, documentFactory())
-  await app.listen(envConfig.PORT ?? 3000)
+  await app.listen(envConfig.PORT ?? 4000)
 }
 void bootstrap()

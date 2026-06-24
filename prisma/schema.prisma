@@ -26,6 +26,8 @@ model User {
 
   registrationType RegistrationType @default(SELF_REGISTERED)
 
+  mustChangePassword Boolean @default(false)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -75,10 +77,10 @@ model OtpRequest {
 
   createdAt DateTime @default(now())
   expiresAt DateTime
-  attempts  Int      @default(3)
+  attempts  Int      @default(0)
   isUsed    Boolean  @default(false)
 
-  @@unique([email, purpose, otpCodeHash])
+  @@unique([email, purpose])
   @@index([expiresAt])
 }
 
@@ -760,6 +762,7 @@ model AssistantReview {
   studioAssignmentId String? @db.ObjectId
   mangakaId          String  @db.ObjectId
   assistantId        String  @db.ObjectId
+  seriesId           String? @db.ObjectId
 
   rating    Int
   comment   String?
@@ -768,6 +771,8 @@ model AssistantReview {
   @@index([studioAssignmentId])
   @@index([mangakaId])
   @@index([assistantId])
+  @@index([seriesId])
+  @@unique([mangakaId, assistantId])
 }
 
 model MangakaReview {
@@ -783,6 +788,7 @@ model MangakaReview {
   @@index([seriesId])
   @@index([editorId])
   @@index([mangakaId])
+  @@unique([editorId, mangakaId])
 }
 
 model Contract {
