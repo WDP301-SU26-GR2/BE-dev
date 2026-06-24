@@ -9,10 +9,12 @@ import {
   RefreshTokenBodyDto,
   RefreshTokenResDto,
   RegisterBodyDto,
-  SendOtpBodyDto
+  SendOtpBodyDto,
+  VerifyEmailBodyDto
 } from './dto/auth.dto'
 import { IsPublic } from 'src/core/security/decorators/auth.decorator'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
+import { SkipPasswordPolicy } from 'src/core/security/decorators/skip-password-policy.decorator'
 import { AuthService } from './services/auth.service'
 import { ZodResponse } from 'nestjs-zod'
 import { MessageResDto } from 'src/core/http/response.dto'
@@ -29,6 +31,13 @@ export class AuthController {
   @ZodResponse({ type: MessageResDto })
   register(@Body() body: RegisterBodyDto) {
     return this.authService.registerService(body)
+  }
+
+  @Post('verify-email')
+  @IsPublic()
+  @ZodResponse({ type: MessageResDto })
+  verifyEmail(@Body() body: VerifyEmailBodyDto) {
+    return this.authService.verifyEmailService(body)
   }
 
   @Post('send-otp-email')
@@ -67,6 +76,7 @@ export class AuthController {
   }
 
   @Post('change-password')
+  @SkipPasswordPolicy()
   @ZodResponse({ type: MessageResDto })
   changePassword(@Body() body: ChangePasswordBodyDto, @ActiveUser() user: JwtAccessTokenPayload) {
     return this.authService.changePasswordService(body, user.userId)

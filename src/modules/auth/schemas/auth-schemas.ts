@@ -4,18 +4,19 @@ import { RoleName } from 'src/core/security/role.constant'
 import { extendApi } from '@anatine/zod-openapi'
 import { OtpCodeSchema } from './auth.model'
 
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,100}$/
+
 //REGISTER
 export const RegisterBodySchema = extendApi(
   UserSchema.pick({
     email: true,
-    password: true,
     name: true,
     phoneNumber: true
   })
     .extend({
+      password: z.string().regex(PASSWORD_PATTERN, 'Password must be ≥8 chars with upper, lower and a digit'),
       displayName: z.string().min(2).max(100),
-      confirm_password: z.string().min(6).max(100),
-      code: z.string().length(6),
+      confirm_password: z.string().min(8).max(100),
       type: z.enum([RoleName.MANGAKA, RoleName.ASSISTANT])
     })
     .strict()
@@ -32,6 +33,16 @@ export const RegisterBodySchema = extendApi(
     title: 'RegisterBody',
     description: 'Request body for user registration'
   }
+)
+
+export const VerifyEmailBodySchema = extendApi(
+  z
+    .object({
+      email: z.string().email(),
+      code: z.string().length(6)
+    })
+    .strict(),
+  { title: 'VerifyEmailBody', description: 'Request body for email verification' }
 )
 
 //OTP â€” uses OtpCodeSchema.pick (matching current behavior)
@@ -83,6 +94,7 @@ export const LoginResSchema = extendApi(
     }).extend({
       role: z.string()
     }),
+    mustChangePassword: z.boolean(),
     accessToken: z.string(),
     refreshToken: z.string()
   }),
@@ -116,8 +128,8 @@ export const ForgotPasswordBodySchema = extendApi(
     .object({
       email: z.string().email(),
       code: z.string().length(6),
-      newPassword: z.string().min(6).max(100),
-      confirmNewPassword: z.string().min(6).max(100)
+      newPassword: z.string().regex(PASSWORD_PATTERN, 'Password must be ≥8 chars with upper, lower and a digit'),
+      confirmNewPassword: z.string().min(8).max(100)
     })
     .strict()
     .superRefine(({ newPassword, confirmNewPassword }, ctx) => {
@@ -140,8 +152,8 @@ export const ChangePasswordBodySchema = extendApi(
   z
     .object({
       currentPassword: z.string().min(6).max(100),
-      newPassword: z.string().min(6).max(100),
-      confirmNewPassword: z.string().min(6).max(100)
+      newPassword: z.string().regex(PASSWORD_PATTERN, 'Password must be ≥8 chars with upper, lower and a digit'),
+      confirmNewPassword: z.string().min(8).max(100)
     })
     .strict()
     .superRefine(({ newPassword, confirmNewPassword }, ctx) => {
@@ -162,6 +174,7 @@ export const ChangePasswordBodySchema = extendApi(
 // Inferred types
 export type SendOtpBodyType = z.infer<typeof SendOtpBodySchema>
 export type RegisterBodyType = z.infer<typeof RegisterBodySchema>
+export type VerifyEmailBodyType = z.infer<typeof VerifyEmailBodySchema>
 export type ForgotPasswordBodyType = z.infer<typeof ForgotPasswordBodySchema>
 export type RefreshTokenBodyType = z.infer<typeof RefreshTokenBodySchema>
 export type RefreshTokenResType = z.infer<typeof RefreshTokenResSchema>
