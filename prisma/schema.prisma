@@ -17,6 +17,7 @@ model User {
   password    String
   phoneNumber String
   avatar      String?
+  googleId    String?
 
   roleId String @db.ObjectId
 

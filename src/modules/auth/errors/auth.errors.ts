@@ -64,7 +64,10 @@ export const UnauthorizedAccessException = new UnauthorizedException('Error.Unau
 export const AccountBannedException = new ForbiddenException('Error.AccountBanned')
 
 // Google auth related errors
-export const GoogleUserInfoError = new Error('Error.FailedToGetGoogleUserInfo')
+export const InvalidGoogleTokenException = new UnauthorizedException('Error.InvalidGoogleToken')
+export const GoogleEmailNotVerifiedException = new ForbiddenException('Error.GoogleEmailNotVerified')
+export const GoogleAccountNotRegisteredException = new ForbiddenException('Error.GoogleAccountNotRegistered')
+export const GoogleAccountMismatchException = new ConflictException('Error.GoogleAccountMismatch')
 
 //2fa
 export const TOTPEnableException = new UnprocessableEntityException([
