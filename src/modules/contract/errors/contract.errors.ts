@@ -10,6 +10,20 @@ export const ContractErrors = {
   // Lỗi khi trạng thái hợp đồng không hợp lệ cho hành động hiện tại (ví dụ: đang DRAFT mà đòi ký)
   InvalidStatus: () => new BadRequestException('INVALID_CONTRACT_STATUS_FOR_THIS_ACTION'),
 
-  // Lỗi khi một bên cố tình ký lại lần nữa khi họ đã ký rồi
-  AlreadySigned: () => new BadRequestException('CONTRACT_ALREADY_SIGNED_BY_THIS_PARTY')
+  AlreadySigned: () => new BadRequestException('CONTRACT_ALREADY_SIGNED_BY_THIS_PARTY'),
+
+  BoardDecisionNotFound: () =>
+    new BadRequestException(
+      'BOARD_DECISION_NOT_FOUND',
+      'Hợp đồng này chưa có quyết định phê duyệt chính thức từ Hội đồng'
+    ),
+
+  NotAuthorizedInBoard: () =>
+    new ForbiddenException(
+      'NOT_AUTHORIZED_IN_BOARD',
+      'Tài khoản của bạn không thuộc Hội đồng Ban giám đốc được chỉ định ký kết hợp đồng này'
+    ),
+
+  BoardMemberAlreadySigned: () =>
+    new BadRequestException('BOARD_MEMBER_ALREADY_SIGNED', 'Bạn đã thực hiện xác thực ký vào hợp đồng này trước đó rồi')
 }

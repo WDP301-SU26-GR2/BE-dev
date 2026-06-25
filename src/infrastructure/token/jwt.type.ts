@@ -1,5 +1,6 @@
 export interface AccessTokenPayloadCreate {
   userId: string
+  email: string
   roleName: string
   mustChangePassword: boolean
 }

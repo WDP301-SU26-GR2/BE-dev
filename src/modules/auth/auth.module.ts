@@ -18,6 +18,7 @@ import { AuthTokenService } from './services/auth-token.service'
     AuthOtpService,
     AuthPasswordService,
     AuthTokenService
-  ]
+  ],
+  exports: [AuthOtpService]
 })
 export class AuthModule {}

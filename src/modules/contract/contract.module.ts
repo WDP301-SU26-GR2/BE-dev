@@ -4,9 +4,10 @@ import { ContractController } from './contract.controller'
 import { ContractService } from './services/contract.service'
 import { ContractRepo } from './contract.repo'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import { AuthModule } from '../auth/auth.module'
 
 @Module({
-  imports: [EventEmitterModule],
+  imports: [EventEmitterModule, AuthModule],
   controllers: [ContractController],
   providers: [
     ContractService,

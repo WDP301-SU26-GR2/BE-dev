@@ -54,6 +54,10 @@ export class AuthOtpService {
       throw EmailNotFoundException
     }
 
+    if (body.purpose === OtpPurpose.SIGNING_CONTRACT && !user) {
+      throw EmailNotFoundException
+    }
+
     await this.issueOtp(body.email, body.purpose)
     return { message: 'OTP sent successfully' }
   }
@@ -79,5 +83,9 @@ export class AuthOtpService {
     }
 
     return otpRequest
+  }
+
+  async burnOtp(email: string, purpose: OtpPurposeType): Promise<void> {
+    await this.authRepository.deleteOtpRequest({ email, purpose })
   }
 }
