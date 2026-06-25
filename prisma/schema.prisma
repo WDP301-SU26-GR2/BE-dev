@@ -268,13 +268,12 @@ enum ProposalStatus {
   WITHDRAWN
 }
 
-// REVIEW: inferred
+// REVIEW: inferred — A3 reconcile: NOT_STARTED/IN_PROGRESS/COMPOSITE_READY/COMPLETED (SRS §4.2.5)
 enum PageStatus {
-  DRAFT
+  NOT_STARTED
   IN_PROGRESS
-  COMPOSITE
-  REVIEW
-  APPROVED
+  COMPOSITE_READY
+  COMPLETED
 }
 
 // REVIEW: inferred
@@ -293,12 +292,11 @@ enum ReviewStage {
   EDITOR
 }
 
-// REVIEW: inferred
+// REVIEW: inferred — A3 reconcile: TEXT/HIGHLIGHT/DRAWING (SRS Entity 10 / A-CHP-07)
 enum AnnotationType {
-  COMMENT
-  CORRECTION
-  APPROVAL
-  REJECTION
+  TEXT
+  HIGHLIGHT
+  DRAWING
 }
 
 // REVIEW: inferred
@@ -636,6 +634,15 @@ model DeadlineRequest {
   @@index([seriesId])
 }
 
+// A3: Thêm embedded type cho audit transition production (mirror SeriesStatusHistoryEntry)
+type ManuscriptStatusHistoryEntry {
+  from      ManuscriptStatus?
+  to        ManuscriptStatus
+  changedBy String?  @db.ObjectId
+  reason    String?
+  changedAt DateTime @default(now())
+}
+
 model Manuscript {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
   chapterId String  @unique @db.ObjectId
@@ -645,6 +652,7 @@ model Manuscript {
   finalFile           String?
   submittedToEditorAt DateTime?
   approvedAt          DateTime?
+  statusHistory       ManuscriptStatusHistoryEntry[]
 }
 
 model Page {
@@ -655,7 +663,7 @@ model Page {
   pageNumber    Int
   originalFile  String?
   compositeFile String?
-  status        PageStatus @default(DRAFT)
+  status        PageStatus @default(NOT_STARTED)
   createdAt     DateTime   @default(now())
 
   regions Region[]
@@ -708,10 +716,11 @@ type TaskVersion {
   submittedAt   DateTime                @default(now())
 }
 
+// REVIEW: inferred — A3 reconcile: taskId optional (Editor annotate Manuscript/Page không có Task)
 model Annotation {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  taskId String @db.ObjectId
-  task   Task   @relation(fields: [taskId], references: [id])
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  taskId String? @db.ObjectId
+  task   Task?   @relation(fields: [taskId], references: [id])
 
   authorId String? @db.ObjectId
 
