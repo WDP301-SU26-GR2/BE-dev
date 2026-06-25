@@ -43,7 +43,7 @@ export class AuthTokenService {
       throw EmailNotVerifiedException
     }
 
-    return await this.generateAuthResponse(user)
+    return await this.issueSession(user)
   }
 
   async logoutService(body: LogoutBodyType) {
@@ -97,10 +97,10 @@ export class AuthTokenService {
       throw EmailNotVerifiedException
     }
 
-    return await this.generateAuthResponse(user)
+    return await this.issueSession(user)
   }
 
-  private async generateAuthResponse(user: Omit<UserType, 'password'> & { role: Pick<RoleType, 'code'> }) {
+  async issueSession(user: Omit<UserType, 'password'> & { role: Pick<RoleType, 'code'> }) {
     const [accessToken, refreshToken] = await Promise.all([
       this.tokenService.signAccessToken({
         userId: user.id,

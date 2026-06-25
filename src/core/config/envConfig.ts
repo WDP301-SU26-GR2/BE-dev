@@ -32,6 +32,8 @@ const configSchema = z.object({
   //OTP
   OTP_EXPIRES_IN: z.string(),
   RESEND_API_KEY: z.string(),
+  //GOOGLE OAUTH
+  GOOGLE_CLIENT_ID: z.string(),
   ////OBJECT STORAGE (Cloudflare R2 - S3-compatible)
   R2_ENDPOINT: z.string(),
   R2_ACCESS_KEY_ID: z.string(),

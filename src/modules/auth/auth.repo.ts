@@ -75,6 +75,13 @@ export class AuthRepository {
     })
   }
 
+  async setGoogleId(userId: string, googleId: string): Promise<void> {
+    await this.prismaService.user.update({
+      where: { id: userId },
+      data: { googleId }
+    })
+  }
+
   async createRefreshToken(data: { token: string; userId: string; expiresAt: Date }) {
     return await this.prismaService.refreshToken.create({ data })
   }
