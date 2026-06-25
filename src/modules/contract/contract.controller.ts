@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Body, Param, Patch, Req } from '@nestjs/common'
-import { ApiTags } from '@nestjs/swagger'
+import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common'
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { ContractService } from './services/contract.service'
-import { CreateContractBodyDto, EditorUpdateContractBodyDto } from './dto/contract.dto'
+import { CreateContractBodyDto, EditorUpdateContractBodyDto, SignContractWithOtpBodyDto } from './dto/contract.dto'
 import { ContractStatus } from '@prisma/client'
+import { RoleName } from 'src/core/security/role.constant'
+import { Roles } from 'src/core/security/decorators/roles.decorator' // Đường dẫn import tùy thuộc dự án của bạn
+import { ActiveUser } from 'src/core/security/decorators/active-user.decorator' // Đường dẫn import tùy thuộc dự án của bạn
 
 @ApiTags('contracts')
+@ApiBearerAuth()
 @Controller('contracts')
 export class ContractController {
   constructor(private readonly contractService: ContractService) {}
@@ -14,42 +18,65 @@ export class ContractController {
     return this.contractService.healthCheck()
   }
 
-  // 1. Tạo mới tài nguyên hợp đồng (Trạng thái mặc định: DRAFT)
+  // 1. Tạo mới tài nguyên hợp đồng nháp
   @Post()
-  async createDraft(@Req() req: any, @Body() dto: CreateContractBodyDto) {
-    return this.contractService.createDraft(req.user.id, dto)
+  @Roles(RoleName.EDITOR)
+  createDraft(@ActiveUser('userId') userId: string, @Body() dto: CreateContractBodyDto) {
+    return this.contractService.createDraft(userId, dto)
   }
 
-  // 2. Cập nhật chi tiết các điều khoản hợp đồng
+  // 2. Cập nhật chi tiết các điều khoản thương lượng hợp đồng
   @Patch(':id')
-  async updateContract(
+  @Roles(RoleName.EDITOR)
+  updateContract(
     @Param('id') id: string,
-    @Req() req: any,
-    @Body() body: { dto: EditorUpdateContractBodyDto; note?: string }
+    @ActiveUser('userId') userId: string,
+    @Body() dto: EditorUpdateContractBodyDto // Đưa note thẳng vào chung DTO phẳng giúp code gọn hơn
   ) {
-    return this.contractService.editorUpdateContract(id, req.user.id, body.dto, body.note)
+    const { note, ...updateData } = dto
+    return this.contractService.editorUpdateContract(id, userId, updateData, note)
   }
 
-  // 3. Cập nhật trạng thái chu trình hợp đồng
+  // 3. Cập nhật trạng thái chu trình luồng đi hợp đồng
   @Patch(':id/status')
-  async updateStatus(@Param('id') id: string, @Req() req: any, @Body() body: { status: ContractStatus }) {
-    if (body.status === ContractStatus.MANGAKA_REVIEW) {
-      return this.contractService.sendToMangaka(id, req.user.id)
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA)
+  updateStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body('status') status: ContractStatus) {
+    if (status === ContractStatus.MANGAKA_REVIEW) {
+      return this.contractService.sendToMangaka(id, userId)
     }
-    if (body.status === ContractStatus.MANGAKA_APPROVED) {
+    if (status === ContractStatus.MANGAKA_APPROVED) {
       return this.contractService.mangakaApprove(id)
     }
   }
 
-  // 4. Tạo tài nguyên "Chữ ký của Mangaka"
+  // 4. Tạo tài nguyên "Chữ ký số xác thực của Mangaka"
   @Post(':id/signatures/mangaka')
-  async signMangaka(@Param('id') id: string) {
-    return this.contractService.signByMangaka(id)
+  @Roles(RoleName.MANGAKA)
+  signMangaka(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('email') userEmail: string,
+    @Body() body: SignContractWithOtpBodyDto
+  ) {
+    return this.contractService.signByMangakaWithOtp(id, userId, userEmail, body.otpCode)
   }
 
-  // 5. Tạo tài nguyên "Chữ ký của Ban Giám Đốc"
+  // 5. Tạo tài nguyên "Chữ ký số đồng thuận của Ban Giám Đốc"
   @Post(':id/signatures/board')
-  async signBoard(@Param('id') id: string) {
-    return this.contractService.signByBoard(id)
+  @Roles(RoleName.BOARD_MEMBER)
+  signBoard(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('email') userEmail: string,
+    @Body() body: SignContractWithOtpBodyDto
+  ) {
+    return this.contractService.signByBoardWithOtp(id, userId, userEmail, body.otpCode)
+  }
+
+  // 6. Kiểm tra trạng thái hợp đồng và tiến trình ký kết
+  @Get(':id/status')
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  checkStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') role: string) {
+    return this.contractService.checkContractStatus(id, userId, role)
   }
 }
