@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
@@ -7,8 +7,11 @@ import { RoleName } from 'src/core/security/role.constant'
 import {
   AdminCreateUserBodyDto,
   AdminCreateUserResDto,
+  AdminUserListResDto,
+  AdminUserResDto,
   AssistantProfileBodyDto,
   AssistantProfileResDto,
+  ListUsersQueryDto,
   MangakaProfileBodyDto,
   MangakaProfileResDto
 } from './dto/users.dto'
@@ -25,6 +28,20 @@ export class UsersController {
   @ZodResponse({ type: AdminCreateUserResDto })
   createUser(@Body() body: AdminCreateUserBodyDto) {
     return this.usersService.createUserByAdmin(body)
+  }
+
+  @Get('admin/users')
+  @Roles(RoleName.SUPER_ADMIN)
+  @ZodResponse({ type: AdminUserListResDto })
+  listUsers(@Query() query: ListUsersQueryDto, @ActiveUser('userId') userId: string) {
+    return this.usersService.listUsers(userId, query)
+  }
+
+  @Get('admin/users/:id')
+  @Roles(RoleName.SUPER_ADMIN)
+  @ZodResponse({ type: AdminUserResDto })
+  getUser(@Param('id') id: string) {
+    return this.usersService.getUserById(id)
   }
 
   @Put('me/mangaka-profile')
