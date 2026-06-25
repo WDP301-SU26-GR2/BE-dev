@@ -12,10 +12,12 @@ const CustomZodValidationPipe: any = createZodValidationPipe({
       return new UnprocessableEntityException(error)
     }
 
+    // Chuẩn hóa về đúng contract { message, path } (KHÔNG spread cả issue —
+    // tránh lộ field thừa code/values/expected ra response). FE map theo message + path.
     return new UnprocessableEntityException(
       error.issues.map((err) => {
         return {
-          ...err,
+          message: err.message,
           path: err.path.join('.')
         }
       })

@@ -159,6 +159,10 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   bằng `getSignedUrl(..., { signableHeaders: new Set(['content-type']) })`.
 - Cascade chạm nhiều collection (Task→Page→Manuscript) phải bọc MongoDB transaction; side-effect ngoài DB
   (event/notify) đẩy ra SAU commit.
+- **🔴 Optional field `null` vs ABSENT (Mongo) — VERIFIED:** field optional (vd `User.deletedAt`) khi tạo không set
+  thì Mongo lưu **absent** (Prisma vẫn hydrate object ra `null`). `where: { deletedAt: null }` **KHÔNG match** doc absent
+  → query trả rỗng. Lọc "chưa bị xoá mềm" phải dùng `{ deletedAt: { isSet: false } }`, KHÔNG `{ deletedAt: null }`.
+  (Unit test mock repo KHÔNG bắt được — chỉ lộ ở smoke DB thật.)
 
 ## 11. Migration / Done Checklist
 

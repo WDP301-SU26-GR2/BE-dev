@@ -1,19 +1,34 @@
 import { Injectable } from '@nestjs/common'
+import { AdminUserQueryService } from './services/admin-user-query.service'
 import { AdminUserService } from './services/admin-user.service'
 import { AssistantProfileService } from './services/assistant-profile.service'
 import { MangakaProfileService } from './services/mangaka-profile.service'
-import { AdminCreateUserBodyType, AssistantProfileBodyType, MangakaProfileBodyType } from './schemas/users-schemas'
+import {
+  AdminCreateUserBodyType,
+  AssistantProfileBodyType,
+  ListUsersQueryType,
+  MangakaProfileBodyType
+} from './schemas/users-schemas'
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly adminUserService: AdminUserService,
+    private readonly adminUserQueryService: AdminUserQueryService,
     private readonly mangakaProfileService: MangakaProfileService,
     private readonly assistantProfileService: AssistantProfileService
   ) {}
 
   createUserByAdmin(body: AdminCreateUserBodyType) {
     return this.adminUserService.createUser(body)
+  }
+
+  listUsers(callerId: string, query: ListUsersQueryType) {
+    return this.adminUserQueryService.list(callerId, query)
+  }
+
+  getUserById(id: string) {
+    return this.adminUserQueryService.getById(id)
   }
 
   upsertMangakaProfile(userId: string, body: MangakaProfileBodyType) {
