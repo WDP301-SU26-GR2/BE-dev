@@ -7,6 +7,8 @@ import { AuthRegistrationService } from './services/auth-registration.service'
 import { AuthOtpService } from './services/auth-otp.service'
 import { AuthPasswordService } from './services/auth-password.service'
 import { AuthTokenService } from './services/auth-token.service'
+import { AuthGoogleService } from './services/auth-google.service'
+import { GoogleTokenVerifier } from 'src/infrastructure/oauth/google-token-verifier.service'
 
 @Module({
   controllers: [AuthController],
@@ -17,7 +19,9 @@ import { AuthTokenService } from './services/auth-token.service'
     AuthRegistrationService,
     AuthOtpService,
     AuthPasswordService,
-    AuthTokenService
+    AuthTokenService,
+    AuthGoogleService,
+    GoogleTokenVerifier
   ]
 })
 export class AuthModule {}
