@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import {
   ChangePasswordBodyType,
   ForgotPasswordBodyType,
+  GoogleLoginBodyType,
   LoginBodyType,
   LogoutBodyType,
   RefreshTokenBodyType,
@@ -13,6 +14,7 @@ import { AuthRegistrationService } from './auth-registration.service'
 import { AuthOtpService } from './auth-otp.service'
 import { AuthPasswordService } from './auth-password.service'
 import { AuthTokenService } from './auth-token.service'
+import { AuthGoogleService } from './auth-google.service'
 
 @Injectable()
 export class AuthService {
@@ -20,7 +22,8 @@ export class AuthService {
     private readonly registrationService: AuthRegistrationService,
     private readonly otpService: AuthOtpService,
     private readonly passwordService: AuthPasswordService,
-    private readonly tokenUseCaseService: AuthTokenService
+    private readonly tokenUseCaseService: AuthTokenService,
+    private readonly googleService: AuthGoogleService
   ) {}
 
   registerService(body: RegisterBodyType) {
@@ -53,5 +56,9 @@ export class AuthService {
 
   changePasswordService(body: ChangePasswordBodyType, userId: string) {
     return this.passwordService.changePasswordService(body, userId)
+  }
+
+  googleLoginService(body: GoogleLoginBodyType) {
+    return this.googleService.googleLoginService(body)
   }
 }
