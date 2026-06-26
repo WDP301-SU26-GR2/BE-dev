@@ -56,7 +56,7 @@ export const SendOtpBodySchema = extendApi(
       if (email === '') {
         ctx.addIssue({
           code: 'custom',
-          message: 'Error: Email is required',
+          message: 'Email is required',
           path: ['email']
         })
       }
