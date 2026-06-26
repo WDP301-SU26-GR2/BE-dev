@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common'
-import { CreateProposalBodyType, UpdateNamePagesBodyType, UpdateProposalBodyType } from './schemas/series-schemas'
+import { SeriesCaller, SeriesQueryService } from './services/series-query.service'
+import {
+  CreateProposalBodyType,
+  ListSeriesQueryType,
+  UpdateNamePagesBodyType,
+  UpdateProposalBodyType
+} from './schemas/series-schemas'
 import { NameService } from './services/name.service'
 import { SeriesPitchService } from './services/series-pitch.service'
 import { SeriesProposalService } from './services/series-proposal.service'
@@ -9,7 +15,8 @@ export class SeriesService {
   constructor(
     private readonly proposalService: SeriesProposalService,
     private readonly nameService: NameService,
-    private readonly pitchService: SeriesPitchService
+    private readonly pitchService: SeriesPitchService,
+    private readonly queryService: SeriesQueryService
   ) {}
 
   createProposal(mangakaId: string, body: CreateProposalBodyType) {
@@ -66,5 +73,21 @@ export class SeriesService {
 
   updateNamePages(mangakaId: string, seriesId: string, nameId: string, body: UpdateNamePagesBodyType) {
     return this.nameService.updatePages(mangakaId, seriesId, nameId, body.pages)
+  }
+
+  listSeries(caller: SeriesCaller, query: ListSeriesQueryType) {
+    return this.queryService.list(caller, query)
+  }
+
+  getSeries(caller: SeriesCaller, seriesId: string) {
+    return this.queryService.getById(caller, seriesId)
+  }
+
+  listNames(caller: SeriesCaller, seriesId: string) {
+    return this.queryService.listNames(caller, seriesId)
+  }
+
+  getName(caller: SeriesCaller, seriesId: string, nameId: string) {
+    return this.queryService.getName(caller, seriesId, nameId)
   }
 }

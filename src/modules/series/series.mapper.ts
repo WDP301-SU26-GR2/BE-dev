@@ -20,7 +20,6 @@ export function toSeriesRes(series: Series) {
           nameId: series.proposal.nameId,
           synopsis: series.proposal.synopsis,
           characterDesigns: series.proposal.characterDesigns,
-          targetDemographic: series.proposal.targetDemographic,
           estimatedLength: series.proposal.estimatedLength,
           status: series.proposal.status,
           createdAt: series.proposal.createdAt.toISOString()

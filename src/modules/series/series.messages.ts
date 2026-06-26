@@ -20,6 +20,8 @@ export const SeriesMessages = {
     invalidProposalState: 'Error.InvalidProposalState',
     invalidNameState: 'Error.InvalidNameState',
     seriesNotReadyToPitch: 'Error.SeriesNotReadyToPitch',
-    parentSeriesNotFound: 'Error.ParentSeriesNotFound'
+    parentSeriesNotFound: 'Error.ParentSeriesNotFound',
+    seriesAccessDenied: 'Error.SeriesAccessDenied',
+    nameNotFound: 'Error.NameNotFound'
   }
 } as const
