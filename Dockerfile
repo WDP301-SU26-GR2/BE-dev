@@ -6,8 +6,11 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && corepack enable
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PNPM_VERSION=9.15.0
+RUN npm install -g pnpm@${PNPM_VERSION} \
+    && pnpm --version
 
 # ---------- Build ----------
 FROM base AS build
