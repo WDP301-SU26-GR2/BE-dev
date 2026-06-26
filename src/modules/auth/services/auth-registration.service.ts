@@ -8,6 +8,7 @@ import { OtpPurpose } from '../auth.constant'
 import { UserStatus } from 'src/core/models/user.model'
 import { EmailAlreadyVerifiedException, EmailNotFoundException } from '../errors/auth.errors'
 import { RegisterBodyType, VerifyEmailBodyType } from '../schemas/auth-schemas'
+import { AuthMessages } from '../auth.messages'
 
 @Injectable()
 export class AuthRegistrationService {
@@ -40,7 +41,7 @@ export class AuthRegistrationService {
     }
 
     await this.otpService.issueOtp(body.email, OtpPurpose.REGISTER)
-    return { message: 'Registered. Please verify your email with the OTP sent.' }
+    return { message: AuthMessages.response.registered }
   }
 
   async verifyEmailService(body: VerifyEmailBodyType) {
@@ -61,6 +62,6 @@ export class AuthRegistrationService {
     await this.authRepository.activateUser(user.id)
     await this.authRepository.deleteOtpRequest({ email: body.email, purpose: OtpPurpose.REGISTER })
 
-    return { message: 'Email verified. Your account is now active.' }
+    return { message: AuthMessages.response.emailVerified }
   }
 }

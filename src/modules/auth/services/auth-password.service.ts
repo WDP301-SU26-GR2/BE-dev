@@ -6,6 +6,7 @@ import { OtpPurpose } from '../auth.constant'
 import { UserStatus } from 'src/core/models/user.model'
 import { AccountBannedException, EmailNotFoundException, InvalidPasswordException } from '../errors/auth.errors'
 import { ChangePasswordBodyType, ForgotPasswordBodyType } from '../schemas/auth-schemas'
+import { AuthMessages } from '../auth.messages'
 
 @Injectable()
 export class AuthPasswordService {
@@ -38,7 +39,7 @@ export class AuthPasswordService {
     ])
 
     return {
-      message: 'Password reset successfully'
+      message: AuthMessages.response.passwordReset
     }
   }
 
@@ -60,7 +61,7 @@ export class AuthPasswordService {
     ])
 
     return {
-      message: 'Password changed successfully'
+      message: AuthMessages.response.passwordChanged
     }
   }
 }

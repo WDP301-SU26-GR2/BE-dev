@@ -56,7 +56,7 @@ export const SendOtpBodySchema = extendApi(
       if (email === '') {
         ctx.addIssue({
           code: 'custom',
-          message: 'Error: Email is required',
+          message: 'Email is required',
           path: ['email']
         })
       }
@@ -182,3 +182,10 @@ export type LogoutBodyType = z.infer<typeof LogoutBodySchema>
 export type LoginBodyType = z.infer<typeof loginBodySchema>
 export type LoginResType = z.infer<typeof LoginResSchema>
 export type ChangePasswordBodyType = z.infer<typeof ChangePasswordBodySchema>
+
+//Google login
+export const GoogleLoginBodySchema = extendApi(z.object({ idToken: z.string().min(1) }).strict(), {
+  title: 'GoogleLoginBody',
+  description: 'Request body for Google login (ID token)'
+})
+export type GoogleLoginBodyType = z.infer<typeof GoogleLoginBodySchema>

@@ -13,20 +13,28 @@ export class EmailService {
     this.resend = new Resend(envConfig.RESEND_API_KEY)
   }
 
-  async sendOTP(payload: { email: string; code: string }) {
-    const subject = 'Your OTP Code'
+  async sendOTP(payload: { email: string; code: string; expiresInMinutes: number }) {
+    const subject = `Your ${envConfig.NAME_APP} verification code`
     return await this.resend.emails.send({
-      from: 'Ecom web <ecom@novaproj.site>',
+      from: envConfig.EMAIL_FROM,
       to: [payload.email],
-      subject: subject,
-      react: <OTPEmail code={payload.code} title={subject} />
+      subject,
+      react: (
+        <OTPEmail
+          code={payload.code}
+          title={subject}
+          appName={envConfig.NAME_APP}
+          logoUrl={envConfig.EMAIL_LOGO_URL}
+          expiresInMinutes={payload.expiresInMinutes}
+        />
+      )
     })
   }
 
   async sendAccountCredentials(payload: { email: string; name: string; temporaryPassword: string }) {
-    const subject = '[Mangaka System] Tài khoản của bạn đã được tạo'
+    const subject = `[${envConfig.NAME_APP}] Your account has been created`
     return await this.resend.emails.send({
-      from: 'Ecom web <ecom@novaproj.site>',
+      from: envConfig.EMAIL_FROM,
       to: [payload.email],
       subject,
       react: (
@@ -35,6 +43,8 @@ export class EmailService {
           email={payload.email}
           temporaryPassword={payload.temporaryPassword}
           title={subject}
+          appName={envConfig.NAME_APP}
+          logoUrl={envConfig.EMAIL_LOGO_URL}
         />
       )
     })

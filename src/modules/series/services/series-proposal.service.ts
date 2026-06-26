@@ -12,6 +12,7 @@ import { toNameRes, toSeriesRes } from '../series.mapper'
 import { SeriesRepository } from '../series.repo'
 import { CreateProposalBodyType, UpdateProposalBodyType } from '../schemas/series-schemas'
 import { SeriesStateService } from './series-state.service'
+import { SeriesMessages } from '../series.messages'
 
 @Injectable()
 export class SeriesProposalService {
@@ -63,7 +64,7 @@ export class SeriesProposalService {
     }
     await this.assignEditorIfUnset(series, editorId)
     const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVISION)
-    await this.notifyMangaka(series.mangakaId, seriesId, `Proposal cần chỉnh sửa: ${reason}`)
+    await this.notifyMangaka(series.mangakaId, seriesId, SeriesMessages.notification.proposalRevision(reason))
     return toSeriesRes(updated)
   }
 
@@ -71,7 +72,8 @@ export class SeriesProposalService {
     const series = await this.requireOwner(seriesId, mangakaId)
     if (series.proposal?.status !== ProposalStatus.PROPOSAL_REVISION) throw InvalidProposalStateException
     const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVIEW)
-    if (series.editorId) await this.notifyMangaka(series.editorId, seriesId, 'Proposal đã được nộp lại')
+    if (series.editorId)
+      await this.notifyMangaka(series.editorId, seriesId, SeriesMessages.notification.proposalResubmitted)
     return toSeriesRes(updated)
   }
 
@@ -83,7 +85,7 @@ export class SeriesProposalService {
     await this.assignEditorIfUnset(series, editorId)
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_APPROVED)
     const advanced = await this.seriesStateService.tryAdvanceToReadyToPitch(seriesId, editorId)
-    await this.notifyMangaka(series.mangakaId, seriesId, 'Proposal đã được duyệt')
+    await this.notifyMangaka(series.mangakaId, seriesId, SeriesMessages.notification.proposalApproved)
     return toSeriesRes(advanced)
   }
 
@@ -96,7 +98,7 @@ export class SeriesProposalService {
       changedBy: editorId,
       reason
     })
-    await this.notifyMangaka(series.mangakaId, seriesId, `Proposal bị từ chối: ${reason}`)
+    await this.notifyMangaka(series.mangakaId, seriesId, SeriesMessages.notification.proposalRejected(reason))
     return toSeriesRes(updated)
   }
 
