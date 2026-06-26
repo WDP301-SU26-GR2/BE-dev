@@ -8,6 +8,8 @@ import CustomZodValidationPipe from 'src/core/http/pipes/custom-zod-validation.p
 import { CoreModule } from 'src/core/core.module'
 import { EmailQueueModule } from 'src/infrastructure/email/email-queue.module'
 import { AuthModule } from './modules/auth/auth.module'
+import { EventEmitterModule } from '@nestjs/event-emitter'
+import { ContractModule } from './modules/contract/contract.module'
 import { ChapterModule } from './modules/chapter/chapter.module'
 import { NotificationModule } from './modules/notification/notification.module'
 import { AnnotationModule } from './modules/annotation/annotation.module'
@@ -18,6 +20,10 @@ import { UsersModule } from './modules/users/users.module'
 
 @Module({
   imports: [
+    EventEmitterModule.forRoot(),
+    CoreModule,
+    AuthModule,
+    ContractModule,
     CoreModule,
     ScheduleModule.forRoot(),
     EmailQueueModule,

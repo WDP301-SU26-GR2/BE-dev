@@ -22,6 +22,7 @@ import { GoogleTokenVerifier } from 'src/infrastructure/oauth/google-token-verif
     AuthTokenService,
     AuthGoogleService,
     GoogleTokenVerifier
-  ]
+  ],
+  exports: [AuthOtpService]
 })
 export class AuthModule {}
