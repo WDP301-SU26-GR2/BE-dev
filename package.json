@@ -97,5 +97,14 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "msgpackr-extract",
+      "@prisma/client",
+      "@prisma/engines",
+      "bcrypt",
+      "esbuild"
+    ]
   }
 }
