@@ -9,8 +9,17 @@ export class RedisService implements OnModuleInit {
   constructor(@Inject(REDIS_CLIENT) private readonly client: Redis) {}
 
   async onModuleInit(): Promise<void> {
-    await this.client.ping()
-    this.logger.log('Redis connected (PING ok)')
+    if (this.client.status !== 'ready') {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Redis connect timeout')), 5000)
+        const onReady = () => { clearTimeout(timer); this.client.off('error', onError); resolve() }
+        const onError = (err: Error) => { clearTimeout(timer); this.client.off('ready', onReady); reject(err) }
+        this.client.once('ready', onReady)
+        this.client.once('error', onError)
+      })
+    }
+    const pong = await this.client.ping()
+    this.logger.log(`Redis connected (PING ${pong})`)
   }
 
   getClient(): Redis {

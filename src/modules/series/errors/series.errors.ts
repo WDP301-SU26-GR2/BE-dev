@@ -10,6 +10,8 @@ export const InvalidSeriesTransitionException = new ConflictException(E.invalidS
 export const InvalidProposalStateException = new ConflictException(E.invalidProposalState)
 export const InvalidNameStateException = new ConflictException(E.invalidNameState)
 export const SeriesNotReadyToPitchException = new ConflictException(E.seriesNotReadyToPitch)
+export const SeriesAccessDeniedException = new ForbiddenException(E.seriesAccessDenied)
+export const NameNotFoundException = new NotFoundException(E.nameNotFound)
 export const ParentSeriesNotFoundException = new UnprocessableEntityException([
   { message: E.parentSeriesNotFound, path: 'parentSeriesId' }
 ])

@@ -12,8 +12,9 @@ import { RedisService } from './redis.service'
       useFactory: () =>
         new Redis(envConfig.REDIS_URL, {
           maxRetriesPerRequest: 1,
-          enableOfflineQueue: false,
-          connectTimeout: 3000
+          enableOfflineQueue: true,
+          connectTimeout: 3000,
+          lazyConnect: false
         })
     },
     {
