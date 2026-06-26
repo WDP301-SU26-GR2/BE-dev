@@ -1,10 +1,12 @@
 ﻿import { Module } from '@nestjs/common'
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
+import { ScheduleModule } from '@nestjs/schedule'
 import { ZodSerializerInterceptor } from 'nestjs-zod'
 import { CatchEverythingFilter } from 'src/core/http/filters/catch-everything.filter'
 import { ResponseEnvelopeInterceptor } from 'src/core/http/interceptors/response-envelope.interceptor'
 import CustomZodValidationPipe from 'src/core/http/pipes/custom-zod-validation.pipe'
 import { CoreModule } from 'src/core/core.module'
+import { EmailQueueModule } from 'src/infrastructure/email/email-queue.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { ChapterModule } from './modules/chapter/chapter.module'
 import { NotificationModule } from './modules/notification/notification.module'
@@ -17,6 +19,8 @@ import { UsersModule } from './modules/users/users.module'
 @Module({
   imports: [
     CoreModule,
+    ScheduleModule.forRoot(),
+    EmailQueueModule,
     AuthModule,
     UsersModule,
     NotificationModule,
