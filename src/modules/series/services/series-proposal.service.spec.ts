@@ -19,7 +19,6 @@ const baseSeries = {
     nameId: 'n1',
     synopsis: null,
     characterDesigns: [],
-    targetDemographic: null,
     estimatedLength: null,
     status: ProposalStatus.DRAFT,
     createdAt: new Date('2026-06-23T00:00:00.000Z')

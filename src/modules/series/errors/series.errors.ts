@@ -1,12 +1,17 @@
 import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
+import { SeriesMessages } from '../series.messages'
 
-export const SeriesNotFoundException = new NotFoundException('Error.SeriesNotFound')
-export const NotSeriesOwnerException = new ForbiddenException('Error.NotSeriesOwner')
-export const ProposalNotEditableException = new ConflictException('Error.ProposalNotEditable')
-export const InvalidSeriesTransitionException = new ConflictException('Error.InvalidSeriesTransition')
-export const InvalidProposalStateException = new ConflictException('Error.InvalidProposalState')
-export const InvalidNameStateException = new ConflictException('Error.InvalidNameState')
-export const SeriesNotReadyToPitchException = new ConflictException('Error.SeriesNotReadyToPitch')
+const E = SeriesMessages.error
+
+export const SeriesNotFoundException = new NotFoundException(E.seriesNotFound)
+export const NotSeriesOwnerException = new ForbiddenException(E.notSeriesOwner)
+export const ProposalNotEditableException = new ConflictException(E.proposalNotEditable)
+export const InvalidSeriesTransitionException = new ConflictException(E.invalidSeriesTransition)
+export const InvalidProposalStateException = new ConflictException(E.invalidProposalState)
+export const InvalidNameStateException = new ConflictException(E.invalidNameState)
+export const SeriesNotReadyToPitchException = new ConflictException(E.seriesNotReadyToPitch)
+export const SeriesAccessDeniedException = new ForbiddenException(E.seriesAccessDenied)
+export const NameNotFoundException = new NotFoundException(E.nameNotFound)
 export const ParentSeriesNotFoundException = new UnprocessableEntityException([
-  { message: 'Error.ParentSeriesNotFound', path: 'parentSeriesId' }
+  { message: E.parentSeriesNotFound, path: 'parentSeriesId' }
 ])

@@ -54,6 +54,24 @@ export class ChapterRepository {
     return this.prismaService.manuscript.findUnique({ where: { chapterId } })
   }
 
+  async findSeriesRecipients(seriesId: string): Promise<{ mangakaId: string; editorId: string | null } | null> {
+    const series = await this.prismaService.series.findUnique({
+      where: { id: seriesId },
+      select: { mangakaId: true, editorId: true }
+    })
+    return series ? { mangakaId: series.mangakaId, editorId: series.editorId ?? null } : null
+  }
+
+  async findChaptersNearDeadline(beforeDate: Date): Promise<Array<{ chapterId: string; seriesId: string }>> {
+    const schedules = await this.prismaService.schedule.findMany({
+      where: { currentDeadline: { lte: beforeDate } },
+      select: { chapterId: true, chapter: { select: { seriesId: true, status: true } } }
+    })
+    return schedules
+      .filter((schedule) => schedule.chapter.status !== ChapterStatus.PUBLISHED)
+      .map((schedule) => ({ chapterId: schedule.chapterId, seriesId: schedule.chapter.seriesId }))
+  }
+
   // ----- single-writer: Manuscript.status + Chapter.status -----
   async applyManuscriptTransition(
     chapterId: string,

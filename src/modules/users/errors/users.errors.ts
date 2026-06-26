@@ -1,7 +1,10 @@
 import { ConflictException, NotFoundException } from '@nestjs/common'
+import { UsersMessages } from '../users.messages'
 
-export const UserEmailExistsException = new ConflictException('Error.EmailAlreadyExists')
+const E = UsersMessages.error
 
-export const ProfileNotFoundException = new NotFoundException('Error.ProfileNotFound')
+export const UserEmailExistsException = new ConflictException(E.emailAlreadyExists)
 
-export const UserNotFoundException = new NotFoundException('Error.UserNotFound')
+export const ProfileNotFoundException = new NotFoundException(E.profileNotFound)
+
+export const UserNotFoundException = new NotFoundException(E.userNotFound)

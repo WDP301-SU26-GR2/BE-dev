@@ -522,7 +522,6 @@ type SeriesProposal {
   nameId            String?        @db.ObjectId
   synopsis          String?
   characterDesigns  String[]
-  targetDemographic String?
   estimatedLength   Int?
   status            ProposalStatus @default(DRAFT)
   createdAt         DateTime       @default(now())
