@@ -6,7 +6,7 @@ config()
 //Kiểm tra xem file .env có tồn tại hay không, nếu không tồn tại thì sẽ log ra thông báo và thoát chương trình
 //Bỏ qua check khi chạy production (vd: trong container) — biến môi trường được nạp sẵn từ orchestrator.
 if (process.env.NODE_ENV !== 'production' && !fs.existsSync(path.resolve('.env'))) {
-  console.log('Ko tìm thấy file env')
+  console.log('.env file not found')
   process.exit(1)
 }
 const configSchema = z.object({
@@ -32,6 +32,11 @@ const configSchema = z.object({
   //OTP
   OTP_EXPIRES_IN: z.string(),
   RESEND_API_KEY: z.string(),
+  // EMAIL: sender ("Name <addr@domain>") + logo URL shown inside emails (empty → text fallback)
+  EMAIL_FROM: z.string().default('Mangaka <ecom@novaproj.site>'),
+  EMAIL_LOGO_URL: z.string().default(''),
+  //GOOGLE OAUTH
+  GOOGLE_CLIENT_ID: z.string(),
   ////OBJECT STORAGE (Cloudflare R2 - S3-compatible)
   R2_ENDPOINT: z.string(),
   R2_ACCESS_KEY_ID: z.string(),
@@ -42,7 +47,7 @@ const configSchema = z.object({
 
 const congfigServer = configSchema.safeParse(process.env)
 if (!congfigServer.success) {
-  console.log('Lỗi cấu hình env: ')
+  console.log('Invalid environment configuration:')
   console.error(congfigServer.error)
   process.exit(1)
 }
