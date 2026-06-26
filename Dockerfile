@@ -29,6 +29,9 @@ FROM base AS prod-deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY prisma ./prisma
 
+ENV PNPM_CONFIG_ALLOW_BUILD=msgpackr-extract
+ENV PNPM_ALLOW_BUILD=msgpackr-extract
+
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prod
 
