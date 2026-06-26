@@ -105,6 +105,7 @@ export class AuthTokenService {
     const [accessToken, refreshToken] = await Promise.all([
       this.tokenService.signAccessToken({
         userId: user.id,
+        email: user.email,
         roleName: user.role.code,
         mustChangePassword: user.mustChangePassword
       }),

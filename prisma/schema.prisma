@@ -38,6 +38,8 @@ model User {
 
   mangakaProfile   MangakaProfile?
   assistantProfile AssistantProfile?
+  mangakaContracts Contract[]        @relation("MangakaRelation")
+  editorContracts  Contract[]        @relation("EditorRelation")
 
   @@index([deletedAt])
 }
@@ -419,6 +421,7 @@ enum DecisionType {
   CANCEL
   HIATUS
   ENDING_ALLOWANCE
+  SERIES_CONTRACT_APPROVAL
 }
 
 // REVIEW: inferred
@@ -498,10 +501,10 @@ model Series {
   genre                   String?
   demographic             String?
   publicationType         PublicationType?
-  status                  SeriesStatus      @default(DRAFT)
+  status                  SeriesStatus               @default(DRAFT)
   statusReason            String?
   relationshipType        RelationshipType?
-  coOwnerApprovalRequired Boolean           @default(false)
+  coOwnerApprovalRequired Boolean                    @default(false)
   statusHistory           SeriesStatusHistoryEntry[]
 
   proposal SeriesProposal?
@@ -510,7 +513,8 @@ model Series {
   publicationVersions PublicationVersion[]
   chapters            Chapter[]
 
-  createdAt DateTime @default(now())
+  createdAt DateTime   @default(now())
+  contracts Contract[]
 
   @@index([mangakaId])
   @@index([editorId])
@@ -797,11 +801,11 @@ model AssistantReview {
   comment   String?
   createdAt DateTime @default(now())
 
+  @@unique([mangakaId, assistantId])
   @@index([studioAssignmentId])
   @@index([mangakaId])
   @@index([assistantId])
   @@index([seriesId])
-  @@unique([mangakaId, assistantId])
 }
 
 model MangakaReview {
@@ -814,17 +818,22 @@ model MangakaReview {
   comment   String?
   createdAt DateTime @default(now())
 
+  @@unique([editorId, mangakaId])
   @@index([seriesId])
   @@index([editorId])
   @@index([mangakaId])
-  @@unique([editorId, mangakaId])
 }
 
 model Contract {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  seriesId  String  @db.ObjectId
-  mangakaId String  @db.ObjectId
-  editorId  String? @db.ObjectId
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId        String         @db.ObjectId
+  series          Series         @relation(fields: [seriesId], references: [id])
+  mangakaId       String         @db.ObjectId
+  mangaka         User           @relation("MangakaRelation", fields: [mangakaId], references: [id])
+  editorId        String?        @db.ObjectId
+  editor          User?          @relation("EditorRelation", fields: [editorId], references: [id])
+  boardDecisionId String?        @db.ObjectId
+  boardDecision   BoardDecision? @relation(fields: [boardDecisionId], references: [id])
 
   contractType          ContractType
   valuationAmount       Float?
@@ -838,13 +847,45 @@ model Contract {
   boardSignedAt         DateTime?
   createdAt             DateTime       @default(now())
 
-  conditions PaymentCondition[]
-  payments   PaymentRecord[]
-  amendments ContractAmendment[]
+  conditions         PaymentCondition[]
+  payments           PaymentRecord[]
+  amendments         ContractAmendment[]
+  versions           ContractVersion[]
+  contractSignatures ContractSignature[]
 
   @@index([seriesId])
   @@index([mangakaId])
   @@index([editorId])
+  @@index([boardDecisionId])
+}
+
+model ContractVersion {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  contractId String   @db.ObjectId
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  versionNumber         Int
+  valuationAmount       Float?
+  publisherOwnershipPct Float?
+  mangakaOwnershipPct   Float?
+  terminationClause     String?
+  editedById            String   @db.ObjectId
+  note                  String?
+  createdAt             DateTime
+
+  @@index([editedById])
+}
+
+model ContractSignature {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  contractId String   @db.ObjectId
+  userId     String   @db.ObjectId
+  role       String
+  signedAt   DateTime @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, userId])
 }
 
 model PaymentCondition {
@@ -1067,9 +1108,11 @@ model BoardDecision {
   endingChapterAllowance Int?
   details                Json?
   decidedAt              DateTime?
+  allowedEditorIds       String[]      @db.ObjectId
 
-  votes  Vote[]
-  report SeriesReport?
+  votes     Vote[]
+  report    SeriesReport?
+  contracts Contract[]
 
   @@index([targetSeriesId])
 }
