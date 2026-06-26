@@ -4,39 +4,44 @@ import { Body, Container, Head, Heading, Html, Img, Section, Text } from 'react-
 interface OtpEmailProps {
   code?: string
   title?: string
+  appName?: string
+  // Use a publicly deployed image URL; local paths do not render in email clients.
+  logoUrl?: string
+  expiresInMinutes?: number
 }
 
-// Nên dùng ảnh đã deploy lên server, tránh dùng ảnh local vì khi gửi email sẽ không hiển thị được
-const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''
-
-export const OTPEmail = ({ code, title }: OtpEmailProps) => (
+export const OTPEmail = ({ code, title, appName = 'Mangaka', logoUrl, expiresInMinutes = 5 }: OtpEmailProps) => (
   <Html>
     <Head>
-      <title>{title || 'My email title'}</title>
+      <title>{title || `Your ${appName} verification code`}</title>
     </Head>
     <Body style={main}>
       <Container style={container}>
-        <Img src={`${baseUrl}/static/plaid-logo.png`} width="212" height="88" alt="logo" style={logo} />
-        <Text style={tertiary}>Mã xác thực OTP</Text>
+        {logoUrl ? (
+          <Img src={logoUrl} width="212" height="88" alt={appName} style={logo} />
+        ) : (
+          <Text style={brand}>{appName}</Text>
+        )}
+        <Text style={tertiary}>Verification code</Text>
         <Heading style={secondary}>
-          Hãy nhập mã xác thực sau vào ứng dụng của bạn để xác minh danh tính của bạn. Mã này sẽ hết hạn sau 10 phút.
+          Enter the following code in the app to verify your identity. This code expires in {expiresInMinutes}{' '}
+          {expiresInMinutes === 1 ? 'minute' : 'minutes'}.
         </Heading>
         <Section style={codeContainer}>
           <Text style={codeText}>{code}</Text>
         </Section>
-        {/* <Button href="https://example.com" style={{ color: '#61dafb', padding: '10px 20px' }}>
-          Click me
-        </Button> */}
-        <Text style={paragraph}>Nếu bạn không yêu cầu mã này, xin hãy bỏ qua email này.</Text>
+        <Text style={paragraph}>If you did not request this code, you can safely ignore this email.</Text>
       </Container>
-      <Text style={footer}>From Ecom Web.</Text>
+      <Text style={footer}>{appName}</Text>
     </Body>
   </Html>
 )
 
 OTPEmail.PreviewProps = {
   code: '144833',
-  title: 'Verify Your Identity'
+  title: 'Your Mangaka verification code',
+  appName: 'Mangaka',
+  expiresInMinutes: 5
 } as OtpEmailProps
 
 export default OTPEmail
@@ -58,6 +63,16 @@ const container = {
 }
 
 const logo = {
+  margin: '0 auto'
+}
+
+const brand = {
+  color: '#0a85ea',
+  fontSize: '28px',
+  fontWeight: 800,
+  fontFamily: 'HelveticaNeue-Bold,Helvetica,Arial,sans-serif',
+  letterSpacing: '1px',
+  textAlign: 'center' as const,
   margin: '0 auto'
 }
 

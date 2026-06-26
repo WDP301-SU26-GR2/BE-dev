@@ -6,4 +6,4 @@ export const OtpPurpose = {
 export type OtpPurposeType = (typeof OtpPurpose)[keyof typeof OtpPurpose]
 
 export const AUTH_OTP_MAX_ATTEMPTS = 5
-export const AUTH_OTP_EXPIRY_MS = 5 * 60 * 1000
+// OTP TTL is configurable via env `OTP_EXPIRES_IN` (e.g. "5m"); parsed in AuthOtpService.

@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { AvailabilityStatus, Specialization } from '@prisma/client'
+import { AvailabilityStatus, Specialization, UserStatus } from '@prisma/client'
 import { ADMIN_CREATABLE_ROLES } from '../users.constant'
+import { RoleName } from 'src/core/security/role.constant'
 
 export const AdminCreateUserBodySchema = extendApi(
   z
@@ -93,3 +94,55 @@ export const AssistantProfileResSchema = extendApi(
 export type AdminCreateUserBodyType = z.infer<typeof AdminCreateUserBodySchema>
 export type MangakaProfileBodyType = z.infer<typeof MangakaProfileBodySchema>
 export type AssistantProfileBodyType = z.infer<typeof AssistantProfileBodySchema>
+
+// ---- Admin: list/detail users ----
+export const ListUsersQuerySchema = extendApi(
+  z
+    .object({
+      roleCode: z
+        .enum([RoleName.SUPER_ADMIN, RoleName.MANGAKA, RoleName.ASSISTANT, RoleName.EDITOR, RoleName.BOARD_MEMBER])
+        .optional(),
+      status: z.nativeEnum(UserStatus).optional(),
+      search: z.string().min(1).max(200).optional(),
+      limit: z.coerce.number().int().positive().max(100).default(20),
+      offset: z.coerce.number().int().nonnegative().default(0),
+      // Boolean từ query string: 'true' → true, còn lại (kể cả thiếu) → false.
+      // KHÔNG dùng z.coerce.boolean() vì 'false' (chuỗi non-empty) sẽ ra true.
+      includeDeleted: z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => v === 'true')
+    })
+    .strict(),
+  { title: 'ListUsersQuery', description: 'Admin filter danh sách user' }
+)
+
+export const AdminUserResSchema = extendApi(
+  z.object({
+    id: z.string(),
+    email: z.string(),
+    name: z.string(),
+    displayName: z.string().nullable(),
+    phoneNumber: z.string(),
+    avatar: z.string().nullable(),
+    role: z.string(),
+    status: z.string(),
+    emailVerified: z.boolean(),
+    registrationType: z.string(),
+    mustChangePassword: z.boolean(),
+    createdAt: z.string()
+  }),
+  { title: 'AdminUserRes', description: 'Admin view của 1 user (KHÔNG có password)' }
+)
+
+export const AdminUserListResSchema = extendApi(
+  z.object({
+    items: z.array(AdminUserResSchema),
+    total: z.number(),
+    limit: z.number(),
+    offset: z.number()
+  }),
+  { title: 'AdminUserListRes', description: 'Danh sách user phân trang' }
+)
+
+export type ListUsersQueryType = z.infer<typeof ListUsersQuerySchema>

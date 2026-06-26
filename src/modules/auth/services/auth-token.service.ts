@@ -15,6 +15,7 @@ import {
 } from '../errors/auth.errors'
 import { LoginBodyType, LogoutBodyType, RefreshTokenBodyType } from '../schemas/auth-schemas'
 import { RoleType } from '../schemas/auth.model'
+import { AuthMessages } from '../auth.messages'
 
 @Injectable()
 export class AuthTokenService {
@@ -43,7 +44,7 @@ export class AuthTokenService {
       throw EmailNotVerifiedException
     }
 
-    return await this.generateAuthResponse(user)
+    return await this.issueSession(user)
   }
 
   async logoutService(body: LogoutBodyType) {
@@ -63,7 +64,7 @@ export class AuthTokenService {
     }
 
     return {
-      message: 'Logout successfully'
+      message: AuthMessages.response.loggedOut
     }
   }
 
@@ -97,10 +98,10 @@ export class AuthTokenService {
       throw EmailNotVerifiedException
     }
 
-    return await this.generateAuthResponse(user)
+    return await this.issueSession(user)
   }
 
-  private async generateAuthResponse(user: Omit<UserType, 'password'> & { role: Pick<RoleType, 'code'> }) {
+  async issueSession(user: Omit<UserType, 'password'> & { role: Pick<RoleType, 'code'> }) {
     const [accessToken, refreshToken] = await Promise.all([
       this.tokenService.signAccessToken({
         userId: user.id,

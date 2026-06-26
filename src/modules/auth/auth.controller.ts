@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import {
   ChangePasswordBodyDto,
   ForgotPasswordBodyDto,
+  GoogleLoginBodyDto,
   LoginBodyDto,
   LoginResDto,
   LogoutBodyDto,
@@ -73,6 +74,13 @@ export class AuthController {
   @ZodResponse({ type: MessageResDto })
   forgotPassword(@Body() body: ForgotPasswordBodyDto) {
     return this.authService.forgotPasswordService(body)
+  }
+
+  @Post('google')
+  @IsPublic()
+  @ZodResponse({ type: LoginResDto })
+  googleLogin(@Body() body: GoogleLoginBodyDto) {
+    return this.authService.googleLoginService(body)
   }
 
   @Post('change-password')

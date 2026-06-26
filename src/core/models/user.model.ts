@@ -12,6 +12,7 @@ export const UserSchema = z.object({
   password: z.string().min(6).max(100),
   phoneNumber: z.string().min(9).max(15),
   avatar: z.string().nullable(),
+  googleId: z.string().nullable(),
   displayName: z.string().min(2).max(100).nullable(),
   status: z.nativeEnum($Enums.UserStatus),
   emailVerified: z.boolean(),
