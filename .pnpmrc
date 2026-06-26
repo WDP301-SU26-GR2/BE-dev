@@ -1,0 +1,10 @@
+# pnpm configuration (pnpm >= 10 ignores package.json "pnpm" field)
+# https://pnpm.io/settings
+
+# Whitelist packages allowed to run install/build scripts.
+# Required because pnpm 9+ ignores build scripts by default for security.
+onlyBuiltDependencies[]=msgpackr-extract
+onlyBuiltDependencies[]=@prisma/client
+onlyBuiltDependencies[]=@prisma/engines
+onlyBuiltDependencies[]=bcrypt
+onlyBuiltDependencies[]=esbuild

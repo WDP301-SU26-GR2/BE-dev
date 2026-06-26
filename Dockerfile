@@ -12,7 +12,7 @@ RUN apt-get update \
 # ---------- Build ----------
 FROM base AS build
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .pnpmrc ./
 COPY prisma ./prisma
 
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
@@ -26,11 +26,8 @@ RUN pnpm build
 # ---------- Prod deps only ----------
 FROM base AS prod-deps
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .pnpmrc ./
 COPY prisma ./prisma
-
-ENV PNPM_CONFIG_ALLOW_BUILD=msgpackr-extract
-ENV PNPM_ALLOW_BUILD=msgpackr-extract
 
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prod
