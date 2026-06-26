@@ -9,6 +9,7 @@ import {
 } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { ManuscriptStateService } from './manuscript-state.service'
+import { ChapterMessages } from '../chapter.messages'
 
 @Injectable()
 export class ManuscriptReviewService {
@@ -48,7 +49,7 @@ export class ManuscriptReviewService {
         type: NotificationType.REVIEW,
         referenceId: chapterId,
         referenceType: 'CHAPTER',
-        content: 'Manuscript submitted for review'
+        content: ChapterMessages.notification.manuscriptSubmitted
       })
     }
     return res
@@ -67,7 +68,7 @@ export class ManuscriptReviewService {
       type: NotificationType.REVIEW,
       referenceId: chapterId,
       referenceType: 'CHAPTER',
-      content: 'Editor requested revision'
+      content: ChapterMessages.notification.editorRequestedRevision
     })
     return res
   }
@@ -85,7 +86,7 @@ export class ManuscriptReviewService {
         type: NotificationType.REVIEW,
         referenceId: chapterId,
         referenceType: 'CHAPTER',
-        content: 'Manuscript resubmitted'
+        content: ChapterMessages.notification.manuscriptResubmitted
       })
     }
     return res
@@ -103,7 +104,7 @@ export class ManuscriptReviewService {
       type: NotificationType.REVIEW,
       referenceId: chapterId,
       referenceType: 'CHAPTER',
-      content: 'Manuscript approved (ready for print)'
+      content: ChapterMessages.notification.manuscriptApproved
     })
     return res
   }
