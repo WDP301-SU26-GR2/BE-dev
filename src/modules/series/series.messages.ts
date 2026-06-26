@@ -1,6 +1,6 @@
-// Centralized user-facing messages for the series module.
-// Keep all human-readable copy here so it is easy to review/adjust/i18n later.
-// (Error codes live in `errors/series.errors.ts` as `Error.*` keys — those stay there.)
+// Centralized user-facing messages for the series module — single source of truth.
+// Plain strings only (no NestJS imports). HTTP mapping (status + path) stays in
+// `errors/series.errors.ts`, which references the `error` codes below.
 export const SeriesMessages = {
   // In-app notification content (notification layer).
   notification: {
@@ -10,5 +10,16 @@ export const SeriesMessages = {
     proposalRejected: (reason: string) => `Proposal rejected: ${reason}`,
     nameRevision: (reason: string) => `Name needs revision: ${reason}`,
     nameApproved: 'Name approved'
+  },
+  // Error codes (FE maps these keys to localized text). Consumed by errors/series.errors.ts.
+  error: {
+    seriesNotFound: 'Error.SeriesNotFound',
+    notSeriesOwner: 'Error.NotSeriesOwner',
+    proposalNotEditable: 'Error.ProposalNotEditable',
+    invalidSeriesTransition: 'Error.InvalidSeriesTransition',
+    invalidProposalState: 'Error.InvalidProposalState',
+    invalidNameState: 'Error.InvalidNameState',
+    seriesNotReadyToPitch: 'Error.SeriesNotReadyToPitch',
+    parentSeriesNotFound: 'Error.ParentSeriesNotFound'
   }
 } as const

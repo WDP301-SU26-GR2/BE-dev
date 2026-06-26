@@ -48,7 +48,9 @@ BE-dev/
 │   │   ├── annotation/             # markup review (shared Mangaka↔Assistant, Editor↔Mangaka)
 │   │   └── storage/                # signed URL (presign PUT/GET) wiring
 │   │       # mỗi module: controller(s) + service (orchestrator) + services/ (use-case + state)
-│   │       #            + repo + mapper? + constant? + ports? + schemas + dto + errors
+│   │       #            + repo + mapper? + messages? + constant? + ports? + schemas + dto + errors
+│   │       # <name>.messages.ts: catalog text user-facing (response/notification/error) — string thuần,
+│   │       #            errors/<name>.errors.ts tham chiếu sang (xem AGENTS §7)
 │   ├── core/                       # App-level cross-cutting rules, @Global()
 │   │   ├── core.module.ts          # Export infra services + register global guards
 │   │   ├── config/envConfig.ts     # Zod fail-fast env
@@ -176,7 +178,7 @@ sequenceDiagram
 | `CustomZodValidationPipe` | Request validation | Sai → **422**, ném `ZodValidationException` (mảng `{message, path}`) |
 | `ZodSerializerInterceptor` (inner) | Response serialize theo DTO | Lỗi → `ZodSerializationException` → 500 (được log ở filter) |
 | `ResponseEnvelopeInterceptor` (outer) | Bọc response thành công | `{ success:true, message, data }` (xem §4.1) |
-| `CatchEverythingFilter` | **Bộ lọc lỗi duy nhất** | `{ success:false, statusCode, message }`; P2002 → **409**; unknown → **500** + log |
+| `CatchEverythingFilter` | **Bộ lọc lỗi duy nhất** | `{ success:false, statusCode, message, errors? }`; P2002 → **409**; unknown → **500** + log |
 
 > ⚠️ **Quan trọng**: Validation errors trả về **422** (KHÔNG phải 400) — design decision để client phân biệt validation error vs bad request.
 
@@ -196,10 +198,17 @@ Mọi response **thành công** được `ResponseEnvelopeInterceptor` bọc:
 Mọi response **lỗi** (từ `CatchEverythingFilter`):
 
 ```jsonc
-{ "success": false, "statusCode": 422, "message": [ { "message": "Error.EmailNotFound", "path": "email" } ] }
+// lỗi field-level (validation / có path): message string + errors[]
+{ "success": false, "statusCode": 422, "message": "Invalid email address",
+  "errors": [ { "message": "Invalid email address", "path": "email" } ] }
+
+// lỗi đơn / hệ thống: chỉ message string, KHÔNG có errors
+{ "success": false, "statusCode": 403, "message": "Error.EmailNotVerified" }
 ```
 
-`message` là string (lỗi đơn) hoặc mảng zod-issues — KHÔNG còn object lồng object như bản cũ.
+- `message` **LUÔN là string** (hiển thị). Field-level issues đặt ở **`errors[]`** (`{message,path}`); nhiều issue →
+  `message: "Validation failed"`. KHÔNG còn object lồng object / message-trong-message như bản cũ.
+- Text của message lấy từ **`<name>.messages.ts`** (catalog tập trung), errors file chỉ map status + path (xem AGENTS §7).
 
 ---
 

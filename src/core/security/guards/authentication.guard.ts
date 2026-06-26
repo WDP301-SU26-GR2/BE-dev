@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core'
 import { AccessTokenGuard } from './access-token.guard'
 import envConfig from '../../config/envConfig'
 import { AuthType, AuthTypeDecoratorPayload, ConditionGuard } from '../auth-type'
+import { SecurityMessages } from '../security.messages'
 
 @Injectable()
 export class AuthenticationGuard implements CanActivate {
@@ -46,7 +47,7 @@ export class AuthenticationGuard implements CanActivate {
           return false
         })
         if (!result) {
-          throw new UnauthorizedException('Unauthorized')
+          throw new UnauthorizedException(SecurityMessages.unauthorized)
         }
       }
       return true
