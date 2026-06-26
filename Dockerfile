@@ -6,13 +6,16 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && corepack enable
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PNPM_VERSION=9.15.0
+RUN npm install -g pnpm@${PNPM_VERSION} \
+    && pnpm --version
 
 # ---------- Build ----------
 FROM base AS build
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .pnpmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY prisma ./prisma
 
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
@@ -26,7 +29,7 @@ RUN pnpm build
 # ---------- Prod deps only ----------
 FROM base AS prod-deps
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .pnpmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY prisma ./prisma
 
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
