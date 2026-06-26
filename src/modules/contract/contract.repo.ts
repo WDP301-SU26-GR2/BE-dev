@@ -67,12 +67,20 @@ export class ContractRepo {
     })
   }
 
-  // 5. Tìm hợp đồng kèm Quyết định (Đã sửa đổi: bỏ include khuyết allowedEditors)
+  // 🌟 5. ĐÃ SỬA: Tìm hợp đồng kèm Quyết định & Đào sâu lấy Hội đồng cha (BoardSession)
   async findWithBoardDecision(contractId: string) {
     return this.prisma.contract.findUnique({
       where: { id: contractId },
       include: {
-        boardDecision: true // Mảng allowedEditorIds đã tự động nằm sẵn trong này nhờ 1-n Scalar Array
+        boardDecision: {
+          include: {
+            boardSession: {
+              select: {
+                allowedEditorIds: true // Lấy nguồn sự thật duy nhất từ phòng họp hội đồng cha
+              }
+            }
+          }
+        }
       }
     })
   }
@@ -125,6 +133,7 @@ export class ContractRepo {
     return this.prisma.contract.findUnique({ where: { id: contractId } })
   }
 
+  // 9. Lấy tiến độ ký kết hợp đồng chi tiết
   async getContractSignaturesProgress(contractId: string) {
     return this.prisma.contract.findUnique({
       where: { id: contractId },
@@ -133,14 +142,17 @@ export class ContractRepo {
         status: true,
         mangakaId: true,
         mangakaSignedAt: true,
-        // Khớp 100% với schema: boardDecision liên kết sang bảng BoardDecision
         boardDecision: {
           select: {
             id: true,
-            allowedEditorIds: true
+            result: true,
+            boardSession: {
+              select: {
+                allowedEditorIds: true
+              }
+            }
           }
         },
-        // Khớp 100% với schema: contractSignatures liên kết sang bảng ContractSignature
         contractSignatures: {
           where: { role: 'BOARD_EDITOR' },
           select: {
