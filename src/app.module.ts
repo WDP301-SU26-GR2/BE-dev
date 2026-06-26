@@ -6,6 +6,9 @@ import { ResponseEnvelopeInterceptor } from 'src/core/http/interceptors/response
 import CustomZodValidationPipe from 'src/core/http/pipes/custom-zod-validation.pipe'
 import { CoreModule } from 'src/core/core.module'
 import { AuthModule } from './modules/auth/auth.module'
+import { EventEmitterModule } from '@nestjs/event-emitter'
+import { ContractModule } from './modules/contract/contract.module'
+import { ChapterModule } from './modules/chapter/chapter.module'
 import { NotificationModule } from './modules/notification/notification.module'
 import { AnnotationModule } from './modules/annotation/annotation.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
@@ -14,7 +17,21 @@ import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 
 @Module({
-  imports: [CoreModule, AuthModule, UsersModule, NotificationModule, ReviewsModule, SeriesModule, StorageModule],
+  imports: [
+    EventEmitterModule.forRoot(),
+    CoreModule,
+    AuthModule,
+    ContractModule,
+    CoreModule,
+    AuthModule,
+    UsersModule,
+    NotificationModule,
+    ReviewsModule,
+    SeriesModule,
+    StorageModule,
+    ChapterModule,
+    AnnotationModule
+  ],
   controllers: [],
   providers: [
     {
