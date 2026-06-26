@@ -9,6 +9,8 @@ import { ManuscriptStateService } from './services/manuscript-state.service'
 import { PageService } from './services/page.service'
 import { PageStateService } from './services/page-state.service'
 import { ScheduleService } from './services/schedule.service'
+import { ChapterPublishedListener } from './services/chapter-notification.listener'
+import { DeadlineWarningCron } from './services/deadline-warning.cron'
 
 @Module({
   controllers: [ChapterController],
@@ -21,7 +23,9 @@ import { ScheduleService } from './services/schedule.service'
     ScheduleService,
     PageService,
     ManuscriptReviewService,
-    ChapterPublishService
+    ChapterPublishService,
+    ChapterPublishedListener,
+    DeadlineWarningCron
   ]
 })
 export class ChapterModule {}

@@ -1,13 +1,16 @@
 import { ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
+import { StorageMessages } from '../storage.messages'
+
+const E = StorageMessages.error
 
 export const UnsupportedFileTypeException = new UnprocessableEntityException([
-  { message: 'Error.UnsupportedFileType', path: 'contentType' }
+  { message: E.unsupportedFileType, path: 'contentType' }
 ])
 
 export const FileTooLargeException = new UnprocessableEntityException([
-  { message: 'Error.FileTooLarge', path: 'contentLength' }
+  { message: E.fileTooLarge, path: 'contentLength' }
 ])
 
-export const AssetNotFoundException = new NotFoundException('Error.AssetNotFound')
+export const AssetNotFoundException = new NotFoundException(E.assetNotFound)
 
-export const DownloadForbiddenException = new ForbiddenException('Error.DownloadForbidden')
+export const DownloadForbiddenException = new ForbiddenException(E.downloadForbidden)

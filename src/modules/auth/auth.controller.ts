@@ -1,4 +1,5 @@
 ﻿import { Body, Controller, Post } from '@nestjs/common'
+import { UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import {
   ChangePasswordBodyDto,
@@ -20,6 +21,7 @@ import { AuthService } from './services/auth.service'
 import { ZodResponse } from 'nestjs-zod'
 import { MessageResDto } from 'src/core/http/response.dto'
 import type { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
+import { OtpRateLimitGuard } from 'src/core/security/otp-rate-limit.guard'
 
 @ApiTags('auth')
 @ApiBearerAuth()
@@ -29,6 +31,7 @@ export class AuthController {
 
   @Post('register')
   @IsPublic()
+  @UseGuards(OtpRateLimitGuard)
   @ZodResponse({ type: MessageResDto })
   register(@Body() body: RegisterBodyDto) {
     return this.authService.registerService(body)
@@ -43,6 +46,7 @@ export class AuthController {
 
   @Post('send-otp-email')
   @IsPublic()
+  @UseGuards(OtpRateLimitGuard)
   @ZodResponse({ type: MessageResDto })
   sendOtp(@Body() body: SendOtpBodyDto) {
     return this.authService.sendOTPService(body)
@@ -69,6 +73,9 @@ export class AuthController {
     return this.authService.refreshTokenService(body)
   }
 
+  // KHÔNG rate-limit ở đây: forgot-password là bước RESET (validate OTP + đổi mật khẩu), KHÔNG gửi OTP.
+  // Dùng chung email-cooldown với send-otp-email sẽ chặn chính bước reset trong 60s sau khi xin OTP.
+  // Brute-force code đã bị chặn bởi OTP attempts lockout (AUTH_OTP_MAX_ATTEMPTS).
   @Post('forgot-password')
   @IsPublic()
   @ZodResponse({ type: MessageResDto })

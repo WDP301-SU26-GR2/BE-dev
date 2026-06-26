@@ -16,7 +16,7 @@
 | **Language** | TypeScript | 5.7+ | Strict mode, `NodeNext` module system |
 | **ORM** | Prisma | 6.19+ | Schema-first, type-safe database access |
 | **Database** | MongoDB | 7.x | Replica set (`rs0`) bắt buộc cho Prisma |
-| **Cache/Queue** | Redis | 7.x | Caching, session, và job queue |
+| **Cache/Queue** | Redis + BullMQ | Redis 7.x / BullMQ 5.x | Rate-limit, distributed cron locks, and job queues |
 | **Validation** | Zod + nestjs-zod | zod 4.x | Schema validation cho cả request và response |
 | **Auth** | JWT (HS256) | @nestjs/jwt 11.x | Access + Refresh token pair |
 | **Hashing** | bcrypt | 6.x | Password hashing |
@@ -48,7 +48,9 @@ BE-dev/
 │   │   ├── annotation/             # markup review (shared Mangaka↔Assistant, Editor↔Mangaka)
 │   │   └── storage/                # signed URL (presign PUT/GET) wiring
 │   │       # mỗi module: controller(s) + service (orchestrator) + services/ (use-case + state)
-│   │       #            + repo + mapper? + constant? + ports? + schemas + dto + errors
+│   │       #            + repo + mapper? + messages? + constant? + ports? + schemas + dto + errors
+│   │       # <name>.messages.ts: catalog text user-facing (response/notification/error) — string thuần,
+│   │       #            errors/<name>.errors.ts tham chiếu sang (xem AGENTS §7)
 │   ├── core/                       # App-level cross-cutting rules, @Global()
 │   │   ├── core.module.ts          # Export infra services + register global guards
 │   │   ├── config/envConfig.ts     # Zod fail-fast env
@@ -60,7 +62,9 @@ BE-dev/
 │   │   ├── database/               # PrismaService + Prisma error helpers
 │   │   ├── crypto/                 # HashingService (bcrypt)
 │   │   ├── token/                  # TokenService + JWT payload types
-│   │   ├── email/                  # EmailService (Resend) + React-email templates
+│   │   ├── email/                  # EmailService (Resend) + queue/processor + React-email templates
+│   │   ├── queue/                  # BullMQ queue config + QueueService
+│   │   ├── redis/                  # ioredis clients + RedisService helpers
 │   │   └── storage/                # StorageService (Cloudflare R2 presigned URL)
 ├── test/                           # E2E tests (Jest)
 ├── .env                            # Env variables (KHÔNG commit lên git)
@@ -176,7 +180,7 @@ sequenceDiagram
 | `CustomZodValidationPipe` | Request validation | Sai → **422**, ném `ZodValidationException` (mảng `{message, path}`) |
 | `ZodSerializerInterceptor` (inner) | Response serialize theo DTO | Lỗi → `ZodSerializationException` → 500 (được log ở filter) |
 | `ResponseEnvelopeInterceptor` (outer) | Bọc response thành công | `{ success:true, message, data }` (xem §4.1) |
-| `CatchEverythingFilter` | **Bộ lọc lỗi duy nhất** | `{ success:false, statusCode, message }`; P2002 → **409**; unknown → **500** + log |
+| `CatchEverythingFilter` | **Bộ lọc lỗi duy nhất** | `{ success:false, statusCode, message, errors?, code?, retryAfter? }`; P2002 → **409**; unknown → **500** + log |
 
 > ⚠️ **Quan trọng**: Validation errors trả về **422** (KHÔNG phải 400) — design decision để client phân biệt validation error vs bad request.
 
@@ -196,10 +200,21 @@ Mọi response **thành công** được `ResponseEnvelopeInterceptor` bọc:
 Mọi response **lỗi** (từ `CatchEverythingFilter`):
 
 ```jsonc
-{ "success": false, "statusCode": 422, "message": [ { "message": "Error.EmailNotFound", "path": "email" } ] }
+// lỗi field-level (validation / có path): message string + errors[]
+{ "success": false, "statusCode": 422, "message": "Invalid email address",
+  "errors": [ { "message": "Invalid email address", "path": "email" } ] }
+
+// lỗi đơn / hệ thống: chỉ message string, KHÔNG có errors
+{ "success": false, "statusCode": 403, "message": "Error.EmailNotVerified" }
+
+// rate-limit (OTP) keeps retry metadata for FE cooldown UI
+{ "success": false, "statusCode": 429, "message": "Error.OtpRateLimited",
+  "code": "AUTH_OTP_RATE_LIMITED", "retryAfter": 60 }
 ```
 
-`message` là string (lỗi đơn) hoặc mảng zod-issues — KHÔNG còn object lồng object như bản cũ.
+- `message` **LUÔN là string** (hiển thị). Field-level issues đặt ở **`errors[]`** (`{message,path}`); nhiều issue →
+  `message: "Validation failed"`. KHÔNG còn object lồng object / message-trong-message như bản cũ.
+- Text của message lấy từ **`<name>.messages.ts`** (catalog tập trung), errors file chỉ map status + path (xem AGENTS §7).
 
 ---
 
@@ -236,11 +251,17 @@ const configSchema = z.object({
 | `NAME_APP` | string | Tên app (email template, ...) |
 | `ADMIN_NAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL` / `ADMIN_PHONE` | string | Seed Super Admin |
 | `OTP_EXPIRES_IN` | string | TTL mã OTP (vd: `5m`) |
+| `OTP_RL_EMAIL_MAX` / `OTP_RL_EMAIL_WINDOW` | number | OTP quota theo email trong cửa sổ giây |
+| `OTP_RL_IP_MAX` / `OTP_RL_IP_WINDOW` | number | OTP quota theo IP trong cửa sổ giây |
+| `OTP_RL_COOLDOWN` | number | Cooldown giây giữa các lần xin OTP |
+| `DEADLINE_WARN_THRESHOLD_HOURS` | number | Cron cảnh báo chapter gần deadline trong N giờ tới |
+| `ORPHAN_ASSET_TTL_HOURS` | number | TTL trước khi cleanup asset record chưa thấy object trên R2 |
+| `TRUST_PROXY_HOPS` | number | Express trust proxy hops để lấy đúng client IP cho rate-limit |
 | `RESEND_API_KEY` | string | API key gửi email OTP/credential (Resend) |
 | `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_REGION` | string | Cloudflare R2 (object storage, presigned URL) |
 
 > **Lưu ý**: Khi chạy production (`NODE_ENV=production`), không cần file `.env` vật lý — env vars được inject từ orchestrator. Thiếu bất kỳ biến nào ở trên → `process.exit(1)` lúc boot (fail-fast).
-> `REDIS_URL` hiện được khai báo nhưng **chưa có client/sử dụng** (placeholder cho rate-limit/cache về sau).
+> `REDIS_URL` hiện là hạ tầng bắt buộc lúc boot: `RedisService` ping fail-fast; BullMQ, OTP rate-limit, và cron locks dùng chung Redis.
 
 ---
 
@@ -367,6 +388,16 @@ interface JwtRefreshTokenPayload {
 | `ContractExecuted` | `contract.executed` | B1 | A2, A-CHP-05 |
 | `RankingFinalized` | `ranking.finalized` | B4 | B-CON-05, B5 |
 | `SeriesCancelling` / `SeriesCancelled` | `series.cancelling` / `series.cancelled` | B5 | B-CON-09 / A·B |
+
+### Async Infrastructure — Redis, BullMQ, Schedule
+
+- `RedisModule` (`@Global`) cung cấp 2 client ioredis: client general cho lock/rate-limit và client BullMQ cho queue workers.
+- `QueueModule` (`@Global`) cấu hình BullMQ với retry/backoff mặc định. Queue hiện có: `email`, `notification`.
+- Email side-effect (OTP, admin credentials) đi qua `EmailQueue`; nếu enqueue lỗi thì fallback gửi sync best-effort và log, không phá flow nghiệp vụ đã ghi DB.
+- Notification side-effect đi qua `NotificationQueue`; processor gọi `NotificationService.notify(...)` để giữ idempotency theo recipient/type/reference.
+- `ScheduleModule.forRoot()` bật cron nền:
+  - deadline warning hourly: lock Redis `cron:deadline-warning`, notify Mangaka/Editor cho chapter chưa publish gần deadline.
+  - orphan asset cleanup daily: lock Redis `cron:orphan-asset`, xóa DB asset record stale khi object không tồn tại trên R2.
 
 ### Notification — `NotificationService` (`@Global`)
 `notify({ recipientId, type, referenceId?, referenceType?, content? })` — idempotent theo

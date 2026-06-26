@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, Put } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
@@ -7,7 +7,11 @@ import { RoleName } from 'src/core/security/role.constant'
 import {
   CreateProposalBodyDto,
   CreateProposalResDto,
+  ListSeriesQueryDto,
+  NameListResDto,
+  NameResDto,
   ReasonBodyDto,
+  SeriesListResDto,
   SeriesResDto,
   UpdateProposalBodyDto
 } from './dto/series.dto'
@@ -18,6 +22,43 @@ import { SeriesService } from './series.service'
 @Controller('series')
 export class SeriesController {
   constructor(private readonly seriesService: SeriesService) {}
+
+  @Get()
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ZodResponse({ type: SeriesListResDto })
+  listSeries(
+    @Query() query: ListSeriesQueryDto,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.seriesService.listSeries({ userId, roleName }, query)
+  }
+
+  @Get(':id')
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ZodResponse({ type: SeriesResDto })
+  getSeries(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
+    return this.seriesService.getSeries({ userId, roleName }, id)
+  }
+
+  @Get(':id/names')
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ZodResponse({ type: NameListResDto })
+  listNames(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
+    return this.seriesService.listNames({ userId, roleName }, id)
+  }
+
+  @Get(':id/names/:nameId')
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ZodResponse({ type: NameResDto })
+  getName(
+    @Param('id') id: string,
+    @Param('nameId') nameId: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.seriesService.getName({ userId, roleName }, id, nameId)
+  }
 
   @Post('proposals')
   @Roles(RoleName.MANGAKA)

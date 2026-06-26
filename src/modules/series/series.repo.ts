@@ -1,8 +1,18 @@
 import { Injectable } from '@nestjs/common'
-import { NameStatus, ProposalStatus, SeriesStatus } from '@prisma/client'
+import { NameStatus, Prisma, ProposalStatus, SeriesStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { SeriesNotFoundException } from './errors/series.errors'
 import { CreateProposalBodyType, UpdateProposalBodyType } from './schemas/series-schemas'
+
+// Trạng thái series "đang chờ editor pick-up" (chưa gán editor) — hàng đợi review của Editor.
+const REVIEW_QUEUE_STATES: SeriesStatus[] = [SeriesStatus.IN_REVIEW]
+
+export type SeriesListScope = { kind: 'mangaka'; userId: string } | { kind: 'editor'; userId: string } | { kind: 'all' }
+
+export type SeriesListFilter = {
+  scope: SeriesListScope
+  status?: SeriesStatus
+}
 
 @Injectable()
 export class SeriesRepository {
@@ -22,7 +32,6 @@ export class SeriesRepository {
         proposal: {
           synopsis: body.synopsis ?? null,
           characterDesigns: body.characterDesigns,
-          targetDemographic: body.targetDemographic ?? null,
           estimatedLength: body.estimatedLength ?? null,
           status: ProposalStatus.DRAFT
         }
@@ -74,7 +83,6 @@ export class SeriesRepository {
             ...series.proposal,
             synopsis: body.synopsis ?? series.proposal.synopsis,
             characterDesigns: body.characterDesigns ?? series.proposal.characterDesigns,
-            targetDemographic: body.targetDemographic ?? series.proposal.targetDemographic,
             estimatedLength: body.estimatedLength ?? series.proposal.estimatedLength
           }
         }
@@ -131,6 +139,43 @@ export class SeriesRepository {
           }
         }
       }
+    })
+  }
+
+  // Mongo gotcha: editorId của series do Mangaka tạo là ABSENT → hàng đợi phải dùng `isSet:false`,
+  // KHÔNG `editorId:null` (không match doc absent → trả rỗng). Xem AGENTS §10.
+  private buildSeriesListWhere(filter: SeriesListFilter): Prisma.SeriesWhereInput {
+    const scope = filter.scope
+    const scopeWhere: Prisma.SeriesWhereInput =
+      scope.kind === 'mangaka'
+        ? { mangakaId: scope.userId }
+        : scope.kind === 'editor'
+          ? {
+              OR: [{ editorId: scope.userId }, { editorId: { isSet: false }, status: { in: REVIEW_QUEUE_STATES } }]
+            }
+          : {}
+    return { ...(filter.status ? { status: filter.status } : {}), ...scopeWhere }
+  }
+
+  async findSeriesForList(filter: SeriesListFilter, page: { limit: number; offset: number }) {
+    const where = this.buildSeriesListWhere(filter)
+    return await this.prismaService.series.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: page.offset,
+      take: page.limit
+    })
+  }
+
+  async countSeriesForList(filter: SeriesListFilter): Promise<number> {
+    const where = this.buildSeriesListWhere(filter)
+    return await this.prismaService.series.count({ where })
+  }
+
+  async findNamesBySeriesId(seriesId: string) {
+    return await this.prismaService.name.findMany({
+      where: { seriesId },
+      orderBy: { version: 'asc' }
     })
   }
 }
