@@ -183,6 +183,15 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   thì Mongo lưu **absent** (Prisma vẫn hydrate object ra `null`). `where: { deletedAt: null }` **KHÔNG match** doc absent
   → query trả rỗng. Lọc "chưa bị xoá mềm" phải dùng `{ deletedAt: { isSet: false } }`, KHÔNG `{ deletedAt: null }`.
   (Unit test mock repo KHÔNG bắt được — chỉ lộ ở smoke DB thật.)
+- **🔴 Redis 2-client tách (BullMQ vs general):** BullMQ connection **bắt buộc** `maxRetriesPerRequest: null`. KHÔNG
+  dùng chung connection đó cho RateLimitService/cron-lock — khi Redis chết, lệnh sẽ retry vô hạn (treo) thay vì lỗi
+  nhanh → cơ chế **fail-open** không kích hoạt. Client general phải `maxRetriesPerRequest: 1` + `enableOfflineQueue: false`.
+- **Rate-limit fail-open:** RateLimitService catch lỗi Redis → **cho qua** (return allowed) + log; tuyệt đối không để
+  Redis blip khóa luồng auth. (Smoke: kill Redis → request vẫn qua.)
+- **BullMQ worker graceful shutdown:** `main.ts` phải `app.enableShutdownHooks()` để worker drain job đang chạy trước
+  khi tắt. Emit/enqueue side-effect chạy SAU khi DB write commit (giống event/notify).
+- **Redis là hạ tầng BẮT BUỘC lúc boot:** `RedisService.onModuleInit` PING fail-fast → thiếu Redis = app exit. Prod
+  phải inject `REDIS_URL` reachable. (Unit test mock client — KHÔNG nối Redis thật.)
 
 ## 11. Migration / Done Checklist
 

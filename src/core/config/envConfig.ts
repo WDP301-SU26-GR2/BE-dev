@@ -42,7 +42,16 @@ const configSchema = z.object({
   R2_ACCESS_KEY_ID: z.string(),
   R2_SECRET_ACCESS_KEY: z.string(),
   R2_BUCKET: z.string(),
-  R2_REGION: z.string()
+  R2_REGION: z.string(),
+  ////REDIS / QUEUE / RATE-LIMIT (tunable — có default)
+  OTP_RL_EMAIL_MAX: z.coerce.number().default(5),
+  OTP_RL_EMAIL_WINDOW: z.coerce.number().default(3600),
+  OTP_RL_IP_MAX: z.coerce.number().default(20),
+  OTP_RL_IP_WINDOW: z.coerce.number().default(3600),
+  OTP_RL_COOLDOWN: z.coerce.number().default(60),
+  DEADLINE_WARN_THRESHOLD_HOURS: z.coerce.number().default(48),
+  ORPHAN_ASSET_TTL_HOURS: z.coerce.number().default(24),
+  TRUST_PROXY_HOPS: z.coerce.number().default(1)
 })
 
 const congfigServer = configSchema.safeParse(process.env)

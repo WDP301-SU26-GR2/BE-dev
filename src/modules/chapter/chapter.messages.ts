@@ -6,6 +6,7 @@ export const ChapterMessages = {
   notification: {
     awaitingCoOwnerApproval: 'Chapter awaiting co-owner approval',
     chapterPublished: 'Chapter published',
+    deadlineWarning: (chapterId: string) => `Chapter ${chapterId} is approaching its deadline`,
     manuscriptSubmitted: 'Manuscript submitted for review',
     editorRequestedRevision: 'Editor requested revision',
     manuscriptResubmitted: 'Manuscript resubmitted',
