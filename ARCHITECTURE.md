@@ -38,22 +38,30 @@ BE-dev/
 │   ├── main.ts                     # Bootstrap — khởi tạo app, Swagger, listen port
 │   ├── app.module.ts               # Root module — import CoreModule + feature modules, đăng ký global pipes/filters/interceptor
 │   ├── initialScript/              # Seed script (admin, roles) — chạy bằng `pnpm seed`
-│   ├── modules/                    # ⭐ Feature modules (vertical slice)
-│   │   └── auth/                   # Module mẫu: controller + services/ + repo + schemas + dto + errors
+│   ├── modules/                    # ⭐ Feature modules (vertical slice) — BE-A
+│   │   ├── auth/                   # đăng ký, OTP, login/refresh, đổi/quên mật khẩu
+│   │   ├── users/                  # admin tạo user, hồ sơ Mangaka/Assistant
+│   │   ├── notification/           # NotificationService (@Global) + đọc thông báo
+│   │   ├── reviews/                # ASSISTANTREVIEW/MANGAKAREVIEW + reputation
+│   │   ├── series/                 # proposal, Name, pitch, series state (controller + name.controller)
+│   │   ├── chapter/                # Chapter/Schedule/Manuscript/Page + publish
+│   │   ├── annotation/             # markup review (shared Mangaka↔Assistant, Editor↔Mangaka)
+│   │   └── storage/                # signed URL (presign PUT/GET) wiring
+│   │       # mỗi module: controller(s) + service (orchestrator) + services/ (use-case + state)
+│   │       #            + repo + mapper? + constant? + ports? + schemas + dto + errors
 │   ├── core/                       # App-level cross-cutting rules, @Global()
 │   │   ├── core.module.ts          # Export infra services + register global guards
-│   │   ├── config/
-│   │   │   └── envConfig.ts
-│   │   ├── http/                   # filters, pipes, shared HTTP DTOs
+│   │   ├── config/envConfig.ts     # Zod fail-fast env
+│   │   ├── events/                 # DomainEventBus + domain-events.ts (contract BE-A/BE-B)
+│   │   ├── http/                   # filters/ · interceptors/ · pipes/ · shared HTTP DTOs
 │   │   ├── security/               # guards, decorators, auth type, role constants
-│   │   └── models/
-│   │       └── user.model.ts       # User schema + Prisma-sourced UserStatus
+│   │   └── models/user.model.ts    # User schema + Prisma-sourced UserStatus
 │   ├── infrastructure/             # External adapters / technology details
 │   │   ├── database/               # PrismaService + Prisma error helpers
-│   │   ├── crypto/
-│   │   │   └── hashing.service.ts
+│   │   ├── crypto/                 # HashingService (bcrypt)
 │   │   ├── token/                  # TokenService + JWT payload types
-│   │   └── email/                  # EmailService + React-email templates
+│   │   ├── email/                  # EmailService (Resend) + React-email templates
+│   │   └── storage/                # StorageService (Cloudflare R2 presigned URL)
 ├── test/                           # E2E tests (Jest)
 ├── .env                            # Env variables (KHÔNG commit lên git)
 ├── .env.example                    # Template env
@@ -83,9 +91,9 @@ graph TD
 
     subgraph "Global Providers (APP_*)"
         PIPE["CustomZodValidationPipe<br/>(APP_PIPE)"]
-        INTERCEPTOR["ZodSerializerInterceptor<br/>(APP_INTERCEPTOR)"]
-        FILTER_HTTP["HttpExceptionFilter<br/>(APP_FILTER)"]
-        FILTER_ALL["CatchEverythingFilter<br/>(APP_FILTER)"]
+        ENVELOPE["ResponseEnvelopeInterceptor<br/>(APP_INTERCEPTOR — outer)"]
+        INTERCEPTOR["ZodSerializerInterceptor<br/>(APP_INTERCEPTOR — inner)"]
+        FILTER_ALL["CatchEverythingFilter<br/>(APP_FILTER — bộ lọc lỗi duy nhất)"]
     end
 
     subgraph "CoreModule (@Global)"
@@ -100,8 +108,8 @@ graph TD
 
     MAIN --> APP_MOD
     APP_MOD --> PIPE
+    APP_MOD --> ENVELOPE
     APP_MOD --> INTERCEPTOR
-    APP_MOD --> FILTER_HTTP
     APP_MOD --> FILTER_ALL
     APP_MOD --> CoreModule
     CoreModule --> PRISMA
@@ -136,46 +144,62 @@ sequenceDiagram
     participant Pipe as CustomZodValidationPipe
     participant Controller
     participant Service
-    participant Interceptor as ZodSerializerInterceptor
-    participant FilterHTTP as HttpExceptionFilter
+    participant ZodInt as ZodSerializerInterceptor (inner)
+    participant Envelope as ResponseEnvelopeInterceptor (outer)
     participant FilterAll as CatchEverythingFilter
 
     Client->>Pipe: HTTP Request
-    
+
     alt Validation fails
-        Pipe-->>Client: 422 Unprocessable Entity<br/>(Zod issues array)
+        Pipe-->>FilterAll: ZodValidationException (422)
     else Validation passes
         Pipe->>Controller: Validated DTO
         Controller->>Service: Business logic
-        Service->>Controller: Result
-        Controller->>Interceptor: Response DTO
-        
+        Service->>Controller: Result (có thể kèm `message`)
+        Controller->>ZodInt: Response payload
         alt Serialization fails
-            Interceptor->>FilterHTTP: ZodSerializationException
-            FilterHTTP-->>Client: Error response (logged)
+            ZodInt-->>FilterAll: ZodSerializationException (logged → 500)
         else Serialization OK
-            Interceptor-->>Client: 200 Serialized response
+            ZodInt->>Envelope: Serialized payload
+            Envelope-->>Client: 2xx { success:true, message, data }
         end
     end
-    
-    Note over FilterAll: Safety net — bắt MỌI exception chưa xử lý
-    
-    alt Prisma Unique Constraint (P2002)
-        FilterAll-->>Client: 409 Conflict
-    else Unknown Error
-        FilterAll-->>Client: 500 Internal Server Error
-    end
+
+    Note over FilterAll: Bộ lọc lỗi DUY NHẤT — chuẩn hóa mọi lỗi
+    FilterAll-->>Client: { success:false, statusCode, message }<br/>(P2002 → 409 · unknown → 500)
 ```
 
-### Chi tiết Error Flow
+### Chi tiết Error & Response Flow
 
-| Thứ tự ưu tiên | Filter | Bắt gì | Response |
-|----------------|--------|--------|----------|
-| 1 | `CustomZodValidationPipe` | Zod validation errors | **422** — mảng `{code, message, path}` |
-| 2 | `HttpExceptionFilter` | Mọi `HttpException` | Log `ZodSerializationException`, rồi xử lý mặc định |
-| 3 | `CatchEverythingFilter` | **Mọi thứ còn lại** | Prisma P2002 → **409**, còn lại → **500** |
+| Tầng | Loại | Hành vi |
+|------|------|---------|
+| `CustomZodValidationPipe` | Request validation | Sai → **422**, ném `ZodValidationException` (mảng `{message, path}`) |
+| `ZodSerializerInterceptor` (inner) | Response serialize theo DTO | Lỗi → `ZodSerializationException` → 500 (được log ở filter) |
+| `ResponseEnvelopeInterceptor` (outer) | Bọc response thành công | `{ success:true, message, data }` (xem §4.1) |
+| `CatchEverythingFilter` | **Bộ lọc lỗi duy nhất** | `{ success:false, statusCode, message }`; P2002 → **409**; unknown → **500** + log |
 
-> ⚠️ **Quan trọng**: Validation errors trả về **422** (KHÔNG phải 400). Đây là design decision có chủ đích để client phân biệt validation error vs bad request.
+> ⚠️ **Quan trọng**: Validation errors trả về **422** (KHÔNG phải 400) — design decision để client phân biệt validation error vs bad request.
+
+### 4.1. Response Envelope (chuẩn hóa toàn hệ thống)
+
+Mọi response **thành công** được `ResponseEnvelopeInterceptor` bọc:
+
+```jsonc
+{ "success": true, "message": "Success", "data": { /* payload */ } }
+```
+
+- Nếu service trả object có field `message` (string) → `message` nâng lên top-level, phần còn lại là `data`
+  (`null` nếu không còn field). Ngược lại → `message: "Success"`, `data` = payload nguyên vẹn.
+- Interceptor đăng ký **TRƯỚC** `ZodSerializerInterceptor` ⇒ trên response path, Zod serialize trước, envelope bọc sau.
+- ⚠️ Swagger DTO mô tả shape *chưa bọc*; response thật luôn bọc envelope → **FE đọc `data`**.
+
+Mọi response **lỗi** (từ `CatchEverythingFilter`):
+
+```jsonc
+{ "success": false, "statusCode": 422, "message": [ { "message": "Error.EmailNotFound", "path": "email" } ] }
+```
+
+`message` là string (lỗi đơn) hoặc mảng zod-issues — KHÔNG còn object lồng object như bản cũ.
 
 ---
 
@@ -209,13 +233,14 @@ const configSchema = z.object({
 | `REFRESH_TOKEN_EXPIRES_IN` | string | TTL refresh token (vd: `7d`) |
 | `API_KEY` | string | API key cho internal services |
 | `AUTH_TYPE_KEY` | string | Header key chỉ định loại auth (default: `authType`) |
-| `ADMIN_NAME` | string | Seed admin name |
-| `ADMIN_PASSWORD` | string | Seed admin password |
-| `ADMIN_EMAIL` | string | Seed admin email |
-| `ADMIN_PHONE` | string | Seed admin phone |
+| `NAME_APP` | string | Tên app (email template, ...) |
+| `ADMIN_NAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL` / `ADMIN_PHONE` | string | Seed Super Admin |
 | `OTP_EXPIRES_IN` | string | TTL mã OTP (vd: `5m`) |
+| `RESEND_API_KEY` | string | API key gửi email OTP/credential (Resend) |
+| `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_REGION` | string | Cloudflare R2 (object storage, presigned URL) |
 
-> **Lưu ý**: Khi chạy production (`NODE_ENV=production`), không cần file `.env` vật lý — env vars được inject từ orchestrator.
+> **Lưu ý**: Khi chạy production (`NODE_ENV=production`), không cần file `.env` vật lý — env vars được inject từ orchestrator. Thiếu bất kỳ biến nào ở trên → `process.exit(1)` lúc boot (fail-fast).
+> `REDIS_URL` hiện được khai báo nhưng **chưa có client/sử dụng** (placeholder cho rate-limit/cache về sau).
 
 ---
 
@@ -239,10 +264,14 @@ Schema (`prisma/schema.prisma`) đã khai báo trước **toàn bộ domain Mang
 | **Tasks & Review** | `Task`, `TaskVersion`, `Annotation`, `Schedule`, `ScheduleExtension` |
 | **Survey & Ranking** | `SurveyPeriod`, `SurveyData`, `SurveyEntry`, `ReaderVote`, `ReaderVoteSeries`, `RankingRecord` |
 | **Board & Decisions** | `BoardDecision`, `Vote`, `SeriesReport`, `ReportAttachment` |
-| **Finance** | `PaymentConfig`, `EarningRecord` |
+| **Reputation (A-AUTH-07)** | `MangakaProfile`, `AssistantProfile` (reputationScore/ratingAvg/...), `AssistantReview`, `MangakaReview` |
 | **Notification & Config** | `Notification`, `VotingConfig`, `BoardConfig` |
 
-**Enum hiện có**: `UserStatus`, `OtpPurpose`. Còn lại nhiều trường `status`/`result`/`reviewStatus` đang để kiểu `String` tự do — nên chuyển dần sang Prisma enum cho các state machine (Series/Task/Chapter/BoardDecision...) để type-safe.
+> **Deprecated:** `PaymentConfig`, `EarningRecord` — hệ thống không quản lý lương Assistant (BR-ASSIST-02); thu nhập Mangaka chuyển sang Contract/PaymentCondition/PaymentRecord (BE-B, Flow 6).
+
+**Enum**: ngoài `UserStatus`/`OtpPurpose` (auth), các state machine đã code đều dùng Prisma enum +
+embedded `statusHistory[]` cho audit, single-writer qua state service: `SeriesStatus`/`ProposalStatus`/`NameStatus` (A2),
+`ManuscriptStatus`/`PageStatus`/`ChapterStatus`/`AnnotationType` (A3). State machine của BE-B (Contract/Board/...) sẽ thêm dần.
 
 ```prisma
 model User {
@@ -321,6 +350,36 @@ interface JwtRefreshTokenPayload {
 
 - `hash(value)` — bcrypt hash với salt rounds từ env
 - `compare(value, hash)` — so sánh plaintext với hash
+
+---
+
+## 7.5. Cross-cutting Services (Sprint 0)
+
+### Domain Events — `src/core/events/`
+- In-process event bus (`@nestjs/event-emitter`). Contract dùng chung BE-A/BE-B trong `domain-events.ts`.
+- Emit: `domainEventBus.emit(DomainEvent.X, payload)` · Listen: `@OnEvent(DomainEvent.X)`.
+- **Emit SAU khi DB write commit** (không trong transaction).
+
+| Const | Event | Emitter | Consumer |
+|-------|-------|---------|----------|
+| `SeriesSerialized` | `series.serialized` | A2 | B1 |
+| `ChapterPublished` | `chapter.published` | A-CHP-05 | B-CON-05, B4 |
+| `ContractExecuted` | `contract.executed` | B1 | A2, A-CHP-05 |
+| `RankingFinalized` | `ranking.finalized` | B4 | B-CON-05, B5 |
+| `SeriesCancelling` / `SeriesCancelled` | `series.cancelling` / `series.cancelled` | B5 | B-CON-09 / A·B |
+
+### Notification — `NotificationService` (`@Global`)
+`notify({ recipientId, type, referenceId?, referenceType?, content? })` — idempotent theo
+(recipient + type + ref). Inject thẳng ở bất kỳ module nào.
+
+### Storage — `StorageService` (`@Global`, R2)
+Presigned URL: BE **không ôm bytes**, chỉ cấp signed PUT/GET có hạn + validate type/size (≤15MB) + RBAC; DB lưu **object key**.
+S3Client tắt CRC32 mặc định + pin content-type vào chữ ký (xem gotcha trong `AGENTS.md` §10).
+
+### State Machine (single-writer)
+Mỗi state machine chỉ ghi bởi 1 `<entity>-state.service.ts`: validate transition theo `*_TRANSITIONS` (sai → 409) +
+push `statusHistory[]` (audit) + đồng bộ status dẫn xuất. Cross-module chưa sẵn sàng → khai **port interface** +
+marker `// B1/B3/B5-INTEGRATION` (KHÔNG stub).
 
 ---
 
