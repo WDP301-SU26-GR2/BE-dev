@@ -3,7 +3,9 @@ import { AuthRepository } from '../auth.repo'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
 import { EmailService } from 'src/infrastructure/email/email.service'
 import { generateOTP } from '../helpers/otp.helper'
-import { AUTH_OTP_EXPIRY_MS, AUTH_OTP_MAX_ATTEMPTS, OtpPurpose, OtpPurposeType } from '../auth.constant'
+import { parseDurationMs } from '../helpers/duration.helper'
+import { AUTH_OTP_MAX_ATTEMPTS, OtpPurpose, OtpPurposeType } from '../auth.constant'
+import envConfig from 'src/core/config/envConfig'
 import {
   EmailAlreadyExistsException,
   EmailNotFoundException,
@@ -14,10 +16,13 @@ import {
 } from '../errors/auth.errors'
 import { SendOtpBodyType } from '../schemas/auth-schemas'
 import { UserStatus } from 'src/core/models/user.model'
+import { AuthMessages } from '../auth.messages'
 
 @Injectable()
 export class AuthOtpService {
   private readonly logger = new Logger(AuthOtpService.name)
+  // TTL của OTP, đọc từ env `OTP_EXPIRES_IN` (vd "5m") — nguồn sự thật duy nhất.
+  private readonly otpExpiryMs = parseDurationMs(envConfig.OTP_EXPIRES_IN)
 
   constructor(
     private readonly authRepository: AuthRepository,
@@ -32,10 +37,11 @@ export class AuthOtpService {
       email,
       otpCodeHash,
       purpose,
-      expiresAt: new Date(Date.now() + AUTH_OTP_EXPIRY_MS)
+      expiresAt: new Date(Date.now() + this.otpExpiryMs)
     })
 
-    const { error } = await this.emailService.sendOTP({ email, code })
+    const expiresInMinutes = Math.max(1, Math.round(this.otpExpiryMs / 60000))
+    const { error } = await this.emailService.sendOTP({ email, code, expiresInMinutes })
     if (error) {
       this.logger.error('Failed to send OTP', { error: error.message, email })
       throw FailedToSendOTPException
@@ -55,7 +61,7 @@ export class AuthOtpService {
     }
 
     await this.issueOtp(body.email, body.purpose)
-    return { message: 'OTP sent successfully' }
+    return { message: AuthMessages.response.otpSent }
   }
 
   async validateOtpCode({ email, code, purpose }: { email: string; code: string; purpose: OtpPurposeType }) {

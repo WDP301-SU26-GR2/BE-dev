@@ -21,7 +21,7 @@ function createFilter() {
 }
 
 describe('CatchEverythingFilter', () => {
-  it('flattens UnprocessableEntityException to a top-level message (no nested object)', () => {
+  it('moves field issues into errors[] and uses the single issue message as message', () => {
     const { filter, reply } = createFilter()
     const exception = new UnprocessableEntityException([{ message: 'Error.EmailNotFound', path: 'email' }])
 
@@ -32,11 +32,33 @@ describe('CatchEverythingFilter', () => {
     expect(body).toEqual({
       success: false,
       statusCode: 422,
-      message: [{ message: 'Error.EmailNotFound', path: 'email' }]
+      message: 'Error.EmailNotFound',
+      errors: [{ message: 'Error.EmailNotFound', path: 'email' }]
     })
   })
 
-  it('keeps a string message for a simple HttpException', () => {
+  it('uses a generic message when there are multiple field issues', () => {
+    const { filter, reply } = createFilter()
+    const exception = new UnprocessableEntityException([
+      { message: 'Invalid email address', path: 'email' },
+      { message: 'Password too short', path: 'password' }
+    ])
+
+    filter.catch(exception, createHost())
+
+    const [, body] = reply.mock.calls[0]
+    expect(body).toEqual({
+      success: false,
+      statusCode: 422,
+      message: 'Validation failed',
+      errors: [
+        { message: 'Invalid email address', path: 'email' },
+        { message: 'Password too short', path: 'password' }
+      ]
+    })
+  })
+
+  it('keeps a string message (no errors[]) for a simple HttpException', () => {
     const { filter, reply } = createFilter()
 
     filter.catch(new ForbiddenException('Error.EmailNotVerified'), createHost())

@@ -6,6 +6,7 @@ import { NotificationService } from 'src/modules/notification/notification.servi
 import { ChapterNotFoundException, NotSeriesEditorException } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { ManuscriptStateService } from './manuscript-state.service'
+import { ChapterMessages } from '../chapter.messages'
 
 @Injectable()
 export class ChapterPublishService {
@@ -37,7 +38,7 @@ export class ChapterPublishService {
         type: NotificationType.REVIEW,
         referenceId: chapterId,
         referenceType: 'CHAPTER',
-        content: 'Chapter awaiting co-owner approval'
+        content: ChapterMessages.notification.awaitingCoOwnerApproval
       })
       // B3-INTEGRATION: endpoint co-owner approve/reject + B5-INTEGRATION escalate quá hạn (defer).
       return res
@@ -54,7 +55,7 @@ export class ChapterPublishService {
       type: NotificationType.REVIEW,
       referenceId: chapterId,
       referenceType: 'CHAPTER',
-      content: 'Chapter published'
+      content: ChapterMessages.notification.chapterPublished
     })
     return res
   }

@@ -15,6 +15,7 @@ import {
 } from '../errors/auth.errors'
 import { LoginBodyType, LogoutBodyType, RefreshTokenBodyType } from '../schemas/auth-schemas'
 import { RoleType } from '../schemas/auth.model'
+import { AuthMessages } from '../auth.messages'
 
 @Injectable()
 export class AuthTokenService {
@@ -63,7 +64,7 @@ export class AuthTokenService {
     }
 
     return {
-      message: 'Logout successfully'
+      message: AuthMessages.response.loggedOut
     }
   }
 

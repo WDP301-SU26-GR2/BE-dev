@@ -5,6 +5,7 @@ import { InvalidNameStateException, NotSeriesOwnerException, SeriesNotFoundExcep
 import { toNameRes } from '../series.mapper'
 import { SeriesRepository } from '../series.repo'
 import { SeriesStateService } from './series-state.service'
+import { SeriesMessages } from '../series.messages'
 
 @Injectable()
 export class NameService {
@@ -28,7 +29,7 @@ export class NameService {
     const { series, name } = await this.requireSeriesName(seriesId, nameId)
     if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) throw InvalidNameStateException
     const updated = await this.seriesRepository.updateNameStatus(nameId, { status: NameStatus.REVISION })
-    await this.notify(series.mangakaId, seriesId, `Name cần chỉnh sửa: ${reason}`)
+    await this.notify(series.mangakaId, seriesId, SeriesMessages.notification.nameRevision(reason))
     return toNameRes(updated)
   }
 
@@ -47,7 +48,7 @@ export class NameService {
     if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) throw InvalidNameStateException
     const updated = await this.seriesRepository.updateNameStatus(nameId, { status: NameStatus.APPROVED })
     await this.seriesStateService.tryAdvanceToReadyToPitch(seriesId, editorId)
-    await this.notify(series.mangakaId, seriesId, 'Name đã được duyệt')
+    await this.notify(series.mangakaId, seriesId, SeriesMessages.notification.nameApproved)
     return toNameRes(updated)
   }
 

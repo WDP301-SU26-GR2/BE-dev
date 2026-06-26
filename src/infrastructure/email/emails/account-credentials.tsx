@@ -6,33 +6,45 @@ interface AccountCredentialsEmailProps {
   email?: string
   temporaryPassword?: string
   title?: string
+  appName?: string
+  // Use a publicly deployed image URL; local paths do not render in email clients.
+  logoUrl?: string
 }
 
-const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''
-
-export const AccountCredentialsEmail = ({ name, email, temporaryPassword, title }: AccountCredentialsEmailProps) => (
+export const AccountCredentialsEmail = ({
+  name,
+  email,
+  temporaryPassword,
+  title,
+  appName = 'Mangaka',
+  logoUrl
+}: AccountCredentialsEmailProps) => (
   <Html>
     <Head>
-      <title>{title || '[Mangaka System] Tài khoản của bạn đã được tạo'}</title>
+      <title>{title || `[${appName}] Your account has been created`}</title>
     </Head>
     <Body style={main}>
       <Container style={container}>
-        <Img src={`${baseUrl}/static/plaid-logo.png`} width="212" height="88" alt="logo" style={logo} />
-        <Text style={tertiary}>Mangaka System</Text>
-        <Heading style={secondary}>Xin chào {name || 'bạn'}, tài khoản của bạn đã được tạo.</Heading>
+        {logoUrl ? (
+          <Img src={logoUrl} width="212" height="88" alt={appName} style={logo} />
+        ) : (
+          <Text style={brand}>{appName}</Text>
+        )}
+        <Text style={tertiary}>{appName}</Text>
+        <Heading style={secondary}>Hi {name || 'there'}, your account has been created.</Heading>
         <Section style={infoBox}>
-          <Text style={infoLabel}>Email đăng nhập</Text>
+          <Text style={infoLabel}>Login email</Text>
           <Text style={emailValue}>{email}</Text>
         </Section>
         <Section style={passwordContainer}>
-          <Text style={infoLabel}>Mật khẩu tạm</Text>
+          <Text style={infoLabel}>Temporary password</Text>
           <Text style={passwordValue}>{temporaryPassword}</Text>
         </Section>
         <Text style={paragraph}>
-          Vì lý do bảo mật, bạn sẽ được yêu cầu đổi mật khẩu ngay trong lần đăng nhập đầu tiên.
+          For security reasons, you will be asked to change your password on your first sign-in.
         </Text>
       </Container>
-      <Text style={footer}>Mangaka System</Text>
+      <Text style={footer}>{appName}</Text>
     </Body>
   </Html>
 )
@@ -41,7 +53,8 @@ AccountCredentialsEmail.PreviewProps = {
   name: 'Editor A',
   email: 'editor@example.com',
   temporaryPassword: 'Temp1234',
-  title: 'Tài khoản của bạn đã được tạo'
+  title: 'Your account has been created',
+  appName: 'Mangaka'
 } as AccountCredentialsEmailProps
 
 export default AccountCredentialsEmail
@@ -64,6 +77,16 @@ const container = {
 }
 
 const logo = {
+  margin: '0 auto'
+}
+
+const brand = {
+  color: '#0a85ea',
+  fontSize: '28px',
+  fontWeight: 800,
+  fontFamily: 'HelveticaNeue-Bold,Helvetica,Arial,sans-serif',
+  letterSpacing: '1px',
+  textAlign: 'center' as const,
   margin: '0 auto'
 }
 
