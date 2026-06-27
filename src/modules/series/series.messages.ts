@@ -22,6 +22,9 @@ export const SeriesMessages = {
     seriesNotReadyToPitch: 'Error.SeriesNotReadyToPitch',
     parentSeriesNotFound: 'Error.ParentSeriesNotFound',
     seriesAccessDenied: 'Error.SeriesAccessDenied',
-    nameNotFound: 'Error.NameNotFound'
+    nameNotFound: 'Error.NameNotFound',
+    seriesAlreadyClaimed: 'Error.SeriesAlreadyClaimed',
+    reviewAlreadyStarted: 'Error.ReviewAlreadyStarted',
+    notAssignedEditor: 'Error.NotAssignedEditor'
   }
 } as const
