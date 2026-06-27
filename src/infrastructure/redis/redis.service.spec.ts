@@ -3,6 +3,7 @@ import { RedisService } from './redis.service'
 describe('RedisService', () => {
   const makeRedis = (over: Partial<Record<string, jest.Mock>> = {}) =>
     ({
+      status: 'ready',
       ping: jest.fn().mockResolvedValue('PONG'),
       set: jest.fn().mockResolvedValue('OK'),
       eval: jest.fn().mockResolvedValue(1),

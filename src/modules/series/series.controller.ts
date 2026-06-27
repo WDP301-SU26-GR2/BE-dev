@@ -122,4 +122,18 @@ export class SeriesController {
   pitch(@Param('id') id: string, @ActiveUser('userId') userId: string) {
     return this.seriesService.pitch(userId, id)
   }
+
+  @Post(':id/claim')
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ type: SeriesResDto })
+  claim(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.seriesService.claim(userId, id)
+  }
+
+  @Post(':id/release')
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ type: SeriesResDto })
+  release(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.seriesService.release(userId, id)
+  }
 }

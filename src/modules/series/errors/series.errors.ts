@@ -12,6 +12,9 @@ export const InvalidNameStateException = new ConflictException(E.invalidNameStat
 export const SeriesNotReadyToPitchException = new ConflictException(E.seriesNotReadyToPitch)
 export const SeriesAccessDeniedException = new ForbiddenException(E.seriesAccessDenied)
 export const NameNotFoundException = new NotFoundException(E.nameNotFound)
+export const SeriesAlreadyClaimedException = new ConflictException(E.seriesAlreadyClaimed)
+export const ReviewAlreadyStartedException = new ConflictException(E.reviewAlreadyStarted)
+export const NotAssignedEditorException = new ForbiddenException(E.notAssignedEditor)
 export const ParentSeriesNotFoundException = new UnprocessableEntityException([
   { message: E.parentSeriesNotFound, path: 'parentSeriesId' }
 ])
