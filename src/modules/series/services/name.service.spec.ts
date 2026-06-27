@@ -24,7 +24,10 @@ function make(nameOverride: Record<string, unknown> = {}) {
     findById: jest.fn().mockResolvedValue(series),
     findNameById: jest.fn().mockResolvedValue(name),
     updateNameStatus: jest.fn().mockImplementation((id, data) => Promise.resolve({ ...name, ...data })),
-    updateNamePages: jest.fn().mockResolvedValue(name)
+    updateNamePages: jest.fn().mockResolvedValue(name),
+    appendNamePage: jest
+      .fn()
+      .mockImplementation((id, page) => Promise.resolve({ ...name, pages: [...name.pages, page] }))
   }
   const seriesStateService = { tryAdvanceToReadyToPitch: jest.fn().mockResolvedValue(series) }
   const notificationService = { notify: jest.fn().mockResolvedValue(undefined) }
@@ -33,15 +36,6 @@ function make(nameOverride: Record<string, unknown> = {}) {
 }
 
 describe('NameService', () => {
-  it('submit: DRAFT->SUBMITTED with submittedAt', async () => {
-    const { service, seriesRepository } = make({ status: NameStatus.DRAFT })
-    await service.submit('m1', 's1', 'n1')
-    expect(seriesRepository.updateNameStatus).toHaveBeenCalledWith(
-      'n1',
-      expect.objectContaining({ status: NameStatus.SUBMITTED })
-    )
-  })
-
   it('resubmit: REVISION->IN_REVIEW with version++', async () => {
     const { service, seriesRepository } = make({ status: NameStatus.REVISION, version: 2 })
     await service.resubmit('m1', 's1', 'n1')
@@ -61,8 +55,19 @@ describe('NameService', () => {
     await expect(service.approve('intruder', 's1', 'n1')).rejects.toBeDefined()
   })
 
-  it('submit on non-DRAFT throws', async () => {
+  it('addPage: DRAFT appends one page', async () => {
+    const { service, seriesRepository } = make({ status: NameStatus.DRAFT, pages: [] })
+    const page = { pageNumber: 1, fileUrl: 'k1' }
+
+    const res = await service.addPage('m1', 's1', 'n1', page)
+
+    expect(seriesRepository.appendNamePage).toHaveBeenCalledWith('n1', page)
+    expect(res.pages).toContainEqual(page)
+  })
+
+  it('addPage: non-editable status throws', async () => {
     const { service } = make({ status: NameStatus.APPROVED })
-    await expect(service.submit('m1', 's1', 'n1')).rejects.toBeDefined()
+
+    await expect(service.addPage('m1', 's1', 'n1', { pageNumber: 1, fileUrl: 'k' })).rejects.toBeDefined()
   })
 })

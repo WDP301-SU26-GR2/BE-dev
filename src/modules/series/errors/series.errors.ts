@@ -15,6 +15,7 @@ export const NameNotFoundException = new NotFoundException(E.nameNotFound)
 export const SeriesAlreadyClaimedException = new ConflictException(E.seriesAlreadyClaimed)
 export const ReviewAlreadyStartedException = new ConflictException(E.reviewAlreadyStarted)
 export const NotAssignedEditorException = new ForbiddenException(E.notAssignedEditor)
+export const ProposalNotDeletableException = new ConflictException(E.proposalNotDeletable)
 export const ParentSeriesNotFoundException = new UnprocessableEntityException([
   { message: E.parentSeriesNotFound, path: 'parentSeriesId' }
 ])

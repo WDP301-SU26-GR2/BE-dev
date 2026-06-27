@@ -26,18 +26,17 @@ export const CreateProposalBodySchema = extendApi(
 export const UpdateProposalBodySchema = extendApi(
   z
     .object({
-      title: z.string().min(1).max(200).optional(),
-      coverImage: z.string().min(1).optional(),
-      genre: z.string().optional(),
-      demographic: z.string().optional(),
-      publicationType: z.nativeEnum(PublicationType).optional(),
-      synopsis: z.string().max(5000).optional(),
-      characterDesigns: z.array(z.string()).optional(),
-      estimatedLength: z.number().int().min(1).optional(),
-      namePages: z.array(NamePageSchema).optional()
+      title: z.string().min(1).max(200).nullish(),
+      coverImage: z.string().min(1).nullish(),
+      genre: z.string().nullish(),
+      demographic: z.string().nullish(),
+      publicationType: z.nativeEnum(PublicationType).nullish(),
+      synopsis: z.string().max(5000).nullish(),
+      characterDesigns: z.array(z.string()).nullish(),
+      estimatedLength: z.number().int().min(1).nullish()
     })
     .strict(),
-  { title: 'UpdateProposalBody', description: 'Sửa proposal khi DRAFT' }
+  { title: 'UpdateProposalBody', description: 'Sửa proposal (DRAFT/PROPOSAL_REVISION) - gửi field nào sửa field đó' }
 )
 
 export const ReasonBodySchema = extendApi(z.object({ reason: z.string().min(1).max(1000) }).strict(), {
@@ -48,6 +47,11 @@ export const ReasonBodySchema = extendApi(z.object({ reason: z.string().min(1).m
 export const UpdateNamePagesBodySchema = extendApi(z.object({ pages: z.array(NamePageSchema) }).strict(), {
   title: 'UpdateNamePagesBody',
   description: 'Cập nhật trang Name'
+})
+
+export const AddNamePageBodySchema = extendApi(NamePageSchema.strict(), {
+  title: 'AddNamePageBody',
+  description: 'Thêm 1 trang vào Name'
 })
 
 export const SeriesResSchema = extendApi(
@@ -103,6 +107,7 @@ export type CreateProposalBodyType = z.infer<typeof CreateProposalBodySchema>
 export type UpdateProposalBodyType = z.infer<typeof UpdateProposalBodySchema>
 export type ReasonBodyType = z.infer<typeof ReasonBodySchema>
 export type UpdateNamePagesBodyType = z.infer<typeof UpdateNamePagesBodySchema>
+export type AddNamePageBodyType = z.infer<typeof AddNamePageBodySchema>
 export type ListSeriesQueryType = z.infer<typeof ListSeriesQuerySchema>
 
 export const ListSeriesQuerySchema = extendApi(
