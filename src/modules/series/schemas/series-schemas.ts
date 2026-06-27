@@ -66,6 +66,7 @@ export const SeriesResSchema = extendApi(
     statusReason: z.string().nullable(),
     relationshipType: z.string().nullable(),
     createdAt: z.string(),
+    reviewStartedAt: z.string().nullable(),
     proposal: z
       .object({
         nameId: z.string().nullable(),

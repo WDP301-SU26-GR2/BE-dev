@@ -16,6 +16,7 @@ export function toSeriesRes(series: Series) {
     statusReason: series.statusReason,
     relationshipType: series.relationshipType,
     createdAt: series.createdAt.toISOString(),
+    reviewStartedAt: series.reviewStartedAt ? series.reviewStartedAt.toISOString() : null,
     proposal: series.proposal
       ? {
           nameId: series.proposal.nameId,

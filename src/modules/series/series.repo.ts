@@ -108,8 +108,27 @@ export class SeriesRepository {
     })
   }
 
-  async setEditor(seriesId: string, editorId: string) {
-    await this.prismaService.series.update({ where: { id: seriesId }, data: { editorId } })
+  async claimSeries(seriesId: string, editorId: string): Promise<number> {
+    const result = await this.prismaService.series.updateMany({
+      where: { id: seriesId, editorId: { isSet: false }, status: SeriesStatus.IN_REVIEW },
+      data: { editorId }
+    })
+    return result.count
+  }
+
+  async releaseSeries(seriesId: string, editorId: string): Promise<number> {
+    const result = await this.prismaService.series.updateMany({
+      where: { id: seriesId, editorId, reviewStartedAt: { isSet: false }, status: SeriesStatus.IN_REVIEW },
+      data: { editorId: { unset: true } }
+    })
+    return result.count
+  }
+
+  async markReviewStarted(seriesId: string): Promise<void> {
+    await this.prismaService.series.updateMany({
+      where: { id: seriesId, reviewStartedAt: { isSet: false } },
+      data: { reviewStartedAt: new Date() }
+    })
   }
 
   async updateNameStatus(nameId: string, data: { status: NameStatus; version?: number; submittedAt?: Date }) {

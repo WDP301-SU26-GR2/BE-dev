@@ -9,6 +9,7 @@ import {
 import { NameService } from './services/name.service'
 import { SeriesPitchService } from './services/series-pitch.service'
 import { SeriesProposalService } from './services/series-proposal.service'
+import { SeriesClaimService } from './services/series-claim.service'
 
 @Injectable()
 export class SeriesService {
@@ -16,7 +17,8 @@ export class SeriesService {
     private readonly proposalService: SeriesProposalService,
     private readonly nameService: NameService,
     private readonly pitchService: SeriesPitchService,
-    private readonly queryService: SeriesQueryService
+    private readonly queryService: SeriesQueryService,
+    private readonly claimService: SeriesClaimService
   ) {}
 
   createProposal(mangakaId: string, body: CreateProposalBodyType) {
@@ -53,6 +55,14 @@ export class SeriesService {
 
   pitch(editorId: string, seriesId: string) {
     return this.pitchService.pitch(editorId, seriesId)
+  }
+
+  claim(editorId: string, seriesId: string) {
+    return this.claimService.claim(editorId, seriesId)
+  }
+
+  release(editorId: string, seriesId: string) {
+    return this.claimService.release(editorId, seriesId)
   }
 
   submitName(mangakaId: string, seriesId: string, nameId: string) {

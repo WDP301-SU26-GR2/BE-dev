@@ -13,6 +13,7 @@ import { SeriesRepository } from '../series.repo'
 import { CreateProposalBodyType, UpdateProposalBodyType } from '../schemas/series-schemas'
 import { SeriesStateService } from './series-state.service'
 import { SeriesMessages } from '../series.messages'
+import { requireAssignedEditor } from './series-editor.guard'
 
 @Injectable()
 export class SeriesProposalService {
@@ -35,7 +36,9 @@ export class SeriesProposalService {
 
   async updateProposal(mangakaId: string, seriesId: string, body: UpdateProposalBodyType) {
     const series = await this.requireOwner(seriesId, mangakaId)
-    if (series.status !== SeriesStatus.DRAFT) throw ProposalNotEditableException
+    const editable =
+      series.status === SeriesStatus.DRAFT || series.proposal?.status === ProposalStatus.PROPOSAL_REVISION
+    if (!editable) throw ProposalNotEditableException
     const updated = await this.seriesRepository.updateProposalDraft(seriesId, series.proposal?.nameId ?? null, body)
     return toSeriesRes(updated)
   }
@@ -62,7 +65,8 @@ export class SeriesProposalService {
     if (series.status !== SeriesStatus.IN_REVIEW || series.proposal?.status !== ProposalStatus.PROPOSAL_REVIEW) {
       throw InvalidProposalStateException
     }
-    await this.assignEditorIfUnset(series, editorId)
+    requireAssignedEditor(series, editorId)
+    if (!series.reviewStartedAt) await this.seriesRepository.markReviewStarted(seriesId)
     const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVISION)
     await this.notifyMangaka(series.mangakaId, seriesId, SeriesMessages.notification.proposalRevision(reason))
     return toSeriesRes(updated)
@@ -82,7 +86,8 @@ export class SeriesProposalService {
     if (series.status !== SeriesStatus.IN_REVIEW || series.proposal?.status !== ProposalStatus.PROPOSAL_REVIEW) {
       throw InvalidProposalStateException
     }
-    await this.assignEditorIfUnset(series, editorId)
+    requireAssignedEditor(series, editorId)
+    if (!series.reviewStartedAt) await this.seriesRepository.markReviewStarted(seriesId)
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_APPROVED)
     const advanced = await this.seriesStateService.tryAdvanceToReadyToPitch(seriesId, editorId)
     await this.notifyMangaka(series.mangakaId, seriesId, SeriesMessages.notification.proposalApproved)
@@ -92,7 +97,8 @@ export class SeriesProposalService {
   async reject(editorId: string, seriesId: string, reason: string) {
     const series = await this.requireSeries(seriesId)
     if (series.status !== SeriesStatus.IN_REVIEW) throw InvalidProposalStateException
-    await this.assignEditorIfUnset(series, editorId)
+    requireAssignedEditor(series, editorId)
+    if (!series.reviewStartedAt) await this.seriesRepository.markReviewStarted(seriesId)
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.REJECTED)
     const updated = await this.seriesStateService.transition(seriesId, SeriesStatus.ABANDONED, {
       changedBy: editorId,
@@ -122,10 +128,6 @@ export class SeriesProposalService {
     const series = await this.requireSeries(seriesId)
     if (series.mangakaId !== mangakaId) throw NotSeriesOwnerException
     return series
-  }
-
-  private async assignEditorIfUnset(series: { id: string; editorId: string | null }, editorId: string) {
-    if (!series.editorId) await this.seriesRepository.setEditor(series.id, editorId)
   }
 
   private async notifyMangaka(recipientId: string, seriesId: string, content: string) {
