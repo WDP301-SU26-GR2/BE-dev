@@ -1,7 +1,13 @@
 import { NameStatus, SeriesStatus } from '@prisma/client'
 import { NameService } from './name.service'
 
-const series = { id: 's1', mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.IN_REVIEW }
+const series = {
+  id: 's1',
+  mangakaId: 'm1',
+  editorId: 'e1',
+  status: SeriesStatus.IN_REVIEW,
+  reviewStartedAt: null
+}
 
 function make(nameOverride: Record<string, unknown> = {}) {
   const name = {
@@ -47,6 +53,12 @@ describe('NameService', () => {
     await service.approve('e1', 's1', 'n1')
     expect(seriesRepository.updateNameStatus).toHaveBeenCalledWith('n1', { status: NameStatus.APPROVED })
     expect(seriesStateService.tryAdvanceToReadyToPitch).toHaveBeenCalledWith('s1', 'e1')
+  })
+
+  it('approve by a non-assigned editor throws', async () => {
+    const { service } = make({ status: NameStatus.SUBMITTED })
+
+    await expect(service.approve('intruder', 's1', 'n1')).rejects.toBeDefined()
   })
 
   it('submit on non-DRAFT throws', async () => {
