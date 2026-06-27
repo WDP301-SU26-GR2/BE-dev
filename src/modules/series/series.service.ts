@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { SeriesCaller, SeriesQueryService } from './services/series-query.service'
 import {
+  AddNamePageBodyType,
   CreateProposalBodyType,
   ListSeriesQueryType,
   UpdateNamePagesBodyType,
@@ -27,6 +28,10 @@ export class SeriesService {
 
   updateProposal(mangakaId: string, seriesId: string, body: UpdateProposalBodyType) {
     return this.proposalService.updateProposal(mangakaId, seriesId, body)
+  }
+
+  deleteProposal(mangakaId: string, seriesId: string) {
+    return this.proposalService.deleteProposal(mangakaId, seriesId)
   }
 
   submit(mangakaId: string, seriesId: string) {
@@ -65,10 +70,6 @@ export class SeriesService {
     return this.claimService.release(editorId, seriesId)
   }
 
-  submitName(mangakaId: string, seriesId: string, nameId: string) {
-    return this.nameService.submit(mangakaId, seriesId, nameId)
-  }
-
   requestNameRevision(editorId: string, seriesId: string, nameId: string, reason: string) {
     return this.nameService.requestRevision(editorId, seriesId, nameId, reason)
   }
@@ -83,6 +84,10 @@ export class SeriesService {
 
   updateNamePages(mangakaId: string, seriesId: string, nameId: string, body: UpdateNamePagesBodyType) {
     return this.nameService.updatePages(mangakaId, seriesId, nameId, body.pages)
+  }
+
+  addNamePage(mangakaId: string, seriesId: string, nameId: string, body: AddNamePageBodyType) {
+    return this.nameService.addPage(mangakaId, seriesId, nameId, body)
   }
 
   listSeries(caller: SeriesCaller, query: ListSeriesQueryType) {
