@@ -23,6 +23,7 @@ export class SeriesRepository {
       data: {
         mangakaId,
         title: body.title,
+        coverImage: body.coverImage ?? null,
         genre: body.genre ?? null,
         demographic: body.demographic ?? null,
         publicationType: body.publicationType ?? null,
@@ -75,6 +76,7 @@ export class SeriesRepository {
       where: { id: seriesId },
       data: {
         title: body.title,
+        coverImage: body.coverImage,
         genre: body.genre,
         demographic: body.demographic,
         publicationType: body.publicationType,

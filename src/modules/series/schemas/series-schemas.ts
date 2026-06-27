@@ -8,6 +8,7 @@ export const CreateProposalBodySchema = extendApi(
   z
     .object({
       title: z.string().min(1).max(200),
+      coverImage: z.string().min(1).optional(),
       genre: z.string().optional(),
       demographic: z.string().optional(),
       publicationType: z.nativeEnum(PublicationType).optional(),
@@ -26,6 +27,7 @@ export const UpdateProposalBodySchema = extendApi(
   z
     .object({
       title: z.string().min(1).max(200).optional(),
+      coverImage: z.string().min(1).optional(),
       genre: z.string().optional(),
       demographic: z.string().optional(),
       publicationType: z.nativeEnum(PublicationType).optional(),
@@ -56,6 +58,7 @@ export const SeriesResSchema = extendApi(
     coOwnerId: z.string().nullable(),
     parentSeriesId: z.string().nullable(),
     title: z.string(),
+    coverImage: z.string().nullable(),
     genre: z.string().nullable(),
     demographic: z.string().nullable(),
     publicationType: z.string().nullable(),

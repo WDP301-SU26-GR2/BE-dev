@@ -8,6 +8,7 @@ export function toSeriesRes(series: Series) {
     coOwnerId: series.coOwnerId,
     parentSeriesId: series.parentSeriesId,
     title: series.title,
+    coverImage: series.coverImage,
     genre: series.genre,
     demographic: series.demographic,
     publicationType: series.publicationType,
