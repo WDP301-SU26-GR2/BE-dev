@@ -6,6 +6,7 @@ import { SeriesService } from './series.service'
 import { NameService } from './services/name.service'
 import { SeriesPitchService } from './services/series-pitch.service'
 import { SeriesProposalService } from './services/series-proposal.service'
+import { SeriesClaimService } from './services/series-claim.service'
 import { SeriesQueryService } from './services/series-query.service'
 import { SeriesStateService } from './services/series-state.service'
 
@@ -18,6 +19,7 @@ import { SeriesStateService } from './services/series-state.service'
     SeriesProposalService,
     NameService,
     SeriesPitchService,
+    SeriesClaimService,
     SeriesQueryService
   ]
 })

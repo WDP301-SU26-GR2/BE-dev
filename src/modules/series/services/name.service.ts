@@ -6,6 +6,7 @@ import { toNameRes } from '../series.mapper'
 import { SeriesRepository } from '../series.repo'
 import { SeriesStateService } from './series-state.service'
 import { SeriesMessages } from '../series.messages'
+import { requireAssignedEditor } from './series-editor.guard'
 
 @Injectable()
 export class NameService {
@@ -27,6 +28,7 @@ export class NameService {
 
   async requestRevision(editorId: string, seriesId: string, nameId: string, reason: string) {
     const { series, name } = await this.requireSeriesName(seriesId, nameId)
+    requireAssignedEditor(series, editorId)
     if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) throw InvalidNameStateException
     const updated = await this.seriesRepository.updateNameStatus(nameId, { status: NameStatus.REVISION })
     await this.notify(series.mangakaId, seriesId, SeriesMessages.notification.nameRevision(reason))
@@ -45,6 +47,7 @@ export class NameService {
 
   async approve(editorId: string, seriesId: string, nameId: string) {
     const { series, name } = await this.requireSeriesName(seriesId, nameId)
+    requireAssignedEditor(series, editorId)
     if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) throw InvalidNameStateException
     const updated = await this.seriesRepository.updateNameStatus(nameId, { status: NameStatus.APPROVED })
     await this.seriesStateService.tryAdvanceToReadyToPitch(seriesId, editorId)

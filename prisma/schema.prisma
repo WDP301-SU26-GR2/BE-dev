@@ -506,6 +506,7 @@ model Series {
   statusReason            String?
   relationshipType        RelationshipType?
   coOwnerApprovalRequired Boolean                    @default(false)
+  reviewStartedAt         DateTime?
   statusHistory           SeriesStatusHistoryEntry[]
 
   proposal SeriesProposal?

@@ -12,8 +12,16 @@ export class RedisService implements OnModuleInit {
     if (this.client.status !== 'ready') {
       await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('Redis connect timeout')), 5000)
-        const onReady = () => { clearTimeout(timer); this.client.off('error', onError); resolve() }
-        const onError = (err: Error) => { clearTimeout(timer); this.client.off('ready', onReady); reject(err) }
+        const onReady = () => {
+          clearTimeout(timer)
+          this.client.off('error', onError)
+          resolve()
+        }
+        const onError = (err: Error) => {
+          clearTimeout(timer)
+          this.client.off('ready', onReady)
+          reject(err)
+        }
         this.client.once('ready', onReady)
         this.client.once('error', onError)
       })
