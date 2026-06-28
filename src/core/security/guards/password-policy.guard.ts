@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core'
 import { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
 import { REQUEST_USER_KEY } from '../auth-type'
 import { SKIP_PASSWORD_POLICY_KEY } from '../decorators/skip-password-policy.decorator'
+import { SecurityMessages } from '../security.messages'
 
 @Injectable()
 export class PasswordPolicyGuard implements CanActivate {
@@ -20,7 +21,7 @@ export class PasswordPolicyGuard implements CanActivate {
     if (!user) return true
 
     if (user.mustChangePassword === true) {
-      throw new ForbiddenException('Error.MustChangePassword')
+      throw new ForbiddenException(SecurityMessages.mustChangePassword)
     }
 
     return true
