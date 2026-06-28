@@ -40,6 +40,7 @@ model User {
   assistantProfile AssistantProfile?
   mangakaContracts Contract[]        @relation("MangakaRelation")
   editorContracts  Contract[]        @relation("EditorRelation")
+  boardSessions    BoardSession[]
 
   @@index([deletedAt])
 }
@@ -1114,8 +1115,10 @@ model BoardSession {
   title            String
   description      String?
   creatorId        String             @db.ObjectId
+  creator          User               @relation(fields: [creatorId], references: [id])
   status           BoardSessionStatus @default(UPCOMING)
   allowedEditorIds String[]           @db.ObjectId // Danh sách sếp được mời họp tổng
+  startTime        DateTime
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
