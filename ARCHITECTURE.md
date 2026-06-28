@@ -195,6 +195,8 @@ Mọi response **thành công** được `ResponseEnvelopeInterceptor` bọc:
 - Nếu service trả object có field `message` (string) → `message` nâng lên top-level, phần còn lại là `data`
   (`null` nếu không còn field). Ngược lại → `message: "Success"`, `data` = payload nguyên vẹn.
 - Interceptor đăng ký **TRƯỚC** `ZodSerializerInterceptor` ⇒ trên response path, Zod serialize trước, envelope bọc sau.
+  ⚠️ Hệ quả: `message` tuỳ biến chỉ "sống" nếu DTO `@ZodResponse` **có khai field `message`** (vd `MessageResDto`);
+  Zod serialize trước sẽ **strip** mọi field ngoài DTO → trả `{ message }` với DTO `{ id }` sẽ mất message (rơi về `"Success"`).
 - ⚠️ Swagger DTO mô tả shape *chưa bọc*; response thật luôn bọc envelope → **FE đọc `data`**.
 
 Mọi response **lỗi** (từ `CatchEverythingFilter`):

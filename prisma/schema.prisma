@@ -498,6 +498,7 @@ model Series {
   childSeries    Series[] @relation("SeriesLineage")
 
   title                   String
+  coverImage              String?
   genre                   String?
   demographic             String?
   publicationType         PublicationType?

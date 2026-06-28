@@ -2,6 +2,9 @@
 // Plain strings only (no NestJS imports). HTTP mapping (status + path) stays in
 // `errors/series.errors.ts`, which references the `error` codes below.
 export const SeriesMessages = {
+  response: {
+    proposalDeleted: 'Proposal deleted'
+  },
   // In-app notification content (notification layer).
   notification: {
     proposalRevision: (reason: string) => `Proposal needs revision: ${reason}`,
@@ -25,6 +28,7 @@ export const SeriesMessages = {
     nameNotFound: 'Error.NameNotFound',
     seriesAlreadyClaimed: 'Error.SeriesAlreadyClaimed',
     reviewAlreadyStarted: 'Error.ReviewAlreadyStarted',
-    notAssignedEditor: 'Error.NotAssignedEditor'
+    notAssignedEditor: 'Error.NotAssignedEditor',
+    proposalNotDeletable: 'Error.ProposalNotDeletable'
   }
 } as const

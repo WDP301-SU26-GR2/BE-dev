@@ -4,7 +4,7 @@ import { ZodResponse } from 'nestjs-zod'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { RoleName } from 'src/core/security/role.constant'
-import { NameResDto, ReasonBodyDto, UpdateNamePagesBodyDto } from './dto/series.dto'
+import { AddNamePageBodyDto, NameResDto, ReasonBodyDto, UpdateNamePagesBodyDto } from './dto/series.dto'
 import { SeriesService } from './series.service'
 
 @ApiTags('series-names')
@@ -12,13 +12,6 @@ import { SeriesService } from './series.service'
 @Controller('series/:id/names/:nameId')
 export class NameController {
   constructor(private readonly seriesService: SeriesService) {}
-
-  @Post('submit')
-  @Roles(RoleName.MANGAKA)
-  @ZodResponse({ type: NameResDto })
-  submit(@Param('id') id: string, @Param('nameId') nameId: string, @ActiveUser('userId') userId: string) {
-    return this.seriesService.submitName(userId, id, nameId)
-  }
 
   @Post('request-revision')
   @Roles(RoleName.EDITOR)
@@ -56,5 +49,17 @@ export class NameController {
     @ActiveUser('userId') userId: string
   ) {
     return this.seriesService.updateNamePages(userId, id, nameId, body)
+  }
+
+  @Post('pages')
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ type: NameResDto })
+  addPage(
+    @Param('id') id: string,
+    @Param('nameId') nameId: string,
+    @Body() body: AddNamePageBodyDto,
+    @ActiveUser('userId') userId: string
+  ) {
+    return this.seriesService.addNamePage(userId, id, nameId, body)
   }
 }

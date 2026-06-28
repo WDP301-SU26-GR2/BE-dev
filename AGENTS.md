@@ -192,6 +192,14 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   khi tắt. Emit/enqueue side-effect chạy SAU khi DB write commit (giống event/notify).
 - **Redis là hạ tầng BẮT BUỘC lúc boot:** `RedisService.onModuleInit` PING fail-fast → thiếu Redis = app exit. Prod
   phải inject `REDIS_URL` reachable. (Unit test mock client — KHÔNG nối Redis thật.)
+- **🔴 ZodSerializer strip field ngoài DTO (mất response `message`):** `ResponseEnvelopeInterceptor` đăng ký TRƯỚC
+  `ZodSerializerInterceptor` ⇒ trên response path Zod serialize theo `@ZodResponse(DTO)` **trước** (strip mọi field
+  không khai trong DTO), **rồi** envelope mới đọc field `message`. Muốn trả message tuỳ biến (vd xoá thành công
+  `{ message: 'Proposal deleted' }`) thì DTO **phải chứa** field `message` → dùng **`MessageResDto`** (`core/http/response.dto.ts`).
+  Nếu DTO chỉ `{ id }` → `message` bị strip → envelope rơi về `message:'Success'`. (build/test tĩnh KHÔNG bắt được.)
+- **Partial-update (PATCH semantics):** field optional cho cập nhật từng phần → schema dùng `.nullish()` (nhận cả
+  omit lẫn `null`); repo chỉ ghi khi `!= null` (scalar: `if (body.x != null) data.x = body.x`; composite: `x: body.x ?? current.x`).
+  Quy ước: omit/`null` = giữ nguyên; gửi `[]` cho mảng = clear. Áp đồng nhất để FE đoán được hành vi.
 
 ## 11. Migration / Done Checklist
 
