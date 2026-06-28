@@ -1,4 +1,4 @@
-﻿import { Global, Module } from '@nestjs/common'
+import { Global, Module } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core'
 import { JwtModule } from '@nestjs/jwt'
 import { EventEmitterModule } from '@nestjs/event-emitter'
@@ -14,7 +14,7 @@ import { DomainEventBus } from './events/domain-event-bus.service'
 import { StorageService } from 'src/infrastructure/storage/storage.service'
 import { RedisModule } from 'src/infrastructure/redis/redis.module'
 import { QueueModule } from 'src/infrastructure/queue/queue.module'
-import { RateLimitService } from './security/rate-limit.service'
+import { RateLimitService } from './security/services/rate-limit.service'
 
 const infrastructureServices = [
   PrismaService,

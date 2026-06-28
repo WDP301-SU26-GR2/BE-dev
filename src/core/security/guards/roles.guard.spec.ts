@@ -1,6 +1,6 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { REQUEST_USER_KEY } from '../auth-type'
+import { REQUEST_USER_KEY } from '../constants/auth-type'
 import { RolesGuard } from './roles.guard'
 
 function makeContext(user: unknown): ExecutionContext {
