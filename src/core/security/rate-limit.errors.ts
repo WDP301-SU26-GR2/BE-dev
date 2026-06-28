@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus } from '@nestjs/common'
-import { SecurityMessages } from '../security.messages'
+import { SecurityMessages } from './security.messages'
 
 export const OtpRateLimitedException = (retryAfter: number) =>
   new HttpException(

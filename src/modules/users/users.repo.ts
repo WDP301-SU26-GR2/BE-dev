@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { AvailabilityStatus, Prisma, RegistrationType, UserStatus } from '@prisma/client'
-import { RoleNameType } from 'src/core/security/constants/role.constant'
+import { RoleNameType } from 'src/core/security/role.constant'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { AssistantProfileBodyType, MangakaProfileBodyType } from './schemas/users-schemas'
 

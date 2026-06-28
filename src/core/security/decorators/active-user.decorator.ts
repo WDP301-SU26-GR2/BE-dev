@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common'
-import { REQUEST_USER_KEY } from '../constants/auth-type'
+import { REQUEST_USER_KEY } from '../auth-type'
 import { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
 
 // createParamDecorator dùng để tạo các params decorator tùy chỉnh, cho

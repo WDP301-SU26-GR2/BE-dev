@@ -1,4 +1,4 @@
-import { RateLimitService } from '../services/rate-limit.service'
+import { RateLimitService } from './rate-limit.service'
 
 describe('RateLimitService', () => {
   const makeRedis = (evalImpl: jest.Mock) => ({ eval: evalImpl }) as never

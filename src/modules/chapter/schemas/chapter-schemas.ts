@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { ChapterStatus, ManuscriptStatus, PageStatus } from '@prisma/client'
-import { zEnum } from 'src/core/http/docs/enum-docs'
+import { PageStatus } from '@prisma/client'
 
 // ---- Requests ----
 export const CreateChapterBodySchema = extendApi(
@@ -37,9 +36,7 @@ export const CreatePageBodySchema = extendApi(
 )
 
 export const UpdatePageBodySchema = extendApi(
-  z
-    .object({ compositeFile: z.string().min(1).optional(), status: zEnum(PageStatus, 'PageStatus').optional() })
-    .strict(),
+  z.object({ compositeFile: z.string().min(1).optional(), status: z.nativeEnum(PageStatus).optional() }).strict(),
   { title: 'UpdatePageBody', description: 'Cập nhật composite key / chuyển page status' }
 )
 
@@ -74,9 +71,9 @@ export const ChapterResSchema = extendApi(
     chapterNumber: z.number(),
     title: z.string().nullable(),
     totalPages: z.number().nullable(),
-    status: zEnum(ChapterStatus, 'ChapterStatus'),
-    publishedAt: z.string().nullable().describe('ISO 8601; null khi chưa xuất bản'),
-    manuscriptStatus: zEnum(ManuscriptStatus, 'ManuscriptStatus').nullable(),
+    status: z.string(),
+    publishedAt: z.string().nullable(),
+    manuscriptStatus: z.string().nullable(),
     schedule: ScheduleResSchema.nullable()
   }),
   { title: 'ChapterRes', description: 'Chapter view' }
@@ -87,9 +84,9 @@ export const PageResSchema = extendApi(
     id: z.string(),
     chapterId: z.string(),
     pageNumber: z.number(),
-    originalFile: z.string().nullable().describe('Object key file gốc (pencil/ink) trên R2'),
-    compositeFile: z.string().nullable().describe('Object key file composite trên R2'),
-    status: zEnum(PageStatus, 'PageStatus'),
+    originalFile: z.string().nullable(),
+    compositeFile: z.string().nullable(),
+    status: z.string(),
     createdAt: z.string()
   }),
   { title: 'PageRes', description: 'Page view' }

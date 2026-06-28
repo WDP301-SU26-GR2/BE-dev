@@ -1,6 +1,5 @@
 import { $Enums } from '@prisma/client'
 import z from 'zod'
-import { zEnum } from 'src/core/http/docs/enum-docs'
 
 // UserStatus comes from Prisma as the single source of truth.
 export const UserStatus = $Enums.UserStatus
@@ -15,9 +14,9 @@ export const UserSchema = z.object({
   avatar: z.string().nullable(),
   googleId: z.string().nullable(),
   displayName: z.string().min(2).max(100).nullable(),
-  status: zEnum($Enums.UserStatus, 'UserStatus'),
+  status: z.nativeEnum($Enums.UserStatus),
   emailVerified: z.boolean(),
-  registrationType: zEnum($Enums.RegistrationType, 'RegistrationType'),
+  registrationType: z.nativeEnum($Enums.RegistrationType),
   mustChangePassword: z.boolean(),
   roleId: z.string(),
   deletedAt: z.date().nullable(),

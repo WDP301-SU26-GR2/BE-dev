@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { RedisService } from 'src/infrastructure/redis/redis.service'
-import type { RateLimitDecision, RateLimitRule } from '../constants/rate-limit.constant'
+import type { RateLimitDecision, RateLimitRule } from './rate-limit.constant'
 
 const SCRIPT = `
 local cdKey = KEYS[1]

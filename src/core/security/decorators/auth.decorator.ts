@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common'
-import { AuthType, AuthTypeType, ConditionGuard, ConditionGuardType } from '../constants/auth-type'
+import { AuthType, AuthTypeType, ConditionGuard, ConditionGuardType } from '../auth-type'
 import envConfig from '../../config/envConfig'
 
 export const Auth = (authType: AuthTypeType[], options?: { condition: ConditionGuardType }) => {

@@ -7,9 +7,8 @@
 - **Kiến trúc tổng thể, data flow, tech stack chi tiết** → xem `ARCHITECTURE.md` (đọc trước khi code).
 - **Stack**: NestJS 11, Prisma 6 (MongoDB replica set `rs0`), Zod 4 + nestjs-zod, JWT HS256, bcrypt,
   `@nestjs/event-emitter` (domain events), AWS SDK v3 → Cloudflare R2 (object storage), Resend (email), pnpm.
-- **Feature modules BE-A**: `auth`, `users`, `notification`, `reviews`, `series`, `chapter`,
-  `annotation`, `storage` (Creation & Production). **BE-B** (Commercial & Governance) **đã bắt đầu**: module
-  `contract` đã có trong repo — KHÔNG sửa hộ BE-B (chỉ để sẵn convention dùng chung ở `core/`).
+- **Feature modules hiện có**: `auth`, `users`, `notification`, `reviews`, `series`, `chapter`,
+  `annotation`, `storage`. (Đây là phần **BE-A** — Creation & Production; BE-B sẽ thêm module thương mại/quản trị.)
 - **Quy tắc vàng**: Vertical slice (NestJS chuẩn). Mỗi module tự chứa đủ: controller(s), service(s), repo,
   schemas, dto, errors, (mapper/constant/ports nếu cần).
 
@@ -24,20 +23,11 @@ src/
 |   |-- config/                     # envConfig (Zod, fail-fast)
 |   |-- events/                     # DomainEventBus + domain-events.ts (contract dùng chung BE-A/BE-B)
 |   |-- http/
-|   |   |-- decorators/             # Swagger/http decorators (ApiErrors)
-|   |   |-- docs/                   # ENUM_DOCS, ERROR_HINTS, zEnum/zRole helpers
-|   |   |-- dto/                    # MessageResDto, EmptyBodyDto, ...
 |   |   |-- filters/                # CatchEverythingFilter (bộ lọc lỗi DUY NHẤT)
 |   |   |-- interceptors/           # ResponseEnvelopeInterceptor ({success,message,data})
 |   |   |-- pipes/                  # CustomZodValidationPipe (422)
-|   |   `-- http.messages.ts        # layer-level message catalog
-|   |-- security/
-|   |   |-- constants/              # role/auth type/rate-limit constants
-|   |   |-- decorators/             # @Roles, @IsPublic, @ActiveUser, ...
-|   |   |-- errors/                 # security-layer exceptions
-|   |   |-- guards/                 # auth/roles/password/otp guards
-|   |   |-- services/               # security-layer services (RateLimitService)
-|   |   `-- security.messages.ts    # layer-level message catalog
+|   |   `-- *.dto.ts                # MessageResDto, empty-body, ...
+|   |-- security/                   # guards, decorators, role/auth-type constants
 |   `-- models/                     # shared entity schemas (user.model.ts, ...)
 |-- infrastructure/                 # external adapters / technology details
 |   |-- database/                   # PrismaService + prisma-error.helper
@@ -141,7 +131,6 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   export const InvalidOTPException = new UnprocessableEntityException([{ message: E.invalidOtp, path: 'code' }])
   ```
 - `Error.*` là **code** (FE map sang text hiển thị), KHÔNG hard-code chuỗi tiếng Việt/hiển thị trong service.
-- **Swagger:** tài liệu hoá lỗi qua `@ApiErrors(...exceptions)` (derive từ chính exception instance, single source). KHÔNG gõ tay `@ApiResponse` cho lỗi nghiệp vụ. Xem §12.
 - **Validation fail = 422** (CustomZodValidationPipe), KHÔNG phải 400.
 - **`CatchEverythingFilter` là bộ lọc lỗi DUY NHẤT** (safety net). Mọi lỗi chuẩn hóa về:
   ```json
@@ -206,7 +195,7 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
 - **🔴 ZodSerializer strip field ngoài DTO (mất response `message`):** `ResponseEnvelopeInterceptor` đăng ký TRƯỚC
   `ZodSerializerInterceptor` ⇒ trên response path Zod serialize theo `@ZodResponse(DTO)` **trước** (strip mọi field
   không khai trong DTO), **rồi** envelope mới đọc field `message`. Muốn trả message tuỳ biến (vd xoá thành công
-  `{ message: 'Proposal deleted' }`) thì DTO **phải chứa** field `message` → dùng **`MessageResDto`** (`core/http/dto/response.dto.ts`).
+  `{ message: 'Proposal deleted' }`) thì DTO **phải chứa** field `message` → dùng **`MessageResDto`** (`core/http/response.dto.ts`).
   Nếu DTO chỉ `{ id }` → `message` bị strip → envelope rơi về `message:'Success'`. (build/test tĩnh KHÔNG bắt được.)
 - **Partial-update (PATCH semantics):** field optional cho cập nhật từng phần → schema dùng `.nullish()` (nhận cả
   omit lẫn `null`); repo chỉ ghi khi `!= null` (scalar: `if (body.x != null) data.x = body.x`; composite: `x: body.x ?? current.x`).
@@ -221,28 +210,6 @@ Mỗi refactor/feature phải giữ:
 - [ ] `pnpm start:dev` boot không lỗi (Swagger build được)
 - [ ] Smoke DB thật (Atlas) cho flow mới — không chỉ unit test mock
 - [ ] Grep: 0 `console.log`/`TODO`/`FIXME` trong production code
-- [ ] **API mới/đụng**: field enum dùng `zEnum`/`zRole`, field khó hiểu có `.describe()`, route có `@ApiOperation` + `@ApiErrors(...exceptions)` cho lỗi nghiệp vụ (xem §12)
 - [ ] Git: mỗi commit = 1 logical change, green build (KHÔNG auto-commit — user tự commit)
 
-## 12. API Documentation (Swagger) — convention bắt buộc
-
-> Swagger sinh từ Zod schema (`createZodDto` + nestjs-zod v5 dùng `z.toJSONSchema` cho zod4). Tài liệu hoá là **metadata thuần** — KHÔNG đổi logic. Mỗi route/field thêm doc khi tạo, không để trống.
-
-- **Enum field (BẮT BUỘC):** field enum (status, role/type, ...) ở **CẢ body/query/response** dùng
-  `zEnum(PrismaEnum, 'Key')` / `zRole()` / `zRoleSubset([...])` từ `src/core/http/docs/enum-docs.ts`, **KHÔNG**
-  `z.string()`. Mô tả enum sống tập trung ở `ENUM_DOCS`; date field response vẫn `z.string()` ISO (xem §10).
-- **Mô tả field:** field id/object-key/audit/nullable-có-ngữ-nghĩa → `.describe('...')` ngay trên zod field
-  (vd `editorId: z.string().nullable().describe('null = ở hàng đợi review')`). Field hiển nhiên (title) thì bỏ qua.
-- **Operation:** mỗi route mutating có `@ApiOperation({ summary })` (1 câu mô tả hành vi + transition).
-- **Error response (BẮT BUỘC):** dùng `@ApiErrors(...exceptions)` từ
-  `src/core/http/decorators/api-errors.decorator.ts`, truyền exception const-instance trong `errors/<name>.errors.ts`.
-  Decorator tự derive status + `Error.*` code + gộp cùng status + append hint từ `ERROR_HINTS`
-  (`src/core/http/docs/error-docs.ts`). KHÔNG gõ tay `@ApiResponse({ status, description: 'Error.X' })`; chỉ giữ
-  `@ApiResponse(422, 'Validation...')` thuần cho validation-only. Thêm error mới → thêm hint vào `ERROR_HINTS`.
-- **BE-B:** adopt cùng cơ chế (bổ sung enum của BE-B vào `ENUM_DOCS`, code vào `ERROR_HINTS`).
-- **Envelope:** note 1 lần ở `main.ts` `DocumentBuilder.setDescription` (mọi success bọc `{success,message,data}` → FE đọc `data`;
-  lỗi `{success:false,statusCode,message}`). **KHÔNG** lặp lại ở từng route. DTO mô tả shape **CHƯA bọc** (chính là `data`).
-- **message tuỳ biến** phải nằm trong DTO mới sống qua serializer (xem §10 gotcha) — vd `MessageResDto` cho route trả message.
-
-**Chi tiết convention → xem spec**: `docs/superpowers/specs/2026-06-28-api-docs-shared-convention-design.md`
-
+**Chi tiết convention → xem spec**: `docs/superpowers/specs/2026-06-14-shared-refactor-design.md`

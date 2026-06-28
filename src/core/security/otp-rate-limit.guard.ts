@@ -1,8 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common'
 import type { Request } from 'express'
-import { otpEmailRule, otpIpRule } from '../constants/rate-limit.constant'
-import { OtpRateLimitedException } from '../errors/rate-limit.errors'
-import { RateLimitService } from '../services/rate-limit.service'
+import { otpEmailRule, otpIpRule } from './rate-limit.constant'
+import { OtpRateLimitedException } from './rate-limit.errors'
+import { RateLimitService } from './rate-limit.service'
 
 @Injectable()
 export class OtpRateLimitGuard implements CanActivate {

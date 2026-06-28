@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { Reflector } from '@nestjs/core'
 import { AccessTokenGuard } from './access-token.guard'
 import envConfig from '../../config/envConfig'
-import { AuthType, AuthTypeDecoratorPayload, ConditionGuard } from '../constants/auth-type'
+import { AuthType, AuthTypeDecoratorPayload, ConditionGuard } from '../auth-type'
 import { SecurityMessages } from '../security.messages'
 
 @Injectable()

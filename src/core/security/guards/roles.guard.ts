@@ -1,9 +1,9 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { REQUEST_USER_KEY } from '../constants/auth-type'
+import { REQUEST_USER_KEY } from '../auth-type'
 import { ROLES_KEY } from '../decorators/roles.decorator'
 import { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
-import { RoleNameType } from '../constants/role.constant'
+import { RoleNameType } from '../role.constant'
 import { SecurityMessages } from '../security.messages'
 
 @Injectable()
