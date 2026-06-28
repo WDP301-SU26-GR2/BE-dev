@@ -30,10 +30,13 @@ export class CatchEverythingFilter implements ExceptionFilter {
 
     let httpStatus: number
     let extracted: unknown
+    let extra: Record<string, unknown> | undefined
 
     if (exception instanceof HttpException) {
       httpStatus = exception.getStatus()
-      extracted = extractMessage(exception.getResponse())
+      const response = exception.getResponse()
+      extracted = extractMessage(response)
+      extra = extractExtra(response)
     } else if (isUniqueConstrainError(exception)) {
       httpStatus = HttpStatus.CONFLICT
       extracted = HttpMessages.recordAlreadyExists
@@ -46,7 +49,7 @@ export class CatchEverythingFilter implements ExceptionFilter {
       )
     }
 
-    httpAdapter.reply(ctx.getResponse(), buildErrorBody(httpStatus, extracted), httpStatus)
+    httpAdapter.reply(ctx.getResponse(), buildErrorBody(httpStatus, extracted, extra), httpStatus)
   }
 }
 
@@ -62,6 +65,17 @@ function extractMessage(response: string | object): unknown {
   return response
 }
 
+function extractExtra(response: string | object): Record<string, unknown> | undefined {
+  if (!response || typeof response !== 'object' || Array.isArray(response)) {
+    return undefined
+  }
+  const extra = { ...(response as Record<string, unknown>) }
+  delete extra.message
+  delete extra.statusCode
+  delete extra.error
+  return Object.keys(extra).length > 0 ? extra : undefined
+}
+
 type FieldIssue = { message: string; path?: string }
 
 function isFieldIssue(value: unknown): value is FieldIssue {
@@ -70,11 +84,11 @@ function isFieldIssue(value: unknown): value is FieldIssue {
 
 // Lỗi field-level (zod/domain) là mảng `{message,path}` → tách sang `errors[]`, `message` thành string.
 // Lỗi đơn (string) → giữ `message`, không kèm `errors`.
-function buildErrorBody(statusCode: number, extracted: unknown) {
+function buildErrorBody(statusCode: number, extracted: unknown, extra?: Record<string, unknown>) {
   if (Array.isArray(extracted)) {
     const errors = extracted as FieldIssue[]
     const message = errors.length === 1 && isFieldIssue(errors[0]) ? errors[0].message : HttpMessages.validationFailed
-    return { success: false, statusCode, message, errors }
+    return { success: false, statusCode, message, errors, ...extra }
   }
-  return { success: false, statusCode, message: extracted }
+  return { success: false, statusCode, message: extracted, ...extra }
 }

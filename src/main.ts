@@ -6,6 +6,8 @@ import envConfig from 'src/core/config/envConfig'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
+  app.getHttpAdapter().getInstance().set('trust proxy', envConfig.TRUST_PROXY_HOPS)
+  app.enableShutdownHooks()
   app.enableCors()
   const config = new DocumentBuilder()
     .setTitle('WDP API')

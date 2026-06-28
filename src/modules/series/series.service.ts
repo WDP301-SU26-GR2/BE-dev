@@ -1,15 +1,25 @@
 import { Injectable } from '@nestjs/common'
-import { CreateProposalBodyType, UpdateNamePagesBodyType, UpdateProposalBodyType } from './schemas/series-schemas'
+import { SeriesCaller, SeriesQueryService } from './services/series-query.service'
+import {
+  AddNamePageBodyType,
+  CreateProposalBodyType,
+  ListSeriesQueryType,
+  UpdateNamePagesBodyType,
+  UpdateProposalBodyType
+} from './schemas/series-schemas'
 import { NameService } from './services/name.service'
 import { SeriesPitchService } from './services/series-pitch.service'
 import { SeriesProposalService } from './services/series-proposal.service'
+import { SeriesClaimService } from './services/series-claim.service'
 
 @Injectable()
 export class SeriesService {
   constructor(
     private readonly proposalService: SeriesProposalService,
     private readonly nameService: NameService,
-    private readonly pitchService: SeriesPitchService
+    private readonly pitchService: SeriesPitchService,
+    private readonly queryService: SeriesQueryService,
+    private readonly claimService: SeriesClaimService
   ) {}
 
   createProposal(mangakaId: string, body: CreateProposalBodyType) {
@@ -18,6 +28,10 @@ export class SeriesService {
 
   updateProposal(mangakaId: string, seriesId: string, body: UpdateProposalBodyType) {
     return this.proposalService.updateProposal(mangakaId, seriesId, body)
+  }
+
+  deleteProposal(mangakaId: string, seriesId: string) {
+    return this.proposalService.deleteProposal(mangakaId, seriesId)
   }
 
   submit(mangakaId: string, seriesId: string) {
@@ -48,8 +62,12 @@ export class SeriesService {
     return this.pitchService.pitch(editorId, seriesId)
   }
 
-  submitName(mangakaId: string, seriesId: string, nameId: string) {
-    return this.nameService.submit(mangakaId, seriesId, nameId)
+  claim(editorId: string, seriesId: string) {
+    return this.claimService.claim(editorId, seriesId)
+  }
+
+  release(editorId: string, seriesId: string) {
+    return this.claimService.release(editorId, seriesId)
   }
 
   requestNameRevision(editorId: string, seriesId: string, nameId: string, reason: string) {
@@ -66,5 +84,25 @@ export class SeriesService {
 
   updateNamePages(mangakaId: string, seriesId: string, nameId: string, body: UpdateNamePagesBodyType) {
     return this.nameService.updatePages(mangakaId, seriesId, nameId, body.pages)
+  }
+
+  addNamePage(mangakaId: string, seriesId: string, nameId: string, body: AddNamePageBodyType) {
+    return this.nameService.addPage(mangakaId, seriesId, nameId, body)
+  }
+
+  listSeries(caller: SeriesCaller, query: ListSeriesQueryType) {
+    return this.queryService.list(caller, query)
+  }
+
+  getSeries(caller: SeriesCaller, seriesId: string) {
+    return this.queryService.getById(caller, seriesId)
+  }
+
+  listNames(caller: SeriesCaller, seriesId: string) {
+    return this.queryService.listNames(caller, seriesId)
+  }
+
+  getName(caller: SeriesCaller, seriesId: string, nameId: string) {
+    return this.queryService.getName(caller, seriesId, nameId)
   }
 }
