@@ -1,4 +1,4 @@
-import { RoleName } from 'src/core/security/role.constant'
+import { RoleName } from 'src/core/security/constants/role.constant'
 import { MAX_UPLOAD_BYTES } from './storage.constant'
 import { StorageService } from './storage.service'
 

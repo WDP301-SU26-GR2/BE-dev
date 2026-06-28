@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { randomUUID } from 'crypto'
-import { RoleName } from 'src/core/security/role.constant'
+import { RoleName } from 'src/core/security/constants/role.constant'
 import { StorageService as StorageInfra } from 'src/infrastructure/storage/storage.service'
 import {
   AssetNotFoundException,
