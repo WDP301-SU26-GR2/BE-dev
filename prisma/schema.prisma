@@ -422,6 +422,13 @@ enum DecisionType {
   HIATUS
   ENDING_ALLOWANCE
   SERIES_CONTRACT_APPROVAL
+  SERIALIZATION
+  CANCELLATION
+  FORMAT_CHANGE
+  COMPLETION
+  REPRINT
+  TRANSFER
+  CONTRACT
 }
 
 // REVIEW: inferred
@@ -484,6 +491,12 @@ enum TaskVersionReviewStatus {
   PENDING
   APPROVED
   REVISION_REQUESTED
+}
+
+enum BoardSessionStatus {
+  UPCOMING
+  ACTIVE
+  CONCLUDED
 }
 
 model Series {
@@ -644,9 +657,9 @@ model DeadlineRequest {
 type ManuscriptStatusHistoryEntry {
   from      ManuscriptStatus?
   to        ManuscriptStatus
-  changedBy String?  @db.ObjectId
+  changedBy String?           @db.ObjectId
   reason    String?
-  changedAt DateTime @default(now())
+  changedAt DateTime          @default(now())
 }
 
 model Manuscript {
@@ -654,7 +667,7 @@ model Manuscript {
   chapterId String  @unique @db.ObjectId
   chapter   Chapter @relation(fields: [chapterId], references: [id])
 
-  status              ManuscriptStatus @default(DRAFT)
+  status              ManuscriptStatus               @default(DRAFT)
   finalFile           String?
   submittedToEditorAt DateTime?
   approvedAt          DateTime?
@@ -1097,9 +1110,24 @@ model RankingRecord {
   @@index([surveyPeriodId])
 }
 
+model BoardSession {
+  id               String             @id @default(auto()) @map("_id") @db.ObjectId
+  title            String
+  description      String?
+  creatorId        String             @db.ObjectId
+  status           BoardSessionStatus @default(UPCOMING)
+  allowedEditorIds String[]           @db.ObjectId // Danh sách sếp được mời họp tổng
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  decisions BoardDecision[]
+}
+
 model BoardDecision {
-  id             String  @id @default(auto()) @map("_id") @db.ObjectId
-  targetSeriesId String? @db.ObjectId
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  targetSeriesId String?      @db.ObjectId
+  boardSessionId String       @db.ObjectId
+  boardSession   BoardSession @relation(fields: [boardSessionId], references: [id], onDelete: Cascade)
 
   decisionType           DecisionType?
   result                 String?
@@ -1165,6 +1193,7 @@ model BoardConfig {
   boardTotalMembers    Int      @default(0)
   quorumMin            Int      @default(0)
   approveMajorityRatio Float    @default(0.5)
+  isDefault            Boolean  @default(true)
   updatedAt            DateTime @updatedAt
 
   @@index([updatedBy])
