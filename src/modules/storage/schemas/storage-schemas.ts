@@ -2,14 +2,17 @@ import { extendApi } from '@anatine/zod-openapi'
 import { AssetType } from '@prisma/client'
 import { z } from 'zod'
 import { ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES } from '../storage.constant'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 
 export const SignUploadBodySchema = extendApi(
   z
     .object({
       fileName: z.string().min(1).max(255),
-      contentType: z.enum(ALLOWED_CONTENT_TYPES),
+      contentType: z
+        .enum(ALLOWED_CONTENT_TYPES)
+        .describe('Loại file cho phép: image/png · image/jpeg · image/webp · application/pdf'),
       contentLength: z.number().int().positive().max(MAX_UPLOAD_BYTES),
-      assetType: z.nativeEnum(AssetType).optional()
+      assetType: zEnum(AssetType, 'AssetType').optional()
     })
     .strict(),
   { title: 'SignUploadBody', description: 'Request body for presigned PUT upload' }

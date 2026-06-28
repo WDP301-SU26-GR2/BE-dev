@@ -18,7 +18,7 @@ type AdminUserRow = {
   registrationType: $Enums.RegistrationType
   mustChangePassword: boolean
   createdAt: Date
-  role: { code: string } | null
+  role: { code: string }
 }
 
 function toAdminUserView(u: AdminUserRow) {
@@ -29,7 +29,7 @@ function toAdminUserView(u: AdminUserRow) {
     displayName: u.displayName,
     phoneNumber: u.phoneNumber,
     avatar: u.avatar,
-    role: u.role?.code ?? '',
+    role: u.role.code as $Enums.RoleCode,
     status: u.status,
     emailVerified: u.emailVerified,
     registrationType: u.registrationType,
@@ -55,7 +55,7 @@ export class AdminUserQueryService {
       this.usersRepository.countUsersForAdmin(filter)
     ])
     return {
-      items: rows.map((r) => toAdminUserView(r as AdminUserRow)),
+      items: rows.map((r) => toAdminUserView(r)),
       total,
       limit: query.limit,
       offset: query.offset

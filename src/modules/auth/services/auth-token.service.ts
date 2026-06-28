@@ -16,6 +16,7 @@ import {
 import { LoginBodyType, LogoutBodyType, RefreshTokenBodyType } from '../schemas/auth-schemas'
 import { RoleType } from '../schemas/auth.model'
 import { AuthMessages } from '../auth.messages'
+import { RoleCode } from '@prisma/client'
 
 @Injectable()
 export class AuthTokenService {
@@ -126,7 +127,7 @@ export class AuthTokenService {
         name: user.name,
         displayName: user.displayName,
         phoneNumber: user.phoneNumber,
-        role: user.role.code
+        role: user.role.code as RoleCode
       },
       mustChangePassword: user.mustChangePassword,
       accessToken,

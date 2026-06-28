@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
-import { REQUEST_USER_KEY } from '../auth-type'
+import { REQUEST_USER_KEY } from '../constants/auth-type'
 import { SKIP_PASSWORD_POLICY_KEY } from '../decorators/skip-password-policy.decorator'
 import { SecurityMessages } from '../security.messages'
 
