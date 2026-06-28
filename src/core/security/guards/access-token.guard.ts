@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common'
 import { REQUEST_USER_KEY } from '../auth-type'
 import { TokenService } from 'src/infrastructure/token/token.service'
+import { SecurityMessages } from '../security.messages'
 
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
@@ -16,7 +17,7 @@ export class AccessTokenGuard implements CanActivate {
     // console.log('Access token:', accessToken)
 
     if (!accessToken) {
-      throw new UnauthorizedException('Access token is required')
+      throw new UnauthorizedException(SecurityMessages.accessTokenRequired)
     }
     try {
       const decodedAccessToken = await this.tokenService.verifyAccessToken(accessToken as string)
@@ -25,7 +26,7 @@ export class AccessTokenGuard implements CanActivate {
       return true
     } catch (error) {
       console.error('Token verify error:', error)
-      throw new UnauthorizedException('Invalid access token')
+      throw new UnauthorizedException(SecurityMessages.invalidAccessToken)
     }
   }
 }

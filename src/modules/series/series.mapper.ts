@@ -8,6 +8,7 @@ export function toSeriesRes(series: Series) {
     coOwnerId: series.coOwnerId,
     parentSeriesId: series.parentSeriesId,
     title: series.title,
+    coverImage: series.coverImage,
     genre: series.genre,
     demographic: series.demographic,
     publicationType: series.publicationType,
@@ -15,12 +16,12 @@ export function toSeriesRes(series: Series) {
     statusReason: series.statusReason,
     relationshipType: series.relationshipType,
     createdAt: series.createdAt.toISOString(),
+    reviewStartedAt: series.reviewStartedAt ? series.reviewStartedAt.toISOString() : null,
     proposal: series.proposal
       ? {
           nameId: series.proposal.nameId,
           synopsis: series.proposal.synopsis,
           characterDesigns: series.proposal.characterDesigns,
-          targetDemographic: series.proposal.targetDemographic,
           estimatedLength: series.proposal.estimatedLength,
           status: series.proposal.status,
           createdAt: series.proposal.createdAt.toISOString()

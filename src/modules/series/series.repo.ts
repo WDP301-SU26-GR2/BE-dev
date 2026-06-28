@@ -1,8 +1,18 @@
 import { Injectable } from '@nestjs/common'
-import { NameStatus, ProposalStatus, SeriesStatus } from '@prisma/client'
+import { NameStatus, Prisma, ProposalStatus, SeriesStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { SeriesNotFoundException } from './errors/series.errors'
 import { CreateProposalBodyType, UpdateProposalBodyType } from './schemas/series-schemas'
+
+// Trạng thái series "đang chờ editor pick-up" (chưa gán editor) — hàng đợi review của Editor.
+const REVIEW_QUEUE_STATES: SeriesStatus[] = [SeriesStatus.IN_REVIEW]
+
+export type SeriesListScope = { kind: 'mangaka'; userId: string } | { kind: 'editor'; userId: string } | { kind: 'all' }
+
+export type SeriesListFilter = {
+  scope: SeriesListScope
+  status?: SeriesStatus
+}
 
 @Injectable()
 export class SeriesRepository {
@@ -13,6 +23,7 @@ export class SeriesRepository {
       data: {
         mangakaId,
         title: body.title,
+        coverImage: body.coverImage ?? null,
         genre: body.genre ?? null,
         demographic: body.demographic ?? null,
         publicationType: body.publicationType ?? null,
@@ -22,7 +33,6 @@ export class SeriesRepository {
         proposal: {
           synopsis: body.synopsis ?? null,
           characterDesigns: body.characterDesigns,
-          targetDemographic: body.targetDemographic ?? null,
           estimatedLength: body.estimatedLength ?? null,
           status: ProposalStatus.DRAFT
         }
@@ -57,35 +67,38 @@ export class SeriesRepository {
     return await this.prismaService.name.findUnique({ where: { id: nameId } })
   }
 
-  async updateProposalDraft(seriesId: string, nameId: string | null, body: UpdateProposalBodyType) {
+  async updateProposalContent(seriesId: string, body: UpdateProposalBodyType) {
     const series = await this.prismaService.series.findUnique({ where: { id: seriesId } })
     if (!series?.proposal) throw SeriesNotFoundException
 
-    // Merge: field không gửi (undefined) giữ nguyên giá trị cũ. Dùng `set` full để tránh wipe composite.
-    const updated = await this.prismaService.series.update({
-      where: { id: seriesId },
-      data: {
-        title: body.title,
-        genre: body.genre,
-        demographic: body.demographic,
-        publicationType: body.publicationType,
-        proposal: {
-          set: {
-            ...series.proposal,
-            synopsis: body.synopsis ?? series.proposal.synopsis,
-            characterDesigns: body.characterDesigns ?? series.proposal.characterDesigns,
-            targetDemographic: body.targetDemographic ?? series.proposal.targetDemographic,
-            estimatedLength: body.estimatedLength ?? series.proposal.estimatedLength
-          }
-        }
+    const data: Prisma.SeriesUpdateInput = {}
+    if (body.title != null) data.title = body.title
+    if (body.coverImage != null) data.coverImage = body.coverImage
+    if (body.genre != null) data.genre = body.genre
+    if (body.demographic != null) data.demographic = body.demographic
+    if (body.publicationType != null) data.publicationType = body.publicationType
+    data.proposal = {
+      set: {
+        ...series.proposal,
+        synopsis: body.synopsis ?? series.proposal.synopsis,
+        characterDesigns: body.characterDesigns ?? series.proposal.characterDesigns,
+        estimatedLength: body.estimatedLength ?? series.proposal.estimatedLength
       }
-    })
-
-    if (body.namePages && nameId) {
-      await this.updateNamePages(nameId, body.namePages)
     }
 
+    const updated = await this.prismaService.series.update({
+      where: { id: seriesId },
+      data
+    })
+
     return updated
+  }
+
+  async deleteSeriesWithNames(seriesId: string): Promise<void> {
+    await this.prismaService.$transaction([
+      this.prismaService.name.deleteMany({ where: { seriesId } }),
+      this.prismaService.series.delete({ where: { id: seriesId } })
+    ])
   }
 
   async updateProposalStatus(seriesId: string, status: ProposalStatus) {
@@ -98,8 +111,27 @@ export class SeriesRepository {
     })
   }
 
-  async setEditor(seriesId: string, editorId: string) {
-    await this.prismaService.series.update({ where: { id: seriesId }, data: { editorId } })
+  async claimSeries(seriesId: string, editorId: string): Promise<number> {
+    const result = await this.prismaService.series.updateMany({
+      where: { id: seriesId, editorId: { isSet: false }, status: SeriesStatus.IN_REVIEW },
+      data: { editorId }
+    })
+    return result.count
+  }
+
+  async releaseSeries(seriesId: string, editorId: string): Promise<number> {
+    const result = await this.prismaService.series.updateMany({
+      where: { id: seriesId, editorId, reviewStartedAt: { isSet: false }, status: SeriesStatus.IN_REVIEW },
+      data: { editorId: { unset: true } }
+    })
+    return result.count
+  }
+
+  async markReviewStarted(seriesId: string): Promise<void> {
+    await this.prismaService.series.updateMany({
+      where: { id: seriesId, reviewStartedAt: { isSet: false } },
+      data: { reviewStartedAt: new Date() }
+    })
   }
 
   async updateNameStatus(nameId: string, data: { status: NameStatus; version?: number; submittedAt?: Date }) {
@@ -108,6 +140,10 @@ export class SeriesRepository {
 
   async updateNamePages(nameId: string, pages: { pageNumber: number; fileUrl: string }[]) {
     return await this.prismaService.name.update({ where: { id: nameId }, data: { pages: { set: pages } } })
+  }
+
+  async appendNamePage(nameId: string, page: { pageNumber: number; fileUrl: string }) {
+    return await this.prismaService.name.update({ where: { id: nameId }, data: { pages: { push: page } } })
   }
 
   // Single-writer cho Series.status: chỉ method này (gọi từ SeriesStateService) ghi status + audit.
@@ -131,6 +167,43 @@ export class SeriesRepository {
           }
         }
       }
+    })
+  }
+
+  // Mongo gotcha: editorId của series do Mangaka tạo là ABSENT → hàng đợi phải dùng `isSet:false`,
+  // KHÔNG `editorId:null` (không match doc absent → trả rỗng). Xem AGENTS §10.
+  private buildSeriesListWhere(filter: SeriesListFilter): Prisma.SeriesWhereInput {
+    const scope = filter.scope
+    const scopeWhere: Prisma.SeriesWhereInput =
+      scope.kind === 'mangaka'
+        ? { mangakaId: scope.userId }
+        : scope.kind === 'editor'
+          ? {
+              OR: [{ editorId: scope.userId }, { editorId: { isSet: false }, status: { in: REVIEW_QUEUE_STATES } }]
+            }
+          : {}
+    return { ...(filter.status ? { status: filter.status } : {}), ...scopeWhere }
+  }
+
+  async findSeriesForList(filter: SeriesListFilter, page: { limit: number; offset: number }) {
+    const where = this.buildSeriesListWhere(filter)
+    return await this.prismaService.series.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: page.offset,
+      take: page.limit
+    })
+  }
+
+  async countSeriesForList(filter: SeriesListFilter): Promise<number> {
+    const where = this.buildSeriesListWhere(filter)
+    return await this.prismaService.series.count({ where })
+  }
+
+  async findNamesBySeriesId(seriesId: string) {
+    return await this.prismaService.name.findMany({
+      where: { seriesId },
+      orderBy: { version: 'asc' }
     })
   }
 }

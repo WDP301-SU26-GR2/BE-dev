@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
-import { EmailService } from 'src/infrastructure/email/email.service'
+import { EmailQueue } from 'src/infrastructure/email/email.queue'
 import { generateOTP } from '../helpers/otp.helper'
 import { parseDurationMs } from '../helpers/duration.helper'
 import { AUTH_OTP_MAX_ATTEMPTS, OtpPurpose, OtpPurposeType } from '../auth.constant'
@@ -9,7 +9,6 @@ import envConfig from 'src/core/config/envConfig'
 import {
   EmailAlreadyExistsException,
   EmailNotFoundException,
-  FailedToSendOTPException,
   InvalidOTPException,
   OTPExpiredException,
   OtpLockedException
@@ -20,14 +19,13 @@ import { AuthMessages } from '../auth.messages'
 
 @Injectable()
 export class AuthOtpService {
-  private readonly logger = new Logger(AuthOtpService.name)
   // TTL của OTP, đọc từ env `OTP_EXPIRES_IN` (vd "5m") — nguồn sự thật duy nhất.
   private readonly otpExpiryMs = parseDurationMs(envConfig.OTP_EXPIRES_IN)
 
   constructor(
     private readonly authRepository: AuthRepository,
     private readonly hashingService: HashingService,
-    private readonly emailService: EmailService
+    private readonly emailQueue: EmailQueue
   ) {}
 
   async issueOtp(email: string, purpose: OtpPurposeType): Promise<void> {
@@ -41,11 +39,7 @@ export class AuthOtpService {
     })
 
     const expiresInMinutes = Math.max(1, Math.round(this.otpExpiryMs / 60000))
-    const { error } = await this.emailService.sendOTP({ email, code, expiresInMinutes })
-    if (error) {
-      this.logger.error('Failed to send OTP', { error: error.message, email })
-      throw FailedToSendOTPException
-    }
+    await this.emailQueue.enqueueOtp({ email, code, expiresInMinutes })
   }
 
   async sendOTPService(body: SendOtpBodyType) {

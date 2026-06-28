@@ -511,6 +511,7 @@ model Series {
   childSeries    Series[] @relation("SeriesLineage")
 
   title                   String
+  coverImage              String?
   genre                   String?
   demographic             String?
   publicationType         PublicationType?
@@ -518,6 +519,7 @@ model Series {
   statusReason            String?
   relationshipType        RelationshipType?
   coOwnerApprovalRequired Boolean                    @default(false)
+  reviewStartedAt         DateTime?
   statusHistory           SeriesStatusHistoryEntry[]
 
   proposal SeriesProposal?
@@ -539,7 +541,6 @@ type SeriesProposal {
   nameId            String?        @db.ObjectId
   synopsis          String?
   characterDesigns  String[]
-  targetDemographic String?
   estimatedLength   Int?
   status            ProposalStatus @default(DRAFT)
   createdAt         DateTime       @default(now())
@@ -1137,6 +1138,7 @@ model BoardDecision {
   endingChapterAllowance Int?
   details                Json?
   decidedAt              DateTime?
+  allowedEditorIds       String[]      @db.ObjectId
 
   votes     Vote[]
   report    SeriesReport?

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
-import { EmailService } from 'src/infrastructure/email/email.service'
+import { EmailQueue } from 'src/infrastructure/email/email.queue'
 import { isUniqueConstrainError } from 'src/infrastructure/database/prisma-error.helper'
 import { UserEmailExistsException } from '../errors/users.errors'
 import { generateTemporaryPassword } from '../helpers/temp-password.helper'
@@ -14,7 +14,7 @@ export class AdminUserService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly hashingService: HashingService,
-    private readonly emailService: EmailService
+    private readonly emailQueue: EmailQueue
   ) {}
 
   async createUser(body: AdminCreateUserBodyType) {
@@ -33,7 +33,7 @@ export class AdminUserService {
 
       // Best-effort: email failure must NOT fail the request (admin still has temporaryPassword in response).
       try {
-        await this.emailService.sendAccountCredentials({
+        await this.emailQueue.enqueueAdminCred({
           email: body.email,
           name: body.name,
           temporaryPassword

@@ -14,12 +14,14 @@ const baseSeries = {
   status: SeriesStatus.DRAFT,
   statusReason: null,
   relationshipType: null,
+  coOwnerApprovalRequired: false,
+  reviewStartedAt: null,
+  statusHistory: [],
   createdAt: new Date('2026-06-23T00:00:00.000Z'),
   proposal: {
     nameId: 'n1',
     synopsis: null,
     characterDesigns: [],
-    targetDemographic: null,
     estimatedLength: null,
     status: ProposalStatus.DRAFT,
     createdAt: new Date('2026-06-23T00:00:00.000Z')
@@ -36,6 +38,8 @@ const baseName = {
   pages: []
 }
 
+const SID = '0123456789abcdef01234567'
+
 function make(seriesOverride: Record<string, unknown> = {}) {
   const series = { ...baseSeries, ...seriesOverride }
   const seriesRepository = {
@@ -44,9 +48,10 @@ function make(seriesOverride: Record<string, unknown> = {}) {
     updateProposalStatus: jest
       .fn()
       .mockImplementation((id, status) => Promise.resolve({ ...series, proposal: { ...series.proposal, status } })),
-    updateProposalDraft: jest.fn().mockResolvedValue(series),
+    updateProposalContent: jest.fn().mockResolvedValue(series),
     updateNameStatus: jest.fn().mockResolvedValue({ ...baseName, status: 'SUBMITTED', submittedAt: new Date() }),
-    setEditor: jest.fn().mockResolvedValue(undefined)
+    deleteSeriesWithNames: jest.fn().mockResolvedValue(undefined),
+    markReviewStarted: jest.fn().mockResolvedValue(undefined)
   }
   const seriesStateService = {
     transition: jest.fn().mockImplementation((id, toStatus) => Promise.resolve({ ...series, status: toStatus })),
@@ -95,16 +100,19 @@ describe('SeriesProposalService', () => {
 
   it('approve: proposal->PROPOSAL_APPROVED then tries to advance', async () => {
     const { service, seriesRepository, seriesStateService } = make({
+      editorId: 'editor1',
       status: SeriesStatus.IN_REVIEW,
       proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVIEW }
     })
     await service.approve('editor1', 's1')
     expect(seriesRepository.updateProposalStatus).toHaveBeenCalledWith('s1', ProposalStatus.PROPOSAL_APPROVED)
+    expect(seriesRepository.markReviewStarted).toHaveBeenCalledWith('s1')
     expect(seriesStateService.tryAdvanceToReadyToPitch).toHaveBeenCalledWith('s1', 'editor1')
   })
 
   it('reject: proposal->REJECTED, series->ABANDONED with reason', async () => {
     const { service, seriesRepository, seriesStateService } = make({
+      editorId: 'editor1',
       status: SeriesStatus.IN_REVIEW,
       proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVIEW }
     })
@@ -114,5 +122,63 @@ describe('SeriesProposalService', () => {
       changedBy: 'editor1',
       reason: 'không phù hợp'
     })
+  })
+
+  it('approve by a non-assigned editor throws', async () => {
+    const { service } = make({
+      editorId: 'editor1',
+      status: SeriesStatus.IN_REVIEW,
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVIEW }
+    })
+
+    await expect(service.approve('intruder', 's1')).rejects.toBeDefined()
+  })
+
+  it('updateProposal allows editing while proposal is in PROPOSAL_REVISION', async () => {
+    const { service, seriesRepository } = make({
+      status: SeriesStatus.IN_REVIEW,
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVISION }
+    })
+
+    await service.updateProposal('m1', 's1', { synopsis: 'v2' })
+
+    expect(seriesRepository.updateProposalContent).toHaveBeenCalledWith('s1', { synopsis: 'v2' })
+  })
+
+  it('updateProposal rejects edits while proposal is in PROPOSAL_REVIEW', async () => {
+    const { service } = make({
+      status: SeriesStatus.IN_REVIEW,
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVIEW }
+    })
+
+    await expect(service.updateProposal('m1', 's1', { synopsis: 'x' })).rejects.toBeDefined()
+  })
+
+  it('deleteProposal deletes DRAFT proposal and returns message', async () => {
+    const { service, seriesRepository } = make({ id: SID, status: SeriesStatus.DRAFT })
+
+    const res = await service.deleteProposal('m1', SID)
+
+    expect(seriesRepository.deleteSeriesWithNames).toHaveBeenCalledWith(SID)
+    expect(res.message).toBeDefined()
+  })
+
+  it('deleteProposal rejects non-DRAFT series', async () => {
+    const { service } = make({ id: SID, status: SeriesStatus.IN_REVIEW })
+
+    await expect(service.deleteProposal('m1', SID)).rejects.toBeDefined()
+  })
+
+  it('deleteProposal rejects non-owner', async () => {
+    const { service } = make({ id: SID, status: SeriesStatus.DRAFT })
+
+    await expect(service.deleteProposal('other', SID)).rejects.toBeDefined()
+  })
+
+  it('deleteProposal rejects malformed ids before repository lookup', async () => {
+    const { service, seriesRepository } = make()
+
+    await expect(service.deleteProposal('m1', 'bad-id')).rejects.toBeDefined()
+    expect(seriesRepository.findById).not.toHaveBeenCalled()
   })
 })

@@ -1,4 +1,11 @@
-import { ArgumentsHost, ForbiddenException, Logger, UnprocessableEntityException } from '@nestjs/common'
+import {
+  ArgumentsHost,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Logger,
+  UnprocessableEntityException
+} from '@nestjs/common'
 import { HttpAdapterHost } from '@nestjs/core'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { CatchEverythingFilter } from './catch-everything.filter'
@@ -65,6 +72,26 @@ describe('CatchEverythingFilter', () => {
 
     const [, body] = reply.mock.calls[0]
     expect(body).toEqual({ success: false, statusCode: 403, message: 'Error.EmailNotVerified' })
+  })
+
+  it('preserves explicit HttpException metadata such as rate-limit retryAfter', () => {
+    const { filter, reply } = createFilter()
+    const exception = new HttpException(
+      { message: 'Error.OtpRateLimited', code: 'AUTH_OTP_RATE_LIMITED', retryAfter: 60 },
+      HttpStatus.TOO_MANY_REQUESTS
+    )
+
+    filter.catch(exception, createHost())
+
+    const [, body, status] = reply.mock.calls[0]
+    expect(status).toBe(429)
+    expect(body).toEqual({
+      success: false,
+      statusCode: 429,
+      message: 'Error.OtpRateLimited',
+      code: 'AUTH_OTP_RATE_LIMITED',
+      retryAfter: 60
+    })
   })
 
   it('maps Prisma unique-constraint errors to 409 Conflict', () => {
