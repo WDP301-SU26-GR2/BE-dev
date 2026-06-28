@@ -17,6 +17,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module'
 import { SeriesModule } from './modules/series/series.module'
 import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
+import { BoardModule } from './modules/board/board.module'
 
 @Module({
   imports: [
@@ -34,7 +35,8 @@ import { UsersModule } from './modules/users/users.module'
     SeriesModule,
     StorageModule,
     ChapterModule,
-    AnnotationModule
+    AnnotationModule,
+    BoardModule
   ],
   controllers: [],
   providers: [

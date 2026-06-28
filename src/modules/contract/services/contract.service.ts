@@ -104,7 +104,7 @@ export class ContractService {
     if (!contract.boardDecision) throw ContractErrors.BoardDecisionNotFound()
 
     // 2. [BẢO MẬT] Kiểm tra ID sếp bằng hàm .includes() trực tiếp trên mảng chuỗi ID nguyên thủy của MongoDB
-    const isAllowed = contract.boardDecision.allowedEditorIds.includes(loggedInUserId)
+    const isAllowed = contract.boardDecision.boardSession.allowedEditorIds.includes(loggedInUserId)
     if (!isAllowed) throw ContractErrors.NotAuthorizedInBoard()
 
     // 3. Gọi Repo kiểm tra sếp này đã ký vào bản hợp đồng này trước đó chưa
@@ -120,7 +120,7 @@ export class ContractService {
 
     // 5. [TÍNH TOÁN ĐỒNG THUẬN]
     // Lấy tổng số lượng sếp bắt buộc phải ký từ độ dài mảng ID
-    const totalRequiredSigns = contract.boardDecision.allowedEditorIds.length
+    const totalRequiredSigns = contract.boardDecision?.boardSession?.allowedEditorIds?.length || 0
 
     // Gọi Repo đếm số chữ ký thực tế hiện tại có trong DB
     const currentActualSigns = await this.contractRepo.countBoardSignatures(contractId)
@@ -173,11 +173,11 @@ export class ContractService {
     }
 
     // Kiểm tra quyết định hội đồng đi kèm
-    if (!contract.boardDecision) {
+    if (!contract.boardDecision || !contract.boardDecision.boardSession) {
       throw ContractErrors.BoardDecisionNotFound()
     }
 
-    const allowedEditorIds = contract.boardDecision.allowedEditorIds || []
+    const allowedEditorIds = contract.boardDecision.boardSession.allowedEditorIds || []
 
     // Chặn BOARD_EDITOR xem trộm tiến độ nếu không thuộc hội đồng được chỉ định
     if (currentUserRole === 'BOARD_EDITOR' && !allowedEditorIds.includes(currentUserId)) {
