@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import envConfig from 'src/core/config/envConfig'
 
@@ -75,6 +75,17 @@ export class StorageService {
     return {
       downloadUrl,
       expiresAt: new Date(Date.now() + PRESIGN_EXPIRES_SECONDS * 1000).toISOString()
+    }
+  }
+
+  async headObjectExists(key: string): Promise<boolean> {
+    try {
+      await this.client.send(new HeadObjectCommand({ Bucket: storageEnvConfig.R2_BUCKET, Key: key }))
+      return true
+    } catch (err) {
+      const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+      if (status === 404 || status === 403) return false
+      throw err
     }
   }
 }

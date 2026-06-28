@@ -67,7 +67,7 @@ export class ContractRepo {
     })
   }
 
-  // 🌟 5. ĐÃ SỬA: Tìm hợp đồng kèm Quyết định & Đào sâu lấy Hội đồng cha (BoardSession)
+  // 5. Tìm hợp đồng kèm Quyết định (Đã sửa đổi: bỏ include khuyết allowedEditors)
   async findWithBoardDecision(contractId: string) {
     return this.prisma.contract.findUnique({
       where: { id: contractId },

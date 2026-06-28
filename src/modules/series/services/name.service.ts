@@ -6,6 +6,7 @@ import { toNameRes } from '../series.mapper'
 import { SeriesRepository } from '../series.repo'
 import { SeriesStateService } from './series-state.service'
 import { SeriesMessages } from '../series.messages'
+import { requireAssignedEditor } from './series-editor.guard'
 
 @Injectable()
 export class NameService {
@@ -15,18 +16,9 @@ export class NameService {
     private readonly notificationService: NotificationService
   ) {}
 
-  async submit(mangakaId: string, seriesId: string, nameId: string) {
-    const { name } = await this.requireOwnerName(seriesId, mangakaId, nameId)
-    if (name.status !== NameStatus.DRAFT) throw InvalidNameStateException
-    const updated = await this.seriesRepository.updateNameStatus(nameId, {
-      status: NameStatus.SUBMITTED,
-      submittedAt: new Date()
-    })
-    return toNameRes(updated)
-  }
-
   async requestRevision(editorId: string, seriesId: string, nameId: string, reason: string) {
     const { series, name } = await this.requireSeriesName(seriesId, nameId)
+    requireAssignedEditor(series, editorId)
     if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) throw InvalidNameStateException
     const updated = await this.seriesRepository.updateNameStatus(nameId, { status: NameStatus.REVISION })
     await this.notify(series.mangakaId, seriesId, SeriesMessages.notification.nameRevision(reason))
@@ -45,6 +37,7 @@ export class NameService {
 
   async approve(editorId: string, seriesId: string, nameId: string) {
     const { series, name } = await this.requireSeriesName(seriesId, nameId)
+    requireAssignedEditor(series, editorId)
     if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) throw InvalidNameStateException
     const updated = await this.seriesRepository.updateNameStatus(nameId, { status: NameStatus.APPROVED })
     await this.seriesStateService.tryAdvanceToReadyToPitch(seriesId, editorId)
@@ -61,6 +54,13 @@ export class NameService {
     const { name } = await this.requireOwnerName(seriesId, mangakaId, nameId)
     if (name.status !== NameStatus.DRAFT && name.status !== NameStatus.REVISION) throw InvalidNameStateException
     const updated = await this.seriesRepository.updateNamePages(nameId, pages)
+    return toNameRes(updated)
+  }
+
+  async addPage(mangakaId: string, seriesId: string, nameId: string, page: { pageNumber: number; fileUrl: string }) {
+    const { name } = await this.requireOwnerName(seriesId, mangakaId, nameId)
+    if (name.status !== NameStatus.DRAFT && name.status !== NameStatus.REVISION) throw InvalidNameStateException
+    const updated = await this.seriesRepository.appendNamePage(nameId, page)
     return toNameRes(updated)
   }
 

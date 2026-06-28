@@ -1,15 +1,23 @@
+packages:
+  - "."
+
 allowBuilds:
-  "@prisma/client": true
-  "@prisma/engines": true
-  prisma: true
-  "@nestjs/core": true
+  '@nestjs/core': set this to true or false
+  '@prisma/client': set this to true or false
+  '@prisma/engines': set this to true or false
+  '@scarf/scarf': set this to true or false
+  bcrypt: set this to true or false
+  esbuild: set this to true or false
+  prisma: set this to true or false
   unrs-resolver: true
-  bcrypt: true
-  '@scarf/scarf': true
-  esbuild: true
+
 onlyBuiltDependencies:
   - "@prisma/client"
-  - prisma
   - "@prisma/engines"
+  - prisma
   - "@nestjs/core"
   - unrs-resolver
+  - bcrypt
+  - "@scarf/scarf"
+  - esbuild
+  - msgpackr-extract

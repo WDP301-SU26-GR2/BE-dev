@@ -12,6 +12,9 @@ import { RolesGuard } from './security/guards/roles.guard'
 import { EmailService } from 'src/infrastructure/email/email.service'
 import { DomainEventBus } from './events/domain-event-bus.service'
 import { StorageService } from 'src/infrastructure/storage/storage.service'
+import { RedisModule } from 'src/infrastructure/redis/redis.module'
+import { QueueModule } from 'src/infrastructure/queue/queue.module'
+import { RateLimitService } from './security/rate-limit.service'
 
 const infrastructureServices = [
   PrismaService,
@@ -24,9 +27,10 @@ const infrastructureServices = [
 
 @Global()
 @Module({
-  exports: [...infrastructureServices],
+  exports: [...infrastructureServices, RedisModule, QueueModule, RateLimitService],
   providers: [
     ...infrastructureServices,
+    RateLimitService,
     AccessTokenGuard,
     {
       provide: APP_GUARD,
@@ -41,6 +45,6 @@ const infrastructureServices = [
       useClass: PasswordPolicyGuard
     }
   ],
-  imports: [JwtModule, EventEmitterModule.forRoot()]
+  imports: [JwtModule, EventEmitterModule.forRoot(), RedisModule, QueueModule]
 })
 export class CoreModule {}

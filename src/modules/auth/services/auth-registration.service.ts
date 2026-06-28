@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
 import { AuthOtpService } from './auth-otp.service'
@@ -6,7 +6,7 @@ import { RoleService } from './role.service'
 import { isUniqueConstrainError } from 'src/infrastructure/database/prisma-error.helper'
 import { OtpPurpose } from '../auth.constant'
 import { UserStatus } from 'src/core/models/user.model'
-import { EmailAlreadyVerifiedException, EmailNotFoundException } from '../errors/auth.errors'
+import { EmailAlreadyVerifiedException, EmailConflictException, EmailNotFoundException } from '../errors/auth.errors'
 import { RegisterBodyType, VerifyEmailBodyType } from '../schemas/auth-schemas'
 import { AuthMessages } from '../auth.messages'
 
@@ -35,7 +35,7 @@ export class AuthRegistrationService {
       })
     } catch (error) {
       if (isUniqueConstrainError(error)) {
-        throw new ConflictException('Error.EmailAlreadyExists')
+        throw EmailConflictException
       }
       throw error
     }

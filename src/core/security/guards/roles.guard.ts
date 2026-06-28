@@ -4,6 +4,7 @@ import { REQUEST_USER_KEY } from '../auth-type'
 import { ROLES_KEY } from '../decorators/roles.decorator'
 import { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
 import { RoleNameType } from '../role.constant'
+import { SecurityMessages } from '../security.messages'
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -21,7 +22,7 @@ export class RolesGuard implements CanActivate {
     const user = request[REQUEST_USER_KEY] as JwtAccessTokenPayload | undefined
 
     if (!user || !roles.includes(user.roleName as RoleNameType)) {
-      throw new ForbiddenException('You do not have permission to access this resource')
+      throw new ForbiddenException(SecurityMessages.forbiddenResource)
     }
 
     return true

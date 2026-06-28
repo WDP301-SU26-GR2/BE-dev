@@ -42,13 +42,14 @@ src/
         ├── <name>.service.ts        # Orchestrator (delegate tới use-case services)
         ├── <name>.repo.ts           # Module-level repository
         ├── <name>.mapper.ts         # (nếu cần) Prisma entity → response DTO (Date → ISO string)
+        ├── <name>.messages.ts       # Message catalog (text thuần): response / notification / error (xem §7)
         ├── <name>.constant.ts       # (nếu cần) enum/const cấp module
         ├── ports/                   # (nếu cần) interface tích hợp cross-module (defer BE-B)
         ├── schemas/
         │   ├── <name>.model.ts      # Entity schemas
         │   └── <name>-schemas.ts    # Request/response schemas
         ├── dto/<name>.dto.ts
-        ├── errors/<name>.errors.ts
+        ├── errors/<name>.errors.ts  # Exception const-instance (status + path); text lấy từ <name>.messages.ts
         └── services/                # Optional: use-case services + state services
             ├── <name>-<usecase>.service.ts
             └── <entity>-state.service.ts   # single-writer cho 1 state machine
@@ -64,6 +65,7 @@ src/
 | **State Service** | **Single-writer** cho 1 state machine (validate transition + audit history) | Không nghiệp vụ khác |
 | **Repository** | Data access (Prisma) | Không business logic |
 | **Mapper** | Prisma entity → response shape (Date → ISO string) | Không nghiệp vụ, không Prisma query |
+| **Messages** (`<name>.messages.ts`) | Catalog text user-facing (response/notification/error) — **string thuần** | Không import NestJS, không logic, không tạo Exception |
 | **Port** | Interface biên giới cho dependency của module khác (BE-B) | Không implement (defer + marker) |
 | **Schema (Zod)** | Validation + type inference | Không throw HttpException |
 | **DTO** | Swagger + controller return type | Không có logic |
@@ -80,6 +82,7 @@ src/
 | Zod schema | `PascalCase` + `Schema` | `RegisterBodySchema` |
 | DTO class | `PascalCase` + `Dto` | `RegisterBodyDto` |
 | Exception | `PascalCase` + `Exception` (const instance) | `InvalidOTPException` |
+| Message catalog | `PascalCase` + `Messages` (const object) | `AuthMessages.error.invalidOtp` |
 
 ## 5. Repository Placement Rule
 
@@ -103,22 +106,39 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
 
 ## 7. Error Handling & Response Envelope
 
-### Lỗi
-- Exception dùng **const instance** pattern:
+### Message catalog (text tập trung — single source of truth)
+- **Mọi message text user-facing** (success / notification / `Error.*` code) sống ở **`<name>.messages.ts`** mỗi module
+  (layer dùng chung: `src/core/http/http.messages.ts`, `src/core/security/security.messages.ts`).
+- File messages = **string thuần**, KHÔNG import NestJS, KHÔNG logic. Cấu trúc theo nhóm:
   ```typescript
-  export const InvalidOTPException = new UnprocessableEntityException([
-    { message: 'Error.InvalidOTP', path: 'code' }
-  ])
+  export const AuthMessages = {
+    response: { otpSent: 'OTP sent successfully', /* ... */ },
+    notification: { /* content thông báo, có thể là fn(reason) => `...` */ },
+    error: { invalidOtp: 'Error.InvalidOTP', /* ... các code Error.* */ }
+  } as const
   ```
-- App-level constants ở concern folder tương ứng (vd `src/core/security/role.constant.ts`);
-  domain constants ở `src/modules/<domain>/` — KHÔNG hard-code messages.
-- Error code format: `<MODULE>_<REASON>` (e.g. `AUTH_OTP_INVALID`).
+- Service/guard/notification **KHÔNG hard-code chuỗi** — luôn gọi `XxxMessages.<group>.<key>`.
+- Muốn sửa/i18n message → chỉ sửa 1 chỗ (file messages).
+
+### Lỗi
+- Exception dùng **const instance** pattern, đặt ở `errors/<name>.errors.ts`; phần **text lấy từ `<name>.messages.ts`**
+  (errors file chỉ giữ HTTP status + path):
+  ```typescript
+  // <name>.messages.ts
+  export const AuthMessages = { error: { invalidOtp: 'Error.InvalidOTP' } } as const
+  // errors/<name>.errors.ts
+  const E = AuthMessages.error
+  export const InvalidOTPException = new UnprocessableEntityException([{ message: E.invalidOtp, path: 'code' }])
+  ```
+- `Error.*` là **code** (FE map sang text hiển thị), KHÔNG hard-code chuỗi tiếng Việt/hiển thị trong service.
 - **Validation fail = 422** (CustomZodValidationPipe), KHÔNG phải 400.
 - **`CatchEverythingFilter` là bộ lọc lỗi DUY NHẤT** (safety net). Mọi lỗi chuẩn hóa về:
   ```json
-  { "success": false, "statusCode": <n>, "message": <string | zod-issues[]> }
+  { "success": false, "statusCode": <n>, "message": "<string>", "errors": [ { "message": "...", "path": "..." } ] }
   ```
-  (Prisma P2002 → 409; lỗi không xác định → 500. KHÔNG bọc object lồng object.)
+  - `message` **LUÔN là string**. Lỗi field-level (zod / domain `{message,path}[]`) → mảng issue đặt ở **`errors[]`**;
+    `message` = message của issue duy nhất, hoặc `'Validation failed'` nếu nhiều issue. Lỗi không có field → **không** có `errors`.
+  - Prisma P2002 → 409; lỗi không xác định → 500. KHÔNG bọc object lồng object / message-trong-message.
 
 ### Thành công
 - **`ResponseEnvelopeInterceptor`** bọc mọi response thành công:
@@ -163,6 +183,23 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   thì Mongo lưu **absent** (Prisma vẫn hydrate object ra `null`). `where: { deletedAt: null }` **KHÔNG match** doc absent
   → query trả rỗng. Lọc "chưa bị xoá mềm" phải dùng `{ deletedAt: { isSet: false } }`, KHÔNG `{ deletedAt: null }`.
   (Unit test mock repo KHÔNG bắt được — chỉ lộ ở smoke DB thật.)
+- **🔴 Redis 2-client tách (BullMQ vs general):** BullMQ connection **bắt buộc** `maxRetriesPerRequest: null`. KHÔNG
+  dùng chung connection đó cho RateLimitService/cron-lock — khi Redis chết, lệnh sẽ retry vô hạn (treo) thay vì lỗi
+  nhanh → cơ chế **fail-open** không kích hoạt. Client general phải `maxRetriesPerRequest: 1` + `enableOfflineQueue: false`.
+- **Rate-limit fail-open:** RateLimitService catch lỗi Redis → **cho qua** (return allowed) + log; tuyệt đối không để
+  Redis blip khóa luồng auth. (Smoke: kill Redis → request vẫn qua.)
+- **BullMQ worker graceful shutdown:** `main.ts` phải `app.enableShutdownHooks()` để worker drain job đang chạy trước
+  khi tắt. Emit/enqueue side-effect chạy SAU khi DB write commit (giống event/notify).
+- **Redis là hạ tầng BẮT BUỘC lúc boot:** `RedisService.onModuleInit` PING fail-fast → thiếu Redis = app exit. Prod
+  phải inject `REDIS_URL` reachable. (Unit test mock client — KHÔNG nối Redis thật.)
+- **🔴 ZodSerializer strip field ngoài DTO (mất response `message`):** `ResponseEnvelopeInterceptor` đăng ký TRƯỚC
+  `ZodSerializerInterceptor` ⇒ trên response path Zod serialize theo `@ZodResponse(DTO)` **trước** (strip mọi field
+  không khai trong DTO), **rồi** envelope mới đọc field `message`. Muốn trả message tuỳ biến (vd xoá thành công
+  `{ message: 'Proposal deleted' }`) thì DTO **phải chứa** field `message` → dùng **`MessageResDto`** (`core/http/response.dto.ts`).
+  Nếu DTO chỉ `{ id }` → `message` bị strip → envelope rơi về `message:'Success'`. (build/test tĩnh KHÔNG bắt được.)
+- **Partial-update (PATCH semantics):** field optional cho cập nhật từng phần → schema dùng `.nullish()` (nhận cả
+  omit lẫn `null`); repo chỉ ghi khi `!= null` (scalar: `if (body.x != null) data.x = body.x`; composite: `x: body.x ?? current.x`).
+  Quy ước: omit/`null` = giữ nguyên; gửi `[]` cho mảng = clear. Áp đồng nhất để FE đoán được hành vi.
 
 ## 11. Migration / Done Checklist
 
