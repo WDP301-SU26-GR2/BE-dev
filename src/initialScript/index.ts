@@ -1,7 +1,7 @@
-﻿import { UserStatus } from '@prisma/client'
+import { UserStatus } from '@prisma/client'
 import { config } from 'dotenv'
 import { env } from 'process'
-import { RoleName } from 'src/core/security/role.constant'
+import { RoleName } from 'src/core/security/constants/role.constant'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 config()
