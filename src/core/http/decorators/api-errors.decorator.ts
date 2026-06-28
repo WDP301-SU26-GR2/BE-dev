@@ -1,4 +1,4 @@
-import { applyDecorators, HttpException } from '@nestjs/common'
+﻿import { applyDecorators, HttpException } from '@nestjs/common'
 import { ApiResponse } from '@nestjs/swagger'
 import { ERROR_HINTS } from '../docs/error-docs'
 
@@ -28,7 +28,7 @@ export function buildApiErrorSpecs(exceptions: HttpException[]): ApiErrorSpec[] 
     const code = extractCode(exception)
     const bareCode = code.split(' ')[0]
     const hint = ERROR_HINTS[bareCode]
-    const text = hint ? `${code} — ${hint}` : code
+    const text = hint ? `${code} - ${hint}` : code
     const descriptions = byStatus.get(status) ?? []
 
     if (!descriptions.includes(text)) descriptions.push(text)

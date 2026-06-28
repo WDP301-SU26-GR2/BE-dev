@@ -1,18 +1,18 @@
-import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
+﻿import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
 import { buildApiErrorSpecs, extractCode } from './api-errors.decorator'
 
 describe('extractCode', () => {
-  it('lấy code từ exception message đơn', () => {
+  it('extracts code from a plain exception message', () => {
     expect(extractCode(new NotFoundException('Error.ChapterNotFound'))).toBe('Error.ChapterNotFound')
   })
 
-  it('lấy code + path từ 422 field-level', () => {
+  it('extracts code and path from a field-level 422 exception', () => {
     const exception = new UnprocessableEntityException([{ message: 'Error.NameNotApproved', path: 'nameId' }])
 
     expect(extractCode(exception)).toBe('Error.NameNotApproved (nameId)')
   })
 
-  it('ghép nhiều issue trong 1 exception 422', () => {
+  it('joins multiple issues in one 422 exception', () => {
     const exception = new UnprocessableEntityException([
       { message: 'Error.X', path: 'a' },
       { message: 'Error.Y', path: 'b' }
@@ -23,7 +23,7 @@ describe('extractCode', () => {
 })
 
 describe('buildApiErrorSpecs', () => {
-  it('gộp các exception cùng status thành 1 spec', () => {
+  it('groups exceptions with the same status into one spec', () => {
     const specs = buildApiErrorSpecs([
       new ConflictException('Error.PagesNotAllCompleted'),
       new ConflictException('Error.InvalidManuscriptTransition')
@@ -35,13 +35,13 @@ describe('buildApiErrorSpecs', () => {
     expect(specs[0].description).toContain(' | ')
   })
 
-  it('append hint từ ERROR_HINTS khi có', () => {
+  it('appends hint from ERROR_HINTS when present', () => {
     const specs = buildApiErrorSpecs([new NotFoundException('Error.ChapterNotFound')])
 
-    expect(specs[0].description).toBe('Error.ChapterNotFound — chapter/series không tồn tại')
+    expect(specs[0].description).toBe('Error.ChapterNotFound - chapter or series does not exist')
   })
 
-  it('mỗi status khác nhau tạo 1 spec riêng', () => {
+  it('creates one spec for each distinct status', () => {
     const specs = buildApiErrorSpecs([
       new ForbiddenException('Error.NotSeriesOwner'),
       new NotFoundException('Error.ChapterNotFound')
