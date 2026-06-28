@@ -29,7 +29,6 @@ export const CreateContractBodySchema = extendApi(
         .string({ error: 'terminationClause phải là một chuỗi ký tự' })
         .min(1, { message: 'terminationClause là bắt buộc' }),
 
-      // Ép kiểu (Coerce) chuỗi ISO 8601 String từ HTTP Request thành đối tượng Date của JS
       contractStart: z
         .string()
         .datetime({ message: 'contractStart phải là chuỗi định dạng ISO 8601 (YYYY-MM-DDTHH:mm:ss.sssZ)' })
@@ -42,10 +41,8 @@ export const CreateContractBodySchema = extendApi(
     })
     .strict()
     .superRefine(({ contractType, publisherOwnershipPct, mangakaOwnershipPct }, ctx) => {
-      // Hợp đồng mua đứt (FULL_BUYOUT) -> Chấp nhận tỷ lệ sở hữu của cả 2 bên bằng 0%
       if (contractType === 'FULL_BUYOUT') return
 
-      // Ràng buộc tổng 100% áp dụng cho các mô hình hợp tác bản quyền thương mại thông thường
       if (publisherOwnershipPct + mangakaOwnershipPct !== 100) {
         ctx.addIssue({
           code: 'custom',
@@ -82,16 +79,27 @@ export const EditorUpdateContractBodySchema = extendApi(
     .superRefine(({ contractType, publisherOwnershipPct, mangakaOwnershipPct }, ctx) => {
       if (contractType === 'FULL_BUYOUT') return
 
-      if (publisherOwnershipPct !== undefined || mangakaOwnershipPct !== undefined) {
-        const pubPct = publisherOwnershipPct ?? 0
-        const manPct = mangakaOwnershipPct ?? 0
-        if (pubPct + manPct !== 100) {
+      // 🌟 FIX LOGIC TẠI ĐÂY: Kiểm tra xem có sự xuất hiện của việc thay đổi tỷ lệ hay không
+      const hasPub = publisherOwnershipPct !== undefined
+      const hasMan = mangakaOwnershipPct !== undefined
+
+      if (hasPub && hasMan) {
+        // Nếu truyền cả 2, tiến hành check tổng 100% bình thường
+        if (publisherOwnershipPct + mangakaOwnershipPct !== 100) {
           ctx.addIssue({
             code: 'custom',
             message: 'Tổng phần trăm sở hữu sau khi thay đổi cấu trúc phải đạt chính xác 100%',
             path: ['mangakaOwnershipPct']
           })
         }
+      } else if (hasPub || hasMan) {
+        // Nếu chỉ truyền 1 trong 2 trường, bắt lỗi yêu cầu truyền đủ cặp để đảm bảo tính toàn vẹn ở Gateway
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'Khi thay đổi tỷ lệ phần trăm sở hữu, bạn bắt buộc phải cung cấp đồng thời cả publisherOwnershipPct và mangakaOwnershipPct',
+          path: [hasPub ? 'mangakaOwnershipPct' : 'publisherOwnershipPct']
+        })
       }
     }),
   { title: 'EditorUpdateContractBody', description: 'Cấu trúc dữ liệu cho phép cập nhật linh hoạt các điều khoản' }
