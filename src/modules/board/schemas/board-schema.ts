@@ -3,6 +3,27 @@ import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { BoardDecisionSchema, BoardConfigSchema, SeriesReportSchema } from './board.model'
 
+export const CreateBoardSessionBodySchema = z.object({
+  title: z
+    .string()
+    .min(5, 'Tiêu đề phiên họp phải từ 5 ký tự trở lên.')
+    .max(100, 'Tiêu đề phiên họp không được vượt quá 100 ký tự.'),
+
+  startTime: z
+    .string()
+    .datetime({ message: 'startTime phải là chuỗi định dạng ISO 8601 (YYYY-MM-DDTHH:mm:ss.sssZ)' })
+    .refine((value) => new Date(value) > new Date(), {
+      message: 'Thời gian bắt đầu phiên họp phải là một thời điểm trong tương lai.'
+    })
+    .transform((value) => new Date(value)),
+
+  description: z.string().max(500, 'Mô tả không được vượt quá 500 ký tự.').optional().nullable(),
+
+  // 💡 CHÚ Ý: Sử dụng Regex để ép kiểm tra mảng chuỗi truyền lên bắt buộc phải đúng định dạng mã ObjectId của MongoDB
+  allowedEditorIds: z
+    .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'Mã định danh thành viên ban biên tập không hợp lệ.'))
+    .min(3, 'Phiên họp bắt buộc phải mời ít nhất 3 thành viên ban biên tập tham gia.')
+})
 // 1. Schema phục vụ API tạo cuộc họp biểu quyết mới (POST /board/decisions)
 export const CreateBoardDecisionBodySchema = extendApi(
   BoardDecisionSchema.omit({
@@ -32,7 +53,7 @@ export const CreateBoardDecisionBodySchema = extendApi(
 export const CastVoteBodySchema = extendApi(
   z
     .object({
-      voterId: z.string().min(1, { message: 'voterId định danh người bỏ phiếu là bắt buộc' }),
+      // voterId: z.string().min(1, { message: 'voterId định danh người bỏ phiếu là bắt buộc' }),
       voteValue: z.enum(['APPROVE', 'REJECT', 'ABSTAIN'], {
         error: 'voteValue bắt buộc phải thuộc nhóm: APPROVE, REJECT, ABSTAIN'
       }),
@@ -46,6 +67,7 @@ export const CastVoteBodySchema = extendApi(
 export const CreateSeriesReportBodySchema = extendApi(
   SeriesReportSchema.omit({
     id: true,
+    preparedBy: true,
     createdAt: true,
     updatedAt: true
   }).extend({

@@ -2,13 +2,17 @@ import { $Enums } from '@prisma/client'
 import { extendApi } from '@anatine/zod-openapi'
 import { z } from 'zod'
 
-// 🌟 Đồng bộ Enum DecisionType (Giả định cái này có trong prisma, nếu không có bạn cũng đổi sang z.enum tương tự nhé)
+// 🌟 Đồng bộ Enum DecisionType
 export const DecisionType = $Enums.DecisionType
 export type DecisionTypeType = $Enums.DecisionType
 
-// 🔥 TỰ ĐỊNH NGHĨA: Vì Prisma không có BoardDecisionResult, ta định nghĩa thuần bằng Zod Enum
+// 🔥 TỰ ĐỊNH NGHĨA: Trạng thái kết quả của Quyết định
 export const BoardDecisionResult = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PENDING_QUORUM'])
 export type BoardDecisionResultType = z.infer<typeof BoardDecisionResult>
+
+// 🔥 TỰ ĐỊNH NGHĨA: Trạng thái của một Phiên họp Hội đồng
+export const BoardSessionStatus = $Enums.BoardSessionStatus
+export type BoardSessionStatusType = z.infer<typeof BoardSessionStatus>
 
 // 🔥 Base Vote Schema (Mảng đối tượng nhúng trong MongoDB)
 export const VoteSchema = extendApi(
@@ -21,6 +25,22 @@ export const VoteSchema = extendApi(
   { title: 'Vote', description: 'Cấu trúc đối tượng phiếu bầu nhúng trong Decision' }
 )
 
+// 🔥 Base BoardSession Schema (Bổ sung mới)
+export const BoardSessionSchema = extendApi(
+  z.object({
+    id: z.string(),
+    title: z.string(),
+    description: z.string().nullable(),
+    creatorId: z.string(),
+    status: BoardSessionStatus,
+    allowedEditorIds: z.array(z.string()),
+    startTime: z.coerce.date(),
+    createdAt: z.coerce.date(),
+    updatedAt: z.coerce.date()
+  }),
+  { title: 'BoardSession', description: 'Gốc thực thể phiên họp Hội đồng tổng' }
+)
+
 // 🔥 Base BoardDecision Schema
 export const BoardDecisionSchema = extendApi(
   z.object({
@@ -29,7 +49,7 @@ export const BoardDecisionSchema = extendApi(
     targetSeriesId: z.string().nullable(),
     decisionType: z.nativeEnum($Enums.DecisionType),
     details: z.record(z.string(), z.any()).nullable(),
-    result: BoardDecisionResult, // 🌟 Sử dụng Zod Enum vừa định nghĩa ở trên thay vì z.nativeEnum
+    result: BoardDecisionResult,
     votes: z.array(VoteSchema),
     approveCount: z.number(),
     rejectCount: z.number(),
@@ -74,6 +94,7 @@ export const BoardConfigSchema = extendApi(
 )
 
 export type VoteDataType = z.infer<typeof VoteSchema>
+export type BoardSessionDataType = z.infer<typeof BoardSessionSchema> // 🌟 Bổ sung mới
 export type BoardDecisionDataType = z.infer<typeof BoardDecisionSchema>
 export type SeriesReportDataType = z.infer<typeof SeriesReportSchema>
 export type BoardConfigDataType = z.infer<typeof BoardConfigSchema>

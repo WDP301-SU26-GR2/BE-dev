@@ -7,6 +7,7 @@ import CustomZodValidationPipe from 'src/core/http/pipes/custom-zod-validation.p
 import { CoreModule } from 'src/core/core.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { EventEmitterModule } from '@nestjs/event-emitter'
+import { ScheduleModule } from '@nestjs/schedule'
 import { ContractModule } from './modules/contract/contract.module'
 import { ChapterModule } from './modules/chapter/chapter.module'
 import { NotificationModule } from './modules/notification/notification.module'
@@ -20,6 +21,7 @@ import { BoardModule } from './modules/board/board.module'
 @Module({
   imports: [
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     CoreModule,
     AuthModule,
     ContractModule,

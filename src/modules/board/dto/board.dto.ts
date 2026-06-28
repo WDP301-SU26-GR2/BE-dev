@@ -3,9 +3,11 @@ import {
   CreateBoardDecisionBodySchema,
   CastVoteBodySchema,
   CreateSeriesReportBodySchema,
-  UpdateBoardConfigBodySchema
+  UpdateBoardConfigBodySchema,
+  CreateBoardSessionBodySchema
 } from '../schemas/board-schema'
 
+export class CreateBoardSessionBodyDto extends createZodDto(CreateBoardSessionBodySchema) {}
 export class CreateBoardDecisionBodyDto extends createZodDto(CreateBoardDecisionBodySchema) {}
 export class CastVoteBodyDto extends createZodDto(CastVoteBodySchema) {}
 export class CreateSeriesReportBodyDto extends createZodDto(CreateSeriesReportBodySchema) {}
