@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
+import { MessageResDto } from 'src/core/http/response.dto'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { RoleName } from 'src/core/security/role.constant'
@@ -72,6 +73,13 @@ export class SeriesController {
   @ZodResponse({ type: SeriesResDto })
   updateProposal(@Param('id') id: string, @Body() body: UpdateProposalBodyDto, @ActiveUser('userId') userId: string) {
     return this.seriesService.updateProposal(userId, id, body)
+  }
+
+  @Delete('proposals/:id')
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ type: MessageResDto })
+  deleteProposal(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.seriesService.deleteProposal(userId, id)
   }
 
   @Post(':id/submit')

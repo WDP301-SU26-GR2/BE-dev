@@ -23,6 +23,7 @@ export class SeriesRepository {
       data: {
         mangakaId,
         title: body.title,
+        coverImage: body.coverImage ?? null,
         genre: body.genre ?? null,
         demographic: body.demographic ?? null,
         publicationType: body.publicationType ?? null,
@@ -66,34 +67,38 @@ export class SeriesRepository {
     return await this.prismaService.name.findUnique({ where: { id: nameId } })
   }
 
-  async updateProposalDraft(seriesId: string, nameId: string | null, body: UpdateProposalBodyType) {
+  async updateProposalContent(seriesId: string, body: UpdateProposalBodyType) {
     const series = await this.prismaService.series.findUnique({ where: { id: seriesId } })
     if (!series?.proposal) throw SeriesNotFoundException
 
-    // Merge: field không gửi (undefined) giữ nguyên giá trị cũ. Dùng `set` full để tránh wipe composite.
-    const updated = await this.prismaService.series.update({
-      where: { id: seriesId },
-      data: {
-        title: body.title,
-        genre: body.genre,
-        demographic: body.demographic,
-        publicationType: body.publicationType,
-        proposal: {
-          set: {
-            ...series.proposal,
-            synopsis: body.synopsis ?? series.proposal.synopsis,
-            characterDesigns: body.characterDesigns ?? series.proposal.characterDesigns,
-            estimatedLength: body.estimatedLength ?? series.proposal.estimatedLength
-          }
-        }
+    const data: Prisma.SeriesUpdateInput = {}
+    if (body.title != null) data.title = body.title
+    if (body.coverImage != null) data.coverImage = body.coverImage
+    if (body.genre != null) data.genre = body.genre
+    if (body.demographic != null) data.demographic = body.demographic
+    if (body.publicationType != null) data.publicationType = body.publicationType
+    data.proposal = {
+      set: {
+        ...series.proposal,
+        synopsis: body.synopsis ?? series.proposal.synopsis,
+        characterDesigns: body.characterDesigns ?? series.proposal.characterDesigns,
+        estimatedLength: body.estimatedLength ?? series.proposal.estimatedLength
       }
-    })
-
-    if (body.namePages && nameId) {
-      await this.updateNamePages(nameId, body.namePages)
     }
 
+    const updated = await this.prismaService.series.update({
+      where: { id: seriesId },
+      data
+    })
+
     return updated
+  }
+
+  async deleteSeriesWithNames(seriesId: string): Promise<void> {
+    await this.prismaService.$transaction([
+      this.prismaService.name.deleteMany({ where: { seriesId } }),
+      this.prismaService.series.delete({ where: { id: seriesId } })
+    ])
   }
 
   async updateProposalStatus(seriesId: string, status: ProposalStatus) {
@@ -135,6 +140,10 @@ export class SeriesRepository {
 
   async updateNamePages(nameId: string, pages: { pageNumber: number; fileUrl: string }[]) {
     return await this.prismaService.name.update({ where: { id: nameId }, data: { pages: { set: pages } } })
+  }
+
+  async appendNamePage(nameId: string, page: { pageNumber: number; fileUrl: string }) {
+    return await this.prismaService.name.update({ where: { id: nameId }, data: { pages: { push: page } } })
   }
 
   // Single-writer cho Series.status: chỉ method này (gọi từ SeriesStateService) ghi status + audit.

@@ -6,6 +6,7 @@ import {
   NotSeriesOwnerException,
   ParentSeriesNotFoundException,
   ProposalNotEditableException,
+  ProposalNotDeletableException,
   SeriesNotFoundException
 } from '../errors/series.errors'
 import { toNameRes, toSeriesRes } from '../series.mapper'
@@ -14,6 +15,8 @@ import { CreateProposalBodyType, UpdateProposalBodyType } from '../schemas/serie
 import { SeriesStateService } from './series-state.service'
 import { SeriesMessages } from '../series.messages'
 import { requireAssignedEditor } from './series-editor.guard'
+
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class SeriesProposalService {
@@ -39,7 +42,7 @@ export class SeriesProposalService {
     const editable =
       series.status === SeriesStatus.DRAFT || series.proposal?.status === ProposalStatus.PROPOSAL_REVISION
     if (!editable) throw ProposalNotEditableException
-    const updated = await this.seriesRepository.updateProposalDraft(seriesId, series.proposal?.nameId ?? null, body)
+    const updated = await this.seriesRepository.updateProposalContent(seriesId, body)
     return toSeriesRes(updated)
   }
 
@@ -116,6 +119,14 @@ export class SeriesProposalService {
       reason
     })
     return toSeriesRes(updated)
+  }
+
+  async deleteProposal(mangakaId: string, seriesId: string) {
+    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    const series = await this.requireOwner(seriesId, mangakaId)
+    if (series.status !== SeriesStatus.DRAFT) throw ProposalNotDeletableException
+    await this.seriesRepository.deleteSeriesWithNames(seriesId)
+    return { message: SeriesMessages.response.proposalDeleted }
   }
 
   private async requireSeries(seriesId: string) {

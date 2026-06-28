@@ -38,6 +38,8 @@ const baseName = {
   pages: []
 }
 
+const SID = '0123456789abcdef01234567'
+
 function make(seriesOverride: Record<string, unknown> = {}) {
   const series = { ...baseSeries, ...seriesOverride }
   const seriesRepository = {
@@ -46,8 +48,9 @@ function make(seriesOverride: Record<string, unknown> = {}) {
     updateProposalStatus: jest
       .fn()
       .mockImplementation((id, status) => Promise.resolve({ ...series, proposal: { ...series.proposal, status } })),
-    updateProposalDraft: jest.fn().mockResolvedValue(series),
+    updateProposalContent: jest.fn().mockResolvedValue(series),
     updateNameStatus: jest.fn().mockResolvedValue({ ...baseName, status: 'SUBMITTED', submittedAt: new Date() }),
+    deleteSeriesWithNames: jest.fn().mockResolvedValue(undefined),
     markReviewStarted: jest.fn().mockResolvedValue(undefined)
   }
   const seriesStateService = {
@@ -139,7 +142,7 @@ describe('SeriesProposalService', () => {
 
     await service.updateProposal('m1', 's1', { synopsis: 'v2' })
 
-    expect(seriesRepository.updateProposalDraft).toHaveBeenCalled()
+    expect(seriesRepository.updateProposalContent).toHaveBeenCalledWith('s1', { synopsis: 'v2' })
   })
 
   it('updateProposal rejects edits while proposal is in PROPOSAL_REVIEW', async () => {
@@ -149,5 +152,33 @@ describe('SeriesProposalService', () => {
     })
 
     await expect(service.updateProposal('m1', 's1', { synopsis: 'x' })).rejects.toBeDefined()
+  })
+
+  it('deleteProposal deletes DRAFT proposal and returns message', async () => {
+    const { service, seriesRepository } = make({ id: SID, status: SeriesStatus.DRAFT })
+
+    const res = await service.deleteProposal('m1', SID)
+
+    expect(seriesRepository.deleteSeriesWithNames).toHaveBeenCalledWith(SID)
+    expect(res.message).toBeDefined()
+  })
+
+  it('deleteProposal rejects non-DRAFT series', async () => {
+    const { service } = make({ id: SID, status: SeriesStatus.IN_REVIEW })
+
+    await expect(service.deleteProposal('m1', SID)).rejects.toBeDefined()
+  })
+
+  it('deleteProposal rejects non-owner', async () => {
+    const { service } = make({ id: SID, status: SeriesStatus.DRAFT })
+
+    await expect(service.deleteProposal('other', SID)).rejects.toBeDefined()
+  })
+
+  it('deleteProposal rejects malformed ids before repository lookup', async () => {
+    const { service, seriesRepository } = make()
+
+    await expect(service.deleteProposal('m1', 'bad-id')).rejects.toBeDefined()
+    expect(seriesRepository.findById).not.toHaveBeenCalled()
   })
 })
