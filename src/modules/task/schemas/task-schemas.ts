@@ -84,13 +84,10 @@ export const SubmitTaskBodySchema = extendApi(z.object({ file: z.string().min(1)
   description: 'Assistant nộp kết quả (object key R2)'
 })
 
-export const RequestRevisionBodySchema = extendApi(
-  z.object({ reviewerNote: z.string().min(1).max(1000) }).strict(),
-  {
-    title: 'RequestRevisionBody',
-    description: 'Mangaka yêu cầu sửa (markup tạo riêng qua POST /annotations)'
-  }
-)
+export const RequestRevisionBodySchema = extendApi(z.object({ reviewerNote: z.string().min(1).max(1000) }).strict(), {
+  title: 'RequestRevisionBody',
+  description: 'Mangaka yêu cầu sửa (markup tạo riêng qua POST /annotations)'
+})
 
 export const ReassignTaskBodySchema = extendApi(z.object({ assistantId: z.string() }).strict(), {
   title: 'ReassignTaskBody',

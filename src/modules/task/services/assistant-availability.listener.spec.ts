@@ -9,7 +9,11 @@ describe('AssistantAvailabilityListener', () => {
   it('holds ASSIGNED/IN_PROGRESS/REVISION_REQUESTED tasks on ON_LEAVE', async () => {
     repo.findTasksByAssistantInStatuses.mockResolvedValue([{ id: 't1' }, { id: 't2' }])
     await listener.handle({ assistantId: 'a', availabilityStatus: 'ON_LEAVE' })
-    expect(repo.findTasksByAssistantInStatuses).toHaveBeenCalledWith('a', ['ASSIGNED', 'IN_PROGRESS', 'REVISION_REQUESTED'])
+    expect(repo.findTasksByAssistantInStatuses).toHaveBeenCalledWith('a', [
+      'ASSIGNED',
+      'IN_PROGRESS',
+      'REVISION_REQUESTED'
+    ])
     expect(taskState.transition).toHaveBeenCalledWith('t1', 'ON_HOLD')
     expect(taskState.transition).toHaveBeenCalledWith('t2', 'ON_HOLD')
   })

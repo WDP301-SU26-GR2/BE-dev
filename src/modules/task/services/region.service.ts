@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common'
-import { NotSeriesOwnerException, PageNotFoundException, RegionHasTasksException, RegionNotFoundException } from '../errors/task.errors'
+import {
+  NotSeriesOwnerException,
+  PageNotFoundException,
+  RegionHasTasksException,
+  RegionNotFoundException
+} from '../errors/task.errors'
 import { TaskRepository } from '../task.repo'
 import { toRegionRes } from '../task.mapper'
 import { CreateRegionBodyType, UpdateRegionBodyType } from '../schemas/task-schemas'
@@ -44,7 +49,11 @@ export class RegionService {
 
   async update(mangakaId: string, regionId: string, body: UpdateRegionBodyType) {
     await this.requireRegionOwner(mangakaId, regionId)
-    const data: { coordinates?: CreateRegionBodyType['coordinates']; regionType?: UpdateRegionBodyType['regionType']; confirmedByMangaka?: boolean } = {}
+    const data: {
+      coordinates?: CreateRegionBodyType['coordinates']
+      regionType?: UpdateRegionBodyType['regionType']
+      confirmedByMangaka?: boolean
+    } = {}
     if (body.coordinates != null) data.coordinates = body.coordinates
     if (body.regionType != null) data.regionType = body.regionType
     if (body.confirmedByMangaka != null) data.confirmedByMangaka = body.confirmedByMangaka

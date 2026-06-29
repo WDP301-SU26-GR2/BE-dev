@@ -15,7 +15,12 @@ describe('TaskCascadeService', () => {
   const TASK = { id: 't', pageId: 'p' }
 
   it('page → COMPOSITE_READY when all page tasks submitted & page IN_PROGRESS', async () => {
-    repo.findPageWithOwner.mockResolvedValue({ id: 'p', chapterId: 'c', status: 'IN_PROGRESS', chapter: { seriesId: 's', series: { mangakaId: 'm' } } })
+    repo.findPageWithOwner.mockResolvedValue({
+      id: 'p',
+      chapterId: 'c',
+      status: 'IN_PROGRESS',
+      chapter: { seriesId: 's', series: { mangakaId: 'm' } }
+    })
     repo.findTaskStatusesByPage.mockResolvedValue(['SUBMITTED', 'APPROVED'])
     repo.findTaskStatusesByChapter.mockResolvedValue(['SUBMITTED', 'NOTREACHED' as never]) // chapter not all submitted
     await service.fireOnSubmitted(TASK as never, 'm')
@@ -24,7 +29,12 @@ describe('TaskCascadeService', () => {
   })
 
   it('manuscript → COMPOSITE_REVIEW when all chapter tasks submitted & manuscript IN_PRODUCTION', async () => {
-    repo.findPageWithOwner.mockResolvedValue({ id: 'p', chapterId: 'c', status: 'COMPOSITE_READY', chapter: { seriesId: 's', series: { mangakaId: 'm' } } })
+    repo.findPageWithOwner.mockResolvedValue({
+      id: 'p',
+      chapterId: 'c',
+      status: 'COMPOSITE_READY',
+      chapter: { seriesId: 's', series: { mangakaId: 'm' } }
+    })
     repo.findTaskStatusesByPage.mockResolvedValue(['APPROVED'])
     repo.findTaskStatusesByChapter.mockResolvedValue(['SUBMITTED', 'APPROVED'])
     repo.findManuscriptStatusByChapter.mockResolvedValue({ status: 'IN_PRODUCTION' })
@@ -33,7 +43,12 @@ describe('TaskCascadeService', () => {
   })
 
   it('swallows transition error (no throw)', async () => {
-    repo.findPageWithOwner.mockResolvedValue({ id: 'p', chapterId: 'c', status: 'IN_PROGRESS', chapter: { seriesId: 's', series: { mangakaId: 'm' } } })
+    repo.findPageWithOwner.mockResolvedValue({
+      id: 'p',
+      chapterId: 'c',
+      status: 'IN_PROGRESS',
+      chapter: { seriesId: 's', series: { mangakaId: 'm' } }
+    })
     repo.findTaskStatusesByPage.mockResolvedValue(['SUBMITTED'])
     repo.findTaskStatusesByChapter.mockResolvedValue(['SUBMITTED'])
     repo.findManuscriptStatusByChapter.mockResolvedValue({ status: 'PUBLISHED' })

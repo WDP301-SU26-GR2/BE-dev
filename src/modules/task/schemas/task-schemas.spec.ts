@@ -17,8 +17,17 @@ describe('task-schemas', () => {
 
   it('TaskRes keeps assetIds + versions arrays', () => {
     const r = TaskResSchema.parse({
-      id: '1', pageId: 'p', regionId: null, assistantId: 'a', taskType: 'BACKGROUND',
-      status: 'ASSIGNED', priority: 0, deadline: null, assetIds: ['k1'], versions: [], createdAt: '2026-06-29T00:00:00.000Z'
+      id: '1',
+      pageId: 'p',
+      regionId: null,
+      assistantId: 'a',
+      taskType: 'BACKGROUND',
+      status: 'ASSIGNED',
+      priority: 0,
+      deadline: null,
+      assetIds: ['k1'],
+      versions: [],
+      createdAt: '2026-06-29T00:00:00.000Z'
     })
     expect(r.assetIds).toEqual(['k1'])
   })

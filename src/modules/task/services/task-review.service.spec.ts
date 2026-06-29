@@ -1,7 +1,12 @@
 import { TaskReviewService } from './task-review.service'
 import { NotSeriesOwnerException, NotTaskAssigneeException } from '../errors/task.errors'
 
-const PAGE = { id: 'a'.repeat(24), chapterId: 'c', status: 'IN_PROGRESS', chapter: { seriesId: 's', series: { mangakaId: 'm' } } }
+const PAGE = {
+  id: 'a'.repeat(24),
+  chapterId: 'c',
+  status: 'IN_PROGRESS',
+  chapter: { seriesId: 's', series: { mangakaId: 'm' } }
+}
 const ID = 'a'.repeat(24)
 
 describe('TaskReviewService', () => {
@@ -17,9 +22,31 @@ describe('TaskReviewService', () => {
   const service = new TaskReviewService(repo as never, taskState as never, cascade as never, notification as never)
   beforeEach(() => jest.clearAllMocks())
 
+  it('start assignee: transition ASSIGNED → IN_PROGRESS', async () => {
+    repo.findTaskById
+      .mockResolvedValueOnce({ id: 't', pageId: 'a'.repeat(24), assistantId: 'me', status: 'ASSIGNED', versions: [] })
+      .mockResolvedValue({
+        id: 't',
+        pageId: 'a'.repeat(24),
+        assistantId: 'me',
+        status: 'IN_PROGRESS',
+        priority: 0,
+        assetIds: [],
+        versions: [],
+        createdAt: new Date()
+      })
+    await service.start('me', ID)
+    expect(taskState.transition).toHaveBeenCalledWith(ID, 'IN_PROGRESS')
+  })
+
+  it('start rejects non-assignee → 403', async () => {
+    repo.findTaskById.mockResolvedValue({ id: 't', pageId: 'a'.repeat(24), assistantId: 'OTHER', versions: [] })
+    await expect(service.start('me', ID)).rejects.toBe(NotTaskAssigneeException)
+  })
+
   it('submit rejects non-assignee → 403', async () => {
     repo.findTaskById.mockResolvedValue({ id: 't', pageId: 'a'.repeat(24), assistantId: 'OTHER', versions: [] })
-    await expect(service.submit('me', ID, { file: 'k' } as never)).rejects.toBe(NotTaskAssigneeException)
+    await expect(service.submit('me', ID, { file: 'k' })).rejects.toBe(NotTaskAssigneeException)
   })
 
   it('submit assignee: transition SUBMITTED + push version + cascade', async () => {
@@ -35,7 +62,7 @@ describe('TaskReviewService', () => {
         versions: [{ versionNumber: 1, reviewStatus: 'PENDING', submittedAt: new Date() }],
         createdAt: new Date()
       })
-    await service.submit('me', ID, { file: 'k' } as never)
+    await service.submit('me', ID, { file: 'k' })
     expect(taskState.transition).toHaveBeenCalledWith(ID, 'SUBMITTED')
     expect(repo.pushTaskVersion).toHaveBeenCalledWith(ID, { submittedBy: 'me', versionNumber: 1, file: 'k' })
     expect(cascade.fireOnSubmitted).toHaveBeenCalled()
@@ -48,7 +75,16 @@ describe('TaskReviewService', () => {
   })
 
   it('approve owner: 2-step transition + version APPROVED', async () => {
-    repo.findTaskById.mockResolvedValue({ id: 't', pageId: 'a'.repeat(24), assistantId: 'a', status: 'SUBMITTED', priority: 0, assetIds: [], versions: [], createdAt: new Date() })
+    repo.findTaskById.mockResolvedValue({
+      id: 't',
+      pageId: 'a'.repeat(24),
+      assistantId: 'a',
+      status: 'SUBMITTED',
+      priority: 0,
+      assetIds: [],
+      versions: [],
+      createdAt: new Date()
+    })
     repo.findPageWithOwner.mockResolvedValue(PAGE)
     await service.approve('m', ID)
     expect(taskState.transition).toHaveBeenNthCalledWith(1, ID, 'UNDER_REVIEW')
