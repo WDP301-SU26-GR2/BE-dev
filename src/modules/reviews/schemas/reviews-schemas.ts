@@ -7,7 +7,7 @@ export const CreateAssistantReviewBodySchema = extendApi(
       assistantId: z.string(),
       rating: z.number().int().min(1).max(5),
       comment: z.string().max(1000).optional(),
-      studioAssignmentId: z.string().optional(),
+      studioAssignmentId: z.string(),
       seriesId: z.string().optional()
     })
     .strict(),

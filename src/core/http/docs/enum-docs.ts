@@ -16,6 +16,8 @@ export const ENUM_DOCS = {
   Demographic: 'Phân khúc độc giả: SHONEN, SEINEN, SHOJO, JOSEI, KODOMO',
   AvailabilityStatus: 'Assistant availability: AVAILABLE, BUSY, ON_LEAVE, UNAVAILABLE',
   Specialization: 'Assistant specialization/task type',
+  CollaborationInviteStatus: 'Trạng thái lời mời cộng tác: PENDING, ACCEPTED, DECLINED, EXPIRED, CANCELLED',
+  StudioAssignmentStatus: 'Trạng thái hợp tác studio: ACTIVE, COMPLETED, TERMINATED',
   SeriesStatus: 'Series state machine status',
   ProposalStatus: 'Series proposal review status',
   NameStatus: 'Name/chapter-name review status',

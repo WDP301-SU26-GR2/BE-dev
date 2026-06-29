@@ -10,8 +10,10 @@ import {
   AdminCreateUserResDto,
   AdminUserListResDto,
   AdminUserResDto,
+  AssistantDirectoryListResDto,
   AssistantProfileBodyDto,
   AssistantProfileResDto,
+  ListAssistantsQueryDto,
   ListUsersQueryDto,
   MangakaProfileBodyDto,
   MangakaProfileResDto
@@ -98,6 +100,16 @@ export class UsersController {
   @ZodResponse({ status: 200, type: MangakaProfileResDto })
   getMangakaProfile(@Param('userId') userId: string) {
     return this.usersService.getMangakaProfile(userId)
+  }
+
+  @Get('assistants')
+  @ApiOperation({
+    summary: 'Danh bạ trợ lý: lọc specialization/level/availability, ưu tiên isRecommended/reputation (ẩn email/phone)'
+  })
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 200, type: AssistantDirectoryListResDto })
+  listAssistants(@Query() query: ListAssistantsQueryDto) {
+    return this.usersService.listAssistants(query)
   }
 
   @Get('assistants/:userId')
