@@ -21,6 +21,7 @@ export class CatchEverythingFilter implements ExceptionFilter {
     const { httpAdapter } = this.httpAdapterHost
     const ctx = host.switchToHttp()
 
+    //Kiểm tra nếu exception là ZodSerializationException, log thông tin lỗi Zod
     if (exception instanceof ZodSerializationException) {
       const zodError = exception.getZodError()
       if (zodError instanceof ZodError) {
@@ -33,14 +34,17 @@ export class CatchEverythingFilter implements ExceptionFilter {
     let extra: Record<string, unknown> | undefined
 
     if (exception instanceof HttpException) {
+      // Lỗi của Nest (HttpException) → lấy status, message, extra
       httpStatus = exception.getStatus()
       const response = exception.getResponse()
       extracted = extractMessage(response)
       extra = extractExtra(response)
     } else if (isUniqueConstrainError(exception)) {
+      // Lỗi unique constraint của Prisma → trả về 409 Conflict
       httpStatus = HttpStatus.CONFLICT
       extracted = HttpMessages.recordAlreadyExists
     } else {
+      // Lỗi không xác định → trả về 500 Internal Server Error
       httpStatus = HttpStatus.INTERNAL_SERVER_ERROR
       extracted = HttpMessages.internalServerError
       this.logger.error(
@@ -65,6 +69,7 @@ function extractMessage(response: string | object): unknown {
   return response
 }
 
+// Lấy phần extra (ngoài message/statusCode/error) để trả về FE, nếu có.
 function extractExtra(response: string | object): Record<string, unknown> | undefined {
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
     return undefined
@@ -77,7 +82,7 @@ function extractExtra(response: string | object): Record<string, unknown> | unde
 }
 
 type FieldIssue = { message: string; path?: string }
-
+// Kiểm tra xem value có phải là FieldIssue không (có message string, path optional)
 function isFieldIssue(value: unknown): value is FieldIssue {
   return typeof value === 'object' && value !== null && 'message' in value && typeof value.message === 'string'
 }

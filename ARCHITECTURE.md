@@ -47,7 +47,8 @@ BE-dev/
 │   │   ├── chapter/                # Chapter/Schedule/Manuscript/Page + publish
 │   │   ├── annotation/             # markup review (shared Mangaka↔Assistant, Editor↔Mangaka)
 │   │   ├── storage/                # signed URL (presign PUT/GET) wiring
-│   │   └── contract/               # ⚠️ BE-B (Commercial & Governance) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
+│   │   ├── contract/               # ⚠️ BE-B (B1 Contract/Payment) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
+│   │   └── board/                  # ⚠️ BE-B (B5 Board/Decision engine) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
 │   │       # mỗi module: controller(s) + service (orchestrator) + services/ (use-case + state)
 │   │       #            + repo + mapper? + messages? + constant? + ports? + schemas + dto + errors
 │   │       # <name>.messages.ts: catalog text user-facing (response/notification/error) — string thuần,
@@ -150,7 +151,7 @@ graph TD
 ### RBAC (Authorization)
 
 - Routes without `@Roles()` behave as authenticated routes without role restriction.
-- Routes with `@Roles(RoleName.ADMIN, ...)` require the access-token `roleName` to be in the allowed list; missing user or wrong role returns 403.
+- Routes with `@Roles(RoleName.SUPER_ADMIN, ...)` require the access-token `roleName` to be in the allowed list; missing user or wrong role returns 403. (Role codes: `MANGAKA`, `ASSISTANT`, `EDITOR`, `BOARD_MEMBER`, `SUPER_ADMIN` — **không có** `ADMIN`.)
 - The current authorization tier is role-based. Permission-based authorization can be added later when granular business rules require it.
 
 ---

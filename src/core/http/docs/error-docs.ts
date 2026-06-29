@@ -1,3 +1,4 @@
+//error-docs.ts dùng cho Swagger error description.
 export const ERROR_HINTS: Record<string, string> = {
   'Error.AccountBanned': 'account is banned or blocked',
   'Error.AnnotationForbidden': 'current user cannot update this annotation',
