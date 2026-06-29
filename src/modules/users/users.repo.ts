@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { AvailabilityStatus, Prisma, RegistrationType, UserStatus } from '@prisma/client'
-import { RoleNameType } from 'src/core/security/role.constant'
+import { RoleNameType } from 'src/core/security/constants/role.constant'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { AssistantProfileBodyType, MangakaProfileBodyType } from './schemas/users-schemas'
 
@@ -77,6 +77,15 @@ export class UsersRepository {
     return await this.prismaService.mangakaProfile.findUnique({
       where: { userId },
       include: { user: { select: { displayName: true, avatar: true } } }
+    })
+  }
+
+  // Lấy thông tin tối thiểu + role để verify khi profile absent (graceful no-profile).
+  // Gotcha §10: lọc chưa-xoá-mềm bằng isSet:false, KHÔNG { deletedAt: null }.
+  async findUserBasicsWithRole(userId: string) {
+    return await this.prismaService.user.findFirst({
+      where: { id: userId, deletedAt: { isSet: false } },
+      select: { id: true, displayName: true, avatar: true, role: { select: { code: true } } }
     })
   }
 

@@ -8,7 +8,7 @@ import {
   UpdateBoardConfigBodyDto,
   CreateBoardSessionBodyDto
 } from './dto/board.dto'
-import { RoleName } from 'src/core/security/role.constant'
+import { RoleName } from 'src/core/security/constants/role.constant'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 

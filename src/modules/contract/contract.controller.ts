@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { ContractService } from './services/contract.service'
 import { CreateContractBodyDto, EditorUpdateContractBodyDto, SignContractWithOtpBodyDto } from './dto/contract.dto'
 import { ContractStatus } from '@prisma/client'
-import { RoleName } from 'src/core/security/role.constant'
+import { RoleName } from 'src/core/security/constants/role.constant'
 import { Roles } from 'src/core/security/decorators/roles.decorator' // Đường dẫn import tùy thuộc dự án của bạn
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator' // Đường dẫn import tùy thuộc dự án của bạn
 

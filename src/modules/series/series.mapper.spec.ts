@@ -9,7 +9,7 @@ const baseSeries = {
   parentSeriesId: null,
   title: 'T',
   coverImage: null,
-  genre: null,
+  genres: [],
   demographic: null,
   publicationType: null,
   status: 'DRAFT',
@@ -30,5 +30,11 @@ describe('toSeriesRes', () => {
   it('returns null coverImage when unset', () => {
     const res = toSeriesRes(baseSeries)
     expect(res.coverImage).toBeNull()
+  })
+
+  it('surfaces genres array + demographic', () => {
+    const res = toSeriesRes({ ...baseSeries, genres: ['ACTION', 'DRAMA'], demographic: 'SEINEN' } as unknown as Series)
+    expect(res.genres).toEqual(['ACTION', 'DRAMA'])
+    expect(res.demographic).toBe('SEINEN')
   })
 })
