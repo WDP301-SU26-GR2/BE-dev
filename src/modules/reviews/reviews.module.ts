@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { StudioModule } from '../studio/studio.module'
 import { UsersModule } from '../users/users.module'
 import { ReviewsController } from './reviews.controller'
 import { ReviewsRepository } from './reviews.repo'
@@ -8,7 +9,7 @@ import { MangakaReviewService } from './services/mangaka-review.service'
 import { ReputationService } from './services/reputation.service'
 
 @Module({
-  imports: [UsersModule],
+  imports: [UsersModule, StudioModule],
   controllers: [ReviewsController],
   providers: [ReviewsService, ReviewsRepository, ReputationService, AssistantReviewService, MangakaReviewService]
 })

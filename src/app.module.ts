@@ -18,6 +18,8 @@ import { SeriesModule } from './modules/series/series.module'
 import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 import { BoardModule } from './modules/board/board.module'
+import { StudioModule } from './modules/studio/studio.module'
+import { TaskModule } from './modules/task/task.module'
 
 @Module({
   imports: [
@@ -25,10 +27,8 @@ import { BoardModule } from './modules/board/board.module'
     CoreModule,
     AuthModule,
     ContractModule,
-    CoreModule,
     ScheduleModule.forRoot(),
     EmailQueueModule,
-    AuthModule,
     UsersModule,
     NotificationModule,
     ReviewsModule,
@@ -36,7 +36,9 @@ import { BoardModule } from './modules/board/board.module'
     StorageModule,
     ChapterModule,
     AnnotationModule,
-    BoardModule
+    BoardModule,
+    StudioModule,
+    TaskModule
   ],
   controllers: [],
   providers: [

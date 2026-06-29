@@ -37,17 +37,23 @@ function make() {
     applyReputation: jest.fn().mockResolvedValue(undefined)
   }
   const notificationService = { notify: jest.fn().mockResolvedValue(undefined) }
+  const studioAssignmentService = {
+    findEndedForPairById: jest
+      .fn()
+      .mockResolvedValue({ id: 'asg1', mangakaId: 'm1', assistantId: 'a1', status: 'TERMINATED' })
+  }
   const service = new AssistantReviewService(
     reviewsRepository as never,
     new ReputationService(),
     assistantProfileService as never,
-    notificationService as never
+    notificationService as never,
+    studioAssignmentService as never
   )
-  return { service, reviewsRepository, assistantProfileService, notificationService }
+  return { service, reviewsRepository, assistantProfileService, notificationService, studioAssignmentService }
 }
 
 describe('AssistantReviewService.createOrUpdate', () => {
-  const body = { assistantId: 'a1', rating: 5, comment: 'great' }
+  const body = { assistantId: 'a1', rating: 5, comment: 'great', studioAssignmentId: 'asg1' }
 
   it('upserts review, recomputes reputation, notifies, returns mapped review', async () => {
     const { service, reviewsRepository, assistantProfileService, notificationService } = make()
@@ -57,7 +63,7 @@ describe('AssistantReviewService.createOrUpdate', () => {
       assistantId: 'a1',
       rating: 5,
       comment: 'great',
-      studioAssignmentId: null,
+      studioAssignmentId: 'asg1',
       seriesId: null
     })
     expect(assistantProfileService.applyReputation).toHaveBeenCalledWith('a1', {
@@ -79,6 +85,12 @@ describe('AssistantReviewService.createOrUpdate', () => {
   it('throws when reviewer reviews self', async () => {
     const { service } = make()
     await expect(service.createOrUpdate('a1', { ...body, assistantId: 'a1' })).rejects.toBeDefined()
+  })
+
+  it('throws when no ended assignment for the pair (gate)', async () => {
+    const { service, studioAssignmentService } = make()
+    studioAssignmentService.findEndedForPairById.mockResolvedValueOnce(null)
+    await expect(service.createOrUpdate('m1', body)).rejects.toBeDefined()
   })
 
   it('still returns review when notification fails (best-effort)', async () => {

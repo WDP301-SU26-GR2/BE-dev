@@ -145,3 +145,50 @@ export const AdminUserListResSchema = extendApi(
 )
 
 export type ListUsersQueryType = z.infer<typeof ListUsersQuerySchema>
+
+// ---- Assistant directory (A-TSK-06) ----
+export const ListAssistantsQuerySchema = extendApi(
+  z
+    .object({
+      specialization: zEnum($Enums.Specialization, 'Specialization').optional(),
+      level: z.string().min(1).max(100).optional(),
+      availableFrom: z.string().datetime({ offset: true }).optional(),
+      availableTo: z.string().datetime({ offset: true }).optional(),
+      limit: z.coerce.number().int().positive().max(100).default(20),
+      offset: z.coerce.number().int().nonnegative().default(0)
+    })
+    .strict(),
+  { title: 'ListAssistantsQuery', description: 'Lọc danh bạ trợ lý (specialization/level/availability)' }
+)
+
+export const AssistantDirectoryItemSchema = extendApi(
+  z.object({
+    userId: z.string(),
+    displayName: z.string().nullable(),
+    avatar: z.string().nullable(),
+    specializations: z.array(zEnum($Enums.Specialization, 'Specialization')),
+    experienceLevel: z.string().nullable(),
+    portfolioFiles: z.array(z.string()),
+    availabilityStatus: zEnum($Enums.AvailabilityStatus, 'AvailabilityStatus').nullable(),
+    availabilityFrom: z.string().nullable(),
+    availabilityTo: z.string().nullable(),
+    reputationScore: z.number(),
+    ratingAvg: z.number(),
+    ratingCount: z.number(),
+    isRecommended: z.boolean()
+  }),
+  { title: 'AssistantDirectoryItem', description: 'Một trợ lý trong danh bạ (ẩn email/phone)' }
+)
+
+export const AssistantDirectoryListResSchema = extendApi(
+  z.object({
+    items: z.array(AssistantDirectoryItemSchema),
+    total: z.number(),
+    limit: z.number(),
+    offset: z.number()
+  }),
+  { title: 'AssistantDirectoryListRes', description: 'Danh bạ trợ lý phân trang, ưu tiên isRecommended/reputation' }
+)
+
+export type ListAssistantsQueryType = z.infer<typeof ListAssistantsQuerySchema>
+export type AssistantDirectoryItemType = z.infer<typeof AssistantDirectoryItemSchema>

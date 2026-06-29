@@ -27,7 +27,8 @@ export class ManuscriptReviewService {
     return { chapter, series }
   }
 
-  // IN_PRODUCTION→COMPOSITE_REVIEW (manual; A4 auto khi mọi Task SUBMITTED — // A4-INTEGRATION)
+  // A4-INTEGRATION: WIRED — IN_PRODUCTION→COMPOSITE_REVIEW auto khi mọi Task SUBMITTED (task-cascade.service).
+  // Route manual này GIỮ làm fallback.
   async markCompositeReady(userId: string, chapterId: string) {
     const { series } = await this.loadOwned(userId, chapterId)
     if (series.mangakaId !== userId) throw NotSeriesOwnerException

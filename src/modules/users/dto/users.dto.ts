@@ -4,8 +4,10 @@ import {
   AdminCreateUserResSchema,
   AdminUserListResSchema,
   AdminUserResSchema,
+  AssistantDirectoryListResSchema,
   AssistantProfileBodySchema,
   AssistantProfileResSchema,
+  ListAssistantsQuerySchema,
   ListUsersQuerySchema,
   MangakaProfileBodySchema,
   MangakaProfileResSchema
@@ -20,3 +22,5 @@ export class AssistantProfileResDto extends createZodDto(AssistantProfileResSche
 export class ListUsersQueryDto extends createZodDto(ListUsersQuerySchema) {}
 export class AdminUserResDto extends createZodDto(AdminUserResSchema) {}
 export class AdminUserListResDto extends createZodDto(AdminUserListResSchema) {}
+export class ListAssistantsQueryDto extends createZodDto(ListAssistantsQuerySchema) {}
+export class AssistantDirectoryListResDto extends createZodDto(AssistantDirectoryListResSchema) {}
