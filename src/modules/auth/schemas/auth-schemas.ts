@@ -1,8 +1,9 @@
-﻿import { z } from 'zod'
+import { z } from 'zod'
 import { UserSchema } from 'src/core/models/user.model'
-import { RoleName } from 'src/core/security/role.constant'
 import { extendApi } from '@anatine/zod-openapi'
 import { OtpCodeSchema } from './auth.model'
+import { RoleCode } from '@prisma/client'
+import { zRole, zRoleSubset } from 'src/core/http/docs/enum-docs'
 
 const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,100}$/
 
@@ -14,10 +15,10 @@ export const RegisterBodySchema = extendApi(
     phoneNumber: true
   })
     .extend({
-      password: z.string().regex(PASSWORD_PATTERN, 'Password must be ≥8 chars with upper, lower and a digit'),
+      password: z.string().regex(PASSWORD_PATTERN, 'Password must be =8 chars with upper, lower and a digit'),
       displayName: z.string().min(2).max(100),
       confirm_password: z.string().min(8).max(100),
-      type: z.enum([RoleName.MANGAKA, RoleName.ASSISTANT])
+      type: zRoleSubset([RoleCode.MANGAKA, RoleCode.ASSISTANT])
     })
     .strict()
     .superRefine(({ password, confirm_password }, ctx) => {
@@ -45,7 +46,7 @@ export const VerifyEmailBodySchema = extendApi(
   { title: 'VerifyEmailBody', description: 'Request body for email verification' }
 )
 
-//OTP â€” uses OtpCodeSchema.pick (matching current behavior)
+//OTP — uses OtpCodeSchema.pick (matching current behavior)
 export const SendOtpBodySchema = extendApi(
   OtpCodeSchema.pick({
     email: true,
@@ -92,7 +93,7 @@ export const LoginResSchema = extendApi(
       displayName: true,
       phoneNumber: true
     }).extend({
-      role: z.string()
+      role: zRole()
     }),
     mustChangePassword: z.boolean(),
     accessToken: z.string(),
@@ -128,7 +129,7 @@ export const ForgotPasswordBodySchema = extendApi(
     .object({
       email: z.string().email(),
       code: z.string().length(6),
-      newPassword: z.string().regex(PASSWORD_PATTERN, 'Password must be ≥8 chars with upper, lower and a digit'),
+      newPassword: z.string().regex(PASSWORD_PATTERN, 'Password must be =8 chars with upper, lower and a digit'),
       confirmNewPassword: z.string().min(8).max(100)
     })
     .strict()
@@ -152,7 +153,7 @@ export const ChangePasswordBodySchema = extendApi(
   z
     .object({
       currentPassword: z.string().min(6).max(100),
-      newPassword: z.string().regex(PASSWORD_PATTERN, 'Password must be ≥8 chars with upper, lower and a digit'),
+      newPassword: z.string().regex(PASSWORD_PATTERN, 'Password must be =8 chars with upper, lower and a digit'),
       confirmNewPassword: z.string().min(8).max(100)
     })
     .strict()

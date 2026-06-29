@@ -1,6 +1,7 @@
 import { z } from 'zod'
-import { OtpPurpose } from '../auth.constant'
 import { extendApi } from '@anatine/zod-openapi'
+import { $Enums } from '@prisma/client'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 
 //Role
 export const RoleSchema = extendApi(
@@ -22,7 +23,7 @@ export const OtpCodeSchema = extendApi(
     email: z.string().email(),
     otpCodeHash: z.string(),
     ip: z.string().nullable(),
-    purpose: z.enum([OtpPurpose.REGISTER, OtpPurpose.FORGOT_PASSWORD, OtpPurpose.SIGNING_CONTRACT]),
+    purpose: zEnum($Enums.OtpPurpose, 'OtpPurpose'),
     expiresAt: z.date(),
     createdAt: z.date(),
     attempts: z.number(),

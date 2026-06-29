@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { Series, SeriesStatus } from '@prisma/client'
-import { RoleName } from 'src/core/security/role.constant'
+import { RoleName } from 'src/core/security/constants/role.constant'
 import { NameNotFoundException, SeriesAccessDeniedException, SeriesNotFoundException } from '../errors/series.errors'
 import { toNameRes, toSeriesRes } from '../series.mapper'
 import { SeriesListScope, SeriesRepository } from '../series.repo'

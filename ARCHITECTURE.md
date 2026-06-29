@@ -46,7 +46,9 @@ BE-dev/
 │   │   ├── series/                 # proposal, Name, pitch, series state (controller + name.controller)
 │   │   ├── chapter/                # Chapter/Schedule/Manuscript/Page + publish
 │   │   ├── annotation/             # markup review (shared Mangaka↔Assistant, Editor↔Mangaka)
-│   │   └── storage/                # signed URL (presign PUT/GET) wiring
+│   │   ├── storage/                # signed URL (presign PUT/GET) wiring
+│   │   ├── contract/               # ⚠️ BE-B (B1 Contract/Payment) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
+│   │   └── board/                  # ⚠️ BE-B (B5 Board/Decision engine) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
 │   │       # mỗi module: controller(s) + service (orchestrator) + services/ (use-case + state)
 │   │       #            + repo + mapper? + messages? + constant? + ports? + schemas + dto + errors
 │   │       # <name>.messages.ts: catalog text user-facing (response/notification/error) — string thuần,
@@ -55,8 +57,21 @@ BE-dev/
 │   │   ├── core.module.ts          # Export infra services + register global guards
 │   │   ├── config/envConfig.ts     # Zod fail-fast env
 │   │   ├── events/                 # DomainEventBus + domain-events.ts (contract BE-A/BE-B)
-│   │   ├── http/                   # filters/ · interceptors/ · pipes/ · shared HTTP DTOs
-│   │   ├── security/               # guards, decorators, auth type, role constants
+│   │   ├── http/                   # decorators/ · docs/ · dto/ · filters/ · interceptors/ · pipes/
+│   │   │   ├── decorators/         # @ApiErrors(...exceptions) derive status+code+hint cho Swagger
+│   │   │   ├── docs/               # ENUM_DOCS + ERROR_HINTS + zEnum/zRole/zRoleSubset
+│   │   │   ├── dto/                # MessageResDto, EmptyBodyDto
+│   │   │   ├── filters/
+│   │   │   ├── interceptors/
+│   │   │   ├── pipes/
+│   │   │   └── http.messages.ts
+│   │   ├── security/               # constants/ · decorators/ · errors/ · guards/ · services/
+│   │   │   ├── constants/          # role/auth type/rate-limit constants
+│   │   │   ├── decorators/
+│   │   │   ├── errors/
+│   │   │   ├── guards/
+│   │   │   ├── services/
+│   │   │   └── security.messages.ts
 │   │   └── models/user.model.ts    # User schema + Prisma-sourced UserStatus
 │   ├── infrastructure/             # External adapters / technology details
 │   │   ├── database/               # PrismaService + Prisma error helpers
@@ -65,6 +80,7 @@ BE-dev/
 │   │   ├── email/                  # EmailService (Resend) + queue/processor + React-email templates
 │   │   ├── queue/                  # BullMQ queue config + QueueService
 │   │   ├── redis/                  # ioredis clients + RedisService helpers
+│   │   ├── oauth/                  # GoogleTokenVerifierService (verify Google ID token — A-AUTH-GGL)
 │   │   └── storage/                # StorageService (Cloudflare R2 presigned URL)
 ├── test/                           # E2E tests (Jest)
 ├── .env                            # Env variables (KHÔNG commit lên git)
@@ -135,7 +151,7 @@ graph TD
 ### RBAC (Authorization)
 
 - Routes without `@Roles()` behave as authenticated routes without role restriction.
-- Routes with `@Roles(RoleName.ADMIN, ...)` require the access-token `roleName` to be in the allowed list; missing user or wrong role returns 403.
+- Routes with `@Roles(RoleName.SUPER_ADMIN, ...)` require the access-token `roleName` to be in the allowed list; missing user or wrong role returns 403. (Role codes: `MANGAKA`, `ASSISTANT`, `EDITOR`, `BOARD_MEMBER`, `SUPER_ADMIN` — **không có** `ADMIN`.)
 - The current authorization tier is role-based. Permission-based authorization can be added later when granular business rules require it.
 
 ---
@@ -218,6 +234,17 @@ Mọi response **lỗi** (từ `CatchEverythingFilter`):
   `message: "Validation failed"`. KHÔNG còn object lồng object / message-trong-message như bản cũ.
 - Text của message lấy từ **`<name>.messages.ts`** (catalog tập trung), errors file chỉ map status + path (xem AGENTS §7).
 
+### 4.2. API Documentation (Swagger) — `/api`
+
+Swagger doc auto-sinh từ Zod schema (`createZodDto` + nestjs-zod v5 → `z.toJSONSchema` cho zod4). Convention (chi tiết AGENTS §12):
+
+- **Envelope note toàn cục:** `main.ts` `DocumentBuilder.setDescription` giải thích 1 lần shape `{success,message,data}` + lỗi.
+  Example Value của từng API mô tả shape **CHƯA bọc** (chính là `data`) → FE đọc `res.data`.
+- **Field metadata:** enum dùng `zEnum(PrismaEnum, 'Key')` / `zRole()` từ `core/http/docs/enum-docs.ts` để hiện giá trị + mô tả thống nhất; field khó hiểu thêm `.describe(...)`.
+- **Per-route:** `@ApiOperation({ summary })` + `@ApiErrors(...exceptions)` cho các mã lỗi nghiệp vụ; decorator derive status/code/hint từ exception instance + `ERROR_HINTS`.
+- **Catalog dùng chung (`core/http/`):** `enum-docs.ts` (`zEnum`/`zRole` + `ENUM_DOCS`), `error-docs.ts` (`ERROR_HINTS`), `api-errors.decorator.ts` (`@ApiErrors`). Sửa enum/lỗi → sửa 1 nơi.
+- `message` tuỳ biến chỉ "sống" nếu DTO `@ZodResponse` có field `message` (Zod serialize trước, strip field ngoài DTO — xem §4.1 + AGENTS §10).
+
 ---
 
 ## 5. Env Configuration — Fail-Fast Strategy
@@ -278,7 +305,7 @@ const configSchema = z.object({
 
 ### Models
 
-Schema (`prisma/schema.prisma`) đã khai báo trước **toàn bộ domain Mangaka** (~35 models) dù mới có module `auth`. Nhóm theo bounded context:
+Schema (`prisma/schema.prisma`) khai báo **toàn bộ domain Mangaka** (~39 models) từ đầu. BE-A đã hiện thực 8 module (auth, users, notification, reviews, series, chapter, annotation, storage); BE-B đã bắt đầu module `contract`. Nhóm models theo bounded context:
 
 | Nhóm | Models |
 |------|--------|
@@ -501,8 +528,7 @@ graph LR
         TOKEN_SVC["TokenService"]
         JWT_MOD["@nestjs/jwt"]
         PIPE["CustomZodValidationPipe"]
-        FILTER1["HttpExceptionFilter"]
-        FILTER2["CatchEverythingFilter"]
+        FILTER2["CatchEverythingFilter<br/>(bộ lọc lỗi DUY NHẤT)"]
     end
 
     ENV --> PRISMA_SVC

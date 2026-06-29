@@ -1,8 +1,7 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { AvailabilityStatus, Specialization, UserStatus } from '@prisma/client'
-import { ADMIN_CREATABLE_ROLES } from '../users.constant'
-import { RoleName } from 'src/core/security/role.constant'
+import { $Enums, Genre, RoleCode } from '@prisma/client'
+import { zEnum, zRole, zRoleSubset } from 'src/core/http/docs/enum-docs'
 
 export const AdminCreateUserBodySchema = extendApi(
   z
@@ -10,7 +9,7 @@ export const AdminCreateUserBodySchema = extendApi(
       email: z.string().email(),
       name: z.string().min(2).max(100),
       phoneNumber: z.string().min(9).max(15),
-      roleCode: z.enum(ADMIN_CREATABLE_ROLES)
+      roleCode: zRoleSubset([RoleCode.EDITOR, RoleCode.BOARD_MEMBER])
     })
     .strict(),
   { title: 'AdminCreateUserBody', description: 'Super Admin creates an Editor/Board user' }
@@ -20,7 +19,7 @@ export const AdminCreateUserResSchema = extendApi(
   z.object({
     id: z.string(),
     email: z.string(),
-    roleCode: z.string(),
+    roleCode: zRole(),
     temporaryPassword: z.string()
   }),
   { title: 'AdminCreateUserRes', description: 'Created user + one-time temporary password' }
@@ -30,7 +29,7 @@ export const MangakaProfileBodySchema = extendApi(
   z
     .object({
       penName: z.string().min(1).max(100),
-      genres: z.array(z.string()).default([]),
+      genres: z.array(zEnum(Genre, 'Genre')).default([]),
       experienceLevel: z.string().optional(),
       bio: z.string().optional(),
       portfolioFiles: z.array(z.string()).default([])
@@ -42,8 +41,8 @@ export const MangakaProfileBodySchema = extendApi(
 export const MangakaProfileResSchema = extendApi(
   z.object({
     userId: z.string(),
-    penName: z.string(),
-    genres: z.array(z.string()),
+    penName: z.string().nullable(),
+    genres: z.array(zEnum(Genre, 'Genre')),
     experienceLevel: z.string().nullable(),
     bio: z.string().nullable(),
     portfolioFiles: z.array(z.string()),
@@ -52,18 +51,19 @@ export const MangakaProfileResSchema = extendApi(
     ratingCount: z.number(),
     isRecommended: z.boolean(),
     displayName: z.string().nullable().optional(),
-    avatar: z.string().nullable().optional()
+    avatar: z.string().nullable().optional(),
+    hasProfile: z.boolean().describe('false = user chưa build hồ sơ; field profile = default rỗng')
   }),
-  { title: 'MangakaProfileRes', description: 'Mangaka profile view' }
+  { title: 'MangakaProfileRes', description: 'Mangaka profile view (public). hasProfile=false khi chưa cập nhật.' }
 )
 
 export const AssistantProfileBodySchema = extendApi(
   z
     .object({
-      specializations: z.array(z.nativeEnum(Specialization)).default([]),
+      specializations: z.array(zEnum($Enums.Specialization, 'Specialization')).default([]),
       experienceLevel: z.string().optional(),
       portfolioFiles: z.array(z.string()).default([]),
-      availabilityStatus: z.nativeEnum(AvailabilityStatus).optional(),
+      availabilityStatus: zEnum($Enums.AvailabilityStatus, 'AvailabilityStatus').optional(),
       // ISO 8601 date-time strings (z.date() can't be represented in JSON Schema / Swagger)
       availabilityFrom: z.string().datetime({ offset: true }).optional(),
       availabilityTo: z.string().datetime({ offset: true }).optional()
@@ -75,10 +75,10 @@ export const AssistantProfileBodySchema = extendApi(
 export const AssistantProfileResSchema = extendApi(
   z.object({
     userId: z.string(),
-    specializations: z.array(z.nativeEnum(Specialization)),
+    specializations: z.array(zEnum($Enums.Specialization, 'Specialization')),
     experienceLevel: z.string().nullable(),
     portfolioFiles: z.array(z.string()),
-    availabilityStatus: z.nativeEnum(AvailabilityStatus),
+    availabilityStatus: zEnum($Enums.AvailabilityStatus, 'AvailabilityStatus').nullable(),
     availabilityFrom: z.string().nullable(),
     availabilityTo: z.string().nullable(),
     reputationScore: z.number(),
@@ -86,9 +86,10 @@ export const AssistantProfileResSchema = extendApi(
     ratingCount: z.number(),
     isRecommended: z.boolean(),
     displayName: z.string().nullable().optional(),
-    avatar: z.string().nullable().optional()
+    avatar: z.string().nullable().optional(),
+    hasProfile: z.boolean().describe('false = user chưa build hồ sơ; field profile = default rỗng')
   }),
-  { title: 'AssistantProfileRes', description: 'Assistant profile view' }
+  { title: 'AssistantProfileRes', description: 'Assistant profile view (public). hasProfile=false khi chưa cập nhật.' }
 )
 
 export type AdminCreateUserBodyType = z.infer<typeof AdminCreateUserBodySchema>
@@ -99,10 +100,8 @@ export type AssistantProfileBodyType = z.infer<typeof AssistantProfileBodySchema
 export const ListUsersQuerySchema = extendApi(
   z
     .object({
-      roleCode: z
-        .enum([RoleName.SUPER_ADMIN, RoleName.MANGAKA, RoleName.ASSISTANT, RoleName.EDITOR, RoleName.BOARD_MEMBER])
-        .optional(),
-      status: z.nativeEnum(UserStatus).optional(),
+      roleCode: zRole().optional(),
+      status: zEnum($Enums.UserStatus, 'UserStatus').optional(),
       search: z.string().min(1).max(200).optional(),
       limit: z.coerce.number().int().positive().max(100).default(20),
       offset: z.coerce.number().int().nonnegative().default(0),
@@ -125,10 +124,10 @@ export const AdminUserResSchema = extendApi(
     displayName: z.string().nullable(),
     phoneNumber: z.string(),
     avatar: z.string().nullable(),
-    role: z.string(),
-    status: z.string(),
+    role: zRole(),
+    status: zEnum($Enums.UserStatus, 'UserStatus'),
     emailVerified: z.boolean(),
-    registrationType: z.string(),
+    registrationType: zEnum($Enums.RegistrationType, 'RegistrationType'),
     mustChangePassword: z.boolean(),
     createdAt: z.string()
   }),
