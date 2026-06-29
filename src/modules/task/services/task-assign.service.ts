@@ -91,7 +91,9 @@ export class TaskAssignService {
       }))
     )
     for (const t of tasks) await this.notifyAssigned(t.assistantId as string, t.id)
-    return { items: tasks.map(toTaskRes) }
+    const limit = 20
+    const offset = 0
+    return { items: tasks.map(toTaskRes), total: tasks.length, limit, offset }
   }
 
   async reassign(mangakaId: string, taskId: string, body: ReassignTaskBodyType) {
@@ -107,6 +109,25 @@ export class TaskAssignService {
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
     await this.notifyAssigned(body.assistantId, taskId)
+    return toTaskRes(updated)
+  }
+
+  async update(mangakaId: string, taskId: string, body: import('../schemas/task-schemas').UpdateTaskBodyType) {
+    if (!OBJECT_ID_RE.test(taskId)) throw TaskNotFoundException
+    const task = await this.taskRepository.findTaskById(taskId)
+    if (!task) throw TaskNotFoundException
+    await this.requirePageOwner(mangakaId, task.pageId)
+    const data: { assetIds?: string[]; deadline?: Date | null; priority?: number } = {}
+    if (body.assetIds != null) {
+      if (body.assetIds.length > 0) {
+        const found = await this.storageRepository.findAssetsByIds(body.assetIds)
+        if (found.length !== body.assetIds.length) throw AssetNotFoundException
+      }
+      data.assetIds = body.assetIds
+    }
+    if (body.deadline != null) data.deadline = new Date(body.deadline)
+    if (body.priority != null) data.priority = body.priority
+    const updated = await this.taskRepository.updateTaskFields(taskId, data)
     return toTaskRes(updated)
   }
 }

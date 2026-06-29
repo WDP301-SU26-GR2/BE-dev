@@ -19,6 +19,7 @@ import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 import { BoardModule } from './modules/board/board.module'
 import { StudioModule } from './modules/studio/studio.module'
+import { TaskModule } from './modules/task/task.module'
 
 @Module({
   imports: [
@@ -36,7 +37,8 @@ import { StudioModule } from './modules/studio/studio.module'
     ChapterModule,
     AnnotationModule,
     BoardModule,
-    StudioModule
+    StudioModule,
+    TaskModule
   ],
   controllers: [],
   providers: [
