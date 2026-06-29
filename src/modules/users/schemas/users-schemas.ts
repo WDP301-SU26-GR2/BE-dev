@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { $Enums, RoleCode } from '@prisma/client'
+import { $Enums, Genre, RoleCode } from '@prisma/client'
 import { zEnum, zRole, zRoleSubset } from 'src/core/http/docs/enum-docs'
 
 export const AdminCreateUserBodySchema = extendApi(
@@ -29,7 +29,7 @@ export const MangakaProfileBodySchema = extendApi(
   z
     .object({
       penName: z.string().min(1).max(100),
-      genres: z.array(z.string()).default([]),
+      genres: z.array(zEnum(Genre, 'Genre')).default([]),
       experienceLevel: z.string().optional(),
       bio: z.string().optional(),
       portfolioFiles: z.array(z.string()).default([])
@@ -41,8 +41,8 @@ export const MangakaProfileBodySchema = extendApi(
 export const MangakaProfileResSchema = extendApi(
   z.object({
     userId: z.string(),
-    penName: z.string(),
-    genres: z.array(z.string()),
+    penName: z.string().nullable(),
+    genres: z.array(zEnum(Genre, 'Genre')),
     experienceLevel: z.string().nullable(),
     bio: z.string().nullable(),
     portfolioFiles: z.array(z.string()),
@@ -51,9 +51,10 @@ export const MangakaProfileResSchema = extendApi(
     ratingCount: z.number(),
     isRecommended: z.boolean(),
     displayName: z.string().nullable().optional(),
-    avatar: z.string().nullable().optional()
+    avatar: z.string().nullable().optional(),
+    hasProfile: z.boolean().describe('false = user chưa build hồ sơ; field profile = default rỗng')
   }),
-  { title: 'MangakaProfileRes', description: 'Mangaka profile view' }
+  { title: 'MangakaProfileRes', description: 'Mangaka profile view (public). hasProfile=false khi chưa cập nhật.' }
 )
 
 export const AssistantProfileBodySchema = extendApi(
@@ -77,7 +78,7 @@ export const AssistantProfileResSchema = extendApi(
     specializations: z.array(zEnum($Enums.Specialization, 'Specialization')),
     experienceLevel: z.string().nullable(),
     portfolioFiles: z.array(z.string()),
-    availabilityStatus: zEnum($Enums.AvailabilityStatus, 'AvailabilityStatus'),
+    availabilityStatus: zEnum($Enums.AvailabilityStatus, 'AvailabilityStatus').nullable(),
     availabilityFrom: z.string().nullable(),
     availabilityTo: z.string().nullable(),
     reputationScore: z.number(),
@@ -85,9 +86,10 @@ export const AssistantProfileResSchema = extendApi(
     ratingCount: z.number(),
     isRecommended: z.boolean(),
     displayName: z.string().nullable().optional(),
-    avatar: z.string().nullable().optional()
+    avatar: z.string().nullable().optional(),
+    hasProfile: z.boolean().describe('false = user chưa build hồ sơ; field profile = default rỗng')
   }),
-  { title: 'AssistantProfileRes', description: 'Assistant profile view' }
+  { title: 'AssistantProfileRes', description: 'Assistant profile view (public). hasProfile=false khi chưa cập nhật.' }
 )
 
 export type AdminCreateUserBodyType = z.infer<typeof AdminCreateUserBodySchema>

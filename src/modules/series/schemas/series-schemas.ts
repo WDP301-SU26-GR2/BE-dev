@@ -1,6 +1,14 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { NameStatus, ProposalStatus, PublicationType, RelationshipType, SeriesStatus } from '@prisma/client'
+import {
+  Demographic,
+  Genre,
+  NameStatus,
+  ProposalStatus,
+  PublicationType,
+  RelationshipType,
+  SeriesStatus
+} from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 
 const NamePageSchema = z.object({ pageNumber: z.number().int().min(1), fileUrl: z.string().min(1) })
@@ -10,8 +18,8 @@ export const CreateProposalBodySchema = extendApi(
     .object({
       title: z.string().min(1).max(200),
       coverImage: z.string().min(1).optional(),
-      genre: z.string().optional(),
-      demographic: z.string().optional(),
+      genres: z.array(zEnum(Genre, 'Genre')).default([]),
+      demographic: zEnum(Demographic, 'Demographic').optional(),
       publicationType: zEnum(PublicationType, 'PublicationType').optional(),
       synopsis: z.string().max(5000).optional(),
       characterDesigns: z.array(z.string()).default([]),
@@ -29,8 +37,8 @@ export const UpdateProposalBodySchema = extendApi(
     .object({
       title: z.string().min(1).max(200).nullish(),
       coverImage: z.string().min(1).nullish(),
-      genre: z.string().nullish(),
-      demographic: z.string().nullish(),
+      genres: z.array(zEnum(Genre, 'Genre')).nullish(),
+      demographic: zEnum(Demographic, 'Demographic').nullish(),
       publicationType: zEnum(PublicationType, 'PublicationType').nullish(),
       synopsis: z.string().max(5000).nullish(),
       characterDesigns: z.array(z.string()).nullish(),
@@ -67,8 +75,8 @@ export const SeriesResSchema = extendApi(
       .string()
       .nullable()
       .describe('Object key ảnh bìa (R2) — đổi sang signed GET để hiển thị; KHÔNG phải URL'),
-    genre: z.string().nullable(),
-    demographic: z.string().nullable(),
+    genres: z.array(zEnum(Genre, 'Genre')),
+    demographic: zEnum(Demographic, 'Demographic').nullable(),
     publicationType: zEnum(PublicationType, 'PublicationType').nullable(),
     status: zEnum(SeriesStatus, 'SeriesStatus'),
     statusReason: z

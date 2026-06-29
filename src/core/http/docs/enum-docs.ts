@@ -12,6 +12,8 @@ export const ENUM_DOCS = {
   OtpPurpose: 'OTP purpose: REGISTER, FORGOT_PASSWORD, SIGNING_CONTRACT',
   PublicationType: 'Publication cadence: WEEKLY, MONTHLY, IRREGULAR',
   RelationshipType: 'Relationship to parent series: SEQUEL, SPINOFF, SIDE_STORY, REBOOT',
+  Genre: 'Manga genre (mảng, nhiều thể loại / series)',
+  Demographic: 'Phân khúc độc giả: SHONEN, SEINEN, SHOJO, JOSEI, KODOMO',
   AvailabilityStatus: 'Assistant availability: AVAILABLE, BUSY, ON_LEAVE, UNAVAILABLE',
   Specialization: 'Assistant specialization/task type',
   SeriesStatus: 'Series state machine status',
