@@ -10,6 +10,7 @@ import { TaskStateService } from './services/task-state.service'
 import { TaskAssignService } from './services/task-assign.service'
 import { TaskReviewService } from './services/task-review.service'
 import { TaskCascadeService } from './services/task-cascade.service'
+import { AssistantAvailabilityListener } from './services/assistant-availability.listener'
 
 @Module({
   imports: [ChapterModule, StorageModule, StudioModule],
@@ -21,7 +22,8 @@ import { TaskCascadeService } from './services/task-cascade.service'
     TaskStateService,
     TaskAssignService,
     TaskReviewService,
-    TaskCascadeService
+    TaskCascadeService,
+    AssistantAvailabilityListener
   ]
 })
 export class TaskModule {}

@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common'
+import { DomainEvent } from 'src/core/events/domain-events'
+import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { ProfileNotFoundException } from '../errors/users.errors'
 import { AssistantProfileBodyType } from '../schemas/users-schemas'
 import { UsersRepository } from '../users.repo'
@@ -8,10 +10,19 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class AssistantProfileService {
-  constructor(private readonly usersRepository: UsersRepository) {}
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly domainEventBus: DomainEventBus
+  ) {}
 
   async upsertMyProfile(userId: string, body: AssistantProfileBodyType) {
     await this.usersRepository.upsertAssistantProfile(userId, body)
+    if (body.availabilityStatus === 'ON_LEAVE' || body.availabilityStatus === 'UNAVAILABLE') {
+      this.domainEventBus.emit(DomainEvent.AssistantAvailabilityChanged, {
+        assistantId: userId,
+        availabilityStatus: body.availabilityStatus
+      })
+    }
     return this.getByUserId(userId)
   }
 
