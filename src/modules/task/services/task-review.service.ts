@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { NotificationType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
-import { NotSeriesOwnerException, NotTaskAssigneeException, PageNotFoundException, TaskNotFoundException } from '../errors/task.errors'
+import {
+  NotSeriesOwnerException,
+  NotTaskAssigneeException,
+  PageNotFoundException,
+  TaskNotFoundException
+} from '../errors/task.errors'
 import { TaskRepository } from '../task.repo'
 import { TaskStateService } from './task-state.service'
 import { TaskCascadeService } from './task-cascade.service'
@@ -37,10 +42,27 @@ export class TaskReviewService {
 
   private async notifySafe(recipientId: string, type: NotificationType, taskId: string) {
     try {
-      await this.notificationService.notify({ recipientId, type, referenceId: taskId, referenceType: 'TASK', content: null })
+      await this.notificationService.notify({
+        recipientId,
+        type,
+        referenceId: taskId,
+        referenceType: 'TASK',
+        content: null
+      })
     } catch (error) {
       this.logger.warn(`Failed to notify ${type} ${taskId}: ${String(error)}`)
     }
+  }
+
+  // A-TSK-04 / SRS §2.2a bước 2: Assistant "Bắt đầu" → ASSIGNED → IN_PROGRESS (ghi mốc bắt đầu).
+  // Cửa duy nhất rời ASSIGNED sang luồng làm việc; submit chỉ đi từ IN_PROGRESS/REVISION_REQUESTED.
+  async start(assistantId: string, taskId: string) {
+    const task = await this.requireTask(taskId)
+    if (task.assistantId !== assistantId) throw NotTaskAssigneeException
+    await this.taskStateService.transition(taskId, 'IN_PROGRESS')
+    const updated = await this.taskRepository.findTaskById(taskId)
+    if (!updated) throw TaskNotFoundException
+    return toTaskRes(updated)
   }
 
   async submit(assistantId: string, taskId: string, body: SubmitTaskBodyType) {
@@ -74,7 +96,10 @@ export class TaskReviewService {
     await this.taskStateService.transition(taskId, 'UNDER_REVIEW')
     await this.taskStateService.transition(taskId, 'REVISION_REQUESTED')
     // Prisma enum TaskVersionReviewStatus: PENDING | APPROVED | REVISION_REQUESTED.
-    await this.taskRepository.setLatestVersionReview(taskId, { reviewStatus: 'REVISION_REQUESTED', reviewerNote: body.reviewerNote })
+    await this.taskRepository.setLatestVersionReview(taskId, {
+      reviewStatus: 'REVISION_REQUESTED',
+      reviewerNote: body.reviewerNote
+    })
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
     if (updated.assistantId) await this.notifySafe(updated.assistantId, NotificationType.TASK, taskId)

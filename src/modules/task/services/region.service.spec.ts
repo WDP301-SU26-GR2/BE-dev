@@ -1,7 +1,12 @@
 import { RegionService } from './region.service'
 import { NotSeriesOwnerException, PageNotFoundException, RegionHasTasksException } from '../errors/task.errors'
 
-const PAGE = { id: 'a'.repeat(24), chapterId: 'c', status: 'IN_PROGRESS', chapter: { seriesId: 's', series: { mangakaId: 'm' } } }
+const PAGE = {
+  id: 'a'.repeat(24),
+  chapterId: 'c',
+  status: 'IN_PROGRESS',
+  chapter: { seriesId: 's', series: { mangakaId: 'm' } }
+}
 
 describe('RegionService', () => {
   const repo = {
@@ -19,7 +24,7 @@ describe('RegionService', () => {
   beforeEach(() => jest.clearAllMocks())
 
   it('create rejects malformed pageId → 404', async () => {
-    await expect(service.create('m', 'bad-id', { coordinates: { x: 0, y: 0, width: 1, height: 1 } } as never)).rejects.toBe(
+    await expect(service.create('m', 'bad-id', { coordinates: { x: 0, y: 0, width: 1, height: 1 } })).rejects.toBe(
       PageNotFoundException
     )
   })
@@ -27,14 +32,19 @@ describe('RegionService', () => {
   it('create rejects non-owner → 403', async () => {
     repo.findPageWithOwner.mockResolvedValue(PAGE)
     await expect(
-      service.create('OTHER', VALID_PAGE_ID, { coordinates: { x: 0, y: 0, width: 1, height: 1 } } as never)
+      service.create('OTHER', VALID_PAGE_ID, { coordinates: { x: 0, y: 0, width: 1, height: 1 } })
     ).rejects.toBe(NotSeriesOwnerException)
   })
 
   it('create owner → createRegion called', async () => {
     repo.findPageWithOwner.mockResolvedValue(PAGE)
-    repo.createRegion.mockResolvedValue({ id: 'r', pageId: VALID_PAGE_ID, confirmedByMangaka: true, confidenceScore: null })
-    await service.create('m', VALID_PAGE_ID, { coordinates: { x: 0, y: 0, width: 1, height: 1 } } as never)
+    repo.createRegion.mockResolvedValue({
+      id: 'r',
+      pageId: VALID_PAGE_ID,
+      confirmedByMangaka: true,
+      confidenceScore: null
+    })
+    await service.create('m', VALID_PAGE_ID, { coordinates: { x: 0, y: 0, width: 1, height: 1 } })
     expect(repo.createRegion).toHaveBeenCalled()
   })
 

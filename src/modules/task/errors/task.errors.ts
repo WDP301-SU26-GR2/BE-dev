@@ -12,4 +12,6 @@ export const NotTaskAssigneeException = new ForbiddenException([{ message: E.not
 export const AssistantNotHiredException = new ConflictException([{ message: E.assistantNotHired, path: 'assistantId' }])
 export const AssetNotFoundException = new UnprocessableEntityException([{ message: E.assetNotFound, path: 'assetIds' }])
 export const TaskNotReassignableException = new ConflictException([{ message: E.taskNotReassignable, path: 'id' }])
-export const InvalidTaskTransitionException = new ConflictException([{ message: E.invalidTaskTransition, path: 'status' }])
+export const InvalidTaskTransitionException = new ConflictException([
+  { message: E.invalidTaskTransition, path: 'status' }
+])

@@ -58,6 +58,9 @@ export class TaskService {
   }
 
   // Task review
+  startTask(userId: string, id: string) {
+    return this.taskReviewService.start(userId, id)
+  }
   submitTask(userId: string, id: string, body: SubmitTaskBodyType) {
     return this.taskReviewService.submit(userId, id, body)
   }
@@ -85,16 +88,29 @@ export class TaskService {
   async listTasks(userId: string, roleName: string, query: ListTasksQueryType) {
     let where: TaskListWhere
     if (roleName === RoleName.ASSISTANT) {
-      where = { assistantId: userId, ...(query.status ? { status: query.status } : {}), ...(query.pageId ? { pageId: query.pageId } : {}) }
+      where = {
+        assistantId: userId,
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.pageId ? { pageId: query.pageId } : {})
+      }
     } else {
       // MANGAKA: bắt buộc pageId thuộc sở hữu; thiếu/không sở hữu → rỗng
-      if (!query.pageId || !OBJECT_ID_RE.test(query.pageId)) return { items: [], total: 0, limit: query.limit, offset: query.offset }
+      if (!query.pageId || !OBJECT_ID_RE.test(query.pageId))
+        return { items: [], total: 0, limit: query.limit, offset: query.offset }
       const page = await this.taskRepository.findPageWithOwner(query.pageId)
-      if (!page || page.chapter.series.mangakaId !== userId) return { items: [], total: 0, limit: query.limit, offset: query.offset }
-      where = { pageId: query.pageId, ...(query.status ? { status: query.status } : {}), ...(query.assistantId ? { assistantId: query.assistantId } : {}) }
+      if (!page || page.chapter.series.mangakaId !== userId)
+        return { items: [], total: 0, limit: query.limit, offset: query.offset }
+      where = {
+        pageId: query.pageId,
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.assistantId ? { assistantId: query.assistantId } : {})
+      }
     }
     const page = { limit: query.limit, offset: query.offset }
-    const [rows, total] = await Promise.all([this.taskRepository.listTasks(where, page), this.taskRepository.countTasks(where)])
+    const [rows, total] = await Promise.all([
+      this.taskRepository.listTasks(where, page),
+      this.taskRepository.countTasks(where)
+    ])
     return { items: rows.map(toTaskRes), total, limit: query.limit, offset: query.offset }
   }
 }

@@ -158,6 +158,15 @@ export class TaskController {
   }
 
   // ---- Review (A-TSK-04) ----
+  @Post('tasks/:id/start')
+  @ApiOperation({ summary: 'Assistant bắt đầu xử lý task → IN_PROGRESS (SRS §2.2a)' })
+  @ApiErrors(TaskNotFoundException, NotTaskAssigneeException, InvalidTaskTransitionException)
+  @Roles(RoleName.ASSISTANT)
+  @ZodResponse({ status: 201, type: TaskResDto })
+  startTask(@Param('id') id: string, @ActiveUser('userId') userId: string): Promise<InstanceType<typeof TaskResDto>> {
+    return this.taskService.startTask(userId, id)
+  }
+
   @Post('tasks/:id/submit')
   @ApiOperation({ summary: 'Assistant nộp kết quả → SUBMITTED + TaskVersion + cascade' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
