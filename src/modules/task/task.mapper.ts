@@ -4,7 +4,7 @@ export function toRegionRes(r: Region) {
   return {
     id: r.id,
     pageId: r.pageId,
-    coordinates: r.coordinates ?? null,
+    coordinates: (r.coordinates as { x: number; y: number; width: number; height: number } | null) ?? null,
     regionType: r.regionType ?? null,
     createdBy: r.createdBy ?? null,
     confirmedByMangaka: r.confirmedByMangaka,
