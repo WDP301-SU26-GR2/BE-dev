@@ -6,6 +6,7 @@ import { OrphanAssetCron } from './orphan-asset.cron'
 
 @Module({
   controllers: [StorageController],
-  providers: [StorageService, StorageRepository, OrphanAssetCron]
+  providers: [StorageService, StorageRepository, OrphanAssetCron],
+  exports: [StorageRepository]
 })
 export class StorageModule {}

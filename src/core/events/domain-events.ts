@@ -9,6 +9,7 @@ export const DomainEvent = {
   // Emitted by BE-A
   SeriesSerialized: 'series.serialized', // A2 → B1 (khởi tạo Contract)
   ChapterPublished: 'chapter.published', // A-CHP-05 → B-CON-05 (payment), B4 (ranking)
+  AssistantAvailabilityChanged: 'assistant.availability.changed', // A-TSK-05 (users → task: leave → ON_HOLD)
 
   // Emitted by BE-B
   ContractExecuted: 'contract.executed', // B1 → A2 (sequel), A-CHP-05 (publish gate)
@@ -23,6 +24,7 @@ export type DomainEventName = (typeof DomainEvent)[keyof typeof DomainEvent]
 export interface DomainEventPayload {
   [DomainEvent.SeriesSerialized]: { seriesId: string }
   [DomainEvent.ChapterPublished]: { chapterId: string; seriesId: string; publishedAt: string }
+  [DomainEvent.AssistantAvailabilityChanged]: { assistantId: string; availabilityStatus: string }
   [DomainEvent.ContractExecuted]: { contractId: string; seriesId: string }
   [DomainEvent.RankingFinalized]: { surveyPeriodId: string }
   [DomainEvent.SeriesCancelling]: { seriesId: string; endingChapterAllowance: number }
