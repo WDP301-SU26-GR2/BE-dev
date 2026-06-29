@@ -4,6 +4,7 @@
 export const ReviewsMessages = {
   // Error codes (FE maps these keys to localized text). Consumed by errors/reviews.errors.ts.
   error: {
-    cannotReviewSelf: 'Error.CannotReviewSelf'
+    cannotReviewSelf: 'Error.CannotReviewSelf',
+    reviewRequiresEndedAssignment: 'Error.ReviewRequiresEndedAssignment'
   }
 } as const

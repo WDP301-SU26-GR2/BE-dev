@@ -3,6 +3,7 @@ import { AdminUserQueryService } from './services/admin-user-query.service'
 import { AssistantProfileService } from './services/assistant-profile.service'
 import { MangakaProfileService } from './services/mangaka-profile.service'
 import { AdminUserService } from './services/admin-user.service'
+import { AssistantDirectoryService } from './services/assistant-directory.service'
 import { UsersController } from './users.controller'
 import { UsersRepository } from './users.repo'
 import { UsersService } from './users.service'
@@ -15,7 +16,8 @@ import { UsersService } from './users.service'
     AdminUserService,
     AdminUserQueryService,
     MangakaProfileService,
-    AssistantProfileService
+    AssistantProfileService,
+    AssistantDirectoryService
   ],
   exports: [MangakaProfileService, AssistantProfileService]
 })

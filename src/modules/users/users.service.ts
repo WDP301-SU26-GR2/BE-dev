@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common'
 import { AdminUserQueryService } from './services/admin-user-query.service'
 import { AdminUserService } from './services/admin-user.service'
+import { AssistantDirectoryService } from './services/assistant-directory.service'
 import { AssistantProfileService } from './services/assistant-profile.service'
 import { MangakaProfileService } from './services/mangaka-profile.service'
 import {
   AdminCreateUserBodyType,
   AssistantProfileBodyType,
+  ListAssistantsQueryType,
   ListUsersQueryType,
   MangakaProfileBodyType
 } from './schemas/users-schemas'
@@ -16,7 +18,8 @@ export class UsersService {
     private readonly adminUserService: AdminUserService,
     private readonly adminUserQueryService: AdminUserQueryService,
     private readonly mangakaProfileService: MangakaProfileService,
-    private readonly assistantProfileService: AssistantProfileService
+    private readonly assistantProfileService: AssistantProfileService,
+    private readonly assistantDirectoryService: AssistantDirectoryService
   ) {}
 
   createUserByAdmin(body: AdminCreateUserBodyType) {
@@ -53,5 +56,9 @@ export class UsersService {
 
   getAssistantProfile(userId: string) {
     return this.assistantProfileService.getByUserId(userId)
+  }
+
+  listAssistants(query: ListAssistantsQueryType) {
+    return this.assistantDirectoryService.list(query)
   }
 }
