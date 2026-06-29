@@ -60,5 +60,12 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.SeriesNotReadyToPitch': 'series is not ready to pitch',
   'Error.UnauthorizedAccess': 'authentication token is missing or invalid',
   'Error.UnsupportedFileType': 'file type is not allowed',
-  'Error.UserNotFound': 'user does not exist'
+  'Error.UserNotFound': 'user does not exist',
+  'Error.RegionNotFound': 'region not found or invalid id',
+  'Error.RegionHasTasks': 'region still has tasks; cannot delete',
+  'Error.TaskNotFound': 'task not found or invalid id',
+  'Error.NotTaskAssignee': 'caller is not the assigned assistant of this task',
+  'Error.AssistantNotHired': 'assistant has no ACTIVE studio assignment within hire period (BR-ASSIST-01)',
+  'Error.TaskNotReassignable': 'task must be ON_HOLD to reassign',
+  'Error.InvalidTaskTransition': 'invalid task status transition'
 }
