@@ -1,0 +1,152 @@
+import { z } from 'zod'
+import { extendApi } from '@anatine/zod-openapi'
+import { $Enums } from '@prisma/client'
+import { zEnum } from 'src/core/http/docs/enum-docs'
+
+const CoordinatesSchema = z
+  .object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
+  .describe('Toạ độ vùng trên trang (pixel)')
+
+// ---- Region (A-TSK-01/02) ----
+export const CreateRegionBodySchema = extendApi(
+  z
+    .object({
+      coordinates: CoordinatesSchema,
+      regionType: zEnum($Enums.RegionType, 'RegionType').optional()
+    })
+    .strict(),
+  { title: 'CreateRegionBody', description: 'Mangaka khoanh vùng manual trên trang' }
+)
+
+export const UpdateRegionBodySchema = extendApi(
+  z
+    .object({
+      coordinates: CoordinatesSchema.nullish(),
+      regionType: zEnum($Enums.RegionType, 'RegionType').nullish(),
+      confirmedByMangaka: z.boolean().nullish()
+    })
+    .strict(),
+  { title: 'UpdateRegionBody', description: 'Sửa vùng (partial: omit/null = giữ nguyên)' }
+)
+
+export const RegionResSchema = extendApi(
+  z.object({
+    id: z.string(),
+    pageId: z.string(),
+    coordinates: CoordinatesSchema.nullable(),
+    regionType: zEnum($Enums.RegionType, 'RegionType').nullable(),
+    createdBy: z.string().nullable().describe('MANUAL (A4-b) | AI (defer Spec 2)'),
+    confirmedByMangaka: z.boolean(),
+    confidenceScore: z.number().nullable().describe('null khi MANUAL')
+  }),
+  { title: 'RegionRes', description: 'Một vùng trên trang' }
+)
+
+export const RegionListResSchema = extendApi(z.object({ items: z.array(RegionResSchema) }), {
+  title: 'RegionListRes',
+  description: 'Danh sách vùng của 1 trang'
+})
+
+// ---- Task (A-TSK-03/04/09) ----
+export const CreateTaskBodySchema = extendApi(
+  z
+    .object({
+      pageId: z.string(),
+      regionId: z.string().optional(),
+      assistantId: z.string(),
+      taskType: zEnum($Enums.Specialization, 'Specialization'),
+      deadline: z.string().datetime({ offset: true }).optional(),
+      priority: z.number().int().nonnegative().default(0),
+      assetIds: z.array(z.string()).default([])
+    })
+    .strict(),
+  { title: 'CreateTaskBody', description: 'Giao task cho Assistant (enforce BR-ASSIST-01)' }
+)
+
+export const BatchCreateTaskBodySchema = extendApi(
+  z.object({ items: z.array(CreateTaskBodySchema).min(1).max(50) }).strict(),
+  { title: 'BatchCreateTaskBody', description: 'Giao nhiều task (all-or-nothing)' }
+)
+
+export const UpdateTaskBodySchema = extendApi(
+  z
+    .object({
+      assetIds: z.array(z.string()).nullish().describe('[] = clear; omit/null = giữ nguyên'),
+      deadline: z.string().datetime({ offset: true }).nullish(),
+      priority: z.number().int().nonnegative().nullish()
+    })
+    .strict(),
+  { title: 'UpdateTaskBody', description: 'Sửa task (partial)' }
+)
+
+export const SubmitTaskBodySchema = extendApi(z.object({ file: z.string().min(1) }).strict(), {
+  title: 'SubmitTaskBody',
+  description: 'Assistant nộp kết quả (object key R2)'
+})
+
+export const RequestRevisionBodySchema = extendApi(
+  z.object({ reviewerNote: z.string().min(1).max(1000) }).strict(),
+  {
+    title: 'RequestRevisionBody',
+    description: 'Mangaka yêu cầu sửa (markup tạo riêng qua POST /annotations)'
+  }
+)
+
+export const ReassignTaskBodySchema = extendApi(z.object({ assistantId: z.string() }).strict(), {
+  title: 'ReassignTaskBody',
+  description: 'Giao lại task ON_HOLD cho Assistant khác'
+})
+
+export const TaskVersionResSchema = z.object({
+  submittedBy: z.string().nullable(),
+  versionNumber: z.number(),
+  file: z.string().nullable(),
+  reviewStatus: zEnum($Enums.TaskVersionReviewStatus, 'TaskVersionReviewStatus'),
+  reviewerNote: z.string().nullable(),
+  submittedAt: z.string()
+})
+
+export const TaskResSchema = extendApi(
+  z.object({
+    id: z.string(),
+    pageId: z.string(),
+    regionId: z.string().nullable(),
+    assistantId: z.string().nullable(),
+    taskType: zEnum($Enums.Specialization, 'Specialization').nullable(),
+    status: zEnum($Enums.TaskStatus, 'TaskStatus'),
+    priority: z.number(),
+    deadline: z.string().nullable(),
+    assetIds: z.array(z.string()),
+    versions: z.array(TaskVersionResSchema),
+    createdAt: z.string()
+  }),
+  { title: 'TaskRes', description: 'Một task production' }
+)
+
+export const TaskListResSchema = extendApi(
+  z.object({ items: z.array(TaskResSchema), total: z.number(), limit: z.number(), offset: z.number() }),
+  { title: 'TaskListRes', description: 'Danh sách task phân trang' }
+)
+
+export const ListTasksQuerySchema = extendApi(
+  z
+    .object({
+      pageId: z.string().optional(),
+      assistantId: z.string().optional(),
+      status: zEnum($Enums.TaskStatus, 'TaskStatus').optional(),
+      limit: z.coerce.number().int().positive().max(100).default(20),
+      offset: z.coerce.number().int().nonnegative().default(0)
+    })
+    .strict(),
+  { title: 'ListTasksQuery', description: 'Lọc task (scope theo role)' }
+)
+
+export type CreateRegionBodyType = z.infer<typeof CreateRegionBodySchema>
+export type UpdateRegionBodyType = z.infer<typeof UpdateRegionBodySchema>
+export type CreateTaskBodyType = z.infer<typeof CreateTaskBodySchema>
+export type BatchCreateTaskBodyType = z.infer<typeof BatchCreateTaskBodySchema>
+export type UpdateTaskBodyType = z.infer<typeof UpdateTaskBodySchema>
+export type SubmitTaskBodyType = z.infer<typeof SubmitTaskBodySchema>
+export type RequestRevisionBodyType = z.infer<typeof RequestRevisionBodySchema>
+export type ReassignTaskBodyType = z.infer<typeof ReassignTaskBodySchema>
+export type ListTasksQueryType = z.infer<typeof ListTasksQuerySchema>
