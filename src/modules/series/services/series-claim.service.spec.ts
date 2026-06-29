@@ -16,7 +16,7 @@ const seriesRow = (over: Record<string, unknown> = {}) => ({
   coOwnerId: null,
   parentSeriesId: null,
   title: 'T',
-  genre: null,
+  genres: [],
   demographic: null,
   publicationType: null,
   status: SeriesStatus.IN_REVIEW,

@@ -2,6 +2,8 @@
 import { ApiResponse } from '@nestjs/swagger'
 import { ERROR_HINTS } from '../docs/error-docs'
 
+//Đây là file Swagger helper, không xử lý runtime error.
+
 type FieldIssue = { message?: string; path?: string }
 
 const joinIssues = (issues: FieldIssue[]) =>

@@ -24,7 +24,7 @@ export class SeriesRepository {
         mangakaId,
         title: body.title,
         coverImage: body.coverImage ?? null,
-        genre: body.genre ?? null,
+        genres: body.genres ?? [],
         demographic: body.demographic ?? null,
         publicationType: body.publicationType ?? null,
         parentSeriesId: body.parentSeriesId ?? null,
@@ -74,7 +74,7 @@ export class SeriesRepository {
     const data: Prisma.SeriesUpdateInput = {}
     if (body.title != null) data.title = body.title
     if (body.coverImage != null) data.coverImage = body.coverImage
-    if (body.genre != null) data.genre = body.genre
+    if (body.genres != null) data.genres = body.genres
     if (body.demographic != null) data.demographic = body.demographic
     if (body.publicationType != null) data.publicationType = body.publicationType
     data.proposal = {

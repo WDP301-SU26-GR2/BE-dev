@@ -5,6 +5,54 @@ import {
   UpdateProposalBodySchema
 } from './series-schemas'
 
+describe('Genre/Demographic enums', () => {
+  it('CreateProposalBody chấp nhận genres enum hợp lệ + demographic', () => {
+    const parsed = CreateProposalBodySchema.parse({
+      title: 'My Series',
+      genres: ['ACTION', 'ROMANCE'],
+      demographic: 'SHONEN'
+    })
+    expect(parsed.genres).toEqual(['ACTION', 'ROMANCE'])
+    expect(parsed.demographic).toBe('SHONEN')
+  })
+
+  it('CreateProposalBody mặc định genres = [] khi omit', () => {
+    const parsed = CreateProposalBodySchema.parse({ title: 'X' })
+    expect(parsed.genres).toEqual([])
+    expect(parsed.demographic).toBeUndefined()
+  })
+
+  it('CreateProposalBody reject genre không thuộc enum', () => {
+    expect(() => CreateProposalBodySchema.parse({ title: 'X', genres: ['action'] })).toThrow()
+  })
+
+  it('CreateProposalBody reject demographic lạ', () => {
+    expect(() => CreateProposalBodySchema.parse({ title: 'X', demographic: 'OTAKU' })).toThrow()
+  })
+
+  it('SeriesRes có genres mảng + demographic nullable', () => {
+    const ok = SeriesResSchema.parse({
+      id: 'a',
+      mangakaId: 'm',
+      editorId: null,
+      coOwnerId: null,
+      parentSeriesId: null,
+      title: 'T',
+      coverImage: null,
+      genres: ['ACTION'],
+      demographic: null,
+      publicationType: null,
+      status: 'DRAFT',
+      statusReason: null,
+      relationshipType: null,
+      createdAt: '2026-06-29T00:00:00.000Z',
+      reviewStartedAt: null,
+      proposal: null
+    })
+    expect(ok.genres).toEqual(['ACTION'])
+  })
+})
+
 describe('series schemas — coverImage', () => {
   it('CreateProposalBody accepts coverImage', () => {
     const parsed = CreateProposalBodySchema.parse({ title: 'T', coverImage: 'uploads/m1/cover.png' })
@@ -26,8 +74,8 @@ describe('series schemas — coverImage', () => {
   })
 
   it('UpdateProposalBody accepts null fields', () => {
-    const parsed = UpdateProposalBodySchema.parse({ genre: null })
-    expect(parsed.genre).toBeNull()
+    const parsed = UpdateProposalBodySchema.parse({ genres: null })
+    expect(parsed.genres).toBeNull()
   })
 
   it('AddNamePageBody parses a valid page', () => {
@@ -47,7 +95,7 @@ describe('series schemas — coverImage', () => {
       parentSeriesId: null,
       title: 'T',
       coverImage: 'uploads/m1/cover.png',
-      genre: null,
+      genres: [],
       demographic: null,
       publicationType: null,
       status: 'DRAFT',
