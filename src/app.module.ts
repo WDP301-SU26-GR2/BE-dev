@@ -9,7 +9,6 @@ import { CoreModule } from 'src/core/core.module'
 import { EmailQueueModule } from 'src/infrastructure/email/email-queue.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { EventEmitterModule } from '@nestjs/event-emitter'
-import { ScheduleModule } from '@nestjs/schedule'
 import { ContractModule } from './modules/contract/contract.module'
 import { ChapterModule } from './modules/chapter/chapter.module'
 import { NotificationModule } from './modules/notification/notification.module'
@@ -27,10 +26,7 @@ import { BoardModule } from './modules/board/board.module'
     CoreModule,
     AuthModule,
     ContractModule,
-    CoreModule,
-    ScheduleModule.forRoot(),
     EmailQueueModule,
-    AuthModule,
     UsersModule,
     NotificationModule,
     ReviewsModule,
