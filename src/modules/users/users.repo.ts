@@ -80,6 +80,15 @@ export class UsersRepository {
     })
   }
 
+  // Lấy thông tin tối thiểu + role để verify khi profile absent (graceful no-profile).
+  // Gotcha §10: lọc chưa-xoá-mềm bằng isSet:false, KHÔNG { deletedAt: null }.
+  async findUserBasicsWithRole(userId: string) {
+    return await this.prismaService.user.findFirst({
+      where: { id: userId, deletedAt: { isSet: false } },
+      select: { id: true, displayName: true, avatar: true, role: { select: { code: true } } }
+    })
+  }
+
   async upsertAssistantProfile(userId: string, data: AssistantProfileBodyType) {
     return await this.prismaService.assistantProfile.upsert({
       where: { userId },

@@ -9,7 +9,7 @@ export function toSeriesRes(series: Series) {
     parentSeriesId: series.parentSeriesId,
     title: series.title,
     coverImage: series.coverImage,
-    genre: series.genre,
+    genres: series.genres,
     demographic: series.demographic,
     publicationType: series.publicationType,
     status: series.status,

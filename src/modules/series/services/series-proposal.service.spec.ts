@@ -8,7 +8,7 @@ const baseSeries = {
   coOwnerId: null,
   parentSeriesId: null,
   title: 'T',
-  genre: null,
+  genres: [],
   demographic: null,
   publicationType: null,
   status: SeriesStatus.DRAFT,
@@ -69,7 +69,7 @@ function make(seriesOverride: Record<string, unknown> = {}) {
 describe('SeriesProposalService', () => {
   it('createProposal returns mapped series + name', async () => {
     const { service, seriesRepository } = make()
-    const res = await service.createProposal('m1', { title: 'T', characterDesigns: [], namePages: [] })
+    const res = await service.createProposal('m1', { title: 'T', genres: [], characterDesigns: [], namePages: [] })
     expect(seriesRepository.createProposalSeries).toHaveBeenCalledWith('m1', expect.objectContaining({ title: 'T' }))
     expect(res.series.id).toBe('s1')
     expect(res.name.id).toBe('n1')

@@ -9,7 +9,8 @@
   `@nestjs/event-emitter` (domain events), AWS SDK v3 → Cloudflare R2 (object storage), Resend (email), pnpm.
 - **Feature modules BE-A**: `auth`, `users`, `notification`, `reviews`, `series`, `chapter`,
   `annotation`, `storage` (Creation & Production). **BE-B** (Commercial & Governance) **đã bắt đầu**: module
-  `contract` đã có trong repo — KHÔNG sửa hộ BE-B (chỉ để sẵn convention dùng chung ở `core/`).
+  `contract` (B1) **và** `board` (B5 — Board/Decision engine) đã có trong repo — **KHÔNG sửa hộ BE-B**
+  (chỉ để sẵn convention dùng chung ở `core/`).
 - **Quy tắc vàng**: Vertical slice (NestJS chuẩn). Mỗi module tự chứa đủ: controller(s), service(s), repo,
   schemas, dto, errors, (mapper/constant/ports nếu cần).
 
@@ -43,7 +44,10 @@ src/
 |   |-- database/                   # PrismaService + prisma-error.helper
 |   |-- crypto/                     # HashingService (bcrypt)
 |   |-- token/                      # TokenService + JWT payload types
-|   |-- email/                      # EmailService (Resend) + React-email templates
+|   |-- email/                      # EmailService (Resend) + email.queue/processor + React-email templates
+|   |-- queue/                      # BullMQ queue config + QueueService (email, notification)
+|   |-- redis/                      # ioredis clients (general + BullMQ) + RedisService
+|   |-- oauth/                      # GoogleTokenVerifierService (verify Google ID token)
 |   `-- storage/                    # StorageService (R2 presigned URL)
 └── modules/
     └── <name>/
@@ -211,6 +215,11 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
 - **Partial-update (PATCH semantics):** field optional cho cập nhật từng phần → schema dùng `.nullish()` (nhận cả
   omit lẫn `null`); repo chỉ ghi khi `!= null` (scalar: `if (body.x != null) data.x = body.x`; composite: `x: body.x ?? current.x`).
   Quy ước: omit/`null` = giữ nguyên; gửi `[]` cho mảng = clear. Áp đồng nhất để FE đoán được hành vi.
+- **🔴 OBJECT_ID_RE guard cho route `:id` (BẮT BUỘC khi nhận id từ param/body để query field `@db.ObjectId`):**
+  id rác (không 24-hex) đưa thẳng vào Prisma `where: { id }` → ném **P2023** → **500** (không phải 404 sạch).
+  Trước khi query, guard: `const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/` → `if (!OBJECT_ID_RE.test(id)) throw <Entity>NotFoundException`.
+  Pattern dùng ở `series-query`/`series-claim`/`series-proposal`/`admin-user-query`/`mangaka-profile` service — bám theo.
+  (Unit test malformed-id bắt được; nhưng dễ quên khi thêm route `:id` mới → luôn thêm guard + 1 test id rác → 404.)
 
 ## 11. Migration / Done Checklist
 
