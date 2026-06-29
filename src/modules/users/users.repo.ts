@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
-import { AvailabilityStatus, Prisma, RegistrationType, UserStatus } from '@prisma/client'
-import { RoleNameType } from 'src/core/security/constants/role.constant'
+import { AvailabilityStatus, Prisma, RegistrationType, Specialization, UserStatus } from '@prisma/client'
+import { RoleName, RoleNameType } from 'src/core/security/constants/role.constant'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { AssistantProfileBodyType, MangakaProfileBodyType } from './schemas/users-schemas'
 
@@ -12,6 +12,14 @@ export type AdminUserFilter = {
   status?: UserStatus
   search?: string
   includeDeleted?: boolean
+}
+
+// ---- Assistant directory (A-TSK-06) ----
+export type AssistantDirectoryFilter = {
+  specialization?: Specialization
+  level?: string
+  availableFrom?: string
+  availableTo?: string
 }
 
 // Whitelist field trả ra cho admin — KHÔNG bao giờ chứa password.
@@ -178,5 +186,54 @@ export class UsersRepository {
 
   async findUserByIdForAdmin(id: string) {
     return await this.prismaService.user.findUnique({ where: { id }, select: ADMIN_USER_SELECT })
+  }
+
+  // ---- Assistant directory (A-TSK-06) ----
+  // Mongo: KHÔNG relation-filter — resolve roleId trước (bám buildAdminUserWhere).
+  private async findActiveAssistantUserIds(): Promise<string[]> {
+    const role = await this.prismaService.role.findFirst({ where: { code: RoleName.ASSISTANT }, select: { id: true } })
+    if (!role) return []
+    const users = await this.prismaService.user.findMany({
+      where: { roleId: role.id, status: UserStatus.ACTIVE, deletedAt: { isSet: false } },
+      select: { id: true }
+    })
+    return users.map((u) => u.id)
+  }
+
+  private buildDirectoryWhere(activeIds: string[], f: AssistantDirectoryFilter): Prisma.AssistantProfileWhereInput {
+    const window =
+      f.availableFrom && f.availableTo
+        ? {
+            availabilityStatus: AvailabilityStatus.AVAILABLE,
+            AND: [
+              { OR: [{ availabilityFrom: null }, { availabilityFrom: { lte: new Date(f.availableTo) } }] },
+              { OR: [{ availabilityTo: null }, { availabilityTo: { gte: new Date(f.availableFrom) } }] }
+            ]
+          }
+        : {}
+    return {
+      userId: { in: activeIds },
+      ...(f.specialization ? { specializations: { has: f.specialization } } : {}),
+      ...(f.level ? { experienceLevel: f.level } : {}),
+      ...window
+    }
+  }
+
+  async findAssistantsForDirectory(f: AssistantDirectoryFilter, page: { limit: number; offset: number }) {
+    const activeIds = await this.findActiveAssistantUserIds()
+    if (activeIds.length === 0) return []
+    return await this.prismaService.assistantProfile.findMany({
+      where: this.buildDirectoryWhere(activeIds, f),
+      orderBy: [{ isRecommended: 'desc' }, { reputationScore: 'desc' }, { ratingCount: 'desc' }],
+      skip: page.offset,
+      take: page.limit,
+      include: { user: { select: { displayName: true, avatar: true } } }
+    })
+  }
+
+  async countAssistantsForDirectory(f: AssistantDirectoryFilter): Promise<number> {
+    const activeIds = await this.findActiveAssistantUserIds()
+    if (activeIds.length === 0) return 0
+    return await this.prismaService.assistantProfile.count({ where: this.buildDirectoryWhere(activeIds, f) })
   }
 }
