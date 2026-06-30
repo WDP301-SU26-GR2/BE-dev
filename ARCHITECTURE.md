@@ -305,7 +305,7 @@ const configSchema = z.object({
 
 ### Models
 
-Schema (`prisma/schema.prisma`) khai báo **toàn bộ domain Mangaka** (~39 models) từ đầu. BE-A đã hiện thực 8 module (auth, users, notification, reviews, series, chapter, annotation, storage); BE-B đã bắt đầu module `contract`. Nhóm models theo bounded context:
+Schema (`prisma/schema.prisma`) khai báo **toàn bộ domain Mangaka** (~39 models) từ đầu. BE-A đã hiện thực 10 module (auth, users, notification, reviews, series, chapter, annotation, storage, studio, task); BE-B đã bắt đầu module `contract` + `board`. Nhóm models theo bounded context:
 
 | Nhóm | Models |
 |------|--------|
