@@ -71,7 +71,12 @@ export class SeriesProposalService {
     requireAssignedEditor(series, editorId)
     if (!series.reviewStartedAt) await this.seriesRepository.markReviewStarted(seriesId)
     const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVISION)
-    await this.notifyMangaka(series.mangakaId, seriesId, SeriesMessages.notification.proposalRevision(reason))
+    await this.notifyMangaka(
+      series.mangakaId,
+      seriesId,
+      'PROPOSAL_REVISION_REQUESTED',
+      SeriesMessages.notification.proposalRevision(reason)
+    )
     return toSeriesRes(updated)
   }
 
@@ -80,7 +85,12 @@ export class SeriesProposalService {
     if (series.proposal?.status !== ProposalStatus.PROPOSAL_REVISION) throw InvalidProposalStateException
     const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVIEW)
     if (series.editorId)
-      await this.notifyMangaka(series.editorId, seriesId, SeriesMessages.notification.proposalResubmitted)
+      await this.notifyMangaka(
+        series.editorId,
+        seriesId,
+        'PROPOSAL_RESUBMITTED',
+        SeriesMessages.notification.proposalResubmitted
+      )
     return toSeriesRes(updated)
   }
 
@@ -93,7 +103,12 @@ export class SeriesProposalService {
     if (!series.reviewStartedAt) await this.seriesRepository.markReviewStarted(seriesId)
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_APPROVED)
     const advanced = await this.seriesStateService.tryAdvanceToReadyToPitch(seriesId, editorId)
-    await this.notifyMangaka(series.mangakaId, seriesId, SeriesMessages.notification.proposalApproved)
+    await this.notifyMangaka(
+      series.mangakaId,
+      seriesId,
+      'PROPOSAL_APPROVED',
+      SeriesMessages.notification.proposalApproved
+    )
     return toSeriesRes(advanced)
   }
 
@@ -107,7 +122,12 @@ export class SeriesProposalService {
       changedBy: editorId,
       reason
     })
-    await this.notifyMangaka(series.mangakaId, seriesId, SeriesMessages.notification.proposalRejected(reason))
+    await this.notifyMangaka(
+      series.mangakaId,
+      seriesId,
+      'PROPOSAL_REJECTED',
+      SeriesMessages.notification.proposalRejected(reason)
+    )
     return toSeriesRes(updated)
   }
 
@@ -141,12 +161,12 @@ export class SeriesProposalService {
     return series
   }
 
-  private async notifyMangaka(recipientId: string, seriesId: string, content: string) {
-    await this.notificationService.notify({
+  private async notifyMangaka(recipientId: string, seriesId: string, referenceType: string, content: string) {
+    await this.notificationService.notifySafe({
       recipientId,
       type: NotificationType.SYSTEM,
       referenceId: seriesId,
-      referenceType: 'SERIES',
+      referenceType,
       content
     })
   }

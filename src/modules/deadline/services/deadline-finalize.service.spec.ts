@@ -6,7 +6,7 @@ describe('DeadlineFinalizeService', () => {
   const scheduleService = { getDeadlineContext: jest.fn(), extendDeadline: jest.fn() }
   const repo = { findById: jest.fn() }
   const stateService = { transition: jest.fn() }
-  const notificationService = { notify: jest.fn() }
+  const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const service = new DeadlineFinalizeService(
     scheduleService as never,
     repo as never,
@@ -57,7 +57,9 @@ describe('DeadlineFinalizeService', () => {
       newDeadline: request.requestedDeadline.toISOString(),
       reason: request.reason
     })
-    expect(notificationService.notify).toHaveBeenCalledWith(expect.objectContaining({ recipientId: 'mangaka-1' }))
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'mangaka-1', referenceType: 'DEADLINE_APPROVED' })
+    )
     expect(result.status).toBe(DeadlineRequestStatus.APPROVED)
   })
 
@@ -80,6 +82,9 @@ describe('DeadlineFinalizeService', () => {
       extra: { affectsSlot: true }
     })
     expect(scheduleService.extendDeadline).not.toHaveBeenCalled()
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'mangaka-1', referenceType: 'DEADLINE_BOARD_REVIEW' })
+    )
   })
 
   it('allows only the assigned editor to finalize', async () => {

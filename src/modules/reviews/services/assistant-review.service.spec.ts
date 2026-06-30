@@ -36,7 +36,7 @@ function make() {
     getByUserId: jest.fn().mockResolvedValue({ userId: 'a1' }),
     applyReputation: jest.fn().mockResolvedValue(undefined)
   }
-  const notificationService = { notify: jest.fn().mockResolvedValue(undefined) }
+  const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const studioAssignmentService = {
     findEndedForPairById: jest
       .fn()
@@ -72,12 +72,12 @@ describe('AssistantReviewService.createOrUpdate', () => {
       reputationScore: 4.15,
       isRecommended: true
     })
-    expect(notificationService.notify).toHaveBeenCalledWith({
+    expect(notificationService.notifySafe).toHaveBeenCalledWith({
       recipientId: 'a1',
       type: 'REVIEW',
       referenceId: 'r1',
-      referenceType: 'ASSISTANT_REVIEW',
-      content: null
+      referenceType: 'ASSISTANT_REVIEW_RECEIVED',
+      content: expect.any(String)
     })
     expect(res).toEqual({ id: 'r1', rating: 5, comment: 'great', createdAt: '2026-06-23T00:00:00.000Z' })
   })
@@ -93,11 +93,11 @@ describe('AssistantReviewService.createOrUpdate', () => {
     await expect(service.createOrUpdate('m1', body)).rejects.toBeDefined()
   })
 
-  it('still returns review when notification fails (best-effort)', async () => {
+  it('uses best-effort notifySafe boundary and returns review', async () => {
     const { service, notificationService } = make()
-    notificationService.notify.mockRejectedValueOnce(new Error('notify down'))
     const res = await service.createOrUpdate('m1', body)
 
+    expect(notificationService.notifySafe).toHaveBeenCalled()
     expect(res).toEqual({ id: 'r1', rating: 5, comment: 'great', createdAt: '2026-06-23T00:00:00.000Z' })
   })
 

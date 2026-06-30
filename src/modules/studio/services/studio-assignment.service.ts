@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { NotificationType, StudioAssignment } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
@@ -10,13 +10,12 @@ import {
 import { AssignmentListWhere, StudioRepository } from '../studio.repo'
 import { toAssignmentRes } from '../studio.mapper'
 import { ListAssignmentsQueryType } from '../schemas/studio-schemas'
+import { StudioMessages } from '../studio.messages'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class StudioAssignmentService {
-  private readonly logger = new Logger(StudioAssignmentService.name)
-
   constructor(
     private readonly studioRepository: StudioRepository,
     private readonly notificationService: NotificationService
@@ -34,17 +33,13 @@ export class StudioAssignmentService {
     const updated = await this.studioRepository.findAssignmentById(assignmentId)
     if (!updated) throw AssignmentNotFoundException
 
-    try {
-      await this.notificationService.notify({
-        recipientId: updated.assistantId,
-        type: NotificationType.SYSTEM,
-        referenceId: updated.id,
-        referenceType: 'STUDIO_ASSIGNMENT',
-        content: null
-      })
-    } catch (error) {
-      this.logger.warn(`Failed to notify assignment terminated ${updated.id}: ${String(error)}`)
-    }
+    await this.notificationService.notifySafe({
+      recipientId: updated.assistantId,
+      type: NotificationType.SYSTEM,
+      referenceId: updated.id,
+      referenceType: 'ASSIGNMENT_TERMINATED',
+      content: StudioMessages.notification.assignmentTerminated
+    })
 
     return toAssignmentRes(updated)
   }

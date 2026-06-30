@@ -25,8 +25,11 @@ export const NotificationResSchema = extendApi(
     id: z.string(),
     type: zEnum($Enums.NotificationType, 'NotificationType').nullable(),
     referenceId: z.string().nullable().describe('ID thực thể liên quan (chapter/task/...)'),
-    referenceType: z.string().nullable().describe('Loại thực thể của referenceId'),
-    content: z.string().nullable(),
+    referenceType: z
+      .string()
+      .nullable()
+      .describe('Mã action liên quan đến referenceId, ví dụ TASK_APPROVED hoặc CHAPTER_PUBLISHED'),
+    content: z.string().nullable().describe('Nội dung hiển thị; notification mới luôn có content'),
     isRead: z.boolean(),
     createdAt: z.string().describe('ISO 8601')
   }),

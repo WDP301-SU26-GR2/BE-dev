@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { NotificationType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { StudioAssignmentService } from 'src/modules/studio/services/studio-assignment.service'
@@ -7,11 +7,10 @@ import { CannotReviewSelfException, ReviewRequiresEndedAssignmentException } fro
 import { ReviewsRepository } from '../reviews.repo'
 import { CreateAssistantReviewBodyType, ReviewResType } from '../schemas/reviews-schemas'
 import { ReputationService } from './reputation.service'
+import { ReviewsMessages } from '../reviews.messages'
 
 @Injectable()
 export class AssistantReviewService {
-  private readonly logger = new Logger(AssistantReviewService.name)
-
   constructor(
     private readonly reviewsRepository: ReviewsRepository,
     private readonly reputationService: ReputationService,
@@ -49,17 +48,13 @@ export class AssistantReviewService {
       isRecommended: reputation.isRecommended
     })
 
-    try {
-      await this.notificationService.notify({
-        recipientId: body.assistantId,
-        type: NotificationType.REVIEW,
-        referenceId: review.id,
-        referenceType: 'ASSISTANT_REVIEW',
-        content: null
-      })
-    } catch (error) {
-      this.logger.warn(`Failed to notify assistant review ${review.id}: ${String(error)}`)
-    }
+    await this.notificationService.notifySafe({
+      recipientId: body.assistantId,
+      type: NotificationType.REVIEW,
+      referenceId: review.id,
+      referenceType: 'ASSISTANT_REVIEW_RECEIVED',
+      content: ReviewsMessages.notification.assistantReviewed
+    })
 
     return { id: review.id, rating: review.rating, comment: review.comment, createdAt: review.createdAt.toISOString() }
   }
