@@ -33,4 +33,13 @@ export class ScheduleService {
       reason: body.reason
     })
   }
+
+  async getDeadlineContext(chapterId: string) {
+    const chapter = await this.chapterRepository.findChapterById(chapterId)
+    if (!chapter) return null
+    const series = await this.chapterRepository.findSeriesById(chapter.seriesId)
+    if (!series) return null
+    const schedule = await this.chapterRepository.findScheduleByChapterId(chapterId)
+    return { chapter, series, schedule }
+  }
 }

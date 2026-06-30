@@ -658,6 +658,14 @@ type ScheduleExtension {
   extendedAt       DateTime  @default(now())
 }
 
+type DeadlineRequestStatusHistoryEntry {
+  from   DeadlineRequestStatus?
+  to     DeadlineRequestStatus
+  by     String?               @db.ObjectId
+  reason String?
+  at     DateTime              @default(now())
+}
+
 model DeadlineRequest {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   scheduleId String   @db.ObjectId
@@ -675,6 +683,8 @@ model DeadlineRequest {
   status            DeadlineRequestStatus @default(PROPOSED)
   resolvedAt        DateTime?
   createdAt         DateTime              @default(now())
+  lastProposedBy    String?
+  statusHistory     DeadlineRequestStatusHistoryEntry[]
 
   @@index([scheduleId])
   @@index([chapterId])
