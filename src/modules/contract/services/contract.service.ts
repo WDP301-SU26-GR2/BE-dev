@@ -210,21 +210,18 @@ export class ContractService {
     })
 
     return {
-      success: true,
-      data: {
-        id: contract.id,
-        status: contract.status,
-        mangaka: {
-          id: contract.mangakaId,
-          isSigned: !!contract.mangakaSignedAt,
-          signedAt: contract.mangakaSignedAt
-        },
-        boardProgress: {
-          totalRequired: allowedEditorIds.length,
-          totalSigned: boardSignatures.signedEditors.length,
-          signedEditors: boardSignatures.signedEditors,
-          pendingEditors: boardSignatures.pendingEditors
-        }
+      id: contract.id,
+      status: contract.status,
+      mangaka: {
+        id: contract.mangakaId,
+        isSigned: !!contract.mangakaSignedAt,
+        signedAt: contract.mangakaSignedAt
+      },
+      boardProgress: {
+        totalRequired: allowedEditorIds.length,
+        totalSigned: boardSignatures.signedEditors.length,
+        signedEditors: boardSignatures.signedEditors,
+        pendingEditors: boardSignatures.pendingEditors
       }
     }
   }
