@@ -37,6 +37,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.NameNotFound': 'name does not exist',
   'Error.NameNotInSeries': 'name does not belong to this series',
   'Error.NotAssignedEditor': 'current editor is not assigned to this series',
+  'Error.NotificationNotFound': 'notification does not exist or does not belong to the current user',
   'Error.NotSeriesEditor': 'current user is not the assigned series editor',
   'Error.NotSeriesOwner': 'current user is not the series owner',
   'Error.NotAssignmentOwner': 'current user is not the owner of this assignment',
