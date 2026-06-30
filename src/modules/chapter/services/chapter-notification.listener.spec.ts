@@ -16,7 +16,7 @@ describe('ChapterPublishedListener', () => {
         recipientId: 'M1',
         type: NotificationType.SYSTEM,
         referenceId: 'C1',
-        referenceType: 'CHAPTER'
+        referenceType: 'CHAPTER_PUBLISHED'
       })
     )
   })

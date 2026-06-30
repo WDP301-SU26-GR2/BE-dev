@@ -43,11 +43,11 @@ export class DeadlineFinalizeService {
         extra: { affectsSlot: true }
       })
       // B5-INTEGRATION: BoardEscalationPort.escalate({ kind: 'DEADLINE_SLOT', ... }) when B5 is ready.
-      await this.notificationService.notify({
+      await this.notificationService.notifySafe({
         recipientId: ctx.series.mangakaId,
         type: NotificationType.DEADLINE,
         referenceId: id,
-        referenceType: 'DeadlineRequest',
+        referenceType: 'DEADLINE_BOARD_REVIEW',
         content: N.boardReview
       })
       return toDeadlineRequestRes(updated)
@@ -61,11 +61,11 @@ export class DeadlineFinalizeService {
       newDeadline: request.requestedDeadline.toISOString(),
       reason: request.reason ?? 'Deadline negotiated (A5)'
     })
-    await this.notificationService.notify({
+    await this.notificationService.notifySafe({
       recipientId: ctx.series.mangakaId,
       type: NotificationType.DEADLINE,
       referenceId: id,
-      referenceType: 'DeadlineRequest',
+      referenceType: 'DEADLINE_APPROVED',
       content: N.approved
     })
     return toDeadlineRequestRes(updated)

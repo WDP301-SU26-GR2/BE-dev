@@ -30,7 +30,7 @@ function make(nameOverride: Record<string, unknown> = {}) {
       .mockImplementation((id, page) => Promise.resolve({ ...name, pages: [...name.pages, page] }))
   }
   const seriesStateService = { tryAdvanceToReadyToPitch: jest.fn().mockResolvedValue(series) }
-  const notificationService = { notify: jest.fn().mockResolvedValue(undefined) }
+  const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const service = new NameService(seriesRepository as never, seriesStateService as never, notificationService as never)
   return { service, seriesRepository, seriesStateService, notificationService, name }
 }
@@ -43,10 +43,29 @@ describe('NameService', () => {
   })
 
   it('approve: SUBMITTED->APPROVED then tries to advance series', async () => {
-    const { service, seriesRepository, seriesStateService } = make({ status: NameStatus.SUBMITTED })
+    const { service, seriesRepository, seriesStateService, notificationService } = make({
+      status: NameStatus.SUBMITTED
+    })
     await service.approve('e1', 's1', 'n1')
     expect(seriesRepository.updateNameStatus).toHaveBeenCalledWith('n1', { status: NameStatus.APPROVED })
     expect(seriesStateService.tryAdvanceToReadyToPitch).toHaveBeenCalledWith('s1', 'e1')
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'm1', referenceType: 'NAME_APPROVED', content: expect.any(String) })
+    )
+  })
+
+  it('requestRevision notifies with NAME_REVISION_REQUESTED', async () => {
+    const { service, notificationService } = make({ status: NameStatus.SUBMITTED })
+
+    await service.requestRevision('e1', 's1', 'n1', 'fix pacing')
+
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'm1',
+        referenceType: 'NAME_REVISION_REQUESTED',
+        content: expect.any(String)
+      })
+    )
   })
 
   it('approve by a non-assigned editor throws', async () => {

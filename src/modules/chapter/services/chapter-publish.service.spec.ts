@@ -12,12 +12,12 @@ function makeDeps(series: Record<string, unknown>) {
     transition: jest.fn().mockResolvedValue({ id: 'c1', publishedAt: new Date('2026-06-24T00:00:00.000Z') })
   }
   const eventBus = { emit: jest.fn() }
-  const notification = { notify: jest.fn().mockResolvedValue({}) }
+  const notification = { notify: jest.fn().mockResolvedValue({}), notifySafe: jest.fn().mockResolvedValue(undefined) }
   return { repo, manuscriptState, eventBus, notification }
 }
 
 describe('ChapterPublishService.publish', () => {
-  it('publishes when no co-owner: PUBLISHED + emit chapter.published + notify', async () => {
+  it('publishes when no co-owner: PUBLISHED + emit chapter.published without inline notify', async () => {
     const { repo, manuscriptState, eventBus, notification } = makeDeps({
       id: 's1',
       mangakaId: 'u1',
@@ -36,7 +36,8 @@ describe('ChapterPublishService.publish', () => {
       DomainEvent.ChapterPublished,
       expect.objectContaining({ chapterId: 'c1', seriesId: 's1' })
     )
-    expect(notification.notify).toHaveBeenCalledWith(expect.objectContaining({ recipientId: 'u1' }))
+    expect(notification.notify).not.toHaveBeenCalled()
+    expect(notification.notifySafe).not.toHaveBeenCalled()
   })
 
   it('routes to AWAITING_CO_OWNER_APPROVAL when series has co-owner (no event yet)', async () => {
@@ -57,7 +58,9 @@ describe('ChapterPublishService.publish', () => {
       changedBy: 'e1'
     })
     expect(eventBus.emit).not.toHaveBeenCalled()
-    expect(notification.notify).toHaveBeenCalledWith(expect.objectContaining({ recipientId: 'a1' }))
+    expect(notification.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'a1', referenceType: 'MANUSCRIPT_AWAITING_CO_OWNER' })
+    )
   })
 
   it('non-editor cannot publish (403)', async () => {

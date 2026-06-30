@@ -37,13 +37,18 @@ export class DeadlineNegotiationService {
     return side === 'MANGAKA' ? series.editorId : series.mangakaId
   }
 
-  private async notify(recipientId: string | null | undefined, content: string, requestId: string) {
+  private async notify(
+    recipientId: string | null | undefined,
+    content: string,
+    requestId: string,
+    referenceType: string
+  ) {
     if (!recipientId) return
-    await this.notificationService.notify({
+    await this.notificationService.notifySafe({
       recipientId,
       type: NotificationType.DEADLINE,
       referenceId: requestId,
-      referenceType: 'DeadlineRequest',
+      referenceType,
       content
     })
   }
@@ -97,7 +102,7 @@ export class DeadlineNegotiationService {
       createdById: userId
     })
 
-    await this.notify(this.getCounterpartyId(ctx.series, side), N.proposed, request.id)
+    await this.notify(this.getCounterpartyId(ctx.series, side), N.proposed, request.id, 'DEADLINE_PROPOSED')
     return toDeadlineRequestRes(request)
   }
 
@@ -123,7 +128,7 @@ export class DeadlineNegotiationService {
       }
     })
 
-    await this.notify(this.getCounterpartyId(ctx.series, side), N.counterProposed, updated.id)
+    await this.notify(this.getCounterpartyId(ctx.series, side), N.counterProposed, updated.id, 'DEADLINE_COUNTERED')
     return toDeadlineRequestRes(updated)
   }
 
@@ -132,7 +137,7 @@ export class DeadlineNegotiationService {
     this.assertCounterparty(request, side)
     const updated = await this.stateService.transition(id, DeadlineRequestStatus.AGREED_BY_PARTIES, { by: userId })
 
-    await this.notify(this.getCounterpartyId(ctx.series, side), N.agreed, updated.id)
+    await this.notify(this.getCounterpartyId(ctx.series, side), N.agreed, updated.id, 'DEADLINE_AGREED')
     return toDeadlineRequestRes(updated)
   }
 
@@ -145,7 +150,7 @@ export class DeadlineNegotiationService {
     })
     // B5-INTEGRATION: BoardEscalationPort.escalate({ kind: 'DEADLINE_DISPUTE', ... }) when B5 is ready.
 
-    await this.notify(this.getCounterpartyId(ctx.series, side), N.rejected, updated.id)
+    await this.notify(this.getCounterpartyId(ctx.series, side), N.rejected, updated.id, 'DEADLINE_REJECTED')
     return toDeadlineRequestRes(updated)
   }
 
@@ -154,7 +159,7 @@ export class DeadlineNegotiationService {
     if (request.requestedBy !== side) throw DeadlineRequestAccessDeniedException
     const updated = await this.stateService.transition(id, DeadlineRequestStatus.REJECTED, { by: userId })
 
-    await this.notify(this.getCounterpartyId(ctx.series, side), N.withdrawn, updated.id)
+    await this.notify(this.getCounterpartyId(ctx.series, side), N.withdrawn, updated.id, 'DEADLINE_WITHDRAWN')
     return toDeadlineRequestRes(updated)
   }
 }

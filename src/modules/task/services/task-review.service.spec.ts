@@ -18,7 +18,7 @@ describe('TaskReviewService', () => {
   }
   const taskState = { transition: jest.fn() }
   const cascade = { fireOnSubmitted: jest.fn() }
-  const notification = { notify: jest.fn() }
+  const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const service = new TaskReviewService(repo as never, taskState as never, cascade as never, notification as never)
   beforeEach(() => jest.clearAllMocks())
 
@@ -62,10 +62,14 @@ describe('TaskReviewService', () => {
         versions: [{ versionNumber: 1, reviewStatus: 'PENDING', submittedAt: new Date() }],
         createdAt: new Date()
       })
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
     await service.submit('me', ID, { file: 'k' })
     expect(taskState.transition).toHaveBeenCalledWith(ID, 'SUBMITTED')
     expect(repo.pushTaskVersion).toHaveBeenCalledWith(ID, { submittedBy: 'me', versionNumber: 1, file: 'k' })
     expect(cascade.fireOnSubmitted).toHaveBeenCalled()
+    expect(notification.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'm', type: 'REVIEW', referenceType: 'TASK_SUBMITTED' })
+    )
   })
 
   it('approve rejects non-owner → 403', async () => {
@@ -90,5 +94,28 @@ describe('TaskReviewService', () => {
     expect(taskState.transition).toHaveBeenNthCalledWith(1, ID, 'UNDER_REVIEW')
     expect(taskState.transition).toHaveBeenNthCalledWith(2, ID, 'APPROVED')
     expect(repo.setLatestVersionReview).toHaveBeenCalledWith(ID, { reviewStatus: 'APPROVED', reviewerNote: null })
+    expect(notification.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'a', type: 'TASK', referenceType: 'TASK_APPROVED' })
+    )
+  })
+
+  it('request revision notifies assistant with TASK_REVISION_REQUESTED', async () => {
+    repo.findTaskById.mockResolvedValue({
+      id: 't',
+      pageId: 'a'.repeat(24),
+      assistantId: 'a',
+      status: 'SUBMITTED',
+      priority: 0,
+      assetIds: [],
+      versions: [],
+      createdAt: new Date()
+    })
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+
+    await service.requestRevision('m', ID, { reviewerNote: 'fix tone' })
+
+    expect(notification.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'a', type: 'TASK', referenceType: 'TASK_REVISION_REQUESTED' })
+    )
   })
 })

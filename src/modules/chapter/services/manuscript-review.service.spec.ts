@@ -9,7 +9,7 @@ function makeDeps(over: Record<string, unknown> = {}) {
     ...over
   }
   const manuscriptState = { transition: jest.fn().mockResolvedValue({ id: 'c1' }) }
-  const notification = { notify: jest.fn().mockResolvedValue({}) }
+  const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   return { repo, manuscriptState, notification }
 }
 
@@ -35,8 +35,12 @@ describe('ManuscriptReviewService', () => {
     const svc = new ManuscriptReviewService(repo as never, manuscriptState as never, notification as never)
     await svc.submit('u1', 'c1')
     expect(manuscriptState.transition).toHaveBeenCalledWith('c1', ManuscriptStatus.EDITOR_REVIEW, { changedBy: 'u1' })
-    expect(notification.notify).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientId: 'e1', type: NotificationType.REVIEW })
+    expect(notification.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'e1',
+        type: NotificationType.REVIEW,
+        referenceType: 'MANUSCRIPT_SUBMITTED'
+      })
     )
   })
 
@@ -48,7 +52,9 @@ describe('ManuscriptReviewService', () => {
       changedBy: 'e1',
       reason: 'fix dialog'
     })
-    expect(notification.notify).toHaveBeenCalledWith(expect.objectContaining({ recipientId: 'u1' }))
+    expect(notification.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'u1', referenceType: 'MANUSCRIPT_REVISION_REQUESTED' })
+    )
   })
 
   it('approve (Editor) → READY_FOR_PRINT', async () => {
@@ -56,6 +62,9 @@ describe('ManuscriptReviewService', () => {
     const svc = new ManuscriptReviewService(repo as never, manuscriptState as never, notification as never)
     await svc.approve('e1', 'c1')
     expect(manuscriptState.transition).toHaveBeenCalledWith('c1', ManuscriptStatus.READY_FOR_PRINT, { changedBy: 'e1' })
+    expect(notification.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'u1', referenceType: 'MANUSCRIPT_APPROVED' })
+    )
   })
 
   it('non-owner submit forbidden (403)', async () => {
