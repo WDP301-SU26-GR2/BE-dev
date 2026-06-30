@@ -20,6 +20,7 @@ import { UsersModule } from './modules/users/users.module'
 import { BoardModule } from './modules/board/board.module'
 import { StudioModule } from './modules/studio/studio.module'
 import { TaskModule } from './modules/task/task.module'
+import { DeadlineModule } from './modules/deadline/deadline.module'
 
 @Module({
   imports: [
@@ -38,7 +39,8 @@ import { TaskModule } from './modules/task/task.module'
     AnnotationModule,
     BoardModule,
     StudioModule,
-    TaskModule
+    TaskModule,
+    DeadlineModule
   ],
   controllers: [],
   providers: [

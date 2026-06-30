@@ -57,7 +57,7 @@ function make(seriesOverride: Record<string, unknown> = {}) {
     transition: jest.fn().mockImplementation((id, toStatus) => Promise.resolve({ ...series, status: toStatus })),
     tryAdvanceToReadyToPitch: jest.fn().mockResolvedValue({ ...series, status: SeriesStatus.READY_TO_PITCH })
   }
-  const notificationService = { notify: jest.fn().mockResolvedValue(undefined) }
+  const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const service = new SeriesProposalService(
     seriesRepository as never,
     seriesStateService as never,
@@ -99,7 +99,7 @@ describe('SeriesProposalService', () => {
   })
 
   it('approve: proposal->PROPOSAL_APPROVED then tries to advance', async () => {
-    const { service, seriesRepository, seriesStateService } = make({
+    const { service, seriesRepository, seriesStateService, notificationService } = make({
       editorId: 'editor1',
       status: SeriesStatus.IN_REVIEW,
       proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVIEW }
@@ -108,10 +108,13 @@ describe('SeriesProposalService', () => {
     expect(seriesRepository.updateProposalStatus).toHaveBeenCalledWith('s1', ProposalStatus.PROPOSAL_APPROVED)
     expect(seriesRepository.markReviewStarted).toHaveBeenCalledWith('s1')
     expect(seriesStateService.tryAdvanceToReadyToPitch).toHaveBeenCalledWith('s1', 'editor1')
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'm1', referenceType: 'PROPOSAL_APPROVED', content: expect.any(String) })
+    )
   })
 
   it('reject: proposal->REJECTED, series->ABANDONED with reason', async () => {
-    const { service, seriesRepository, seriesStateService } = make({
+    const { service, seriesRepository, seriesStateService, notificationService } = make({
       editorId: 'editor1',
       status: SeriesStatus.IN_REVIEW,
       proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVIEW }
@@ -122,6 +125,45 @@ describe('SeriesProposalService', () => {
       changedBy: 'editor1',
       reason: 'không phù hợp'
     })
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'm1', referenceType: 'PROPOSAL_REJECTED', content: expect.any(String) })
+    )
+  })
+
+  it('requestRevision notifies with PROPOSAL_REVISION_REQUESTED', async () => {
+    const { service, notificationService } = make({
+      editorId: 'editor1',
+      status: SeriesStatus.IN_REVIEW,
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVIEW }
+    })
+
+    await service.requestRevision('editor1', 's1', 'needs work')
+
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'm1',
+        referenceType: 'PROPOSAL_REVISION_REQUESTED',
+        content: expect.any(String)
+      })
+    )
+  })
+
+  it('resubmit notifies assigned editor with PROPOSAL_RESUBMITTED', async () => {
+    const { service, notificationService } = make({
+      editorId: 'editor1',
+      status: SeriesStatus.IN_REVIEW,
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVISION }
+    })
+
+    await service.resubmit('m1', 's1')
+
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'editor1',
+        referenceType: 'PROPOSAL_RESUBMITTED',
+        content: expect.any(String)
+      })
+    )
   })
 
   it('approve by a non-assigned editor throws', async () => {

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { NotificationType, Prisma } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
@@ -16,13 +16,12 @@ import { toAssignmentRes, toInviteRes } from '../studio.mapper'
 import { StudioRepository } from '../studio.repo'
 import { CreateInviteBodyType, ListInvitesQueryType } from '../schemas/studio-schemas'
 import { StudioAssignmentService } from './studio-assignment.service'
+import { StudioMessages } from '../studio.messages'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class CollaborationInviteService {
-  private readonly logger = new Logger(CollaborationInviteService.name)
-
   constructor(
     private readonly studioRepository: StudioRepository,
     private readonly studioAssignmentService: StudioAssignmentService,
@@ -53,7 +52,7 @@ export class CollaborationInviteService {
       taskTypes: body.taskTypes
     })
 
-    await this.safeNotify(body.assistantId, invite.id)
+    await this.safeNotify(body.assistantId, invite.id, 'INVITE_RECEIVED', StudioMessages.notification.inviteReceived)
     return toInviteRes(invite)
   }
 
@@ -67,7 +66,7 @@ export class CollaborationInviteService {
       if (result.reason === 'DUPLICATE_ACTIVE') throw DuplicateActiveCollaborationException
       throw InviteNotPendingException
     }
-    await this.safeNotify(invite.mangakaId, invite.id)
+    await this.safeNotify(invite.mangakaId, invite.id, 'INVITE_ACCEPTED', StudioMessages.notification.inviteAccepted)
     return toAssignmentRes(result.assignment)
   }
 
@@ -76,7 +75,7 @@ export class CollaborationInviteService {
     if (invite.assistantId !== assistantId) throw NotInviteeException
     if (invite.status !== 'PENDING') throw InviteNotPendingException
     const updated = await this.studioRepository.updateInviteStatus(inviteId, 'DECLINED')
-    await this.safeNotify(invite.mangakaId, invite.id)
+    await this.safeNotify(invite.mangakaId, invite.id, 'INVITE_DECLINED', StudioMessages.notification.inviteDeclined)
     return toInviteRes(updated)
   }
 
@@ -116,17 +115,13 @@ export class CollaborationInviteService {
     return invite
   }
 
-  private async safeNotify(recipientId: string, inviteId: string) {
-    try {
-      await this.notificationService.notify({
-        recipientId,
-        type: NotificationType.SYSTEM,
-        referenceId: inviteId,
-        referenceType: 'COLLABORATION_INVITE',
-        content: null
-      })
-    } catch (error) {
-      this.logger.warn(`Failed to notify collaboration invite ${inviteId}: ${String(error)}`)
-    }
+  private async safeNotify(recipientId: string, inviteId: string, referenceType: string, content: string) {
+    await this.notificationService.notifySafe({
+      recipientId,
+      type: NotificationType.SYSTEM,
+      referenceId: inviteId,
+      referenceType,
+      content
+    })
   }
 }
