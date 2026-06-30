@@ -33,11 +33,11 @@ export class ChapterPublishService {
       const res = await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.AWAITING_CO_OWNER_APPROVAL, {
         changedBy: userId
       })
-      await this.notificationService.notify({
+      await this.notificationService.notifySafe({
         recipientId: series.coOwnerId,
         type: NotificationType.REVIEW,
         referenceId: chapterId,
-        referenceType: 'CHAPTER',
+        referenceType: 'MANUSCRIPT_AWAITING_CO_OWNER',
         content: ChapterMessages.notification.awaitingCoOwnerApproval
       })
       // B3-INTEGRATION: endpoint co-owner approve/reject + B5-INTEGRATION escalate quá hạn (defer).
@@ -50,13 +50,6 @@ export class ChapterPublishService {
     // Emit SAU khi DB cập nhật (spec §6.1). publishedAt lấy từ chapter sau transition.
     const publishedAt = res?.publishedAt ? res.publishedAt.toISOString() : new Date().toISOString()
     this.eventBus.emit(DomainEvent.ChapterPublished, { chapterId, seriesId: series.id, publishedAt })
-    await this.notificationService.notify({
-      recipientId: series.mangakaId,
-      type: NotificationType.REVIEW,
-      referenceId: chapterId,
-      referenceType: 'CHAPTER',
-      content: ChapterMessages.notification.chapterPublished
-    })
     return res
   }
 }

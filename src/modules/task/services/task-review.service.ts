@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { NotificationType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import {
@@ -12,13 +12,12 @@ import { TaskStateService } from './task-state.service'
 import { TaskCascadeService } from './task-cascade.service'
 import { toTaskRes } from '../task.mapper'
 import { RequestRevisionBodyType, SubmitTaskBodyType } from '../schemas/task-schemas'
+import { TaskMessages } from '../task.messages'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class TaskReviewService {
-  private readonly logger = new Logger(TaskReviewService.name)
-
   constructor(
     private readonly taskRepository: TaskRepository,
     private readonly taskStateService: TaskStateService,
@@ -40,18 +39,20 @@ export class TaskReviewService {
     return page
   }
 
-  private async notifySafe(recipientId: string, type: NotificationType, taskId: string) {
-    try {
-      await this.notificationService.notify({
-        recipientId,
-        type,
-        referenceId: taskId,
-        referenceType: 'TASK',
-        content: null
-      })
-    } catch (error) {
-      this.logger.warn(`Failed to notify ${type} ${taskId}: ${String(error)}`)
-    }
+  private async notify(
+    recipientId: string,
+    type: NotificationType,
+    referenceType: string,
+    taskId: string,
+    content: string
+  ) {
+    await this.notificationService.notifySafe({
+      recipientId,
+      type,
+      referenceId: taskId,
+      referenceType,
+      content
+    })
   }
 
   // A-TSK-04 / SRS §2.2a bước 2: Assistant "Bắt đầu" → ASSIGNED → IN_PROGRESS (ghi mốc bắt đầu).
@@ -75,7 +76,14 @@ export class TaskReviewService {
     if (!updated) throw TaskNotFoundException
     await this.taskCascadeService.fireOnSubmitted(updated, updated.assistantId ?? assistantId)
     const page = await this.taskRepository.findPageWithOwner(task.pageId)
-    if (page) await this.notifySafe(page.chapter.series.mangakaId, NotificationType.REVIEW, taskId)
+    if (page)
+      await this.notify(
+        page.chapter.series.mangakaId,
+        NotificationType.REVIEW,
+        'TASK_SUBMITTED',
+        taskId,
+        TaskMessages.notification.taskSubmittedForReview
+      )
     return toTaskRes(updated)
   }
 
@@ -87,6 +95,15 @@ export class TaskReviewService {
     await this.taskRepository.setLatestVersionReview(taskId, { reviewStatus: 'APPROVED', reviewerNote: null })
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
+    if (updated.assistantId) {
+      await this.notify(
+        updated.assistantId,
+        NotificationType.TASK,
+        'TASK_APPROVED',
+        taskId,
+        TaskMessages.notification.taskApproved
+      )
+    }
     return toTaskRes(updated)
   }
 
@@ -102,7 +119,15 @@ export class TaskReviewService {
     })
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
-    if (updated.assistantId) await this.notifySafe(updated.assistantId, NotificationType.TASK, taskId)
+    if (updated.assistantId) {
+      await this.notify(
+        updated.assistantId,
+        NotificationType.TASK,
+        'TASK_REVISION_REQUESTED',
+        taskId,
+        TaskMessages.notification.taskRevisionRequested
+      )
+    }
     return toTaskRes(updated)
   }
 }

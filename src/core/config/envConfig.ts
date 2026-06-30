@@ -50,6 +50,7 @@ const configSchema = z.object({
   OTP_RL_IP_WINDOW: z.coerce.number().default(3600),
   OTP_RL_COOLDOWN: z.coerce.number().default(60),
   DEADLINE_WARN_THRESHOLD_HOURS: z.coerce.number().default(48),
+  DEADLINE_SLOT_GRACE_HOURS: z.coerce.number().default(48),
   ORPHAN_ASSET_TTL_HOURS: z.coerce.number().default(24),
   TRUST_PROXY_HOPS: z.coerce.number().default(1)
 })

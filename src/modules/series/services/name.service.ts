@@ -21,7 +21,12 @@ export class NameService {
     requireAssignedEditor(series, editorId)
     if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) throw InvalidNameStateException
     const updated = await this.seriesRepository.updateNameStatus(nameId, { status: NameStatus.REVISION })
-    await this.notify(series.mangakaId, seriesId, SeriesMessages.notification.nameRevision(reason))
+    await this.notify(
+      series.mangakaId,
+      seriesId,
+      'NAME_REVISION_REQUESTED',
+      SeriesMessages.notification.nameRevision(reason)
+    )
     return toNameRes(updated)
   }
 
@@ -41,7 +46,7 @@ export class NameService {
     if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) throw InvalidNameStateException
     const updated = await this.seriesRepository.updateNameStatus(nameId, { status: NameStatus.APPROVED })
     await this.seriesStateService.tryAdvanceToReadyToPitch(seriesId, editorId)
-    await this.notify(series.mangakaId, seriesId, SeriesMessages.notification.nameApproved)
+    await this.notify(series.mangakaId, seriesId, 'NAME_APPROVED', SeriesMessages.notification.nameApproved)
     return toNameRes(updated)
   }
 
@@ -78,12 +83,12 @@ export class NameService {
     return { series, name }
   }
 
-  private async notify(recipientId: string, seriesId: string, content: string) {
-    await this.notificationService.notify({
+  private async notify(recipientId: string, seriesId: string, referenceType: string, content: string) {
+    await this.notificationService.notifySafe({
       recipientId,
       type: NotificationType.SYSTEM,
       referenceId: seriesId,
-      referenceType: 'NAME',
+      referenceType,
       content
     })
   }

@@ -54,3 +54,41 @@ describe('NotificationService.notify', () => {
     })
   })
 })
+
+describe('NotificationService.notifySafe', () => {
+  it('delegates to notify on success', async () => {
+    const { service, repo } = makeService({})
+
+    await service.notifySafe({
+      recipientId: 'u1',
+      type: 'TASK',
+      referenceId: 'task1',
+      referenceType: 'TASK_ASSIGNED',
+      content: 'assigned'
+    })
+
+    expect(repo.create).toHaveBeenCalledWith({
+      recipientId: 'u1',
+      type: 'TASK',
+      referenceId: 'task1',
+      referenceType: 'TASK_ASSIGNED',
+      content: 'assigned'
+    })
+  })
+
+  it('swallows notify errors and does not rethrow', async () => {
+    const repo = { findDuplicate: jest.fn().mockRejectedValue(new Error('db down')), create: jest.fn() }
+    const service = new NotificationService(repo as never)
+
+    await expect(
+      service.notifySafe({
+        recipientId: 'u1',
+        type: 'TASK',
+        referenceId: 'task1',
+        referenceType: 'TASK_ASSIGNED',
+        content: 'assigned'
+      })
+    ).resolves.toBeUndefined()
+    expect(repo.create).not.toHaveBeenCalled()
+  })
+})

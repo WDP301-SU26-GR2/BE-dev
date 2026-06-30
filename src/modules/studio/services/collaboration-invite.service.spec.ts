@@ -12,7 +12,7 @@ function make() {
     acceptInvite: jest.fn()
   }
   const studioAssignmentService = { findActiveForPair: jest.fn().mockResolvedValue(null) }
-  const notificationService = { notify: jest.fn().mockResolvedValue(undefined) }
+  const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const service = new CollaborationInviteService(
     studioRepository as never,
     studioAssignmentService as never,
@@ -57,7 +57,13 @@ describe('CollaborationInviteService.create', () => {
     studioRepository.createInvite.mockResolvedValueOnce(inviteRow)
     const res = await service.create(MANGAKA_ID, validBody as never)
     expect(res.status).toBe('PENDING')
-    expect(notificationService.notify).toHaveBeenCalled()
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: ASSISTANT_ID,
+        referenceType: 'INVITE_RECEIVED',
+        content: expect.any(String)
+      })
+    )
   })
 
   it('rejects when target is not an assistant', async () => {
@@ -113,7 +119,7 @@ describe('CollaborationInviteService.create', () => {
 
 describe('CollaborationInviteService.accept', () => {
   it('accepts a pending invite by the invitee and returns the assignment', async () => {
-    const { service, studioRepository } = make()
+    const { service, studioRepository, notificationService } = make()
     studioRepository.findInviteById.mockResolvedValueOnce(inviteRow)
     studioRepository.acceptInvite.mockResolvedValueOnce({
       ok: true,
@@ -132,6 +138,13 @@ describe('CollaborationInviteService.accept', () => {
     })
     const res = await service.accept(ASSISTANT_ID, INVITE_ID)
     expect(res.status).toBe('ACTIVE')
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: MANGAKA_ID,
+        referenceType: 'INVITE_ACCEPTED',
+        content: expect.any(String)
+      })
+    )
   })
 
   it('rejects when caller is not the invitee', async () => {
@@ -162,11 +175,18 @@ describe('CollaborationInviteService.accept', () => {
 
 describe('CollaborationInviteService.decline / cancel', () => {
   it('declines a pending invite by invitee', async () => {
-    const { service, studioRepository } = make()
+    const { service, studioRepository, notificationService } = make()
     studioRepository.findInviteById.mockResolvedValueOnce(inviteRow)
     studioRepository.updateInviteStatus.mockResolvedValueOnce({ ...inviteRow, status: 'DECLINED' })
     const res = await service.decline(ASSISTANT_ID, INVITE_ID)
     expect(res.status).toBe('DECLINED')
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: MANGAKA_ID,
+        referenceType: 'INVITE_DECLINED',
+        content: expect.any(String)
+      })
+    )
   })
 
   it('cancels a pending invite by owner', async () => {

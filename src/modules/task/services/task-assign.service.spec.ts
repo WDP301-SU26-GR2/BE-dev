@@ -25,7 +25,7 @@ describe('TaskAssignService', () => {
   const studio = { findActiveForPair: jest.fn() }
   const storage = { findAssetsByIds: jest.fn() }
   const taskState = { transition: jest.fn() }
-  const notification = { notify: jest.fn() }
+  const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const service = new TaskAssignService(
     repo as never,
     studio as never,
@@ -91,7 +91,14 @@ describe('TaskAssignService', () => {
       assetIds: []
     } as never)
     expect(repo.createTask).toHaveBeenCalled()
-    expect(notification.notify).toHaveBeenCalled()
+    expect(notification.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: ID,
+        type: 'TASK',
+        referenceType: 'TASK_ASSIGNED',
+        content: expect.any(String)
+      })
+    )
   })
 
   it('reassign rejects non-ON_HOLD task → 409', async () => {

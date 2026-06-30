@@ -27,6 +27,6 @@ import { DeadlineWarningCron } from './services/deadline-warning.cron'
     ChapterPublishedListener,
     DeadlineWarningCron
   ],
-  exports: [PageStateService, ManuscriptStateService]
+  exports: [PageStateService, ManuscriptStateService, ScheduleService]
 })
 export class ChapterModule {}
