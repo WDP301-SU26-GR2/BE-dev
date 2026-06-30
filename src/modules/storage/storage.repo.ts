@@ -30,4 +30,14 @@ export class StorageRepository {
   async deleteAssetById(id: string): Promise<void> {
     await this.prismaService.asset.delete({ where: { id } })
   }
+
+  // A4-b: validate assetIds tồn tại. Trả id các Asset có thật.
+  async findAssetsByIds(ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return []
+    const rows = await this.prismaService.asset.findMany({
+      where: { id: { in: ids } },
+      select: { id: true }
+    })
+    return rows.map((r) => r.id)
+  }
 }

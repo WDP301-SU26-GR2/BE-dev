@@ -1,7 +1,8 @@
 import { ChapterStatus, ManuscriptStatus, PageStatus } from '@prisma/client'
 
 // Single source of truth cho chuyển trạng thái Manuscript (A3 sở hữu).
-// Các transition mà SRS nói "do Task lái" được gọi MANUAL ở A3; A4 sẽ tự gọi (// A4-INTEGRATION).
+// A4-INTEGRATION: WIRED → task-cascade.service (page COMPOSITE_READY / manuscript COMPOSITE_REVIEW
+// auto khi mọi Task đạt SUBMITTED). Route manual A3 GIỮ làm fallback.
 export const MANUSCRIPT_TRANSITIONS: Record<ManuscriptStatus, ManuscriptStatus[]> = {
   DRAFT: [ManuscriptStatus.IN_PRODUCTION],
   IN_PRODUCTION: [ManuscriptStatus.COMPOSITE_REVIEW],

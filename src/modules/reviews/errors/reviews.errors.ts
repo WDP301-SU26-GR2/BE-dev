@@ -5,3 +5,6 @@ import { ReviewsMessages } from '../reviews.messages'
 export const CannotReviewSelfException = new UnprocessableEntityException([
   { message: ReviewsMessages.error.cannotReviewSelf, path: 'targetId' }
 ])
+export const ReviewRequiresEndedAssignmentException = new UnprocessableEntityException([
+  { message: ReviewsMessages.error.reviewRequiresEndedAssignment, path: 'studioAssignmentId' }
+])

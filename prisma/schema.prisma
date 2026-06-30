@@ -746,6 +746,7 @@ model Task {
   priority  Int             @default(0)
   deadline  DateTime?
   createdAt DateTime        @default(now())
+  assetIds String[]        @db.ObjectId @default([])
 
   versions    TaskVersion[]
   annotations Annotation[]

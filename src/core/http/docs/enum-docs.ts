@@ -16,6 +16,8 @@ export const ENUM_DOCS = {
   Demographic: 'Phân khúc độc giả: SHONEN, SEINEN, SHOJO, JOSEI, KODOMO',
   AvailabilityStatus: 'Assistant availability: AVAILABLE, BUSY, ON_LEAVE, UNAVAILABLE',
   Specialization: 'Assistant specialization/task type',
+  CollaborationInviteStatus: 'Trạng thái lời mời cộng tác: PENDING, ACCEPTED, DECLINED, EXPIRED, CANCELLED',
+  StudioAssignmentStatus: 'Trạng thái hợp tác studio: ACTIVE, COMPLETED, TERMINATED',
   SeriesStatus: 'Series state machine status',
   ProposalStatus: 'Series proposal review status',
   NameStatus: 'Name/chapter-name review status',
@@ -25,7 +27,11 @@ export const ENUM_DOCS = {
   AnnotationTargetType: 'Annotation target: PAGE, REGION, TASK, MANUSCRIPT',
   AnnotationType: 'Annotation type: TEXT, HIGHLIGHT, DRAWING',
   ReviewStage: 'Review stage: ASSISTANT, MANGAKA, EDITOR',
-  AssetType: 'Uploaded asset type'
+  AssetType: 'Uploaded asset type',
+  TaskStatus:
+    'Task production status: ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED/REVISION_REQUESTED; ON_HOLD khi assistant nghỉ',
+  RegionType: 'Loại vùng trên trang: PANEL, BACKGROUND, SPEECH_BUBBLE, SFX, CHARACTER',
+  TaskVersionReviewStatus: 'Trạng thái review của 1 bản nộp task: PENDING, APPROVED, REVISION_REQUESTED'
 } as const
 
 type EnumDocKey = keyof typeof ENUM_DOCS

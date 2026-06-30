@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { NotificationType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { StudioAssignmentService } from 'src/modules/studio/services/studio-assignment.service'
 import { AssistantProfileService } from 'src/modules/users/services/assistant-profile.service'
-import { CannotReviewSelfException } from '../errors/reviews.errors'
+import { CannotReviewSelfException, ReviewRequiresEndedAssignmentException } from '../errors/reviews.errors'
 import { ReviewsRepository } from '../reviews.repo'
 import { CreateAssistantReviewBodyType, ReviewResType } from '../schemas/reviews-schemas'
 import { ReputationService } from './reputation.service'
@@ -15,11 +16,18 @@ export class AssistantReviewService {
     private readonly reviewsRepository: ReviewsRepository,
     private readonly reputationService: ReputationService,
     private readonly assistantProfileService: AssistantProfileService,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly studioAssignmentService: StudioAssignmentService
   ) {}
 
   async createOrUpdate(reviewerId: string, body: CreateAssistantReviewBodyType): Promise<ReviewResType> {
     if (reviewerId === body.assistantId) throw CannotReviewSelfException
+    const ended = await this.studioAssignmentService.findEndedForPairById(
+      reviewerId,
+      body.assistantId,
+      body.studioAssignmentId
+    )
+    if (!ended) throw ReviewRequiresEndedAssignmentException
     // Validate target has an assistant profile (throws ProfileNotFoundException if missing).
     await this.assistantProfileService.getByUserId(body.assistantId)
 
@@ -28,7 +36,7 @@ export class AssistantReviewService {
       assistantId: body.assistantId,
       rating: body.rating,
       comment: body.comment ?? null,
-      studioAssignmentId: body.studioAssignmentId ?? null, // A4-INTEGRATION: enforce assignment exists when A4 ships
+      studioAssignmentId: body.studioAssignmentId,
       seriesId: body.seriesId ?? null
     })
 
