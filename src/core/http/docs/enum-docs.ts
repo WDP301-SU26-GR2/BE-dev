@@ -28,6 +28,7 @@ export const ENUM_DOCS = {
   AnnotationType: 'Annotation type: TEXT, HIGHLIGHT, DRAWING',
   ReviewStage: 'Review stage: ASSISTANT, MANGAKA, EDITOR',
   AssetType: 'Uploaded asset type',
+  NotificationType: 'Notification type: SYSTEM, CONTRACT, TASK, DEADLINE, SURVEY, BOARD, REVIEW',
   TaskStatus:
     'Task production status: ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED/REVISION_REQUESTED; ON_HOLD khi assistant nghỉ',
   RegionType: 'Loại vùng trên trang: PANEL, BACKGROUND, SPEECH_BUBBLE, SFX, CHARACTER',
