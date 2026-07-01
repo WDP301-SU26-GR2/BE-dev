@@ -1,7 +1,8 @@
 export const OtpPurpose = {
   REGISTER: 'REGISTER',
   FORGOT_PASSWORD: 'FORGOT_PASSWORD',
-  SIGNING_CONTRACT: 'SIGNING_CONTRACT'
+  SIGNING_CONTRACT: 'SIGNING_CONTRACT',
+  VOTE: 'VOTE'
 } as const
 export type OtpPurposeType = (typeof OtpPurpose)[keyof typeof OtpPurpose]
 

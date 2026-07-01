@@ -19,6 +19,7 @@ import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 import { BoardModule } from './modules/board/board.module'
 import { StudioModule } from './modules/studio/studio.module'
+import { SurveyModule } from './modules/survey/survey.module'
 import { TaskModule } from './modules/task/task.module'
 
 @Module({
@@ -37,6 +38,7 @@ import { TaskModule } from './modules/task/task.module'
     ChapterModule,
     AnnotationModule,
     BoardModule,
+    SurveyModule,
     StudioModule,
     TaskModule
   ],
