@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common'
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ContractService } from './services/contract.service'
 import { CreateContractBodyDto, EditorUpdateContractBodyDto, SignContractWithOtpBodyDto } from './dto/contract.dto'
 import { ContractStatus } from '@prisma/client'
@@ -13,12 +13,14 @@ import { ActiveUser } from 'src/core/security/decorators/active-user.decorator' 
 export class ContractController {
   constructor(private readonly contractService: ContractService) {}
 
+  @ApiOperation({ summary: 'Kiểm tra health của module contract' })
   @Get('health')
   health() {
     return this.contractService.healthCheck()
   }
 
   // 1. Tạo mới tài nguyên hợp đồng nháp
+  @ApiOperation({ summary: 'Tạo hợp đồng nháp mới cho series' })
   @Post()
   @Roles(RoleName.EDITOR)
   createDraft(@ActiveUser('userId') userId: string, @Body() dto: CreateContractBodyDto) {
@@ -26,6 +28,7 @@ export class ContractController {
   }
 
   // 2. Cập nhật chi tiết các điều khoản thương lượng hợp đồng
+  @ApiOperation({ summary: 'Editor cập nhật điều khoản hợp đồng nháp' })
   @Patch(':id')
   @Roles(RoleName.EDITOR)
   updateContract(
@@ -38,6 +41,7 @@ export class ContractController {
   }
 
   // 3. Cập nhật trạng thái chu trình luồng đi hợp đồng
+  @ApiOperation({ summary: 'Cập nhật trạng thái luồng hợp đồng' })
   @Patch(':id/status')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA)
   updateStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body('status') status: ContractStatus) {
@@ -50,6 +54,7 @@ export class ContractController {
   }
 
   // 4. Tạo tài nguyên "Chữ ký số xác thực của Mangaka"
+  @ApiOperation({ summary: 'Mangaka ký hợp đồng bằng mã OTP' })
   @Post(':id/signatures/mangaka')
   @Roles(RoleName.MANGAKA)
   signMangaka(
@@ -62,6 +67,7 @@ export class ContractController {
   }
 
   // 5. Tạo tài nguyên "Chữ ký số đồng thuận của Ban Giám Đốc"
+  @ApiOperation({ summary: 'Thành viên Ban Giám Đốc ký hợp đồng bằng mã OTP' })
   @Post(':id/signatures/board')
   @Roles(RoleName.BOARD_MEMBER)
   signBoard(
@@ -74,6 +80,7 @@ export class ContractController {
   }
 
   // 6. Kiểm tra trạng thái hợp đồng và tiến trình ký kết
+  @ApiOperation({ summary: 'Kiểm tra trạng thái hợp đồng và tiến độ ký kết' })
   @Get(':id/status')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
   checkStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') role: string) {

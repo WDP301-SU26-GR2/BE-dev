@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common'
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { BoardService } from './services/board.service'
 import {
   CreateBoardDecisionBodyDto,
@@ -21,6 +21,7 @@ export class BoardController {
   /**
    * 1. Khởi tạo một phiên họp Hội đồng tổng mới
    */
+  @ApiOperation({ summary: 'Tạo phiên họp Hội đồng mới' })
   @Post('sessions')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
   createSession(
@@ -30,6 +31,7 @@ export class BoardController {
     return this.boardService.createSession(creatorId, dto)
   }
 
+  @ApiOperation({ summary: 'Kích hoạt phiên họp Hội đồng bằng tay' })
   @Patch('sessions/:id/start')
   async startSession(@Param('id') id: string) {
     return this.boardService.startSessionManually(id)
@@ -38,6 +40,7 @@ export class BoardController {
   /**
    * 2. Lấy tham số điều lệ cấu hình Hội đồng hiện tại
    */
+  @ApiOperation({ summary: 'Lấy cấu hình điều lệ Hội đồng đang áp dụng' })
   @Get('config')
   @Roles(RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER, RoleName.EDITOR)
   getConfig() {
@@ -47,12 +50,14 @@ export class BoardController {
   /**
    * 3. Khởi tạo một Quyết định họp Hội đồng biểu quyết mới (Nháp)
    */
+  @ApiOperation({ summary: 'Tạo quyết định họp Hội đồng nháp' })
   @Post('decisions')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
   createDecision(@Body() dto: CreateBoardDecisionBodyDto) {
     return this.boardService.createDecision(dto)
   }
 
+  @ApiOperation({ summary: 'Lấy chi tiết quyết định họp' })
   @Get('decisions/:id')
   async getDecisionDetails(@Param('id') id: string) {
     return this.boardService.getDecisionDetails(id)
@@ -61,6 +66,7 @@ export class BoardController {
   /**
    * 4. Đại biểu Hội đồng tiến hành thực hiện quyền bỏ phiếu
    */
+  @ApiOperation({ summary: 'Đại biểu tiến hành bỏ phiếu cho quyết định' })
   @Post('decisions/:id/vote')
   @Roles(RoleName.BOARD_MEMBER, RoleName.EDITOR) // Cho phép cả hai nhóm phân quyền tham gia biểu quyết
   castVote(
@@ -75,6 +81,7 @@ export class BoardController {
    * 5. Editor nộp báo cáo phân tích số liệu đính kèm phiên họp
    * 🌟 ĐÃ SỬA: Truyền phân tách rời (userId, dto) theo đúng thiết kế của tầng Service
    */
+  @ApiOperation({ summary: 'Editor tạo báo cáo phân tích xu hướng cho series' })
   @Post('reports')
   @Roles(RoleName.EDITOR)
   createSeriesReport(@ActiveUser('userId') userId: string, @Body() dto: CreateSeriesReportBodyDto) {
@@ -85,6 +92,7 @@ export class BoardController {
    * 6. Admin thay đổi cấu trúc tham số điều lệ Hội đồng
    * 🌟 ĐÃ SỬA: Thay đổi cách gọi hàm khớp với 3 tham số độc lập (id, userId, dto)
    */
+  @ApiOperation({ summary: 'Cập nhật cấu hình điều lệ Hội đồng' })
   @Patch('config/:id')
   @Roles(RoleName.SUPER_ADMIN)
   updateConfig(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body() dto: UpdateBoardConfigBodyDto) {
