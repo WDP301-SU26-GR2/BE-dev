@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { NotificationType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { MangakaProfileService } from 'src/modules/users/services/mangaka-profile.service'
@@ -6,11 +6,10 @@ import { CannotReviewSelfException } from '../errors/reviews.errors'
 import { ReviewsRepository } from '../reviews.repo'
 import { CreateMangakaReviewBodyType, ReviewResType } from '../schemas/reviews-schemas'
 import { ReputationService } from './reputation.service'
+import { ReviewsMessages } from '../reviews.messages'
 
 @Injectable()
 export class MangakaReviewService {
-  private readonly logger = new Logger(MangakaReviewService.name)
-
   constructor(
     private readonly reviewsRepository: ReviewsRepository,
     private readonly reputationService: ReputationService,
@@ -39,17 +38,13 @@ export class MangakaReviewService {
       isRecommended: reputation.isRecommended
     })
 
-    try {
-      await this.notificationService.notify({
-        recipientId: body.mangakaId,
-        type: NotificationType.REVIEW,
-        referenceId: review.id,
-        referenceType: 'MANGAKA_REVIEW',
-        content: null
-      })
-    } catch (error) {
-      this.logger.warn(`Failed to notify mangaka review ${review.id}: ${String(error)}`)
-    }
+    await this.notificationService.notifySafe({
+      recipientId: body.mangakaId,
+      type: NotificationType.REVIEW,
+      referenceId: review.id,
+      referenceType: 'MANGAKA_REVIEW_RECEIVED',
+      content: ReviewsMessages.notification.mangakaReviewed
+    })
 
     return { id: review.id, rating: review.rating, comment: review.comment, createdAt: review.createdAt.toISOString() }
   }

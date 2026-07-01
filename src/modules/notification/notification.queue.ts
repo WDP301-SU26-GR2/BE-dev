@@ -17,7 +17,7 @@ export class NotificationQueue {
       await this.queueService.enqueue(QUEUE.NOTIFICATION, JOB.DISPATCH_NOTIFICATION, input)
     } catch (err) {
       this.logger.error('enqueue notification failed, fallback sync', err as Error)
-      await this.notificationService.notify(input)
+      await this.notificationService.notifySafe(input)
     }
   }
 }

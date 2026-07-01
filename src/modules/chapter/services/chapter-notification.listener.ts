@@ -24,7 +24,7 @@ export class ChapterPublishedListener {
         recipientId,
         type: NotificationType.SYSTEM,
         referenceId: payload.chapterId,
-        referenceType: 'CHAPTER',
+        referenceType: 'CHAPTER_PUBLISHED',
         content: ChapterMessages.notification.chapterPublished
       })
     }
