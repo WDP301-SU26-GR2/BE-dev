@@ -25,171 +25,64 @@
 
 ---
 
-## Dành cho FE devs — Chạy bằng Docker
+## Local Development
 
-> Không cần cài Node, pnpm, MongoDB hay Redis lên máy. Chỉ cần Docker Desktop.
-> MongoDB, Redis và NestJS chạy **trong cùng 1 container**, 1 lệnh duy nhất.
+Local Docker setup for FE developers has been removed. The backend now runs locally with Node.js, pnpm, MongoDB, and Redis installed/provided separately.
 
-### Yêu cầu
+### Requirements
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- 1 cổng còn trống (mặc định `3000`, đổi được qua `.env`)
+- Node.js 22+
+- pnpm 10+
+- MongoDB 7+ with replica set enabled, or a reachable MongoDB Atlas connection string
+- Redis 7+
 
-### Các bước
-
-```bash
-# 1. Clone về
-git clone <repo-url>
-cd BE-dev
-
-# 2. Tạo file .env từ template, điền các giá trị thật
-cp .env.example .env        # macOS / Linux
-# copy .env.example .env   # Windows PowerShell
-
-# 3. Build image và khởi động (lần đầu ~5-7 phút do cài MongoDB và Redis)
-docker compose up --build
-
-# Các lần sau (image đã build rồi, không cần --build)
-docker compose up
-```
-
-Khi thấy log `Nest application successfully started`, API đã sẵn sàng.
-
-### Endpoints
-
-> Thay `3000` bằng `PORT` bạn đặt trong `.env` nếu đã đổi.
-
-| Địa chỉ | Mô tả |
-| --- | --- |
-| <http://localhost:3000> | API base URL |
-| <http://localhost:3000/api> | Swagger UI — danh sách toàn bộ API |
-
-### Điền .env như thế nào
-
-Mở file `.env` vừa tạo, điền các giá trị:
-
-```env
-# Đổi PORT nếu bị xung đột với FE dev server (vd: 3001, 4000, 8080)
-PORT=3000
-SALT_OR_ROUNDS=10
-
-# DATABASE_URL không cần đúng — docker-compose.yml tự override
-DATABASE_URL=MONGODB_URL_example
-REDIS_URL=redis://localhost:6379
-
-ACCESS_TOKEN_SECRET=<chuỗi bất kỳ, vd: my_secret_123>
-REFRESH_TOKEN_SECRET=<chuỗi bất kỳ, vd: my_refresh_456>
-ACCESS_TOKEN_EXPIRES_IN=1h
-REFRESH_TOKEN_EXPIRES_IN=7d
-
-API_KEY=<chuỗi bất kỳ>
-AUTH_TYPE_KEY=authType
-
-ADMIN_NAME=Admin
-ADMIN_PASSWORD=admin@123
-ADMIN_EMAIL=admin@example.com
-ADMIN_PHONE=0900000000
-
-OTP_EXPIRES_IN=5m
-```
-
-### Lệnh hữu ích khác
-
-```bash
-# Xem log realtime
-docker compose logs -f app
-
-# Dừng (giữ DB)
-docker compose down
-
-# Dừng và xoá toàn bộ data DB
-docker compose down -v
-
-# Pull code mới + restart (watch mode tự reload file thay đổi)
-git pull
-docker compose restart app
-
-# Rebuild image (khi thêm package mới vào package.json)
-docker compose up --build
-```
-
-### Connect MongoDB bằng Compass (tuỳ chọn)
-
-Mặc định `docker-compose.yml` **không expose** cổng MongoDB ra host. Nếu muốn dùng Compass, thêm port mapping sau vào service `app`:
-
-    ports:
-      - "27017:27017"
-
-Sau đó dùng connection string:
-
-    mongodb://localhost:27017/?replicaSet=rs0&directConnection=true
-
-### Troubleshooting
-
-**BE crash — log báo "Lỗi cấu hình env"**
-→ Thiếu hoặc sai kiểu trong `.env`. `PORT` và `SALT_OR_ROUNDS` phải là số nguyên.
-
-**`MongoServerSelectionError`**
-→ MongoDB trong container chưa lên kịp. Đợi vài giây rồi `docker compose restart app`.
-
-**Port bị chiếm (address already in use)**
-→ Đổi `PORT` trong `.env` sang số khác (vd: `4000`), sau đó `docker compose up --build`.
-
----
-
-## Dành cho BE devs — Chạy trực tiếp
-
-### Yêu cầu (BE devs)
-
-- Node.js 22+, pnpm 10+
-- MongoDB đang chạy (local hoặc Atlas)
-
-### Project setup
+### Setup
 
 ```bash
 pnpm install
-pnpm prisma generate   # bắt buộc sau khi clone hoặc mỗi khi schema.prisma thay đổi
+pnpm prisma generate
 ```
 
-> Bỏ qua `prisma generate` → TypeScript báo lỗi `Module '@prisma/client' has no exported member 'PrismaClient'`.
-
-### Compile and run the project
+Create `.env` from `.env.example`, then fill real values for database, Redis, JWT, email, storage, and admin seed variables.
 
 ```bash
-# development
-$ pnpm start
-
-# watch mode
-$ pnpm start:dev
-
-# production mode
-$ pnpm start:prod
+cp .env.example .env
 ```
 
-### Swagger
-
-Sau khi server chạy, mở trình duyệt vào <http://localhost:3000/api>
-
-### Prisma commands hay dùng
+### Run
 
 ```bash
-pnpm prisma generate      # tái tạo Prisma Client sau khi sửa schema
-pnpm prisma db push       # áp dụng schema mới lên DB (tạo/cập nhật index)
-pnpm prisma studio        # GUI quản lý data
+pnpm start:dev
 ```
 
-### Run tests
+Swagger is available at:
+
+```text
+http://localhost:3000/api
+```
+
+### Useful Commands
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm prisma generate
+pnpm prisma db push
+pnpm prisma studio
+pnpm start
+pnpm start:dev
+pnpm start:prod
+pnpm test
+pnpm lint
+pnpm build
 ```
+
+### Docker
+
+Local Docker files were removed. Docker is still used for CI/VPS deployment through:
+
+- `Dockerfile`
+- `docker-compose.prod.yml`
+- `.github/workflows/ci.yml`
+- `.github/workflows/deploy.yml`
 
 ---
 

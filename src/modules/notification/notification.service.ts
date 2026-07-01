@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { NotificationType } from '@prisma/client'
 import { NotificationRepository } from './notification.repo'
 
@@ -20,6 +20,8 @@ export interface NotifyInput {
  */
 @Injectable()
 export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name)
+
   constructor(private readonly notificationRepository: NotificationRepository) {}
 
   async notify(input: NotifyInput) {
@@ -37,6 +39,16 @@ export class NotificationService {
       ...key,
       content: input.content ?? null
     })
+  }
+
+  async notifySafe(input: NotifyInput): Promise<void> {
+    try {
+      await this.notify(input)
+    } catch (error) {
+      this.logger.warn(
+        `notify failed (recipient=${input.recipientId}, type=${input.type}, ref=${input.referenceType ?? 'null'}): ${String(error)}`
+      )
+    }
   }
 }
 

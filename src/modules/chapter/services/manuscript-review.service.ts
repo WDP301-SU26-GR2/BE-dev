@@ -45,11 +45,11 @@ export class ManuscriptReviewService {
       changedBy: userId
     })
     if (series.editorId) {
-      await this.notificationService.notify({
+      await this.notificationService.notifySafe({
         recipientId: series.editorId,
         type: NotificationType.REVIEW,
         referenceId: chapterId,
-        referenceType: 'CHAPTER',
+        referenceType: 'MANUSCRIPT_SUBMITTED',
         content: ChapterMessages.notification.manuscriptSubmitted
       })
     }
@@ -64,11 +64,11 @@ export class ManuscriptReviewService {
       changedBy: userId,
       reason
     })
-    await this.notificationService.notify({
+    await this.notificationService.notifySafe({
       recipientId: series.mangakaId,
       type: NotificationType.REVIEW,
       referenceId: chapterId,
-      referenceType: 'CHAPTER',
+      referenceType: 'MANUSCRIPT_REVISION_REQUESTED',
       content: ChapterMessages.notification.editorRequestedRevision
     })
     return res
@@ -82,11 +82,11 @@ export class ManuscriptReviewService {
       changedBy: userId
     })
     if (series.editorId) {
-      await this.notificationService.notify({
+      await this.notificationService.notifySafe({
         recipientId: series.editorId,
         type: NotificationType.REVIEW,
         referenceId: chapterId,
-        referenceType: 'CHAPTER',
+        referenceType: 'MANUSCRIPT_RESUBMITTED',
         content: ChapterMessages.notification.manuscriptResubmitted
       })
     }
@@ -100,11 +100,11 @@ export class ManuscriptReviewService {
     const res = await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.READY_FOR_PRINT, {
       changedBy: userId
     })
-    await this.notificationService.notify({
+    await this.notificationService.notifySafe({
       recipientId: series.mangakaId,
       type: NotificationType.REVIEW,
       referenceId: chapterId,
-      referenceType: 'CHAPTER',
+      referenceType: 'MANUSCRIPT_APPROVED',
       content: ChapterMessages.notification.manuscriptApproved
     })
     return res

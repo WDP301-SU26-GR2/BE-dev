@@ -8,7 +8,7 @@ function make() {
     listAssignments: jest.fn().mockResolvedValue([]),
     countAssignments: jest.fn().mockResolvedValue(0)
   }
-  const notificationService = { notify: jest.fn().mockResolvedValue(undefined) }
+  const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const service = new StudioAssignmentService(studioRepository as never, notificationService as never)
   return { service, studioRepository, notificationService }
 }
@@ -28,7 +28,7 @@ const baseAssignment = {
 
 describe('StudioAssignmentService.terminate', () => {
   it('terminates an ACTIVE assignment owned by mangaka', async () => {
-    const { service, studioRepository } = make()
+    const { service, studioRepository, notificationService } = make()
     studioRepository.findAssignmentById.mockResolvedValueOnce(baseAssignment)
     studioRepository.terminateAssignment.mockResolvedValueOnce(1)
     studioRepository.findAssignmentById.mockResolvedValueOnce({
@@ -39,6 +39,13 @@ describe('StudioAssignmentService.terminate', () => {
     const res = await service.terminate('m1', baseAssignment.id, 'done')
     expect(res.status).toBe('TERMINATED')
     expect(studioRepository.terminateAssignment).toHaveBeenCalledWith(baseAssignment.id, 'done')
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: baseAssignment.assistantId,
+        referenceType: 'ASSIGNMENT_TERMINATED',
+        content: expect.any(String)
+      })
+    )
   })
 
   it('rejects malformed id with 404', async () => {

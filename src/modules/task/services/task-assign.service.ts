@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { NotificationType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { StudioAssignmentService } from 'src/modules/studio/services/studio-assignment.service'
@@ -15,13 +15,12 @@ import { TaskRepository } from '../task.repo'
 import { TaskStateService } from './task-state.service'
 import { toTaskRes } from '../task.mapper'
 import { BatchCreateTaskBodyType, CreateTaskBodyType, ReassignTaskBodyType } from '../schemas/task-schemas'
+import { TaskMessages } from '../task.messages'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class TaskAssignService {
-  private readonly logger = new Logger(TaskAssignService.name)
-
   constructor(
     private readonly taskRepository: TaskRepository,
     private readonly studioAssignmentService: StudioAssignmentService,
@@ -49,17 +48,13 @@ export class TaskAssignService {
   }
 
   private async notifyAssigned(assistantId: string, taskId: string) {
-    try {
-      await this.notificationService.notify({
-        recipientId: assistantId,
-        type: NotificationType.TASK,
-        referenceId: taskId,
-        referenceType: 'TASK',
-        content: null
-      })
-    } catch (error) {
-      this.logger.warn(`Failed to notify task assigned ${taskId}: ${String(error)}`)
-    }
+    await this.notificationService.notifySafe({
+      recipientId: assistantId,
+      type: NotificationType.TASK,
+      referenceId: taskId,
+      referenceType: 'TASK_ASSIGNED',
+      content: TaskMessages.notification.taskAssigned
+    })
   }
 
   async create(mangakaId: string, body: CreateTaskBodyType) {

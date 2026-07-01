@@ -34,4 +34,27 @@ describe('ScheduleService', () => {
       expect.objectContaining({ extendedBy: 'e1', reason: 'sick' })
     )
   })
+
+  it('getDeadlineContext returns chapter, series, and schedule', async () => {
+    const repo = makeRepo({
+      findChapterById: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1', status: 'IN_PRODUCTION' }),
+      findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'm1', editorId: 'e1' }),
+      findScheduleByChapterId: jest
+        .fn()
+        .mockResolvedValue({ id: 'sc1', chapterId: 'c1', currentDeadline: new Date('2026-01-01') })
+    })
+    const svc = new ScheduleService(repo as never)
+
+    const ctx = await svc.getDeadlineContext('c1')
+
+    expect(ctx?.series.mangakaId).toBe('m1')
+    expect(ctx?.schedule?.id).toBe('sc1')
+  })
+
+  it('getDeadlineContext returns null when chapter is missing', async () => {
+    const repo = makeRepo({ findChapterById: jest.fn().mockResolvedValue(null) })
+    const svc = new ScheduleService(repo as never)
+
+    await expect(svc.getDeadlineContext('missing')).resolves.toBeNull()
+  })
 })
