@@ -35,9 +35,11 @@ export const RegionResSchema = extendApi(
     pageId: z.string(),
     coordinates: CoordinatesSchema.nullable(),
     regionType: zEnum($Enums.RegionType, 'RegionType').nullable(),
-    createdBy: z.string().nullable().describe('MANUAL (A4-b) | AI (defer Spec 2)'),
+    createdBy: z.string().nullable().describe('MANUAL | AI'),
     confirmedByMangaka: z.boolean(),
-    confidenceScore: z.number().nullable().describe('null khi MANUAL')
+    confidenceScore: z.number().nullable().describe('null khi MANUAL'),
+    detectedSubtype: z.string().nullable().describe('Original AI model class (frame/body/text-block/bubble/...)'),
+    aiModelVersion: z.string().nullable().describe('AI model version that produced this region; null for MANUAL')
   }),
   { title: 'RegionRes', description: 'Một vùng trên trang' }
 )

@@ -16,7 +16,9 @@ describe('RegionService', () => {
     updateRegion: jest.fn(),
     deleteRegion: jest.fn(),
     listRegionsByPage: jest.fn(),
-    countTasksByRegion: jest.fn()
+    countTasksByRegion: jest.fn(),
+    findAiRegionsByPage: jest.fn(),
+    replaceAiRegions: jest.fn()
   }
   const service = new RegionService(repo as never)
   const VALID_PAGE_ID = 'a'.repeat(24)
@@ -54,5 +56,38 @@ describe('RegionService', () => {
     repo.countTasksByRegion.mockResolvedValue(2)
     await expect(service.remove('m', VALID_REGION_ID)).rejects.toBe(RegionHasTasksException)
     expect(repo.deleteRegion).not.toHaveBeenCalled()
+  })
+
+  it('assertPageOwner returns page for owner', async () => {
+    const page = { ...PAGE, originalFile: 'uploads/x.png' }
+    repo.findPageWithOwner.mockResolvedValue(page)
+    await expect(service.assertPageOwner('m', VALID_PAGE_ID)).resolves.toBe(page)
+  })
+
+  it('applyAiRegions deletes bare AI regions and skips confirmed/task-linked regions', async () => {
+    const proposed = [
+      {
+        regionType: 'PANEL' as const,
+        detectedSubtype: 'frame',
+        coordinates: { x: 0, y: 0, width: 10, height: 10 },
+        confidenceScore: 0.9
+      }
+    ]
+    repo.findAiRegionsByPage.mockResolvedValue([
+      { id: '1'.repeat(24), pageId: VALID_PAGE_ID, confirmedByMangaka: false },
+      { id: '2'.repeat(24), pageId: VALID_PAGE_ID, confirmedByMangaka: true },
+      { id: '3'.repeat(24), pageId: VALID_PAGE_ID, confirmedByMangaka: false }
+    ])
+    repo.countTasksByRegion.mockImplementation((id: string) => Promise.resolve(id === '3'.repeat(24) ? 1 : 0))
+    repo.replaceAiRegions.mockResolvedValue(1)
+
+    await expect(service.applyAiRegions(VALID_PAGE_ID, proposed, { aiModelVersion: 'x@1' })).resolves.toEqual({
+      created: 1,
+      removed: 1,
+      skipped: 2
+    })
+    expect(repo.replaceAiRegions).toHaveBeenCalledWith(VALID_PAGE_ID, ['1'.repeat(24)], proposed, {
+      aiModelVersion: 'x@1'
+    })
   })
 })
