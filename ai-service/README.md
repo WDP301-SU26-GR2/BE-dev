@@ -22,12 +22,12 @@ vùng (`regions`) rồi tự lưu DB theo cơ chế **proposal-first** (xem A-TS
 
 ## 2. "Key" cần những gì?
 
-| Key | Bắt buộc? | Lấy ở đâu | Ghi chú |
-|-----|-----------|-----------|---------|
-| `API_KEY` | ✅ Có | **Tự đặt** (chuỗi bí mật bất kỳ) | Shared secret giữa AI service ↔ Backend. **Phải KHỚP** với `AI_SERVICE_API_KEY` bên `.env` của BE. Client gửi qua header `x-api-key`; sai → **401**. |
-| Model weights (`manga109_yolo.pt`, `bubble_seg.pt`) | ✅ Có (cho mode MODEL) | Hugging Face — **tự tải bằng script**, KHÔNG cần Hugging Face token (repo public) | Lưu ở `ai-service/models/` (đã gitignore). Xem §3. |
-| `MODEL_M109_PATH` / `MODEL_BUBBLE_PATH` | ✅ Có (mode MODEL) | Trỏ tới 2 file `.pt` vừa tải | Docker set sẵn `/srv/models/...`. |
-| `CONF_THRESHOLD` | ❌ Optional | Tự đặt (vd `0.25`) | Ngưỡng confidence lọc box. Rỗng = dùng mặc định của model. |
+| Key                                                 | Bắt buộc?             | Lấy ở đâu                                                                         | Ghi chú                                                                                                                                              |
+| --------------------------------------------------- | --------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `API_KEY`                                           | ✅ Có                  | **Tự đặt** (chuỗi bí mật bất kỳ)                                                  | Shared secret giữa AI service ↔ Backend. **Phải KHỚP** với `AI_SERVICE_API_KEY` bên `.env` của BE. Client gửi qua header `x-api-key`; sai → **401**. |
+| Model weights (`manga109_yolo.pt`, `bubble_seg.pt`) | ✅ Có (cho mode MODEL) | Hugging Face — **tự tải bằng script**, KHÔNG cần Hugging Face token (repo public) | Lưu ở `ai-service/models/` (đã gitignore). Xem §3.                                                                                                   |
+| `MODEL_M109_PATH` / `MODEL_BUBBLE_PATH`             | ✅ Có (mode MODEL)     | Trỏ tới 2 file `.pt` vừa tải                                                      | Docker set sẵn `/srv/models/...`.                                                                                                                    |
+| `CONF_THRESHOLD`                                    | ❌ Optional            | Tự đặt (vd `0.25`)                                                                | Ngưỡng confidence lọc box. Rỗng = dùng mặc định của model.                                                                                           |
 
 > **Không có key nào của bên thứ ba (Google/OpenAI/...)** — model chạy **hoàn toàn local**. "Key" duy nhất bạn phải tự tạo là `API_KEY` để BE và AI xác thực lẫn nhau.
 
@@ -173,11 +173,11 @@ Không cần auth → `{ "status": "ok", "modes": ["MODEL", "HEURISTIC"] }`.
 
 BE đọc 3 biến trong `.env` (module `src/modules/ai`, client `ports/ai-http.client.ts`):
 
-| Biến (BE `.env`) | Ý nghĩa |
-|------------------|---------|
-| `AI_SERVICE_URL` | Base URL của AI service. **Rỗng = AI TẮT** → segment fallback manual. Local: `http://localhost:8000`; compose: `http://ai-service:8000`. |
-| `AI_SERVICE_API_KEY` | Phải **khớp** `API_KEY` của AI service. |
-| `AI_HTTP_TIMEOUT_MS` | Timeout gọi HTTP (default 120000). |
+| Biến (BE `.env`)     | Ý nghĩa                                                                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_SERVICE_URL`     | Base URL của AI service. **Rỗng = AI TẮT** → segment fallback manual. Local: `http://localhost:8000`; compose: `http://ai-service:8000`. |
+| `AI_SERVICE_API_KEY` | Phải **khớp** `API_KEY` của AI service.                                                                                                  |
+| `AI_HTTP_TIMEOUT_MS` | Timeout gọi HTTP (default 120000).                                                                                                       |
 
 > `envConfig` có ràng buộc: nếu `AI_SERVICE_URL` được set thì `AI_SERVICE_API_KEY` **bắt buộc** không rỗng, nếu không app BE fail-fast lúc boot.
 
