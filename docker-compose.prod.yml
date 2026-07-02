@@ -29,6 +29,27 @@ services:
     expose:
       - "3000"
 
+  ai-service:
+    # Enable with: docker compose --profile ai up -d
+    # Keep AI_SERVICE_URL empty in .env when this profile is disabled.
+    profiles: ["ai"]
+    build: ./ai-service
+    container_name: mangaka-ai
+    restart: unless-stopped
+    # RAM cap: cách ly AI khỏi api/redis trên VPS 2GB — vượt 1.2GB RAM thì tràn swap,
+    # vượt 2.5GB (RAM+swap) thì kernel giết ĐÚNG container này (job FAILED sạch, BE không sao — AC3).
+    mem_limit: 1200m
+    memswap_limit: 2500m
+    environment:
+      API_KEY: ${AI_SERVICE_API_KEY}
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/healthz').raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
   caddy:
     image: caddy:2-alpine
     container_name: mangaka-caddy
