@@ -8,7 +8,9 @@ export function toRegionRes(r: Region) {
     regionType: r.regionType ?? null,
     createdBy: r.createdBy ?? null,
     confirmedByMangaka: r.confirmedByMangaka,
-    confidenceScore: r.confidenceScore ?? null
+    confidenceScore: r.confidenceScore ?? null,
+    detectedSubtype: r.detectedSubtype ?? null,
+    aiModelVersion: r.aiModelVersion ?? null
   }
 }
 
