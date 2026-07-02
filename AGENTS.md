@@ -8,7 +8,7 @@
 - **Stack**: NestJS 11, Prisma 6 (MongoDB replica set `rs0`), Zod 4 + nestjs-zod, JWT HS256, bcrypt,
   `@nestjs/event-emitter` (domain events), AWS SDK v3 → Cloudflare R2 (object storage), Resend (email), pnpm.
 - **Feature modules BE-A**: `auth`, `users`, `notification`, `reviews`, `series`, `chapter`,
-  `annotation`, `storage`, `studio` (A4-a: CollaborationInvite/StudioAssignment/directory), `task`
+  `annotation`, `storage`, `studio` (A4-a: CollaborationInvite/StudioAssignment/directory), `task`, `ai`
   (A4-b: Region/Task/TaskVersion + cascade A4→A3) (Creation & Production). **BE-B** (Commercial & Governance) **đã bắt đầu**: module
   `contract` (B1) **và** `board` (B5 — Board/Decision engine) đã có trong repo — **KHÔNG sửa hộ BE-B**
   (chỉ để sẵn convention dùng chung ở `core/`).

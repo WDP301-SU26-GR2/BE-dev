@@ -521,6 +521,24 @@ enum TaskVersionReviewStatus {
   REVISION_REQUESTED
 }
 
+enum AiJobType {
+  SEGMENT
+  COLOR
+  NUMBER
+}
+
+enum AiJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum AiSegmentMode {
+  MODEL
+  HEURISTIC
+}
+
 enum BoardSessionStatus {
   UPCOMING
   ACTIVE
@@ -763,6 +781,28 @@ model Task {
   @@index([pageId])
   @@index([regionId])
   @@index([assistantId])
+}
+
+model AiJob {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  type        AiJobType
+  mode        AiSegmentMode?
+  pageId      String @db.ObjectId
+  requestedBy String @db.ObjectId
+
+  status          AiJobStatus @default(QUEUED)
+  error           String?
+  modelVersion    String?
+  proposedRegions Json?
+  regionCount     Int?
+  appliedAt       DateTime?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  durationMs      Int?
+  createdAt       DateTime    @default(now())
+
+  @@index([pageId, type, status])
+  @@index([requestedBy])
 }
 
 type TaskVersion {

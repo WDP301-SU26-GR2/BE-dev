@@ -34,6 +34,7 @@
 BE-dev/
 ├── prisma/
 │   └── schema.prisma              # Database schema (MongoDB)
+├── ai-service/                    # Python FastAPI AI segmentation service (optional profile ai)
 ├── src/
 │   ├── main.ts                     # Bootstrap — khởi tạo app, Swagger, listen port
 │   ├── app.module.ts               # Root module — import CoreModule + feature modules, đăng ký global pipes/filters/interceptor
@@ -47,6 +48,7 @@ BE-dev/
 │   │   ├── chapter/                # Chapter/Schedule/Manuscript/Page + publish
 │   │   ├── annotation/             # markup review (shared Mangaka↔Assistant, Editor↔Mangaka)
 │   │   ├── storage/                # signed URL (presign PUT/GET) wiring
+│   │   ├── ai/                     # Spec 2 AI segmentation jobs, queue, proposal-first apply
 │   │   ├── contract/               # ⚠️ BE-B (B1 Contract/Payment) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
 │   │   └── board/                  # ⚠️ BE-B (B5 Board/Decision engine) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
 │   │       # mỗi module: controller(s) + service (orchestrator) + services/ (use-case + state)
