@@ -25,6 +25,10 @@ services:
       NODE_ENV: production
       PORT: 3000
       REDIS_URL: redis://redis:6379
+      # Bật AI: chạy compose với `--profile ai` VÀ bỏ comment 2 dòng dưới (hoặc set trong .env).
+      # AI_SERVICE_URL trỏ tới service name trong mạng compose; API key khớp ai-service bên dưới.
+      # AI_SERVICE_URL: http://ai-service:8000
+      # AI_SERVICE_API_KEY: ${AI_SERVICE_API_KEY}
     # Không expose port ra ngoài, đi qua caddy nội bộ
     expose:
       - "3000"
@@ -42,6 +46,9 @@ services:
     memswap_limit: 2500m
     environment:
       API_KEY: ${AI_SERVICE_API_KEY}
+      # Model paths đã bake sẵn trong ai-service/Dockerfile (/srv/models/...).
+      # CONF_THRESHOLD optional — bỏ trống dùng mặc định của model.
+      CONF_THRESHOLD: ${AI_CONF_THRESHOLD:-}
     expose:
       - "8000"
     healthcheck:

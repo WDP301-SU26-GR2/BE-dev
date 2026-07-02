@@ -1,114 +1,135 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Mangaka Backend (BE)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend cho **Hệ thống Quản lý Sáng tác & Xuất bản Manga** — NestJS 11 + Prisma 6 (MongoDB) + Redis/BullMQ +
+Cloudflare R2 + AI segmentation service (Python, tùy chọn).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+> **Trước khi code**, đọc [`ARCHITECTURE.md`](./ARCHITECTURE.md) (kiến trúc, data flow) và [`AGENTS.md`](./AGENTS.md)
+> (rule, layer, error handling, checklist). Đây là single source of truth cho quy ước dự án.
 
 ---
 
-## Local Development
+## 1. Yêu cầu môi trường
 
-Local Docker setup for FE developers has been removed. The backend now runs locally with Node.js, pnpm, MongoDB, and Redis installed/provided separately.
+| Thành phần | Version | Ghi chú |
+|-----------|---------|---------|
+| Node.js | 22+ | LTS |
+| pnpm | 10+ | `npm i -g pnpm` |
+| MongoDB | 7+ | **Bắt buộc replica set** (`rs0`) cho Prisma transactions/change streams — hoặc dùng MongoDB Atlas |
+| Redis | 7+ | Hạ tầng **bắt buộc lúc boot** (rate-limit, BullMQ queue, cron lock). Thiếu Redis → app fail-fast exit |
+| Python 3.11 | *(tùy chọn)* | Chỉ khi chạy **AI service** — xem [`ai-service/README.md`](./ai-service/README.md) |
 
-### Requirements
+> **Local Docker cho FE đã bị gỡ bỏ.** BE giờ chạy trực tiếp bằng Node/pnpm với MongoDB + Redis cài/host riêng.
+> Docker chỉ còn dùng cho **CI + deploy VPS** (xem §6).
 
-- Node.js 22+
-- pnpm 10+
-- MongoDB 7+ with replica set enabled, or a reachable MongoDB Atlas connection string
-- Redis 7+
+---
 
-### Setup
+## 2. Cài đặt
 
 ```bash
 pnpm install
 pnpm prisma generate
 ```
 
-Create `.env` from `.env.example`, then fill real values for database, Redis, JWT, email, storage, and admin seed variables.
+Tạo `.env` từ template rồi điền giá trị thật (database, Redis, JWT, email/Resend, R2, admin seed, [AI]):
 
 ```bash
 cp .env.example .env
 ```
 
-### Run
+> `.env.example` liệt kê **đầy đủ biến bắt buộc**. `src/core/config/envConfig.ts` validate lúc boot (Zod, fail-fast):
+> thiếu/sai bất kỳ biến bắt buộc nào → `process.exit(1)`. Bảng biến đầy đủ ở `ARCHITECTURE.md` §5.
+
+Seed Role + Super Admin (đọc `ADMIN_*` trong `.env`):
 
 ```bash
-pnpm start:dev
+pnpm seed
 ```
-
-Swagger is available at:
-
-```text
-http://localhost:3000/api
-```
-
-### Useful Commands
-
-```bash
-pnpm prisma generate
-pnpm prisma db push
-pnpm prisma studio
-pnpm start
-pnpm start:dev
-pnpm start:prod
-pnpm test
-pnpm lint
-pnpm build
-```
-
-### Docker
-
-Local Docker files were removed. Docker is still used for CI/VPS deployment through:
-
-- `Dockerfile`
-- `docker-compose.prod.yml`
-- `.github/workflows/ci.yml`
-- `.github/workflows/deploy.yml`
 
 ---
 
-## Resources
+## 3. Chạy BE
 
-Check out a few resources that may come in handy when working with NestJS:
+```bash
+pnpm start:dev      # watch mode, hot reload
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Swagger UI: **http://localhost:3000/api** (mọi response thật bọc envelope `{success,message,data}` → FE đọc `res.data`).
 
-## Support
+Các lệnh hay dùng:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+pnpm prisma generate     # sau khi sửa prisma/schema.prisma
+pnpm prisma db push      # đẩy schema lên Mongo (schemaless — không cần migration file)
+pnpm prisma studio       # UI xem DB
+pnpm start:dev           # dev
+pnpm start:prod          # node dist/main (sau khi build)
+pnpm build               # nest build → dist/
+pnpm test                # unit test (jest)
+pnpm lint                # eslint --fix
+```
 
-## Stay in touch
+---
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## 4. AI Segmentation Service (tùy chọn)
 
-## License
+Service Python riêng (`ai-service/`) phân vùng trang truyện cho Epic A4 (Spec 2). BE gọi qua HTTP.
+**Không bật vẫn chạy bình thường** — luồng segment tự fallback về manual.
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+**Bật AI (tóm tắt — chi tiết ở [`ai-service/README.md`](./ai-service/README.md)):**
+
+1. Chạy AI service (local venv hoặc Docker) tại vd `http://localhost:8000`.
+2. Trong `.env` của BE, set 2 biến (phải khớp `API_KEY` của AI service):
+
+   ```bash
+   AI_SERVICE_URL=http://localhost:8000
+   AI_SERVICE_API_KEY=<khớp API_KEY của ai-service>
+   # AI_HTTP_TIMEOUT_MS=120000   # optional
+   ```
+
+> ⚠️ Ràng buộc boot: nếu set `AI_SERVICE_URL` mà quên `AI_SERVICE_API_KEY` → BE fail-fast. Để **rỗng cả hai** = AI tắt.
+
+---
+
+## 5. Cấu trúc thư mục (rút gọn)
+
+```
+BE-dev/
+├── src/                  # NestJS (feature modules + core + infrastructure) — xem ARCHITECTURE.md §2
+├── prisma/schema.prisma  # DB schema (MongoDB)
+├── ai-service/           # Python FastAPI AI service (tùy chọn, profile `ai`)
+├── scripts/              # smoke/dev script local (gitignored — KHÔNG commit, KHÔNG build)
+├── test/                 # e2e
+├── Dockerfile            # Production build (multi-stage)
+├── docker-compose.prod.yml
+└── .github/workflows/    # ci.yml + deploy.yml
+```
+
+---
+
+## 6. Build & Production (Docker)
+
+Local Docker (Mongo + BE all-in-one cho FE) **đã gỡ**. Production dùng:
+
+- **`Dockerfile`** — multi-stage build (base → build → prod-deps → runtime), chạy `node dist/main.js` bằng user non-root.
+- **`docker-compose.prod.yml`** — stack VPS: `redis` + `api` + `caddy` (+ `ai-service` sau profile `ai`).
+- **`.github/workflows/ci.yml`** — verify build Docker image mỗi push/PR.
+- **`.github/workflows/deploy.yml`** — deploy lên VPS.
+
+```bash
+# Chạy stack prod (không AI)
+docker compose -f docker-compose.prod.yml up -d
+
+# Bật kèm AI service (nặng RAM — chỉ khi cần)
+docker compose -f docker-compose.prod.yml --profile ai up -d
+```
+
+> `api` không expose port ra ngoài — đi qua `caddy` (reverse proxy TLS). `PORT`/secrets nạp từ `.env` gốc + biến compose.
+
+---
+
+## 7. Quy ước quan trọng (nhắc nhanh — đầy đủ ở AGENTS.md)
+
+- **Không auto-commit** — mỗi commit = 1 logical change, build xanh. Người dùng tự commit.
+- Response envelope `{success,message,data}`; lỗi validation = **422**; message tùy biến phải nằm trong DTO (`MessageResDto`).
+- State machine single-writer; message text tập trung ở `<module>.messages.ts`; exception const-instance ở `errors/`.
+- Gotchas Mongo/Prisma/Redis/R2 → **đọc AGENTS.md §10** trước khi đụng repo/query.
