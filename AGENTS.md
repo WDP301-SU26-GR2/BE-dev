@@ -14,6 +14,10 @@
   (chỉ để sẵn convention dùng chung ở `core/`).
 - **Quy tắc vàng**: Vertical slice (NestJS chuẩn). Mỗi module tự chứa đủ: controller(s), service(s), repo,
   schemas, dto, errors, (mapper/constant/ports nếu cần).
+- **AI service** (`ai-service/`): process **Python FastAPI riêng** (KHÔNG phải NestJS module). Module `ai` gọi nó qua
+  HTTP (`AI_SERVICE_URL` + `AI_SERVICE_API_KEY`); rỗng URL = AI tắt, fallback manual. Chạy/keys → `ai-service/README.md`.
+- **`scripts/`** (smoke/dev local) **gitignored + exclude khỏi build** (`tsconfig.build.json` pin `rootDir: src`) — KHÔNG
+  commit script TS ở root repo (nếu lọt vào build → output nest thành `dist/src/main.js`, prod container vỡ).
 
 ## 2. Folder Structure
 
