@@ -16,6 +16,7 @@ export class TaskRepository {
         id: true,
         chapterId: true,
         status: true,
+        originalFile: true,
         chapter: { select: { seriesId: true, series: { select: { mangakaId: true } } } }
       }
     })
@@ -67,6 +68,39 @@ export class TaskRepository {
 
   async countTasksByRegion(regionId: string): Promise<number> {
     return await this.prismaService.task.count({ where: { regionId } })
+  }
+
+  async findAiRegionsByPage(pageId: string): Promise<Region[]> {
+    return await this.prismaService.region.findMany({ where: { pageId, createdBy: 'AI' } })
+  }
+
+  async replaceAiRegions(
+    pageId: string,
+    deletableIds: string[],
+    regions: {
+      regionType: Region['regionType']
+      detectedSubtype: string | null
+      coordinates: Prisma.InputJsonValue
+      confidenceScore: number
+    }[],
+    meta: { aiModelVersion: string | null }
+  ): Promise<number> {
+    await this.prismaService.$transaction([
+      this.prismaService.region.deleteMany({ where: { id: { in: deletableIds } } }),
+      this.prismaService.region.createMany({
+        data: regions.map((r) => ({
+          pageId,
+          coordinates: r.coordinates,
+          regionType: r.regionType,
+          detectedSubtype: r.detectedSubtype,
+          createdBy: 'AI',
+          confirmedByMangaka: false,
+          confidenceScore: r.confidenceScore,
+          aiModelVersion: meta.aiModelVersion
+        }))
+      })
+    ])
+    return regions.length
   }
 
   // ---- Task (A-TSK-03/04/05/09) ----
