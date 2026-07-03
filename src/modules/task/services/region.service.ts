@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { RegionType } from '@prisma/client'
 import {
   NotSeriesOwnerException,
   PageNotFoundException,
@@ -11,11 +12,18 @@ import { CreateRegionBodyType, UpdateRegionBodyType } from '../schemas/task-sche
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
+export type AiProposedRegionInput = {
+  regionType: RegionType
+  detectedSubtype: string | null
+  coordinates: { x: number; y: number; width: number; height: number }
+  confidenceScore: number
+}
+
 @Injectable()
 export class RegionService {
   constructor(private readonly taskRepository: TaskRepository) {}
 
-  private async requirePageOwner(mangakaId: string, pageId: string) {
+  async assertPageOwner(mangakaId: string, pageId: string) {
     if (!OBJECT_ID_RE.test(pageId)) throw PageNotFoundException
     const page = await this.taskRepository.findPageWithOwner(pageId)
     if (!page) throw PageNotFoundException
@@ -24,7 +32,7 @@ export class RegionService {
   }
 
   async create(mangakaId: string, pageId: string, body: CreateRegionBodyType) {
-    await this.requirePageOwner(mangakaId, pageId)
+    await this.assertPageOwner(mangakaId, pageId)
     const region = await this.taskRepository.createRegion({
       pageId,
       coordinates: body.coordinates,
@@ -34,7 +42,7 @@ export class RegionService {
   }
 
   async listByPage(mangakaId: string, pageId: string) {
-    await this.requirePageOwner(mangakaId, pageId)
+    await this.assertPageOwner(mangakaId, pageId)
     const rows = await this.taskRepository.listRegionsByPage(pageId)
     return { items: rows.map(toRegionRes) }
   }
@@ -43,7 +51,7 @@ export class RegionService {
     if (!OBJECT_ID_RE.test(regionId)) throw RegionNotFoundException
     const region = await this.taskRepository.findRegionById(regionId)
     if (!region) throw RegionNotFoundException
-    await this.requirePageOwner(mangakaId, region.pageId)
+    await this.assertPageOwner(mangakaId, region.pageId)
     return region
   }
 
@@ -67,5 +75,27 @@ export class RegionService {
     if (count > 0) throw RegionHasTasksException
     await this.taskRepository.deleteRegion(regionId)
     return { message: 'Region deleted' }
+  }
+
+  async applyAiRegions(pageId: string, regions: AiProposedRegionInput[], meta: { aiModelVersion: string | null }) {
+    const existing = await this.taskRepository.findAiRegionsByPage(pageId)
+    const deletable: string[] = []
+    let skipped = 0
+
+    for (const region of existing) {
+      if (region.confirmedByMangaka) {
+        skipped++
+        continue
+      }
+      const taskCount = await this.taskRepository.countTasksByRegion(region.id)
+      if (taskCount > 0) {
+        skipped++
+        continue
+      }
+      deletable.push(region.id)
+    }
+
+    const created = await this.taskRepository.replaceAiRegions(pageId, deletable, regions, meta)
+    return { created, removed: deletable.length, skipped }
   }
 }

@@ -1,6 +1,10 @@
 //error-docs.ts dùng cho Swagger error description.
 export const ERROR_HINTS: Record<string, string> = {
   'Error.AccountBanned': 'account is banned or blocked',
+  'Error.AiEnqueueFailed': 'could not enqueue AI job (queue unavailable); use manual regions',
+  'Error.AiJobNotApplicable': 'AI job is not in SUCCEEDED state or has no proposed regions',
+  'Error.AiJobNotFound': 'AI job does not exist or does not belong to the current user',
+  'Error.AiNotEnabled': 'AI service is not configured (AI_SERVICE_URL empty); use manual regions',
   'Error.AnnotationForbidden': 'current user cannot update this annotation',
   'Error.AnnotationNotFound': 'annotation does not exist',
   'Error.AssignmentNotActive': 'studio assignment is not active',
@@ -51,6 +55,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.OTPLocked': 'OTP attempts are locked',
   'Error.OtpRateLimited': 'too many OTP requests',
   'Error.PageNotFound': 'page does not exist',
+  'Error.PageHasNoFile': 'page has no uploaded original file to segment',
   'Error.AssistantNotFound': 'assistant does not exist or is not active',
   'Error.TargetNotAssistant': 'target user is not an assistant',
   'Error.PagesNotAllCompleted': 'all pages must be completed first',
@@ -65,6 +70,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.SeriesAlreadyClaimed': 'series has already been claimed',
   'Error.SeriesNotFound': 'series does not exist',
   'Error.SeriesNotReadyToPitch': 'series is not ready to pitch',
+  'Error.SegmentJobAlreadyRunning': 'a segmentation job is already queued/running for this page',
   'Error.UnauthorizedAccess': 'authentication token is missing or invalid',
   'Error.UnsupportedFileType': 'file type is not allowed',
   'Error.UserNotFound': 'user does not exist',

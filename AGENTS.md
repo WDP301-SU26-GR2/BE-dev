@@ -8,12 +8,16 @@
 - **Stack**: NestJS 11, Prisma 6 (MongoDB replica set `rs0`), Zod 4 + nestjs-zod, JWT HS256, bcrypt,
   `@nestjs/event-emitter` (domain events), AWS SDK v3 → Cloudflare R2 (object storage), Resend (email), pnpm.
 - **Feature modules BE-A**: `auth`, `users`, `notification`, `reviews`, `series`, `chapter`,
-  `annotation`, `storage`, `studio` (A4-a: CollaborationInvite/StudioAssignment/directory), `task`
+  `annotation`, `storage`, `studio` (A4-a: CollaborationInvite/StudioAssignment/directory), `task`, `ai`
   (A4-b: Region/Task/TaskVersion + cascade A4→A3) (Creation & Production). **BE-B** (Commercial & Governance) **đã bắt đầu**: module
   `contract` (B1) **và** `board` (B5 — Board/Decision engine) đã có trong repo — **KHÔNG sửa hộ BE-B**
   (chỉ để sẵn convention dùng chung ở `core/`).
 - **Quy tắc vàng**: Vertical slice (NestJS chuẩn). Mỗi module tự chứa đủ: controller(s), service(s), repo,
   schemas, dto, errors, (mapper/constant/ports nếu cần).
+- **AI service** (`ai-service/`): process **Python FastAPI riêng** (KHÔNG phải NestJS module). Module `ai` gọi nó qua
+  HTTP (`AI_SERVICE_URL` + `AI_SERVICE_API_KEY`); rỗng URL = AI tắt, fallback manual. Chạy/keys → `ai-service/README.md`.
+- **`scripts/`** (smoke/dev local) **gitignored + exclude khỏi build** (`tsconfig.build.json` pin `rootDir: src`) — KHÔNG
+  commit script TS ở root repo (nếu lọt vào build → output nest thành `dist/src/main.js`, prod container vỡ).
 
 ## 2. Folder Structure
 

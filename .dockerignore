@@ -2,6 +2,7 @@ node_modules
 .pnpm-store
 dist
 coverage
+*.tsbuildinfo
 .git
 .gitignore
 .env
@@ -14,9 +15,12 @@ pnpm-debug.log*
 .idea
 .DS_Store
 Dockerfile
-Dockerfile.dev
-docker-entrypoint.dev.sh
 .dockerignore
 README.md
 test
 
+# Not part of the BE (NestJS) image:
+scripts
+src/.smoke-tmp
+docs
+ai-service

@@ -2,6 +2,7 @@
 /dist
 /node_modules
 /build
+*.tsbuildinfo
 
 # Logs
 logs
@@ -11,6 +12,8 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+.smoke-tmp
+.smoke-tmp
 
 # OS
 .DS_Store
@@ -40,6 +43,10 @@ lerna-debug.log*
 .env
 .env.production
 .env.local
+
+# Spec/plan docs (superpowers) — root-level docs/ ONLY.
+# Leading slash = anchored to repo root, so `src/core/http/docs/` (real source,
+# ENUM_DOCS/ERROR_HINTS) is NOT matched and stays tracked. Do NOT change to `docs/`.
 /docs
 
 # temp directory
@@ -60,3 +67,16 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # pnpm local store (xuất hiện khi pnpm config store-dir trỏ vào project)
 .pnpm-store
+
+# Local smoke/dev scripts (ephemeral; excluded from prod build too — see tsconfig.build.json).
+# Untracked on purpose so a root-level TS dir never breaks the Docker build.
+/scripts/
+
+# ---- AI service (Python) — runtime/generated, never commit ----
+ai-service/.venv/
+ai-service/.pytest_cache/
+# model weights (~tens of MB) — pulled via ai-service/scripts/download_models.py
+ai-service/models/
+__pycache__/
+*.py[cod]
+*.egg-info/

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { getQueueToken } from '@nestjs/bullmq'
 import { ModuleRef } from '@nestjs/core'
-import type { Queue } from 'bullmq'
+import type { JobsOptions, Queue } from 'bullmq'
 import { DEFAULT_JOB_OPTIONS } from './queue.constant'
 
 // Khi Redis down: BullMQ connection (maxRetriesPerRequest:null + offline-queue mặc định) KHÔNG reject
@@ -17,8 +17,8 @@ export class QueueService {
     return this.moduleRef.get<Queue>(getQueueToken(name), { strict: false })
   }
 
-  async enqueue<T>(queue: string, jobName: string, payload: T): Promise<void> {
-    await this.withTimeout(this.getQueue(queue).add(jobName, payload, DEFAULT_JOB_OPTIONS), ENQUEUE_TIMEOUT_MS)
+  async enqueue<T>(queue: string, jobName: string, payload: T, opts: JobsOptions = DEFAULT_JOB_OPTIONS): Promise<void> {
+    await this.withTimeout(this.getQueue(queue).add(jobName, payload, opts), ENQUEUE_TIMEOUT_MS)
   }
 
   // Race promise enqueue với timeout. Quá hạn → reject để caller fallback. (Lưu ý: lệnh add() vẫn có thể
