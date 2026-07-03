@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { NotificationType } from '@prisma/client'
 import { SurveyRepository } from '../survey.repo'
 import { SurveyMessages } from '../survey.messages'
 import {
@@ -27,6 +28,7 @@ import { RateLimitService } from 'src/core/security/services/rate-limit.service'
 import { SURVEY_CONFIG } from '../survey.constant'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { DomainEvent } from 'src/core/events/domain-events'
+import { NotificationService } from 'src/modules/notification/notification.service'
 
 @Injectable()
 export class SurveyService {
@@ -35,7 +37,8 @@ export class SurveyService {
     private readonly authOtpService: AuthOtpService,
     private readonly hashingService: HashingService,
     private readonly rateLimitService: RateLimitService,
-    private readonly domainEventBus: DomainEventBus
+    private readonly domainEventBus: DomainEventBus,
+    private readonly notificationService: NotificationService
   ) {}
 
   private mapSurveyPeriod(surveyPeriod: {
@@ -163,15 +166,33 @@ export class SurveyService {
     return { message: SurveyMessages.response.voteSubmitted }
   }
 
-  async createSurveyPeriod(body: CreateSurveyPeriodBodyDto) {
+  async createSurveyPeriod(body: CreateSurveyPeriodBodyDto, userId?: string) {
     const surveyPeriod = await this.surveyRepository.createSurveyPeriod(body)
+    if (userId) {
+      await this.notificationService.notifySafe({
+        recipientId: userId,
+        type: NotificationType.SURVEY,
+        referenceId: surveyPeriod.id,
+        referenceType: 'SURVEY_PERIOD_CREATED',
+        content: 'Kỳ bình chọn mới đã được tạo thành công.'
+      })
+    }
     return this.mapSurveyPeriod(surveyPeriod)
   }
 
-  async updateSurveyPeriodStatus(id: string, body: UpdateSurveyPeriodStatusBodyDto) {
+  async updateSurveyPeriodStatus(id: string, body: UpdateSurveyPeriodStatusBodyDto, userId?: string) {
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     const updated = await this.surveyRepository.updateSurveyPeriodStatus(id, body.status)
+    if (userId) {
+      await this.notificationService.notifySafe({
+        recipientId: userId,
+        type: NotificationType.SURVEY,
+        referenceId: updated.id,
+        referenceType: 'SURVEY_PERIOD_STATUS_UPDATED',
+        content: 'Trạng thái kỳ bình chọn đã được cập nhật.'
+      })
+    }
     return this.mapSurveyPeriod(updated)
   }
 
@@ -180,10 +201,17 @@ export class SurveyService {
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     if (surveyPeriod.status !== 'CLOSED') throw SurveyDataImportNotAllowedException
     await this.surveyRepository.createSurveyData({ ...body, importedBy: userId })
+    await this.notificationService.notifySafe({
+      recipientId: userId,
+      type: NotificationType.SURVEY,
+      referenceId: surveyPeriod.id,
+      referenceType: 'SURVEY_DATA_IMPORTED',
+      content: 'Dữ liệu bình chọn offline đã được nhập thành công.'
+    })
     return { message: SurveyMessages.response.surveyDataImported }
   }
 
-  async finalizeRanking(surveyPeriodId: string) {
+  async finalizeRanking(surveyPeriodId: string, userId?: string) {
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     if (surveyPeriod.status === 'REFLECTED') throw SurveyPeriodAlreadyFinalizedException
@@ -258,6 +286,15 @@ export class SurveyService {
     }
 
     await this.surveyRepository.updateSurveyPeriodStatus(surveyPeriodId, 'REFLECTED')
+    if (userId) {
+      await this.notificationService.notifySafe({
+        recipientId: userId,
+        type: NotificationType.SURVEY,
+        referenceId: surveyPeriodId,
+        referenceType: 'SURVEY_RANKING_FINALIZED',
+        content: 'Kết quả xếp hạng kỳ bình chọn đã được tính toán.'
+      })
+    }
     this.domainEventBus.emit(DomainEvent.RankingFinalized, { surveyPeriodId })
     return { message: SurveyMessages.response.rankingFinalized }
   }

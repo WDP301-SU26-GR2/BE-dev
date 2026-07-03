@@ -9,14 +9,16 @@ import {
   CreateBoardSessionBodyDto
 } from '../dto/board.dto'
 import { BoardGateway } from '../board.gateway'
-import { $Enums } from '@prisma/client'
+import { $Enums, NotificationType } from '@prisma/client'
 import { BoardDecisionDataType } from '../schemas/board.model'
+import { NotificationService } from 'src/modules/notification/notification.service'
 
 @Injectable()
 export class BoardService {
   constructor(
     private readonly boardRepo: BoardRepository,
-    private readonly boardGateway: BoardGateway
+    private readonly boardGateway: BoardGateway,
+    private readonly notificationService: NotificationService
   ) {}
 
   /**
@@ -27,7 +29,22 @@ export class BoardService {
     if (isSessionExist) {
       throw new Errors.SessionAlreadyExistsException(dto.title)
     }
-    return this.boardRepo.createSession(creatorId, dto)
+    const createdSession = await this.boardRepo.createSession(creatorId, dto)
+
+    const recipients = Array.from(new Set([creatorId, ...dto.allowedEditorIds]))
+    await Promise.all(
+      recipients.map((recipientId) =>
+        this.notificationService.notifySafe({
+          recipientId,
+          type: NotificationType.BOARD,
+          referenceId: createdSession.id,
+          referenceType: 'BOARD_SESSION_CREATED',
+          content: `Phiên họp Hội đồng "${dto.title}" đã được tạo và đang chờ triển khai.`
+        })
+      )
+    )
+
+    return createdSession
   }
 
   async startSessionManually(sessionId: string) {
@@ -60,7 +77,22 @@ export class BoardService {
     if (!session) {
       throw new Errors.SessionNotFoundException(dto.boardSessionId)
     }
-    return this.boardRepo.createDecision(dto)
+    const decision = await this.boardRepo.createDecision(dto)
+
+    const recipients = Array.from(new Set([session.creatorId, ...session.allowedEditorIds]))
+    await Promise.all(
+      recipients.map((recipientId) =>
+        this.notificationService.notifySafe({
+          recipientId,
+          type: NotificationType.BOARD,
+          referenceId: decision.id,
+          referenceType: 'BOARD_DECISION_CREATED',
+          content: 'Một quyết định mới đã được tạo cho phiên họp Hội đồng.'
+        })
+      )
+    )
+
+    return decision
   }
 
   async getDecisionDetails(decisionId: string) {

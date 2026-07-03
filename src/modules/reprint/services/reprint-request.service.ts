@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { NotificationType } from '@prisma/client'
 import { ReprintRequestRepo } from '../reprint-request.repo'
 import { ReprintRequestErrors } from '../errors/reprint-request.error'
 import {
@@ -9,10 +10,26 @@ import {
   EditorApproveChapterBodyDto
 } from '../dto/reprint-request.dto'
 import { REPRINT_REQUEST_STATUS, REPRINT_CHAPTER_STATUS } from '../reprint-request.constant'
+import { NotificationService } from 'src/modules/notification/notification.service'
 
 @Injectable()
 export class ReprintRequestService {
-  constructor(private readonly reprintRequestRepo: ReprintRequestRepo) {}
+  constructor(
+    private readonly reprintRequestRepo: ReprintRequestRepo,
+    private readonly notificationService: NotificationService
+  ) {}
+
+  async findAll(requestedBy: string, filters: { status?: string; seriesId?: string }) {
+    return this.reprintRequestRepo.findMany({ requestedBy, ...filters })
+  }
+
+  async findById(id: string) {
+    const request = await this.reprintRequestRepo.findById(id)
+    if (!request) {
+      throw ReprintRequestErrors.NotFound()
+    }
+    return request
+  }
 
   // B-RPT-01: Tạo ReprintRequest ban đầu ở trạng thái PENDING
   async create(requestedBy: string, dto: CreateReprintRequestBodyDto) {
@@ -37,7 +54,7 @@ export class ReprintRequestService {
       status: REPRINT_CHAPTER_STATUS.PENDING
     }))
 
-    return this.reprintRequestRepo.create({
+    const createdRequest = await this.reprintRequestRepo.create({
       seriesId: dto.seriesId,
       requestedBy,
       revisionMode: dto.revisionMode,
@@ -47,6 +64,27 @@ export class ReprintRequestService {
       status: REPRINT_REQUEST_STATUS.PENDING,
       chapters: initialChapters
     })
+
+    await Promise.all([
+      this.notificationService.notifySafe({
+        recipientId: requestedBy,
+        type: NotificationType.CONTRACT,
+        referenceId: createdRequest.id,
+        referenceType: 'REPRINT_REQUEST_CREATED',
+        content: 'Yêu cầu tái bản đã được tạo và đang chờ xử lý.'
+      }),
+      contract?.mangakaId
+        ? this.notificationService.notifySafe({
+            recipientId: contract.mangakaId,
+            type: NotificationType.CONTRACT,
+            referenceId: createdRequest.id,
+            referenceType: 'REPRINT_REQUEST_CREATED',
+            content: 'Có yêu cầu tái bản mới cần bạn xem xét.'
+          })
+        : Promise.resolve()
+    ])
+
+    return createdRequest
   }
 
   // B-RPT-02: Nhánh theo Ownership Principle - Mangaka Review (Chỉ dành cho REVENUE_SHARE)
@@ -61,19 +99,35 @@ export class ReprintRequestService {
       throw ReprintRequestErrors.ActionNotAllowed()
     }
 
-    if (request.status !== REPRINT_REQUEST_STATUS.PENDING) {
+    if (request.status !== REPRINT_REQUEST_STATUS.PENDING && request.status !== REPRINT_REQUEST_STATUS.PROPOSED) {
       throw ReprintRequestErrors.InvalidStatus()
     }
 
     if (dto.accept) {
-      return this.reprintRequestRepo.update(id, {
+      const updated = await this.reprintRequestRepo.update(id, {
         status: REPRINT_REQUEST_STATUS.MANGAKA_APPROVED,
         mangakaApprovedAt: new Date()
       })
+      await this.notificationService.notifySafe({
+        recipientId: request.requestedBy ?? '',
+        type: NotificationType.CONTRACT,
+        referenceId: updated.id,
+        referenceType: 'REPRINT_REQUEST_MANGAKA_APPROVED',
+        content: 'Mangaka đã đồng ý yêu cầu tái bản.'
+      })
+      return updated
     } else {
-      return this.reprintRequestRepo.update(id, {
+      const updated = await this.reprintRequestRepo.update(id, {
         status: REPRINT_REQUEST_STATUS.REJECTED
       })
+      await this.notificationService.notifySafe({
+        recipientId: request.requestedBy ?? '',
+        type: NotificationType.CONTRACT,
+        referenceId: updated.id,
+        referenceType: 'REPRINT_REQUEST_REJECTED',
+        content: 'Yêu cầu tái bản đã bị từ chối.'
+      })
+      return updated
     }
   }
 
@@ -85,9 +139,17 @@ export class ReprintRequestService {
     }
 
     if (!dto.approve) {
-      return this.reprintRequestRepo.update(id, {
+      const updated = await this.reprintRequestRepo.update(id, {
         status: REPRINT_REQUEST_STATUS.REJECTED
       })
+      await this.notificationService.notifySafe({
+        recipientId: request.requestedBy ?? '',
+        type: NotificationType.CONTRACT,
+        referenceId: updated.id,
+        referenceType: 'REPRINT_REQUEST_REJECTED',
+        content: 'Yêu cầu tái bản đã bị Hội đồng từ chối.'
+      })
+      return updated
     }
 
     const contract = await this.reprintRequestRepo.findActiveContractBySeriesId(request.seriesId)
@@ -97,27 +159,54 @@ export class ReprintRequestService {
 
     // AC1: FULL_BUYOUT -> Duyệt thẳng từ PENDING sang BOARD_APPROVED
     if (contract.contractType === 'FULL_BUYOUT') {
-      if (request.status !== REPRINT_REQUEST_STATUS.PENDING) {
+      if (request.status !== REPRINT_REQUEST_STATUS.PENDING && request.status !== REPRINT_REQUEST_STATUS.PROPOSED) {
         throw ReprintRequestErrors.InvalidStatus()
       }
     }
     // AC2: REVENUE_SHARE -> Bắt buộc phải thông qua trạng thái MANGAKA_APPROVED trước
     else if (contract.contractType === 'REVENUE_SHARE') {
-      if (request.status !== REPRINT_REQUEST_STATUS.MANGAKA_APPROVED) {
+      if (
+        request.status !== REPRINT_REQUEST_STATUS.MANGAKA_APPROVED &&
+        request.status !== REPRINT_REQUEST_STATUS.MANGAKA_REVIEW
+      ) {
         throw ReprintRequestErrors.InvalidStatus()
       }
     }
 
-    return this.reprintRequestRepo.update(id, {
+    const updated = await this.reprintRequestRepo.update(id, {
       status: REPRINT_REQUEST_STATUS.BOARD_APPROVED,
       boardApprovedAt: new Date()
     })
+
+    await Promise.all([
+      this.notificationService.notifySafe({
+        recipientId: request.requestedBy ?? '',
+        type: NotificationType.CONTRACT,
+        referenceId: updated.id,
+        referenceType: 'REPRINT_REQUEST_BOARD_APPROVED',
+        content: 'Yêu cầu tái bản đã được Hội đồng phê duyệt.'
+      }),
+      contract?.mangakaId
+        ? this.notificationService.notifySafe({
+            recipientId: contract.mangakaId,
+            type: NotificationType.CONTRACT,
+            referenceId: updated.id,
+            referenceType: 'REPRINT_REQUEST_BOARD_APPROVED',
+            content: 'Yêu cầu tái bản đã được Hội đồng phê duyệt.'
+          })
+        : Promise.resolve()
+    ])
+
+    return updated
   }
 
   // B-RPT-03: Giai đoạn sản xuất - Mangaka nộp file sửa đổi cho từng chương
   async submitChapterManuscript(id: string, dto: SubmitChapterManuscriptBodyDto) {
     const request = await this.reprintRequestRepo.findById(id)
-    if (!request || request.status !== REPRINT_REQUEST_STATUS.BOARD_APPROVED) {
+    if (
+      !request ||
+      (request.status !== REPRINT_REQUEST_STATUS.BOARD_APPROVED && request.status !== REPRINT_REQUEST_STATUS.APPROVED)
+    ) {
       throw ReprintRequestErrors.InvalidStatus()
     }
 
@@ -131,13 +220,24 @@ export class ReprintRequestService {
     targetChapter.manuscriptFile = dto.manuscriptFile
     targetChapter.status = REPRINT_CHAPTER_STATUS.READY
 
-    return this.reprintRequestRepo.update(id, { chapters })
+    const updated = await this.reprintRequestRepo.update(id, { chapters })
+    await this.notificationService.notifySafe({
+      recipientId: request.requestedBy ?? '',
+      type: NotificationType.CONTRACT,
+      referenceId: updated.id,
+      referenceType: 'REPRINT_CHAPTER_SUBMITTED',
+      content: 'Mangaka đã nộp bản thảo cho chương tái bản.'
+    })
+    return updated
   }
 
   // B-RPT-03 & B-RPT-04: Editor kiểm duyệt từng chương và tự động hoàn tất luồng xuất bản
   async editorApproveChapter(id: string, dto: EditorApproveChapterBodyDto) {
     const request = await this.reprintRequestRepo.findById(id)
-    if (!request || request.status !== REPRINT_REQUEST_STATUS.BOARD_APPROVED) {
+    if (
+      !request ||
+      (request.status !== REPRINT_REQUEST_STATUS.BOARD_APPROVED && request.status !== REPRINT_REQUEST_STATUS.APPROVED)
+    ) {
       throw ReprintRequestErrors.InvalidStatus()
     }
 
@@ -149,13 +249,13 @@ export class ReprintRequestService {
 
     // Editor duyệt đạt yêu cầu -> Chương chuyển sang PUBLISHED
     if (dto.approve) {
-      targetChapter.status = REPRINT_CHAPTER_STATUS.PUBLISHED
+      targetChapter.status = REPRINT_CHAPTER_STATUS.APPROVED
     } else {
       targetChapter.status = REPRINT_CHAPTER_STATUS.IN_REVISION
     }
 
-    // B-RPT-04: Kiểm tra nếu toàn bộ các chương trong danh sách đã đạt trạng thái PUBLISHED
-    const allChaptersPublished = chapters.every((ch) => ch.status === REPRINT_CHAPTER_STATUS.PUBLISHED)
+    // B-RPT-04: Kiểm tra nếu toàn bộ các chương trong danh sách đã đạt trạng thái APPROVED
+    const allChaptersPublished = chapters.every((ch) => ch.status === REPRINT_CHAPTER_STATUS.APPROVED)
 
     if (allChaptersPublished) {
       const contract = await this.reprintRequestRepo.findActiveContractBySeriesId(request.seriesId)
@@ -165,13 +265,42 @@ export class ReprintRequestService {
         // Tích hợp logic xử lý chia sẻ doanh thu tương ứng với cấu trúc DB
       }
 
-      return this.reprintRequestRepo.update(id, {
+      const updated = await this.reprintRequestRepo.update(id, {
         chapters,
         status: REPRINT_REQUEST_STATUS.PUBLISHED,
         publishedAt: new Date()
       })
+
+      await Promise.all([
+        this.notificationService.notifySafe({
+          recipientId: request.requestedBy ?? '',
+          type: NotificationType.CONTRACT,
+          referenceId: updated.id,
+          referenceType: 'REPRINT_REQUEST_PUBLISHED',
+          content: 'Tất cả chương tái bản đã được phê duyệt và công bố.'
+        }),
+        contract?.mangakaId
+          ? this.notificationService.notifySafe({
+              recipientId: contract.mangakaId,
+              type: NotificationType.CONTRACT,
+              referenceId: updated.id,
+              referenceType: 'REPRINT_REQUEST_PUBLISHED',
+              content: 'Tất cả chương tái bản đã được phê duyệt và công bố.'
+            })
+          : Promise.resolve()
+      ])
+
+      return updated
     }
 
-    return this.reprintRequestRepo.update(id, { chapters })
+    const updated = await this.reprintRequestRepo.update(id, { chapters })
+    await this.notificationService.notifySafe({
+      recipientId: request.requestedBy ?? '',
+      type: NotificationType.CONTRACT,
+      referenceId: updated.id,
+      referenceType: 'REPRINT_CHAPTER_REVIEWED',
+      content: 'Chương tái bản đã được duyệt/review và đang chờ hoàn tất luồng.'
+    })
+    return updated
   }
 }

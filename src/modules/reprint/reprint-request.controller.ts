@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Patch } from '@nestjs/common'
+import { Controller, Get, Post, Body, Param, Patch, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ReprintRequestService } from './services/reprint-request.service'
 import {
@@ -17,6 +17,24 @@ import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 @Controller('reprint-requests')
 export class ReprintRequestController {
   constructor(private readonly reprintRequestService: ReprintRequestService) {}
+
+  @ApiOperation({ summary: 'Danh sách yêu cầu tái bản' })
+  @Get()
+  @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.MANGAKA, RoleName.SUPER_ADMIN)
+  findAll(
+    @ActiveUser('userId') userId: string,
+    @Query('status') status?: string,
+    @Query('seriesId') seriesId?: string
+  ) {
+    return this.reprintRequestService.findAll(userId, { status, seriesId })
+  }
+
+  @ApiOperation({ summary: 'Chi tiết yêu cầu tái bản' })
+  @Get(':id')
+  @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.MANGAKA, RoleName.SUPER_ADMIN)
+  findById(@Param('id') id: string) {
+    return this.reprintRequestService.findById(id)
+  }
 
   @ApiOperation({ summary: 'Tạo yêu cầu tái bản (B-RPT-01)' })
   @Post()
