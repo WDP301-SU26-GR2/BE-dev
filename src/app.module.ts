@@ -22,6 +22,7 @@ import { StudioModule } from './modules/studio/studio.module'
 import { SurveyModule } from './modules/survey/survey.module'
 import { TaskModule } from './modules/task/task.module'
 import { DeadlineModule } from './modules/deadline/deadline.module'
+import { AiModule } from './modules/ai/ai.module'
 
 @Module({
   imports: [
@@ -42,7 +43,8 @@ import { DeadlineModule } from './modules/deadline/deadline.module'
     SurveyModule,
     StudioModule,
     TaskModule,
-    DeadlineModule
+    DeadlineModule,
+    AiModule
   ],
   controllers: [],
   providers: [

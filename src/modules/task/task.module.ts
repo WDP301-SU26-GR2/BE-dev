@@ -24,6 +24,7 @@ import { AssistantAvailabilityListener } from './services/assistant-availability
     TaskReviewService,
     TaskCascadeService,
     AssistantAvailabilityListener
-  ]
+  ],
+  exports: [RegionService]
 })
 export class TaskModule {}
