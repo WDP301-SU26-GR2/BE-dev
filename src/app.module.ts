@@ -23,6 +23,7 @@ import { SurveyModule } from './modules/survey/survey.module'
 import { TaskModule } from './modules/task/task.module'
 import { DeadlineModule } from './modules/deadline/deadline.module'
 import { AiModule } from './modules/ai/ai.module'
+import { ReprintRequestModule } from './modules/reprint/reprint-request.module'
 
 @Module({
   imports: [
@@ -44,7 +45,8 @@ import { AiModule } from './modules/ai/ai.module'
     StudioModule,
     TaskModule,
     DeadlineModule,
-    AiModule
+    AiModule,
+    ReprintRequestModule
   ],
   controllers: [],
   providers: [
