@@ -34,6 +34,7 @@
 BE-dev/
 ├── prisma/
 │   └── schema.prisma              # Database schema (MongoDB)
+├── ai-service/                    # Python FastAPI AI segmentation service (optional profile ai)
 ├── src/
 │   ├── main.ts                     # Bootstrap — khởi tạo app, Swagger, listen port
 │   ├── app.module.ts               # Root module — import CoreModule + feature modules, đăng ký global pipes/filters/interceptor
@@ -47,6 +48,7 @@ BE-dev/
 │   │   ├── chapter/                # Chapter/Schedule/Manuscript/Page + publish
 │   │   ├── annotation/             # markup review (shared Mangaka↔Assistant, Editor↔Mangaka)
 │   │   ├── storage/                # signed URL (presign PUT/GET) wiring
+│   │   ├── ai/                     # Spec 2 AI segmentation jobs, queue, proposal-first apply
 │   │   ├── contract/               # ⚠️ BE-B (B1 Contract/Payment) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
 │   │   └── board/                  # ⚠️ BE-B (B5 Board/Decision engine) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
 │   │       # mỗi module: controller(s) + service (orchestrator) + services/ (use-case + state)
@@ -83,19 +85,22 @@ BE-dev/
 │   │   ├── oauth/                  # GoogleTokenVerifierService (verify Google ID token — A-AUTH-GGL)
 │   │   └── storage/                # StorageService (Cloudflare R2 presigned URL)
 ├── test/                           # E2E tests (Jest)
+├── scripts/                        # Smoke/dev script local — GITIGNORED (không commit, không build)
 ├── .env                            # Env variables (KHÔNG commit lên git)
-├── .env.example                    # Template env
-├── docker-compose.yml              # Dev one-click: MongoDB + NestJS (cho FE devs)
-├── Dockerfile                      # Production multi-stage build
-├── Dockerfile.dev                  # Dev image (Node + MongoDB cùng container)
-├── docker-entrypoint.dev.sh        # Init script: MongoDB replica → pnpm install → prisma → NestJS
+├── .env.example                    # Template env (đầy đủ biến bắt buộc)
+├── Dockerfile                      # Production multi-stage build (→ node dist/main.js)
+├── docker-compose.prod.yml         # Compose VPS: redis + api + caddy (+ ai-service profile `ai`)
 ├── .github/workflows/ci.yml        # CI: build Docker image verification
+├── .github/workflows/deploy.yml    # CD: deploy VPS
 ├── package.json                    # Dependencies + scripts
 ├── pnpm-lock.yaml                  # Lockfile
 ├── pnpm-workspace.yaml             # pnpm build allowlist (native modules)
 ├── tsconfig.json                   # TS config — strict, NodeNext modules
+├── tsconfig.build.json             # Build config — rootDir src, exclude scripts/test/specs
 ├── eslint.config.mjs               # ESLint flat config
 └── .prettierrc                     # Code formatting rules
+
+# Local dev Docker (docker-compose.yml, Dockerfile.dev, docker-entrypoint.dev.sh) ĐÃ GỠ — chạy BE bằng Node/pnpm.
 ```
 
 ---
@@ -287,10 +292,17 @@ const configSchema = z.object({
 | `ORPHAN_ASSET_TTL_HOURS` | number | TTL trước khi cleanup asset record chưa thấy object trên R2 |
 | `TRUST_PROXY_HOPS` | number | Express trust proxy hops để lấy đúng client IP cho rate-limit |
 | `RESEND_API_KEY` | string | API key gửi email OTP/credential (Resend) |
-| `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_REGION` | string | Cloudflare R2 (object storage, presigned URL) |
+| `EMAIL_FROM` / `EMAIL_LOGO_URL` | string | Sender email (có default) + logo URL trong email (rỗng → text fallback) |
+| `GOOGLE_CLIENT_ID` | string | Google OAuth client id (verify Google ID token — login Google) |
+| `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_REGION` | string | Cloudflare R2 (object storage, presigned URL). **`R2_ENDPOINT` bắt buộc, không default** |
+| `DEADLINE_SLOT_GRACE_HOURS` | number | Ngưỡng auto đánh giá `affectsSlot` cho DeadlineRequest (A5, default 48) |
+| `AI_SERVICE_URL` | string | Base URL AI service (Spec 2). **Rỗng = AI TẮT** (segment fallback manual) |
+| `AI_SERVICE_API_KEY` | string | Shared secret khớp `API_KEY` của ai-service. **Bắt buộc nếu `AI_SERVICE_URL` được set** (nếu không → fail-fast) |
+| `AI_HTTP_TIMEOUT_MS` | number | Timeout gọi AI service (default 120000) |
 
-> **Lưu ý**: Khi chạy production (`NODE_ENV=production`), không cần file `.env` vật lý — env vars được inject từ orchestrator. Thiếu bất kỳ biến nào ở trên → `process.exit(1)` lúc boot (fail-fast).
+> **Lưu ý**: Khi chạy production (`NODE_ENV=production`), không cần file `.env` vật lý — env vars được inject từ orchestrator. Thiếu bất kỳ biến bắt buộc nào → `process.exit(1)` lúc boot (fail-fast). Danh sách nguồn sự thật: `src/core/config/envConfig.ts`.
 > `REDIS_URL` hiện là hạ tầng bắt buộc lúc boot: `RedisService` ping fail-fast; BullMQ, OTP rate-limit, và cron locks dùng chung Redis.
+> **AI service** là process Python riêng (`ai-service/`) — xem `ai-service/README.md` để chạy + lấy model.
 
 ---
 
@@ -445,28 +457,35 @@ marker `// B1/B3/B5-INTEGRATION` (KHÔNG stub).
 
 ## 8. Docker Architecture
 
-### Production (Dockerfile)
+> **Local dev Docker đã bị gỡ** (`docker-compose.yml`, `Dockerfile.dev`, `docker-entrypoint.dev.sh` không còn).
+> BE chạy local trực tiếp bằng Node/pnpm + MongoDB + Redis (xem `README.md`). Docker chỉ còn cho CI + deploy VPS.
+
+### Production (`Dockerfile`)
 
 ```
 Multi-stage build:
-  Stage 1 (base)    → Node 22-slim + openssl + corepack
-  Stage 2 (build)   → pnpm install → prisma generate → nest build
-  Stage 3 (runtime) → Copy dist + node_modules → non-root user → CMD node dist/main.js
+  Stage 1 (base)      → Node 22-slim + openssl + ca-certificates + pnpm
+  Stage 2 (build)     → pnpm install --frozen-lockfile → prisma generate → pnpm build (dist/)
+  Stage 3 (prod-deps) → pnpm install --frozen-lockfile --prod → prisma generate
+  Stage 4 (runtime)   → copy dist + node_modules + prisma → non-root user → CMD node dist/main.js
 ```
 
-### Development (docker-compose.yml + Dockerfile.dev)
+> `dist/main.js` phải nằm ngay dưới `dist/` — `tsconfig.build.json` pin `rootDir: ./src` + `include: ["src"]` +
+> `exclude` `scripts/` để TS không nhét cả `scripts/` vào build (nếu không → `dist/src/main.js`, container vỡ).
+
+### Compose VPS (`docker-compose.prod.yml`)
 
 ```
-Single container "all-in-one":
-  1. Start MongoDB 7 (replica set rs0)
-  2. Start Redis 7
-  3. pnpm install
-  4. prisma generate
-  5. prisma db push
-  6. nest start --watch (hot reload)
+services:
+  redis        → redis:7-alpine (appendonly, healthcheck)
+  api          → image mangaka-api : node dist/main.js (không expose port, đi qua caddy)
+  ai-service   → profile "ai" (mặc định TẮT): build ./ai-service, mem_limit 1200m / memswap 2500m
+  caddy        → reverse proxy TLS (80/443)
 ```
 
-> Docker dev setup dành cho **FE devs** — không cần cài Node/pnpm/MongoDB trên máy.
+- Bật AI: `docker compose -f docker-compose.prod.yml --profile ai up -d` + set `AI_SERVICE_URL=http://ai-service:8000`
+  trong `.env` gốc BE (API key khớp `AI_SERVICE_API_KEY`). Xem `ai-service/README.md`.
+- CI/CD: `.github/workflows/ci.yml` (verify build image) + `deploy.yml` (deploy VPS).
 
 ---
 
