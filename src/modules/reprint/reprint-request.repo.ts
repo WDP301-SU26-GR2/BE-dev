@@ -25,6 +25,27 @@ export class ReprintRequestRepo {
     })
   }
 
+  async findMany(params: { requestedBy?: string; status?: string; seriesId?: string }) {
+    const where: any = {}
+
+    if (params.requestedBy) {
+      where.requestedBy = params.requestedBy
+    }
+
+    if (params.status) {
+      where.status = params.status
+    }
+
+    if (params.seriesId) {
+      where.seriesId = params.seriesId
+    }
+
+    return this.prisma.reprintRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' }
+    })
+  }
+
   // Lấy hợp đồng mới nhất đang có hiệu lực thi hành đầy đủ (FULLY_EXECUTED) để xác định Ownership (B-RPT-02)
   async findActiveContractBySeriesId(seriesId: string) {
     return this.prisma.contract.findFirst({

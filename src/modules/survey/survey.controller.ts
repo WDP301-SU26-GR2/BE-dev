@@ -64,8 +64,8 @@ export class SurveyController {
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
   @ApiOperation({ summary: 'Tạo kỳ bình chọn mới' })
   @ZodResponse({ status: 201, type: SurveyPeriodResDto })
-  createSurveyPeriod(@Body() body: CreateSurveyPeriodBodyDto) {
-    return this.surveyService.createSurveyPeriod(body)
+  createSurveyPeriod(@Body() body: CreateSurveyPeriodBodyDto, @ActiveUser('userId') userId: string) {
+    return this.surveyService.createSurveyPeriod(body, userId)
   }
 
   @Patch('survey-periods/:id/status')
@@ -73,8 +73,12 @@ export class SurveyController {
   @ApiOperation({ summary: 'Cập nhật trạng thái kỳ bình chọn' })
   @ApiErrors(SurveyPeriodNotFoundException)
   @ZodResponse({ status: 200, type: SurveyPeriodResDto })
-  updateSurveyPeriodStatus(@Param('id') id: string, @Body() body: UpdateSurveyPeriodStatusBodyDto) {
-    return this.surveyService.updateSurveyPeriodStatus(id, body)
+  updateSurveyPeriodStatus(
+    @Param('id') id: string,
+    @Body() body: UpdateSurveyPeriodStatusBodyDto,
+    @ActiveUser('userId') userId: string
+  ) {
+    return this.surveyService.updateSurveyPeriodStatus(id, body, userId)
   }
 
   @Post('survey-data/import')
@@ -91,8 +95,8 @@ export class SurveyController {
   @ApiOperation({ summary: 'Hoàn tất tính toán xếp hạng cho kỳ bình chọn' })
   @ApiErrors(SurveyPeriodNotFoundException, SurveyPeriodAlreadyFinalizedException, SurveyDataImportNotAllowedException)
   @ZodResponse({ status: 200, type: MessageResDto })
-  finalizeRanking(@Param('id') id: string) {
-    return this.surveyService.finalizeRanking(id)
+  finalizeRanking(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.surveyService.finalizeRanking(id, userId)
   }
 
   @Get('survey-periods/:id/rankings')
