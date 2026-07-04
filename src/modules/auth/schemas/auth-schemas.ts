@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { UserSchema } from 'src/core/models/user.model'
+import { PhoneNumberE164Schema, UserSchema } from 'src/core/models/user.model'
 import { extendApi } from '@anatine/zod-openapi'
 import { OtpCodeSchema } from './auth.model'
 import { RoleCode } from '@prisma/client'
@@ -15,6 +15,7 @@ export const RegisterBodySchema = extendApi(
     phoneNumber: true
   })
     .extend({
+      phoneNumber: PhoneNumberE164Schema,
       password: z.string().regex(PASSWORD_PATTERN, 'Password must be =8 chars with upper, lower and a digit'),
       displayName: z.string().min(2).max(100),
       confirm_password: z.string().min(8).max(100),

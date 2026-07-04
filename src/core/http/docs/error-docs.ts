@@ -7,6 +7,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.AiNotEnabled': 'AI service is not configured (AI_SERVICE_URL empty); use manual regions',
   'Error.AnnotationForbidden': 'current user cannot update this annotation',
   'Error.AnnotationNotFound': 'annotation does not exist',
+  'Error.AnnotationTargetNotFound': 'targetId does not exist (or malformed id) for the chosen targetType',
   'Error.AssignmentNotActive': 'studio assignment is not active',
   'Error.AssignmentNotFound': 'studio assignment does not exist',
   'Error.AssetNotFound': 'asset does not exist',

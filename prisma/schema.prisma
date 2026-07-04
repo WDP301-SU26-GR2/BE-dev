@@ -357,6 +357,7 @@ enum AnnotationTargetType {
   REGION
   TASK
   MANUSCRIPT
+  NAME
 }
 
 // REVIEW: inferred

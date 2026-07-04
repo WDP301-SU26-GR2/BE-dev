@@ -24,7 +24,7 @@ export const ENUM_DOCS = {
   ChapterStatus: 'Chapter production status',
   ManuscriptStatus: 'Manuscript production status',
   PageStatus: 'Page production status',
-  AnnotationTargetType: 'Annotation target: PAGE, REGION, TASK, MANUSCRIPT',
+  AnnotationTargetType: 'Annotation target: PAGE, REGION, TASK, MANUSCRIPT, NAME',
   AnnotationType: 'Annotation type: TEXT, HIGHLIGHT, DRAWING',
   ReviewStage: 'Review stage: ASSISTANT, MANGAKA, EDITOR',
   AssetType: 'Uploaded asset type',

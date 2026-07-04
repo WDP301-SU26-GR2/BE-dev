@@ -6,6 +6,7 @@ function makeRepo(over: Record<string, unknown> = {}) {
     create: jest.fn().mockResolvedValue({ id: 'an1', isResolved: false, createdAt: new Date() }),
     findById: jest.fn().mockResolvedValue({ id: 'an1', authorId: 'u1', isResolved: false, createdAt: new Date() }),
     findByTarget: jest.fn().mockResolvedValue([]),
+    targetExists: jest.fn().mockResolvedValue(true),
     setResolved: jest.fn().mockResolvedValue({ id: 'an1', isResolved: true, createdAt: new Date() }),
     delete: jest.fn().mockResolvedValue({ id: 'an1' }),
     ...over
@@ -14,7 +15,7 @@ function makeRepo(over: Record<string, unknown> = {}) {
 
 const body = {
   targetType: AnnotationTargetType.MANUSCRIPT,
-  targetId: 'm1',
+  targetId: '507f1f77bcf86cd799439011',
   annotationType: AnnotationType.TEXT,
   content: 'fix'
 }
@@ -25,6 +26,36 @@ describe('AnnotationService', () => {
     const svc = new AnnotationService(repo as never)
     await svc.create('u1', 'EDITOR', body)
     expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ authorId: 'u1', authorRole: 'EDITOR' }))
+  })
+
+  it('creates annotation for an existing NAME target', async () => {
+    const repo = makeRepo()
+    const svc = new AnnotationService(repo as never)
+    await svc.create('u1', 'EDITOR', { ...body, targetType: AnnotationTargetType.NAME })
+    expect(repo.targetExists).toHaveBeenCalledWith(AnnotationTargetType.NAME, body.targetId)
+    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ targetType: AnnotationTargetType.NAME }))
+  })
+
+  it('rejects missing target with 422', async () => {
+    const repo = makeRepo({ targetExists: jest.fn().mockResolvedValue(false) })
+    const svc = new AnnotationService(repo as never)
+    await expect(svc.create('u1', 'EDITOR', body)).rejects.toMatchObject({ status: 422 })
+    expect(repo.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed target id without repository lookup', async () => {
+    const repo = makeRepo()
+    const svc = new AnnotationService(repo as never)
+    await expect(svc.create('u1', 'EDITOR', { ...body, targetId: 'bad-id' })).rejects.toMatchObject({ status: 422 })
+    expect(repo.targetExists).not.toHaveBeenCalled()
+    expect(repo.create).not.toHaveBeenCalled()
+  })
+
+  it('returns empty list for malformed target id without querying Prisma', async () => {
+    const repo = makeRepo()
+    const svc = new AnnotationService(repo as never)
+    await expect(svc.list(AnnotationTargetType.NAME, 'bad-id')).resolves.toEqual({ items: [] })
+    expect(repo.findByTarget).not.toHaveBeenCalled()
   })
 
   it('owner can resolve', async () => {

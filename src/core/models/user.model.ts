@@ -6,6 +6,8 @@ import { zEnum } from 'src/core/http/docs/enum-docs'
 export const UserStatus = $Enums.UserStatus
 export type UserStatusType = $Enums.UserStatus
 
+export const PhoneNumberE164Schema = z.string().regex(/^\+[1-9]\d{1,14}$/)
+
 export const UserSchema = z.object({
   id: z.string(),
   email: z.string().email(),
