@@ -31,6 +31,20 @@ export class BoardController {
     return this.boardService.createSession(creatorId, dto)
   }
 
+  @ApiOperation({ summary: 'Lấy danh sách phiên họp Hội đồng' })
+  @Get('sessions')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  getSessions() {
+    return this.boardService.getSessions()
+  }
+
+  @ApiOperation({ summary: 'Lấy chi tiết phiên họp Hội đồng' })
+  @Get('sessions/:id')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  getSessionById(@Param('id') id: string) {
+    return this.boardService.getSessionById(id)
+  }
+
   @ApiOperation({ summary: 'Kích hoạt phiên họp Hội đồng bằng tay' })
   @Patch('sessions/:id/start')
   async startSession(@Param('id') id: string) {
@@ -57,10 +71,25 @@ export class BoardController {
     return this.boardService.createDecision(dto)
   }
 
+  @ApiOperation({ summary: 'Lấy danh sách quyết định họp' })
+  @Get('decisions')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  getDecisions() {
+    return this.boardService.getDecisions()
+  }
+
   @ApiOperation({ summary: 'Lấy chi tiết quyết định họp' })
   @Get('decisions/:id')
-  async getDecisionDetails(@Param('id') id: string) {
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  getDecisionDetails(@Param('id') id: string) {
     return this.boardService.getDecisionDetails(id)
+  }
+
+  @ApiOperation({ summary: 'Lấy danh sách phiếu bỏ phiếu của quyết định' })
+  @Get('decisions/:id/votes')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  getDecisionVotes(@Param('id') id: string) {
+    return this.boardService.getDecisionVotes(id)
   }
 
   /**
@@ -81,6 +110,20 @@ export class BoardController {
    * 5. Editor nộp báo cáo phân tích số liệu đính kèm phiên họp
    * 🌟 ĐÃ SỬA: Truyền phân tách rời (userId, dto) theo đúng thiết kế của tầng Service
    */
+  @ApiOperation({ summary: 'Lấy danh sách báo cáo Hội đồng' })
+  @Get('reports')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  getReports() {
+    return this.boardService.getReports()
+  }
+
+  @ApiOperation({ summary: 'Lấy chi tiết báo cáo Hội đồng' })
+  @Get('reports/:id')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  getReportById(@Param('id') id: string) {
+    return this.boardService.getReportById(id)
+  }
+
   @ApiOperation({ summary: 'Editor tạo báo cáo phân tích xu hướng cho series' })
   @Post('reports')
   @Roles(RoleName.EDITOR)

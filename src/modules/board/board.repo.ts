@@ -26,6 +26,22 @@ export class BoardRepository {
     return this.prisma.boardDecision.findUnique({ where: { id } })
   }
 
+  async findManySessions() {
+    return this.prisma.boardSession.findMany({ orderBy: { createdAt: 'desc' } })
+  }
+
+  async findManyDecisions() {
+    return this.prisma.boardDecision.findMany({ orderBy: { id: 'desc' } })
+  }
+
+  async findManyReports() {
+    return this.prisma.seriesReport.findMany({ orderBy: { createdAt: 'desc' } })
+  }
+
+  async findReportById(id: string) {
+    return this.prisma.seriesReport.findUnique({ where: { id } })
+  }
+
   async findExpiredUpcomingSessions() {
     return this.prisma.boardSession.findMany({
       where: {

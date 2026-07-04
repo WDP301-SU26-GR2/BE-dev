@@ -31,6 +31,65 @@ export class ReprintRequestService {
     return request
   }
 
+  async getChapters(id: string) {
+    const request = await this.reprintRequestRepo.findById(id)
+    if (!request) {
+      throw ReprintRequestErrors.NotFound()
+    }
+    return request.chapters ?? []
+  }
+
+  async getChapterById(id: string, chapterId: string) {
+    const request = await this.reprintRequestRepo.findById(id)
+    if (!request) {
+      throw ReprintRequestErrors.NotFound()
+    }
+
+    const chapter = request.chapters?.find((item) => item.originalChapterId === chapterId)
+    if (!chapter) {
+      throw ReprintRequestErrors.ChapterNotFound()
+    }
+
+    return chapter
+  }
+
+  async updateChapterManuscript(id: string, chapterId: string, dto: SubmitChapterManuscriptBodyDto) {
+    const request = await this.reprintRequestRepo.findById(id)
+    if (!request) {
+      throw ReprintRequestErrors.NotFound()
+    }
+
+    const chapters = [...(request.chapters ?? [])]
+    const targetChapter = chapters.find((item) => item.originalChapterId === chapterId)
+    if (!targetChapter) {
+      throw ReprintRequestErrors.ChapterNotFound()
+    }
+
+    targetChapter.manuscriptFile = dto.manuscriptFile
+    targetChapter.status = REPRINT_CHAPTER_STATUS.READY
+
+    const updated = await this.reprintRequestRepo.update(id, { chapters })
+    return updated
+  }
+
+  async approveChapter(id: string, chapterId: string, dto: EditorApproveChapterBodyDto) {
+    const request = await this.reprintRequestRepo.findById(id)
+    if (!request) {
+      throw ReprintRequestErrors.NotFound()
+    }
+
+    const chapters = [...(request.chapters ?? [])]
+    const targetChapter = chapters.find((item) => item.originalChapterId === chapterId)
+    if (!targetChapter) {
+      throw ReprintRequestErrors.ChapterNotFound()
+    }
+
+    targetChapter.status = dto.approve ? REPRINT_CHAPTER_STATUS.APPROVED : REPRINT_CHAPTER_STATUS.IN_REVISION
+
+    const updated = await this.reprintRequestRepo.update(id, { chapters })
+    return updated
+  }
+
   // B-RPT-01: Tạo ReprintRequest ban đầu ở trạng thái PENDING
   async create(requestedBy: string, dto: CreateReprintRequestBodyDto) {
     const contract = await this.reprintRequestRepo.findActiveContractBySeriesId(dto.seriesId)
