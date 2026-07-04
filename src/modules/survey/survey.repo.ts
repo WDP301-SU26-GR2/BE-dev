@@ -18,6 +18,10 @@ export class SurveyRepository {
     })
   }
 
+  findManySurveyPeriods() {
+    return this.prisma.surveyPeriod.findMany({ orderBy: { startDate: 'desc' } })
+  }
+
   findSurveyPeriodById(id: string) {
     return this.prisma.surveyPeriod.findUnique({ where: { id } })
   }

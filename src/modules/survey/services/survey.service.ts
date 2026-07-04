@@ -166,6 +166,29 @@ export class SurveyService {
     return { message: SurveyMessages.response.voteSubmitted }
   }
 
+  async getSurveyPeriods() {
+    const surveyPeriods = await this.surveyRepository.findManySurveyPeriods()
+    return surveyPeriods.map((period) => this.mapSurveyPeriod(period))
+  }
+
+  async getSurveyPeriodById(id: string) {
+    const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
+    if (!surveyPeriod) throw SurveyPeriodNotFoundException
+    return this.mapSurveyPeriod(surveyPeriod)
+  }
+
+  async getSurveyPeriodVotes(id: string) {
+    const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
+    if (!surveyPeriod) throw SurveyPeriodNotFoundException
+    return this.surveyRepository.getReaderVotesByPeriod(id)
+  }
+
+  async getSurveyPeriodSurveyData(id: string) {
+    const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
+    if (!surveyPeriod) throw SurveyPeriodNotFoundException
+    return this.surveyRepository.getSurveyDataByPeriod(id)
+  }
+
   async createSurveyPeriod(body: CreateSurveyPeriodBodyDto, userId?: string) {
     const surveyPeriod = await this.surveyRepository.createSurveyPeriod(body)
     if (userId) {

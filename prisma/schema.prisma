@@ -401,8 +401,12 @@ enum ReprintChapterStatus {
 
 // REVIEW: inferred
 enum TransferRequestStatus {
-  PROPOSED
+  SUBMITTED
   UNDER_REVIEW
+  REJECTED_BY_BOARD
+  NEGOTIATING
+  REJECTED_BY_ORIGINAL_MANGAKA
+  PROPOSED
   ACCEPTED
   REJECTED
   CANCELLED
@@ -432,6 +436,7 @@ enum PaymentConditionStatus {
   ACHIEVED
   PAID
   CANCELLED
+  MISSED
 }
 
 // REVIEW: inferred
@@ -592,12 +597,12 @@ model Series {
 }
 
 type SeriesProposal {
-  nameId            String?        @db.ObjectId
-  synopsis          String?
-  characterDesigns  String[]
-  estimatedLength   Int?
-  status            ProposalStatus @default(DRAFT)
-  createdAt         DateTime       @default(now())
+  nameId           String?        @db.ObjectId
+  synopsis         String?
+  characterDesigns String[]
+  estimatedLength  Int?
+  status           ProposalStatus @default(DRAFT)
+  createdAt        DateTime       @default(now())
 }
 
 type SeriesStatusHistoryEntry {
@@ -655,12 +660,40 @@ model Chapter {
   status        ChapterStatus @default(DRAFT)
   publishedAt   DateTime?
 
-  schedule   Schedule?
-  manuscript Manuscript?
-  pages      Page[]
+  schedule        Schedule?
+  manuscript      Manuscript?
+  pages           Page[]
+  boardDecision   BoardDecision? @relation(fields: [boardDecisionId], references: [id])
+  boardDecisionId String?        @db.ObjectId
 
   @@index([seriesId])
   @@index([nameId])
+}
+
+model ChapterCoOwnerApproval {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId String @db.ObjectId
+
+  status        CoOwnerApprovalStatus @default(PENDING)
+  coOwnerId     String?               @db.ObjectId
+  decisionAt    DateTime?
+  rejectReason  String?
+  deadline      DateTime?
+  escalatedAt   DateTime?
+  escalatedToId String?               @db.ObjectId
+  escalatedTo   BoardDecision?        @relation(fields: [escalatedToId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([chapterId])
+  @@index([escalatedToId])
+}
+
+enum CoOwnerApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ESCALATED
 }
 
 model Schedule {
@@ -687,9 +720,9 @@ type ScheduleExtension {
 type DeadlineRequestStatusHistoryEntry {
   from   DeadlineRequestStatus?
   to     DeadlineRequestStatus
-  by     String?               @db.ObjectId
+  by     String?                @db.ObjectId
   reason String?
-  at     DateTime              @default(now())
+  at     DateTime               @default(now())
 }
 
 model DeadlineRequest {
@@ -705,10 +738,10 @@ model DeadlineRequest {
   currentDeadline   DateTime?
   requestedDeadline DateTime?
   reason            String?
-  affectsSlot       Boolean               @default(false)
-  status            DeadlineRequestStatus @default(PROPOSED)
+  affectsSlot       Boolean                             @default(false)
+  status            DeadlineRequestStatus               @default(PROPOSED)
   resolvedAt        DateTime?
-  createdAt         DateTime              @default(now())
+  createdAt         DateTime                            @default(now())
   lastProposedBy    String?
   statusHistory     DeadlineRequestStatusHistoryEntry[]
 
@@ -781,7 +814,7 @@ model Task {
   priority  Int             @default(0)
   deadline  DateTime?
   createdAt DateTime        @default(now())
-  assetIds String[]        @db.ObjectId @default([])
+  assetIds  String[]        @default([]) @db.ObjectId
 
   versions    TaskVersion[]
   annotations Annotation[]
@@ -792,11 +825,11 @@ model Task {
 }
 
 model AiJob {
-  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
   type        AiJobType
   mode        AiSegmentMode?
-  pageId      String @db.ObjectId
-  requestedBy String @db.ObjectId
+  pageId      String         @db.ObjectId
+  requestedBy String         @db.ObjectId
 
   status          AiJobStatus @default(QUEUED)
   error           String?
@@ -937,6 +970,8 @@ model Contract {
   boardDecisionId String?        @db.ObjectId
   boardDecision   BoardDecision? @relation(fields: [boardDecisionId], references: [id])
 
+  sourceTransferRequestId String? @db.ObjectId
+
   contractType          ContractType
   valuationAmount       Float?
   publisherOwnershipPct Float?
@@ -954,11 +989,13 @@ model Contract {
   amendments         ContractAmendment[]
   versions           ContractVersion[]
   contractSignatures ContractSignature[]
+  originOfTransfers  TransferRequest[]   @relation("OriginalContractOfTransfer")
 
   @@index([seriesId])
   @@index([mangakaId])
   @@index([editorId])
   @@index([boardDecisionId])
+  @@index([sourceTransferRequestId])
 }
 
 model ContractVersion {
@@ -1082,9 +1119,16 @@ model TransferRequest {
   status               TransferRequestStatus @default(PROPOSED)
   createdAt            DateTime              @default(now())
 
+  boardDecisionId    String?        @db.ObjectId
+  boardDecision      BoardDecision? @relation(fields: [boardDecisionId], references: [id])
+  originalContractId String?        @db.ObjectId
+  originalContract   Contract?      @relation("OriginalContractOfTransfer", fields: [originalContractId], references: [id])
+
   @@index([seriesId])
   @@index([requestingMangakaId])
   @@index([originalMangakaId])
+  @@index([boardDecisionId])
+  @@index([originalContractId])
 }
 
 model TransferContract {
@@ -1099,15 +1143,27 @@ model TransferContract {
   newOwnershipSplit       Json?
   coOwnerApprovalRequired Boolean                @default(false)
   status                  TransferContractStatus @default(DRAFT)
-  aSignedAt               DateTime?
-  bSignedAt               DateTime?
-  boardSignedAt           DateTime?
   createdAt               DateTime               @default(now())
+
+  signatures TransferContractSignature[]
 
   @@index([transferRequestId])
   @@index([seriesId])
   @@index([fromMangakaId])
   @@index([toMangakaId])
+}
+
+model TransferContractSignature {
+  id                 String           @id @default(auto()) @map("_id") @db.ObjectId
+  transferContractId String           @db.ObjectId
+  transferContract   TransferContract @relation(fields: [transferContractId], references: [id], onDelete: Cascade)
+
+  userId   String   @db.ObjectId
+  role     String // "MANGAKA_A" | "MANGAKA_B" | "BOARD"
+  signedAt DateTime @default(now())
+
+  @@unique([transferContractId, userId, role])
+  @@index([transferContractId])
 }
 
 model SurveyPeriod {
@@ -1229,9 +1285,12 @@ model BoardDecision {
   decidedAt              DateTime?
   allowedEditorIds       String[]      @db.ObjectId
 
-  votes     Vote[]
-  report    SeriesReport?
-  contracts Contract[]
+  votes                   Vote[]
+  report                  SeriesReport?
+  contracts               Contract[]
+  transferRequests        TransferRequest[]
+  escalatedChapters       Chapter[]
+  chapterCoOwnerApprovals ChapterCoOwnerApproval[]
 
   @@index([targetSeriesId])
 }

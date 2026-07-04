@@ -60,6 +60,36 @@ export class SurveyController {
     return this.surveyService.submitVote(body, req.ip ?? '')
   }
 
+  @Get('survey-periods')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  @ApiOperation({ summary: 'Lấy danh sách kỳ bình chọn' })
+  @ZodResponse({ status: 200, type: [SurveyPeriodResDto] })
+  getSurveyPeriods() {
+    return this.surveyService.getSurveyPeriods()
+  }
+
+  @Get('survey-periods/:id')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  @ApiOperation({ summary: 'Lấy chi tiết kỳ bình chọn' })
+  @ZodResponse({ status: 200, type: SurveyPeriodResDto })
+  getSurveyPeriodById(@Param('id') id: string) {
+    return this.surveyService.getSurveyPeriodById(id)
+  }
+
+  @Get('survey-periods/:id/votes')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  @ApiOperation({ summary: 'Lấy danh sách phiếu bình chọn của kỳ bình chọn' })
+  getSurveyPeriodVotes(@Param('id') id: string) {
+    return this.surveyService.getSurveyPeriodVotes(id)
+  }
+
+  @Get('survey-periods/:id/survey-data')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  @ApiOperation({ summary: 'Lấy dữ liệu nhập từ offline của kỳ bình chọn' })
+  getSurveyPeriodSurveyData(@Param('id') id: string) {
+    return this.surveyService.getSurveyPeriodSurveyData(id)
+  }
+
   @Post('survey-periods')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
   @ApiOperation({ summary: 'Tạo kỳ bình chọn mới' })

@@ -95,10 +95,40 @@ export class BoardService {
     return decision
   }
 
+  async getSessions() {
+    return this.boardRepo.findManySessions()
+  }
+
+  async getSessionById(sessionId: string) {
+    const session = await this.boardRepo.findSessionById(sessionId)
+    if (!session) throw new Errors.SessionNotFoundException(sessionId)
+    return session
+  }
+
+  async getDecisions() {
+    return this.boardRepo.findManyDecisions()
+  }
+
   async getDecisionDetails(decisionId: string) {
     const decision = await this.boardRepo.findDecisionById(decisionId)
     if (!decision) throw new Errors.DecisionNotFoundException(decisionId)
     return decision
+  }
+
+  async getDecisionVotes(decisionId: string) {
+    const decision = await this.boardRepo.findDecisionById(decisionId)
+    if (!decision) throw new Errors.DecisionNotFoundException(decisionId)
+    return decision.votes ?? []
+  }
+
+  async getReports() {
+    return this.boardRepo.findManyReports()
+  }
+
+  async getReportById(reportId: string) {
+    const report = await this.boardRepo.findReportById(reportId)
+    if (!report) throw new Errors.ReportNotFoundException(reportId)
+    return report
   }
 
   /**

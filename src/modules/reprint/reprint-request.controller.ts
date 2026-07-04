@@ -36,6 +36,42 @@ export class ReprintRequestController {
     return this.reprintRequestService.findById(id)
   }
 
+  @ApiOperation({ summary: 'Danh sách chương trong yêu cầu tái bản' })
+  @Get(':id/chapters')
+  @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.MANGAKA, RoleName.SUPER_ADMIN)
+  getChapters(@Param('id') id: string) {
+    return this.reprintRequestService.getChapters(id)
+  }
+
+  @ApiOperation({ summary: 'Chi tiết một chương trong yêu cầu tái bản' })
+  @Get(':id/chapters/:chapterId')
+  @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.MANGAKA, RoleName.SUPER_ADMIN)
+  getChapterById(@Param('id') id: string, @Param('chapterId') chapterId: string) {
+    return this.reprintRequestService.getChapterById(id, chapterId)
+  }
+
+  @ApiOperation({ summary: 'Cập nhật bản thảo cho một chương trong yêu cầu tái bản' })
+  @Patch(':id/chapters/:chapterId/manuscript')
+  @Roles(RoleName.MANGAKA)
+  updateChapterManuscript(
+    @Param('id') id: string,
+    @Param('chapterId') chapterId: string,
+    @Body() dto: SubmitChapterManuscriptBodyDto
+  ) {
+    return this.reprintRequestService.updateChapterManuscript(id, chapterId, dto)
+  }
+
+  @ApiOperation({ summary: 'Phê duyệt một chương trong yêu cầu tái bản' })
+  @Patch(':id/chapters/:chapterId/approve')
+  @Roles(RoleName.EDITOR)
+  approveChapter(
+    @Param('id') id: string,
+    @Param('chapterId') chapterId: string,
+    @Body() dto: EditorApproveChapterBodyDto
+  ) {
+    return this.reprintRequestService.approveChapter(id, chapterId, dto)
+  }
+
   @ApiOperation({ summary: 'Tạo yêu cầu tái bản (B-RPT-01)' })
   @Post()
   @Roles(RoleName.EDITOR)

@@ -102,6 +102,12 @@ export class SessionClosedReportException extends BadRequestException {
   }
 }
 
+export class ReportNotFoundException extends NotFoundException {
+  constructor(reportId?: string) {
+    super(reportId ? `Báo cáo hội đồng với mã "${reportId}" không tồn tại.` : 'Báo cáo hội đồng không tồn tại.')
+  }
+}
+
 export class EditorNotInvitedException extends ForbiddenException {
   constructor() {
     super('Bạn không thể nộp báo cáo cho cuộc họp này vì bạn không nằm trong danh sách thành viên được mời.')

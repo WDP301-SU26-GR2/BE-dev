@@ -24,6 +24,7 @@ import { TaskModule } from './modules/task/task.module'
 import { DeadlineModule } from './modules/deadline/deadline.module'
 import { AiModule } from './modules/ai/ai.module'
 import { ReprintRequestModule } from './modules/reprint/reprint-request.module'
+import { TransferModule } from './modules/transfer/transfer.module'
 
 @Module({
   imports: [
@@ -46,7 +47,8 @@ import { ReprintRequestModule } from './modules/reprint/reprint-request.module'
     TaskModule,
     DeadlineModule,
     AiModule,
-    ReprintRequestModule
+    ReprintRequestModule,
+    TransferModule
   ],
   controllers: [],
   providers: [

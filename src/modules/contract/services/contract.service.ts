@@ -7,6 +7,7 @@ import { CONTRACT_EVENTS } from '../contract.constant'
 import { CreateContractBodyDto, EditorUpdateContractBodyDto } from '../dto/contract.dto'
 import { AuthOtpService } from 'src/modules/auth/services/auth-otp.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { RoleName } from 'src/core/security/constants/role.constant'
 
 @Injectable()
 export class ContractService {
@@ -20,6 +21,45 @@ export class ContractService {
   // Hàm kiểm tra trạng thái hoạt động của module
   healthCheck() {
     return { status: 'OK', module: 'Contract' }
+  }
+
+  async getContracts(userId: string, roleName: string) {
+    return this.contractRepo.findManyByViewer(userId, roleName)
+  }
+
+  async getContractById(contractId: string, userId: string, roleName: string) {
+    const contract = await this.contractRepo.findById(contractId)
+    if (!contract) throw ContractErrors.NotFound()
+    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
+
+    return contract
+  }
+
+  async getContractVersions(contractId: string, userId: string, roleName: string) {
+    const contract = await this.contractRepo.findById(contractId)
+    if (!contract) throw ContractErrors.NotFound()
+    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
+
+    return this.contractRepo.findVersionsByContractId(contractId)
+  }
+
+  async getContractVersionById(contractId: string, versionId: string, userId: string, roleName: string) {
+    const contract = await this.contractRepo.findById(contractId)
+    if (!contract) throw ContractErrors.NotFound()
+    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
+
+    const version = await this.contractRepo.findVersionById(contractId, versionId)
+    if (!version) throw ContractErrors.NotFound()
+
+    return version
+  }
+
+  private canViewContract(contract: { editorId: string | null; mangakaId: string }, userId: string, roleName: string) {
+    if (roleName === RoleName.BOARD_MEMBER) return true
+    if (roleName === RoleName.EDITOR) return contract.editorId === userId
+    if (roleName === RoleName.MANGAKA) return contract.mangakaId === userId
+
+    return false
   }
 
   // Khởi tạo bản hợp đồng nháp (Editor tạo)

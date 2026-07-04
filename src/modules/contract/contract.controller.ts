@@ -19,6 +19,47 @@ export class ContractController {
     return this.contractService.healthCheck()
   }
 
+  @ApiOperation({ summary: 'Lấy danh sách hợp đồng của người dùng' })
+  @Get()
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  getContracts(@ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
+    return this.contractService.getContracts(userId, roleName)
+  }
+
+  @ApiOperation({ summary: 'Lấy chi tiết hợp đồng theo id' })
+  @Get(':id')
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  getContractById(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.contractService.getContractById(id, userId, roleName)
+  }
+
+  @ApiOperation({ summary: 'Lấy danh sách các phiên bản của hợp đồng' })
+  @Get(':id/versions')
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  getContractVersions(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.contractService.getContractVersions(id, userId, roleName)
+  }
+
+  @ApiOperation({ summary: 'Lấy thông tin một phiên bản cụ thể của hợp đồng' })
+  @Get(':id/versions/:versionId')
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  getContractVersionById(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.contractService.getContractVersionById(id, versionId, userId, roleName)
+  }
+
   // 1. Tạo mới tài nguyên hợp đồng nháp
   @ApiOperation({ summary: 'Tạo hợp đồng nháp mới cho series' })
   @Post()
