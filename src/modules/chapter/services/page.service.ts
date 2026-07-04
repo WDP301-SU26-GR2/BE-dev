@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common'
 import { ManuscriptStatus } from '@prisma/client'
-import { ChapterNotFoundException, NotSeriesOwnerException, PageNotFoundException } from '../errors/chapter.errors'
+import {
+  ChapterNotFoundException,
+  ChapterOnHoldException,
+  NotSeriesOwnerException,
+  PageNotFoundException
+} from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { CreatePageBodyType, UpdatePageBodyType } from '../schemas/chapter-schemas'
 import { ManuscriptStateService } from './manuscript-state.service'
@@ -19,6 +24,7 @@ export class PageService {
     if (!chapter) throw ChapterNotFoundException
     const series = await this.chapterRepository.findSeriesById(chapter.seriesId)
     if (!series || series.mangakaId !== userId) throw NotSeriesOwnerException
+    if (chapter.hold) throw ChapterOnHoldException
     return chapter
   }
 

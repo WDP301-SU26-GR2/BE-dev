@@ -1,4 +1,4 @@
-import { MangakaProfileBodySchema } from './users-schemas'
+import { AdminUpdateUserStatusBodySchema, MangakaProfileBodySchema } from './users-schemas'
 
 describe('MangakaProfile genres enum', () => {
   it('chấp nhận genres enum hợp lệ', () => {
@@ -8,5 +8,11 @@ describe('MangakaProfile genres enum', () => {
 
   it('reject genres không thuộc enum', () => {
     expect(() => MangakaProfileBodySchema.parse({ penName: 'Aki', genres: ['action'] })).toThrow()
+  })
+})
+
+describe('AdminUpdateUserStatusBodySchema', () => {
+  it('rejects INACTIVE for admin moderation status updates', () => {
+    expect(() => AdminUpdateUserStatusBodySchema.parse({ status: 'INACTIVE' })).toThrow()
   })
 })

@@ -52,6 +52,7 @@ const configSchema = z
     OTP_RL_COOLDOWN: z.coerce.number().default(60),
     DEADLINE_WARN_THRESHOLD_HOURS: z.coerce.number().default(48),
     DEADLINE_SLOT_GRACE_HOURS: z.coerce.number().default(48),
+    NAME_MAX_REVIEW_ROUNDS: z.coerce.number().default(8),
     ORPHAN_ASSET_TTL_HOURS: z.coerce.number().default(24),
     TRUST_PROXY_HOPS: z.coerce.number().default(1),
     ////AI SERVICE (Spec 2 - optional: empty = AI disabled)

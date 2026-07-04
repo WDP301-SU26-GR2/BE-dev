@@ -7,10 +7,12 @@ import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import {
   ChapterListResDto,
+  ChapterProgressResDto,
   ChapterResDto,
   CreateChapterBodyDto,
   CreatePageBodyDto,
   ExtendDeadlineBodyDto,
+  HoldChapterBodyDto,
   PageListResDto,
   PageResDto,
   ReasonBodyDto,
@@ -19,6 +21,11 @@ import {
 } from './dto/chapter.dto'
 import {
   ChapterNotFoundException,
+  ChapterAccessDeniedException,
+  ChapterAlreadyOnHoldException,
+  ChapterNotHoldableException,
+  ChapterNotOnHoldException,
+  ChapterOnHoldException,
   ContractNotExecutedException,
   DuplicateChapterNumberException,
   InvalidManuscriptTransitionException,
@@ -60,6 +67,15 @@ export class ChapterController {
     return this.chapterService.listBySeries(seriesId)
   }
 
+  @Get('chapters/:id/progress')
+  @ApiOperation({ summary: 'Chapter progress dashboard for owner editor, mangaka, board, or super admin' })
+  @ApiErrors(ChapterNotFoundException, ChapterAccessDeniedException)
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 200, type: ChapterProgressResDto })
+  progress(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
+    return this.chapterService.progress({ userId, roleName }, id)
+  }
+
   @Get('chapters/:id')
   @ApiOperation({ summary: 'Chi tiết 1 chapter (kèm manuscript/schedule)' })
   @ApiErrors(ChapterNotFoundException)
@@ -86,9 +102,32 @@ export class ChapterController {
     return this.chapterService.extendDeadline(userId, id, body)
   }
 
+  @Post('chapters/:id/hold')
+  @ApiOperation({ summary: 'Editor pauses chapter production with hold flag' })
+  @ApiErrors(
+    ChapterNotFoundException,
+    NotSeriesEditorException,
+    ChapterNotHoldableException,
+    ChapterAlreadyOnHoldException
+  )
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 201, type: ChapterResDto })
+  hold(@Param('id') id: string, @Body() body: HoldChapterBodyDto, @ActiveUser('userId') userId: string) {
+    return this.chapterService.hold(userId, id, body)
+  }
+
+  @Post('chapters/:id/resume')
+  @ApiOperation({ summary: 'Editor resumes a chapter that is on hold' })
+  @ApiErrors(ChapterNotFoundException, NotSeriesEditorException, ChapterNotOnHoldException)
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 201, type: ChapterResDto })
+  resume(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.chapterService.resume(userId, id)
+  }
+
   @Post('chapters/:id/pages')
   @ApiOperation({ summary: 'Mangaka upload trang (pencil/ink) → tạo Page (NOT_STARTED)' })
-  @ApiErrors(NotSeriesOwnerException, ChapterNotFoundException)
+  @ApiErrors(NotSeriesOwnerException, ChapterNotFoundException, ChapterOnHoldException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: PageResDto })
   createPage(@Param('id') id: string, @Body() body: CreatePageBodyDto, @ActiveUser('userId') userId: string) {
@@ -104,7 +143,7 @@ export class ChapterController {
 
   @Patch('pages/:pageId')
   @ApiOperation({ summary: 'Mangaka cập nhật trang (file/status: NOT_STARTED→IN_PROGRESS→COMPOSITE_READY→COMPLETED)' })
-  @ApiErrors(NotSeriesOwnerException, PageNotFoundException, InvalidPageTransitionException)
+  @ApiErrors(NotSeriesOwnerException, PageNotFoundException, InvalidPageTransitionException, ChapterOnHoldException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: PageResDto })
   updatePage(@Param('pageId') pageId: string, @Body() body: UpdatePageBodyDto, @ActiveUser('userId') userId: string) {
@@ -117,7 +156,8 @@ export class ChapterController {
     NotSeriesOwnerException,
     ChapterNotFoundException,
     PagesNotAllCompletedException,
-    InvalidManuscriptTransitionException
+    InvalidManuscriptTransitionException,
+    ChapterOnHoldException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
@@ -127,7 +167,12 @@ export class ChapterController {
 
   @Post('chapters/:id/manuscript/submit')
   @ApiOperation({ summary: 'Mangaka nộp manuscript cho Editor final check → EDITOR_REVIEW' })
-  @ApiErrors(NotSeriesOwnerException, ChapterNotFoundException, InvalidManuscriptTransitionException)
+  @ApiErrors(
+    NotSeriesOwnerException,
+    ChapterNotFoundException,
+    InvalidManuscriptTransitionException,
+    ChapterOnHoldException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
   submit(@Param('id') id: string, @ActiveUser('userId') userId: string) {
@@ -136,7 +181,12 @@ export class ChapterController {
 
   @Post('chapters/:id/manuscript/request-revision')
   @ApiOperation({ summary: 'Editor yêu cầu sửa manuscript → EDITOR_REVISION (kèm Annotation)' })
-  @ApiErrors(NotSeriesEditorException, ChapterNotFoundException, InvalidManuscriptTransitionException)
+  @ApiErrors(
+    NotSeriesEditorException,
+    ChapterNotFoundException,
+    InvalidManuscriptTransitionException,
+    ChapterOnHoldException
+  )
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ChapterResDto })
   requestRevision(@Param('id') id: string, @Body() body: ReasonBodyDto, @ActiveUser('userId') userId: string) {
@@ -145,7 +195,12 @@ export class ChapterController {
 
   @Post('chapters/:id/manuscript/resubmit')
   @ApiOperation({ summary: 'Mangaka nộp lại sau revision → EDITOR_REVIEW' })
-  @ApiErrors(NotSeriesOwnerException, ChapterNotFoundException, InvalidManuscriptTransitionException)
+  @ApiErrors(
+    NotSeriesOwnerException,
+    ChapterNotFoundException,
+    InvalidManuscriptTransitionException,
+    ChapterOnHoldException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
   resubmit(@Param('id') id: string, @ActiveUser('userId') userId: string) {
@@ -154,7 +209,12 @@ export class ChapterController {
 
   @Post('chapters/:id/manuscript/approve')
   @ApiOperation({ summary: 'Editor duyệt manuscript → READY_FOR_PRINT' })
-  @ApiErrors(NotSeriesEditorException, ChapterNotFoundException, InvalidManuscriptTransitionException)
+  @ApiErrors(
+    NotSeriesEditorException,
+    ChapterNotFoundException,
+    InvalidManuscriptTransitionException,
+    ChapterOnHoldException
+  )
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ChapterResDto })
   approve(@Param('id') id: string, @ActiveUser('userId') userId: string) {
@@ -170,7 +230,8 @@ export class ChapterController {
     NotSeriesEditorException,
     ChapterNotFoundException,
     InvalidManuscriptTransitionException,
-    ContractNotExecutedException
+    ContractNotExecutedException,
+    ChapterOnHoldException
   )
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ChapterResDto })

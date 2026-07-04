@@ -22,6 +22,7 @@ export function toTaskRes(t: Task) {
     assistantId: t.assistantId ?? null,
     taskType: t.taskType ?? null,
     status: t.status,
+    statusReason: t.statusReason ?? null,
     priority: t.priority,
     deadline: t.deadline ? t.deadline.toISOString() : null,
     assetIds: t.assetIds ?? [],

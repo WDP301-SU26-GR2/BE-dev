@@ -32,6 +32,14 @@ export function toChapterRes(chapter: ChapterWithRels) {
     totalPages: chapter.totalPages,
     status: chapter.status,
     publishedAt: iso(chapter.publishedAt),
+    hold: chapter.hold
+      ? {
+          reason: chapter.hold.reason,
+          expectedReturnDate: iso(chapter.hold.expectedReturnDate),
+          heldBy: chapter.hold.heldBy,
+          heldAt: chapter.hold.heldAt.toISOString()
+        }
+      : null,
     manuscriptStatus: chapter.manuscript?.status ?? null,
     schedule: toScheduleRes(chapter.schedule)
   }

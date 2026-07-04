@@ -223,6 +223,7 @@ enum TaskStatus {
   APPROVED
   REVISION_REQUESTED
   ON_HOLD
+  CANCELLED
 }
 
 enum ManuscriptStatus {
@@ -268,6 +269,26 @@ enum ChapterStatus {
   IN_PRODUCTION
   COMPLETED
   PUBLISHED
+}
+
+enum ChapterHoldAction {
+  HOLD
+  RESUME
+}
+
+type ChapterHold {
+  reason             String
+  expectedReturnDate DateTime?
+  heldBy             String    @db.ObjectId
+  heldAt             DateTime  @default(now())
+}
+
+type ChapterHoldEntry {
+  action             ChapterHoldAction
+  by                 String            @db.ObjectId
+  reason             String?
+  expectedReturnDate DateTime?
+  at                 DateTime          @default(now())
 }
 
 // REVIEW: inferred
@@ -646,6 +667,8 @@ model Chapter {
   totalPages    Int?
   status        ChapterStatus @default(DRAFT)
   publishedAt   DateTime?
+  hold          ChapterHold?
+  holdHistory   ChapterHoldEntry[]
 
   schedule   Schedule?
   manuscript Manuscript?
@@ -774,6 +797,7 @@ model Task {
   deadline  DateTime?
   createdAt DateTime        @default(now())
   assetIds String[]        @db.ObjectId @default([])
+  statusReason String?
 
   versions    TaskVersion[]
   annotations Annotation[]
