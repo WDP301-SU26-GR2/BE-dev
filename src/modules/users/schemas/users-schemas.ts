@@ -2,13 +2,14 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums, Genre, RoleCode } from '@prisma/client'
 import { zEnum, zRole, zRoleSubset } from 'src/core/http/docs/enum-docs'
+import { PhoneNumberE164Schema } from 'src/core/models/user.model'
 
 export const AdminCreateUserBodySchema = extendApi(
   z
     .object({
       email: z.string().email(),
       name: z.string().min(2).max(100),
-      phoneNumber: z.string().min(9).max(15),
+      phoneNumber: PhoneNumberE164Schema,
       roleCode: zRoleSubset([RoleCode.EDITOR, RoleCode.BOARD_MEMBER])
     })
     .strict(),

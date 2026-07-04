@@ -4,7 +4,12 @@ import { $Enums } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 
 const CoordinatesSchema = z
-  .object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
+  .object({
+    x: z.number().nonnegative(),
+    y: z.number().nonnegative(),
+    width: z.number().positive(),
+    height: z.number().positive()
+  })
   .describe('Toạ độ vùng trên trang (pixel)')
 
 // ---- Region (A-TSK-01/02) ----
@@ -145,6 +150,7 @@ export const ListTasksQuerySchema = extendApi(
   z
     .object({
       pageId: z.string().optional(),
+      regionId: z.string().optional(),
       assistantId: z.string().optional(),
       status: zEnum($Enums.TaskStatus, 'TaskStatus').optional(),
       limit: z.coerce.number().int().positive().max(100).default(20),

@@ -171,7 +171,7 @@ export class TaskController {
   }
 
   @Get('tasks')
-  @ApiOperation({ summary: 'Danh sách task (Assistant=được giao; Mangaka=theo pageId sở hữu)' })
+  @ApiOperation({ summary: 'Danh sách task theo status/regionId (Assistant=được giao; Mangaka=theo pageId sở hữu)' })
   @Roles(RoleName.MANGAKA, RoleName.ASSISTANT)
   @ZodResponse({ status: 200, type: TaskListResDto })
   listTasks(

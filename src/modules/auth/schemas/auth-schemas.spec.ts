@@ -3,7 +3,7 @@ import { RegisterBodySchema, VerifyEmailBodySchema } from './auth-schemas'
 const baseRegisterBody = {
   email: 'a@b.com',
   name: 'Alice',
-  phoneNumber: '0123456789',
+  phoneNumber: '+84901234567',
   displayName: 'Alice',
   password: 'Abcdef12',
   confirm_password: 'Abcdef12',
@@ -13,6 +13,10 @@ const baseRegisterBody = {
 describe('RegisterBodySchema', () => {
   it('accepts a strong password', () => {
     expect(RegisterBodySchema.safeParse(baseRegisterBody).success).toBe(true)
+  })
+
+  it('rejects local phone numbers without E.164 country code', () => {
+    expect(RegisterBodySchema.safeParse({ ...baseRegisterBody, phoneNumber: '0901234567' }).success).toBe(false)
   })
 
   it('rejects password without uppercase', () => {
