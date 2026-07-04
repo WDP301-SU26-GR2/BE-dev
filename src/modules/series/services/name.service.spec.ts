@@ -1,4 +1,4 @@
-import { NameStatus, SeriesStatus } from '@prisma/client'
+import { NameStatus, NotificationType, SeriesStatus } from '@prisma/client'
 import { NameService } from './name.service'
 
 const series = {
@@ -9,7 +9,8 @@ const series = {
   reviewStartedAt: null
 }
 
-function make(nameOverride: Record<string, unknown> = {}) {
+function make(nameOverride: Record<string, unknown> = {}, seriesOverride: Record<string, unknown> = {}) {
+  const currentSeries = { ...series, ...seriesOverride }
   const name = {
     id: 'n1',
     seriesId: 's1',
@@ -21,7 +22,7 @@ function make(nameOverride: Record<string, unknown> = {}) {
     ...nameOverride
   }
   const seriesRepository = {
-    findById: jest.fn().mockResolvedValue(series),
+    findById: jest.fn().mockResolvedValue(currentSeries),
     findNameById: jest.fn().mockResolvedValue(name),
     updateNameStatus: jest.fn().mockImplementation((id, data) => Promise.resolve({ ...name, ...data })),
     updateNamePages: jest.fn().mockResolvedValue(name),
@@ -29,7 +30,7 @@ function make(nameOverride: Record<string, unknown> = {}) {
       .fn()
       .mockImplementation((id, page) => Promise.resolve({ ...name, pages: [...name.pages, page] }))
   }
-  const seriesStateService = { tryAdvanceToReadyToPitch: jest.fn().mockResolvedValue(series) }
+  const seriesStateService = { tryAdvanceToReadyToPitch: jest.fn().mockResolvedValue(currentSeries) }
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const service = new NameService(seriesRepository as never, seriesStateService as never, notificationService as never)
   return { service, seriesRepository, seriesStateService, notificationService, name }
@@ -40,6 +41,36 @@ describe('NameService', () => {
     const { service, seriesRepository } = make({ status: NameStatus.REVISION, version: 2 })
     await service.resubmit('m1', 's1', 'n1')
     expect(seriesRepository.updateNameStatus).toHaveBeenCalledWith('n1', { status: NameStatus.IN_REVIEW, version: 3 })
+  })
+
+  it('resubmit notifies assigned editor when review round threshold is reached', async () => {
+    const { service, notificationService } = make({ status: NameStatus.REVISION, version: 7 })
+
+    await service.resubmit('m1', 's1', 'n1')
+
+    expect(notificationService.notifySafe).toHaveBeenCalledWith({
+      recipientId: 'e1',
+      type: NotificationType.REVIEW,
+      referenceId: 'n1',
+      referenceType: 'NAME_LOOP_WARNING',
+      content: 'Name review loop has reached 8 rounds'
+    })
+  })
+
+  it('resubmit does not notify before review round threshold', async () => {
+    const { service, notificationService } = make({ status: NameStatus.REVISION, version: 6 })
+
+    await service.resubmit('m1', 's1', 'n1')
+
+    expect(notificationService.notifySafe).not.toHaveBeenCalled()
+  })
+
+  it('resubmit does not notify at threshold when series has no assigned editor', async () => {
+    const { service, notificationService } = make({ status: NameStatus.REVISION, version: 7 }, { editorId: null })
+
+    await service.resubmit('m1', 's1', 'n1')
+
+    expect(notificationService.notifySafe).not.toHaveBeenCalled()
   })
 
   it('approve: SUBMITTED->APPROVED then tries to advance series', async () => {

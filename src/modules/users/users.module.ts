@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common'
+import { AdminModerationService } from './services/admin-moderation.service'
+import { AdminStatsService } from './services/admin-stats.service'
 import { AdminUserQueryService } from './services/admin-user-query.service'
 import { AssistantProfileService } from './services/assistant-profile.service'
 import { MangakaProfileService } from './services/mangaka-profile.service'
@@ -15,6 +17,8 @@ import { UsersService } from './users.service'
     UsersRepository,
     AdminUserService,
     AdminUserQueryService,
+    AdminModerationService,
+    AdminStatsService,
     MangakaProfileService,
     AssistantProfileService,
     AssistantDirectoryService

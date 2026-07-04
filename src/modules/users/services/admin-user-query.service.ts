@@ -6,7 +6,7 @@ import { AdminUserFilter, UsersRepository } from '../users.repo'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
-type AdminUserRow = {
+export type AdminUserRow = {
   id: string
   email: string
   name: string
@@ -21,7 +21,7 @@ type AdminUserRow = {
   role: { code: string }
 }
 
-function toAdminUserView(u: AdminUserRow) {
+export function toAdminUserView(u: AdminUserRow) {
   return {
     id: u.id,
     email: u.email,

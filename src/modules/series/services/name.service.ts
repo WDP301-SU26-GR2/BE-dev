@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { NameStatus, NotificationType } from '@prisma/client'
+import envConfig from 'src/core/config/envConfig'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { InvalidNameStateException, NotSeriesOwnerException, SeriesNotFoundException } from '../errors/series.errors'
 import { toNameRes } from '../series.mapper'
@@ -31,12 +32,21 @@ export class NameService {
   }
 
   async resubmit(mangakaId: string, seriesId: string, nameId: string) {
-    const { name } = await this.requireOwnerName(seriesId, mangakaId, nameId)
+    const { series, name } = await this.requireOwnerName(seriesId, mangakaId, nameId)
     if (name.status !== NameStatus.REVISION) throw InvalidNameStateException
     const updated = await this.seriesRepository.updateNameStatus(nameId, {
       status: NameStatus.IN_REVIEW,
       version: name.version + 1
     })
+    if (updated.version >= envConfig.NAME_MAX_REVIEW_ROUNDS && series.editorId) {
+      await this.notificationService.notifySafe({
+        recipientId: series.editorId,
+        type: NotificationType.REVIEW,
+        referenceId: nameId,
+        referenceType: 'NAME_LOOP_WARNING',
+        content: SeriesMessages.notification.nameLoopWarning(updated.version)
+      })
+    }
     return toNameRes(updated)
   }
 

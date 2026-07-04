@@ -10,6 +10,7 @@ export type SeriesCaller = { userId: string; roleName: string }
 
 // Series chưa gán editor + đang ở các state này = hàng đợi review (Editor nào cũng thấy được để pick-up).
 const REVIEW_QUEUE_STATES = new Set<SeriesStatus>([SeriesStatus.IN_REVIEW])
+const BOARD_HIDDEN_STATES = new Set<SeriesStatus>([SeriesStatus.DRAFT, SeriesStatus.WITHDRAWN])
 
 // Guard format ObjectId: id rác (vd 'proposals' khi ai đó gọi GET /series/proposals khớp @Get(':id'))
 // → trả 404 sạch thay vì để Prisma ném P2023 (Malformed ObjectID) → 500.
@@ -69,7 +70,7 @@ export class SeriesQueryService {
   // In-memory check (không phải query) → dùng được `!series.editorId` cho cả null lẫn absent.
   private canView(series: Series, caller: SeriesCaller): boolean {
     const r = caller.roleName
-    if (r === RoleName.SUPER_ADMIN || r === RoleName.BOARD_MEMBER) return true
+    if (r === RoleName.SUPER_ADMIN || r === RoleName.BOARD_MEMBER) return !BOARD_HIDDEN_STATES.has(series.status)
     if (r === RoleName.MANGAKA) return series.mangakaId === caller.userId
     if (r === RoleName.EDITOR) {
       return series.editorId === caller.userId || (!series.editorId && REVIEW_QUEUE_STATES.has(series.status))

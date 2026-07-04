@@ -66,7 +66,7 @@ export class AiSegmentService {
   }
 
   async listJobs(mangakaId: string, pageId: string, query: ListAiJobsQueryType) {
-    await this.regionService.assertPageOwner(mangakaId, pageId)
+    await this.regionService.assertPageOwner(mangakaId, pageId, { checkHold: false })
     const jobs = await this.aiRepository.listJobsByPage(pageId, query.type)
     return { items: jobs.map(toAiJobListItem) }
   }

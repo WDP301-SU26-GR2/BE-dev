@@ -10,7 +10,24 @@ describe('TaskStateService', () => {
     repo.findTaskById.mockResolvedValue({ id: 't', status: 'ASSIGNED' })
     repo.updateTaskStatus.mockResolvedValue({ id: 't', status: 'IN_PROGRESS' })
     await service.transition('t', 'IN_PROGRESS')
-    expect(repo.updateTaskStatus).toHaveBeenCalledWith('t', 'IN_PROGRESS')
+    expect(repo.updateTaskStatus).toHaveBeenCalledWith('t', 'IN_PROGRESS', undefined)
+  })
+
+  it('allows IN_PROGRESS to ASSIGNED for reassign and to CANCELLED with reason', async () => {
+    repo.findTaskById.mockResolvedValue({ id: 't', status: 'IN_PROGRESS' })
+    repo.updateTaskStatus.mockResolvedValue({ id: 't', status: 'ASSIGNED' })
+    await service.transition('t', 'ASSIGNED')
+    expect(repo.updateTaskStatus).toHaveBeenCalledWith('t', 'ASSIGNED', undefined)
+
+    repo.updateTaskStatus.mockResolvedValue({ id: 't', status: 'CANCELLED' })
+    await service.transition('t', 'CANCELLED', 'Region deleted')
+    expect(repo.updateTaskStatus).toHaveBeenCalledWith('t', 'CANCELLED', 'Region deleted')
+  })
+
+  it('rejects transition out of CANCELLED because it is terminal', async () => {
+    repo.findTaskById.mockResolvedValue({ id: 't', status: 'CANCELLED' })
+    await expect(service.transition('t', 'ASSIGNED')).rejects.toBe(InvalidTaskTransitionException)
+    expect(repo.updateTaskStatus).not.toHaveBeenCalled()
   })
 
   it('rejects ASSIGNED → APPROVED (409)', async () => {

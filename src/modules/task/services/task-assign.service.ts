@@ -1,21 +1,29 @@
 import { Injectable } from '@nestjs/common'
-import { NotificationType } from '@prisma/client'
+import { NotificationType, TaskStatus } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { StudioAssignmentService } from 'src/modules/studio/services/studio-assignment.service'
 import { StorageRepository } from 'src/modules/storage/storage.repo'
 import {
   AssetNotFoundException,
   AssistantNotHiredException,
+  ChapterOnHoldTaskException,
   NotSeriesOwnerException,
   PageNotFoundException,
   TaskNotFoundException,
+  TaskNotCancellableException,
   TaskNotReassignableException
 } from '../errors/task.errors'
 import { TaskRepository } from '../task.repo'
 import { TaskStateService } from './task-state.service'
 import { toTaskRes } from '../task.mapper'
-import { BatchCreateTaskBodyType, CreateTaskBodyType, ReassignTaskBodyType } from '../schemas/task-schemas'
+import {
+  BatchCreateTaskBodyType,
+  CancelTaskBodyType,
+  CreateTaskBodyType,
+  ReassignTaskBodyType
+} from '../schemas/task-schemas'
 import { TaskMessages } from '../task.messages'
+import { CANCELABLE_TASK_STATUSES, REASSIGNABLE_TASK_STATUSES } from '../task.constant'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -29,11 +37,12 @@ export class TaskAssignService {
     private readonly notificationService: NotificationService
   ) {}
 
-  private async requirePageOwner(mangakaId: string, pageId: string) {
+  private async requirePageOwner(mangakaId: string, pageId: string, opts: { checkHold?: boolean } = {}) {
     if (!OBJECT_ID_RE.test(pageId)) throw PageNotFoundException
     const page = await this.taskRepository.findPageWithOwner(pageId)
     if (!page) throw PageNotFoundException
     if (page.chapter.series.mangakaId !== mangakaId) throw NotSeriesOwnerException
+    if (opts.checkHold !== false && page.chapter.hold) throw ChapterOnHoldTaskException
     return page
   }
 
@@ -96,14 +105,51 @@ export class TaskAssignService {
     const task = await this.taskRepository.findTaskById(taskId)
     if (!task) throw TaskNotFoundException
     await this.requirePageOwner(mangakaId, task.pageId)
-    if (task.status !== 'ON_HOLD') throw TaskNotReassignableException
+    if (!REASSIGNABLE_TASK_STATUSES.includes(task.status)) throw TaskNotReassignableException
+    const previousAssistantId = task.assistantId
     const active = await this.studioAssignmentService.findActiveForPair(mangakaId, body.assistantId)
     if (!active) throw AssistantNotHiredException
     await this.taskRepository.setAssistant(taskId, body.assistantId)
-    await this.taskStateService.transition(taskId, 'ASSIGNED')
+    if (task.status !== TaskStatus.ASSIGNED) {
+      await this.taskStateService.transition(taskId, TaskStatus.ASSIGNED, TaskMessages.reason.reassigned)
+    }
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
+    if (previousAssistantId && previousAssistantId !== body.assistantId) {
+      await this.notificationService.notifySafe({
+        recipientId: previousAssistantId,
+        type: NotificationType.TASK,
+        referenceId: taskId,
+        referenceType: 'TASK_REASSIGNED',
+        content: TaskMessages.notification.taskReassigned
+      })
+    }
     await this.notifyAssigned(body.assistantId, taskId)
+    return toTaskRes(updated)
+  }
+
+  async cancel(mangakaId: string, taskId: string, body: CancelTaskBodyType) {
+    if (!OBJECT_ID_RE.test(taskId)) throw TaskNotFoundException
+    const task = await this.taskRepository.findTaskById(taskId)
+    if (!task) throw TaskNotFoundException
+    await this.requirePageOwner(mangakaId, task.pageId, { checkHold: false })
+    if (!CANCELABLE_TASK_STATUSES.includes(task.status)) throw TaskNotCancellableException
+    await this.taskStateService.transition(
+      taskId,
+      TaskStatus.CANCELLED,
+      body.reason ?? TaskMessages.reason.cancelledByMangaka
+    )
+    if (task.assistantId) {
+      await this.notificationService.notifySafe({
+        recipientId: task.assistantId,
+        type: NotificationType.TASK,
+        referenceId: taskId,
+        referenceType: 'TASK_CANCELLED',
+        content: TaskMessages.notification.taskCancelled
+      })
+    }
+    const updated = await this.taskRepository.findTaskById(taskId)
+    if (!updated) throw TaskNotFoundException
     return toTaskRes(updated)
   }
 

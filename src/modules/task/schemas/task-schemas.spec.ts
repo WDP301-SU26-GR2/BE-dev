@@ -23,6 +23,7 @@ describe('task-schemas', () => {
       assistantId: 'a',
       taskType: 'BACKGROUND',
       status: 'ASSIGNED',
+      statusReason: null,
       priority: 0,
       deadline: null,
       assetIds: ['k1'],

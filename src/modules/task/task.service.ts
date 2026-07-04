@@ -7,6 +7,7 @@ import { TaskRepository, TaskListWhere } from './task.repo'
 import { toTaskRes } from './task.mapper'
 import {
   BatchCreateTaskBodyType,
+  CancelTaskBodyType,
   CreateRegionBodyType,
   CreateTaskBodyType,
   ListTasksQueryType,
@@ -52,6 +53,9 @@ export class TaskService {
   }
   reassignTask(userId: string, id: string, body: ReassignTaskBodyType) {
     return this.taskAssignService.reassign(userId, id, body)
+  }
+  cancelTask(userId: string, id: string, body: CancelTaskBodyType) {
+    return this.taskAssignService.cancel(userId, id, body)
   }
   updateTask(userId: string, id: string, body: UpdateTaskBodyType) {
     return this.taskAssignService.update(userId, id, body)

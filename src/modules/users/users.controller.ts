@@ -1,13 +1,17 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
+import { MessageResDto } from 'src/core/http/dto/response.dto'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import {
   AdminCreateUserBodyDto,
   AdminCreateUserResDto,
+  AdminResetPasswordResDto,
+  AdminStatsResDto,
+  AdminUpdateUserStatusBodyDto,
   AdminUserListResDto,
   AdminUserResDto,
   AssistantDirectoryListResDto,
@@ -18,7 +22,14 @@ import {
   MangakaProfileBodyDto,
   MangakaProfileResDto
 } from './dto/users.dto'
-import { ProfileNotFoundException, UserEmailExistsException, UserNotFoundException } from './errors/users.errors'
+import {
+  CannotModifyAdminUserException,
+  ProfileNotFoundException,
+  UserAlreadyDeletedException,
+  UserEmailExistsException,
+  UserNotDeletedException,
+  UserNotFoundException
+} from './errors/users.errors'
 import { UsersService } from './users.service'
 
 @ApiTags('users')
@@ -56,6 +67,55 @@ export class UsersController {
   @ZodResponse({ status: 200, type: AdminUserResDto })
   getUser(@Param('id') id: string) {
     return this.usersService.getUserById(id)
+  }
+
+  @Patch('admin/users/:id/status')
+  @ApiOperation({
+    summary: 'Super Admin ban/block/unban user (ACTIVE/BANNED/BLOCKED) — phạt thì revoke refresh + notify'
+  })
+  @ApiResponse({ status: 422, description: 'Validation fail (status không nhận INACTIVE)' })
+  @ApiErrors(UserNotFoundException, CannotModifyAdminUserException)
+  @Roles(RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 200, type: AdminUserResDto })
+  updateUserStatus(@Param('id') id: string, @Body() body: AdminUpdateUserStatusBodyDto) {
+    return this.usersService.updateUserStatus(id, body)
+  }
+
+  @Delete('admin/users/:id')
+  @ApiOperation({ summary: 'Super Admin xóa mềm user (set deletedAt) + thu hồi toàn bộ refresh token' })
+  @ApiErrors(UserNotFoundException, CannotModifyAdminUserException, UserAlreadyDeletedException)
+  @Roles(RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 200, type: MessageResDto })
+  deleteUser(@Param('id') id: string) {
+    return this.usersService.deleteUser(id)
+  }
+
+  @Post('admin/users/:id/restore')
+  @ApiOperation({ summary: 'Super Admin khôi phục user đã xóa mềm (unset deletedAt — về absent)' })
+  @ApiErrors(UserNotFoundException, CannotModifyAdminUserException, UserNotDeletedException)
+  @Roles(RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 201, type: AdminUserResDto })
+  restoreUser(@Param('id') id: string) {
+    return this.usersService.restoreUser(id)
+  }
+
+  @Post('admin/users/:id/reset-password')
+  @ApiOperation({
+    summary: 'Super Admin cấp mật khẩu tạm (trả 1 lần) + mustChangePassword + revoke refresh + email best-effort'
+  })
+  @ApiErrors(UserNotFoundException, CannotModifyAdminUserException)
+  @Roles(RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 201, type: AdminResetPasswordResDto })
+  resetUserPassword(@Param('id') id: string) {
+    return this.usersService.resetUserPassword(id)
+  }
+
+  @Get('admin/stats')
+  @ApiOperation({ summary: 'Super Admin: số liệu tổng quan users/series/chapters/tasks (groupBy snapshot)' })
+  @Roles(RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 200, type: AdminStatsResDto })
+  getAdminStats() {
+    return this.usersService.getAdminStats()
   }
 
   @Put('me/mangaka-profile')
