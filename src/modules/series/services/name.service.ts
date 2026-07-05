@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { NameStatus, NotificationType } from '@prisma/client'
-import envConfig from 'src/core/config/envConfig'
+import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { InvalidNameStateException, NotSeriesOwnerException, SeriesNotFoundException } from '../errors/series.errors'
 import { toNameRes } from '../series.mapper'
@@ -14,7 +14,8 @@ export class NameService {
   constructor(
     private readonly seriesRepository: SeriesRepository,
     private readonly seriesStateService: SeriesStateService,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly appConfigService: AppConfigService
   ) {}
 
   async requestRevision(editorId: string, seriesId: string, nameId: string, reason: string) {
@@ -38,7 +39,8 @@ export class NameService {
       status: NameStatus.IN_REVIEW,
       version: name.version + 1
     })
-    if (updated.version >= envConfig.NAME_MAX_REVIEW_ROUNDS && series.editorId) {
+    const config = await this.appConfigService.get()
+    if (updated.version >= config.nameMaxReviewRounds && series.editorId) {
       await this.notificationService.notifySafe({
         recipientId: series.editorId,
         type: NotificationType.REVIEW,

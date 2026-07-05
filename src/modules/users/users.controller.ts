@@ -77,8 +77,12 @@ export class UsersController {
   @ApiErrors(UserNotFoundException, CannotModifyAdminUserException)
   @Roles(RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: AdminUserResDto })
-  updateUserStatus(@Param('id') id: string, @Body() body: AdminUpdateUserStatusBodyDto) {
-    return this.usersService.updateUserStatus(id, body)
+  updateUserStatus(
+    @Param('id') id: string,
+    @Body() body: AdminUpdateUserStatusBodyDto,
+    @ActiveUser('userId') adminId: string
+  ) {
+    return this.usersService.updateUserStatus(id, body, adminId)
   }
 
   @Delete('admin/users/:id')
@@ -86,8 +90,8 @@ export class UsersController {
   @ApiErrors(UserNotFoundException, CannotModifyAdminUserException, UserAlreadyDeletedException)
   @Roles(RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: MessageResDto })
-  deleteUser(@Param('id') id: string) {
-    return this.usersService.deleteUser(id)
+  deleteUser(@Param('id') id: string, @ActiveUser('userId') adminId: string) {
+    return this.usersService.deleteUser(id, adminId)
   }
 
   @Post('admin/users/:id/restore')
@@ -95,8 +99,8 @@ export class UsersController {
   @ApiErrors(UserNotFoundException, CannotModifyAdminUserException, UserNotDeletedException)
   @Roles(RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 201, type: AdminUserResDto })
-  restoreUser(@Param('id') id: string) {
-    return this.usersService.restoreUser(id)
+  restoreUser(@Param('id') id: string, @ActiveUser('userId') adminId: string) {
+    return this.usersService.restoreUser(id, adminId)
   }
 
   @Post('admin/users/:id/reset-password')
@@ -106,8 +110,8 @@ export class UsersController {
   @ApiErrors(UserNotFoundException, CannotModifyAdminUserException)
   @Roles(RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 201, type: AdminResetPasswordResDto })
-  resetUserPassword(@Param('id') id: string) {
-    return this.usersService.resetUserPassword(id)
+  resetUserPassword(@Param('id') id: string, @ActiveUser('userId') adminId: string) {
+    return this.usersService.resetUserPassword(id, adminId)
   }
 
   @Get('admin/stats')

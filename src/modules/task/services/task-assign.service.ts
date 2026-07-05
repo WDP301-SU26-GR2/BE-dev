@@ -111,7 +111,7 @@ export class TaskAssignService {
     if (!active) throw AssistantNotHiredException
     await this.taskRepository.setAssistant(taskId, body.assistantId)
     if (task.status !== TaskStatus.ASSIGNED) {
-      await this.taskStateService.transition(taskId, TaskStatus.ASSIGNED, TaskMessages.reason.reassigned)
+      await this.taskStateService.transition(taskId, TaskStatus.ASSIGNED, TaskMessages.reason.reassigned, mangakaId)
     }
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
@@ -137,7 +137,8 @@ export class TaskAssignService {
     await this.taskStateService.transition(
       taskId,
       TaskStatus.CANCELLED,
-      body.reason ?? TaskMessages.reason.cancelledByMangaka
+      body.reason ?? TaskMessages.reason.cancelledByMangaka,
+      mangakaId
     )
     if (task.assistantId) {
       await this.notificationService.notifySafe({

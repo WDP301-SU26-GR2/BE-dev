@@ -36,7 +36,7 @@ describe('TaskReviewService', () => {
         createdAt: new Date()
       })
     await service.start('me', ID)
-    expect(taskState.transition).toHaveBeenCalledWith(ID, 'IN_PROGRESS')
+    expect(taskState.transition).toHaveBeenCalledWith(ID, 'IN_PROGRESS', undefined, 'me')
   })
 
   it('start rejects non-assignee → 403', async () => {
@@ -64,7 +64,7 @@ describe('TaskReviewService', () => {
       })
     repo.findPageWithOwner.mockResolvedValue(PAGE)
     await service.submit('me', ID, { file: 'k' })
-    expect(taskState.transition).toHaveBeenCalledWith(ID, 'SUBMITTED')
+    expect(taskState.transition).toHaveBeenCalledWith(ID, 'SUBMITTED', undefined, 'me')
     expect(repo.pushTaskVersion).toHaveBeenCalledWith(ID, { submittedBy: 'me', versionNumber: 1, file: 'k' })
     expect(cascade.fireOnSubmitted).toHaveBeenCalled()
     expect(notification.notifySafe).toHaveBeenCalledWith(
@@ -91,8 +91,8 @@ describe('TaskReviewService', () => {
     })
     repo.findPageWithOwner.mockResolvedValue(PAGE)
     await service.approve('m', ID)
-    expect(taskState.transition).toHaveBeenNthCalledWith(1, ID, 'UNDER_REVIEW')
-    expect(taskState.transition).toHaveBeenNthCalledWith(2, ID, 'APPROVED')
+    expect(taskState.transition).toHaveBeenNthCalledWith(1, ID, 'UNDER_REVIEW', undefined, 'm')
+    expect(taskState.transition).toHaveBeenNthCalledWith(2, ID, 'APPROVED', undefined, 'm')
     expect(repo.setLatestVersionReview).toHaveBeenCalledWith(ID, { reviewStatus: 'APPROVED', reviewerNote: null })
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'a', type: 'TASK', referenceType: 'TASK_APPROVED' })
@@ -114,6 +114,8 @@ describe('TaskReviewService', () => {
 
     await service.requestRevision('m', ID, { reviewerNote: 'fix tone' })
 
+    expect(taskState.transition).toHaveBeenNthCalledWith(1, ID, 'UNDER_REVIEW', undefined, 'm')
+    expect(taskState.transition).toHaveBeenNthCalledWith(2, ID, 'REVISION_REQUESTED', undefined, 'm')
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'a', type: 'TASK', referenceType: 'TASK_REVISION_REQUESTED' })
     )

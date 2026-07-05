@@ -1,5 +1,4 @@
 import { RoleName } from 'src/core/security/constants/role.constant'
-import { MAX_UPLOAD_BYTES } from './storage.constant'
 import { StorageService } from './storage.service'
 
 function make(assetByKey: unknown = null) {
@@ -18,8 +17,9 @@ function make(assetByKey: unknown = null) {
     createAsset: jest.fn().mockResolvedValue({ id: 'a1', filePath: 'uploads/u1/x.png' }),
     findAssetByKey: jest.fn().mockResolvedValue(assetByKey)
   }
-  const service = new StorageService(storageInfra as never, repo as never)
-  return { service, storageInfra, repo }
+  const appConfigService = { get: jest.fn().mockResolvedValue({ maxUploadBytes: 2048 }) }
+  const service = new StorageService(storageInfra as never, repo as never, appConfigService as never)
+  return { service, storageInfra, repo, appConfigService }
 }
 
 describe('StorageService.signUpload', () => {
@@ -52,7 +52,7 @@ describe('StorageService.signUpload', () => {
   it('rejects content length over the max', async () => {
     const { service } = make()
 
-    await expect(service.signUpload('u1', { ...body, contentLength: MAX_UPLOAD_BYTES + 1 })).rejects.toBeDefined()
+    await expect(service.signUpload('u1', { ...body, contentLength: 2049 })).rejects.toBeDefined()
   })
 
   it('rejects unsupported content type', async () => {

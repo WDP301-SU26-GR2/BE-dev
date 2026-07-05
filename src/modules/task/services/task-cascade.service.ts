@@ -31,7 +31,7 @@ export class TaskCascadeService {
     const allPageSubmitted = pageStatuses.length > 0 && pageStatuses.every((s) => TASK_REACHED_SUBMITTED.includes(s))
     if (allPageSubmitted && page.status === 'IN_PROGRESS') {
       try {
-        await this.pageStateService.transition(task.pageId, 'COMPOSITE_READY')
+        await this.pageStateService.transition(task.pageId, 'COMPOSITE_READY', changedBy)
       } catch (error) {
         this.logger.debug(`Cascade page COMPOSITE_READY skipped ${task.pageId}: ${String(error)}`)
       }

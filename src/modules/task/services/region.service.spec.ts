@@ -1,5 +1,6 @@
 import { RegionService } from './region.service'
 import { NotSeriesOwnerException, PageNotFoundException, RegionHasApprovedTasksException } from '../errors/task.errors'
+import { AuditEntityType } from '@prisma/client'
 
 const PAGE = {
   id: 'a'.repeat(24),
@@ -23,7 +24,8 @@ describe('RegionService', () => {
   }
   const stateService = { cancelRegionTasksAndDeleteRegion: jest.fn() }
   const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
-  const service = new RegionService(repo as never, stateService as never, notification as never)
+  const audit = { record: jest.fn().mockResolvedValue(undefined) }
+  const service = new RegionService(repo as never, stateService as never, notification as never, audit as never)
   const VALID_PAGE_ID = 'a'.repeat(24)
   const VALID_REGION_ID = 'b'.repeat(24)
   beforeEach(() => jest.clearAllMocks())
@@ -78,6 +80,29 @@ describe('RegionService', () => {
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'assistant-1', referenceType: 'TASK_CANCELLED', referenceId: 't1' })
     )
+    expect(audit.record).toHaveBeenCalledWith({
+      actorId: 'm',
+      entityType: AuditEntityType.REGION,
+      entityId: VALID_REGION_ID,
+      action: 'REGION_DELETE_CASCADE',
+      reason: 'cancelled tasks: t1,t2,t3'
+    })
+  })
+
+  it('audits region delete cascade when no tasks are cancelled', async () => {
+    repo.findRegionById.mockResolvedValue({ id: VALID_REGION_ID, pageId: VALID_PAGE_ID })
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+    repo.findTasksByRegion.mockResolvedValue([])
+
+    await service.remove('m', VALID_REGION_ID)
+
+    expect(audit.record).toHaveBeenCalledWith({
+      actorId: 'm',
+      entityType: AuditEntityType.REGION,
+      entityId: VALID_REGION_ID,
+      action: 'REGION_DELETE_CASCADE',
+      reason: 'no tasks'
+    })
   })
 
   it('assertPageOwner returns page for owner', async () => {

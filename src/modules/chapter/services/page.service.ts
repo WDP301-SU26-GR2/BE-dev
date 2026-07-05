@@ -50,7 +50,7 @@ export class PageService {
       await this.chapterRepository.updatePage(pageId, { compositeFile: body.compositeFile })
     }
     if (body.status !== undefined) {
-      return this.pageStateService.transition(pageId, body.status)
+      return this.pageStateService.transition(pageId, body.status, userId)
     }
     return this.chapterRepository.findPageById(pageId)
   }

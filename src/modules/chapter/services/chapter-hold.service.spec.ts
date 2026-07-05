@@ -1,4 +1,4 @@
-import { ManuscriptStatus } from '@prisma/client'
+import { AuditEntityType, ManuscriptStatus } from '@prisma/client'
 import { ChapterHoldService } from './chapter-hold.service'
 import {
   ChapterAlreadyOnHoldException,
@@ -21,7 +21,8 @@ describe('ChapterHoldService', () => {
     unsetChapterHold: jest.fn()
   }
   const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
-  const service = new ChapterHoldService(repo as never, notification as never)
+  const audit = { record: jest.fn().mockResolvedValue(undefined) }
+  const service = new ChapterHoldService(repo as never, notification as never, audit as never)
 
   beforeEach(() => jest.clearAllMocks())
 
@@ -50,6 +51,13 @@ describe('ChapterHoldService', () => {
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: MANGAKA_ID, referenceType: 'CHAPTER_HELD' })
     )
+    expect(audit.record).toHaveBeenCalledWith({
+      actorId: EDITOR_ID,
+      entityType: AuditEntityType.CHAPTER,
+      entityId: CHAPTER_ID,
+      action: 'HOLD',
+      reason: 'break'
+    })
   })
 
   it.each([ManuscriptStatus.DRAFT, ManuscriptStatus.PUBLISHED, ManuscriptStatus.AWAITING_CO_OWNER_APPROVAL])(
@@ -82,6 +90,12 @@ describe('ChapterHoldService', () => {
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: MANGAKA_ID, referenceType: 'CHAPTER_RESUMED' })
     )
+    expect(audit.record).toHaveBeenCalledWith({
+      actorId: EDITOR_ID,
+      entityType: AuditEntityType.CHAPTER,
+      entityId: CHAPTER_ID,
+      action: 'RESUME'
+    })
   })
 
   it('rejects non-assigned editor', async () => {

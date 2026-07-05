@@ -22,6 +22,8 @@ import { StudioModule } from './modules/studio/studio.module'
 import { TaskModule } from './modules/task/task.module'
 import { DeadlineModule } from './modules/deadline/deadline.module'
 import { AiModule } from './modules/ai/ai.module'
+import { AuditModule } from './modules/audit/audit.module'
+import { AppConfigModule } from './modules/app-config/app-config.module'
 
 @Module({
   imports: [
@@ -42,7 +44,9 @@ import { AiModule } from './modules/ai/ai.module'
     StudioModule,
     TaskModule,
     DeadlineModule,
-    AiModule
+    AiModule,
+    AuditModule,
+    AppConfigModule
   ],
   controllers: [],
   providers: [

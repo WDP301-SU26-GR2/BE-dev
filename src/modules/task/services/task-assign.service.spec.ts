@@ -124,7 +124,7 @@ describe('TaskAssignService', () => {
       })
     repo.findPageWithOwner.mockResolvedValue(PAGE)
     await service.cancel('m', ID, { reason: 'layout changed' })
-    expect(taskState.transition).toHaveBeenCalledWith(ID, 'CANCELLED', 'layout changed')
+    expect(taskState.transition).toHaveBeenCalledWith(ID, 'CANCELLED', 'layout changed', 'm')
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'old-assistant', referenceType: 'TASK_CANCELLED', referenceId: ID })
     )
@@ -176,7 +176,7 @@ describe('TaskAssignService', () => {
     if (status === 'ASSIGNED') {
       expect(taskState.transition).not.toHaveBeenCalled()
     } else {
-      expect(taskState.transition).toHaveBeenCalledWith(ID, 'ASSIGNED', TaskMessages.reason.reassigned)
+      expect(taskState.transition).toHaveBeenCalledWith(ID, 'ASSIGNED', TaskMessages.reason.reassigned, 'm')
     }
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'old-assistant', referenceType: 'TASK_REASSIGNED' })

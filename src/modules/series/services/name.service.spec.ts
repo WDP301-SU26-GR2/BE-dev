@@ -32,8 +32,14 @@ function make(nameOverride: Record<string, unknown> = {}, seriesOverride: Record
   }
   const seriesStateService = { tryAdvanceToReadyToPitch: jest.fn().mockResolvedValue(currentSeries) }
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
-  const service = new NameService(seriesRepository as never, seriesStateService as never, notificationService as never)
-  return { service, seriesRepository, seriesStateService, notificationService, name }
+  const appConfigService = { get: jest.fn().mockResolvedValue({ nameMaxReviewRounds: 4 }) }
+  const service = new NameService(
+    seriesRepository as never,
+    seriesStateService as never,
+    notificationService as never,
+    appConfigService as never
+  )
+  return { service, seriesRepository, seriesStateService, notificationService, appConfigService, name }
 }
 
 describe('NameService', () => {
@@ -44,7 +50,7 @@ describe('NameService', () => {
   })
 
   it('resubmit notifies assigned editor when review round threshold is reached', async () => {
-    const { service, notificationService } = make({ status: NameStatus.REVISION, version: 7 })
+    const { service, notificationService } = make({ status: NameStatus.REVISION, version: 3 })
 
     await service.resubmit('m1', 's1', 'n1')
 
@@ -53,12 +59,12 @@ describe('NameService', () => {
       type: NotificationType.REVIEW,
       referenceId: 'n1',
       referenceType: 'NAME_LOOP_WARNING',
-      content: 'Name review loop has reached 8 rounds'
+      content: 'Name review loop has reached 4 rounds'
     })
   })
 
   it('resubmit does not notify before review round threshold', async () => {
-    const { service, notificationService } = make({ status: NameStatus.REVISION, version: 6 })
+    const { service, notificationService } = make({ status: NameStatus.REVISION, version: 2 })
 
     await service.resubmit('m1', 's1', 'n1')
 
@@ -66,7 +72,7 @@ describe('NameService', () => {
   })
 
   it('resubmit does not notify at threshold when series has no assigned editor', async () => {
-    const { service, notificationService } = make({ status: NameStatus.REVISION, version: 7 }, { editorId: null })
+    const { service, notificationService } = make({ status: NameStatus.REVISION, version: 3 }, { editorId: null })
 
     await service.resubmit('m1', 's1', 'n1')
 

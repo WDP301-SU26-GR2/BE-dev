@@ -7,6 +7,8 @@ const valuesOf = <T extends EnumLike>(enumObject: T) => Object.values(enumObject
 
 export const ENUM_DOCS = {
   RoleCode: 'Allowed role codes: MANGAKA, ASSISTANT, EDITOR, BOARD_MEMBER, SUPER_ADMIN',
+  AuditEntityType:
+    'Audited entity type: SERIES, MANUSCRIPT, PAGE, CHAPTER, TASK, DEADLINE_REQUEST, USER, REGION, APP_CONFIG, CONTRACT, BOARD_DECISION, REPRINT_REQUEST, TRANSFER_REQUEST',
   UserStatus: 'User lifecycle status: INACTIVE, ACTIVE, BANNED, BLOCKED',
   RegistrationType: 'How the account was created: SELF_REGISTERED or ADMIN_CREATED',
   OtpPurpose: 'OTP purpose: REGISTER, FORGOT_PASSWORD, SIGNING_CONTRACT',

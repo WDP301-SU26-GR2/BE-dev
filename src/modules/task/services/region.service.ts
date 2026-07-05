@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
-import { NotificationType, RegionType, TaskStatus } from '@prisma/client'
+import { AuditEntityType, NotificationType, RegionType, TaskStatus } from '@prisma/client'
+import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import {
   NotSeriesOwnerException,
@@ -29,7 +30,8 @@ export class RegionService {
   constructor(
     private readonly taskRepository: TaskRepository,
     private readonly taskStateService: TaskStateService,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly auditService: AuditService
   ) {}
 
   async assertPageOwner(mangakaId: string, pageId: string, opts: { checkHold?: boolean } = {}) {
@@ -86,6 +88,13 @@ export class RegionService {
     const cancellable = tasks.filter((task) => CANCELABLE_TASK_STATUSES.includes(task.status))
     const cancelledTaskIds = cancellable.map((task) => task.id)
     await this.taskStateService.cancelRegionTasksAndDeleteRegion(regionId, cancelledTaskIds)
+    await this.auditService.record({
+      actorId: mangakaId,
+      entityType: AuditEntityType.REGION,
+      entityId: regionId,
+      action: 'REGION_DELETE_CASCADE',
+      reason: cancelledTaskIds.length > 0 ? `cancelled tasks: ${cancelledTaskIds.join(',')}` : 'no tasks'
+    })
     for (const task of cancellable) {
       if (!task.assistantId) continue
       await this.notificationService.notifySafe({

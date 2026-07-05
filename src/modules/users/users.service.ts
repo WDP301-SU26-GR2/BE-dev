@@ -39,20 +39,20 @@ export class UsersService {
     return this.adminUserQueryService.getById(id)
   }
 
-  updateUserStatus(id: string, body: AdminUpdateUserStatusBodyType) {
-    return this.adminModerationService.updateStatus(id, body)
+  updateUserStatus(id: string, body: AdminUpdateUserStatusBodyType, adminId: string) {
+    return this.adminModerationService.updateStatus(id, body, adminId)
   }
 
-  deleteUser(id: string) {
-    return this.adminModerationService.deleteUser(id)
+  deleteUser(id: string, adminId: string) {
+    return this.adminModerationService.deleteUser(id, adminId)
   }
 
-  restoreUser(id: string) {
-    return this.adminModerationService.restoreUser(id)
+  restoreUser(id: string, adminId: string) {
+    return this.adminModerationService.restoreUser(id, adminId)
   }
 
-  resetUserPassword(id: string) {
-    return this.adminModerationService.resetPassword(id)
+  resetUserPassword(id: string, adminId: string) {
+    return this.adminModerationService.resetPassword(id, adminId)
   }
 
   getAdminStats() {
