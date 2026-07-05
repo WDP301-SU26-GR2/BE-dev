@@ -25,6 +25,7 @@ import { DeadlineModule } from './modules/deadline/deadline.module'
 import { AiModule } from './modules/ai/ai.module'
 import { ReprintRequestModule } from './modules/reprint/reprint-request.module'
 import { TransferModule } from './modules/transfer/transfer.module'
+import { PaymentModule } from './modules/payment/payment.module'
 
 @Module({
   imports: [
@@ -48,7 +49,8 @@ import { TransferModule } from './modules/transfer/transfer.module'
     DeadlineModule,
     AiModule,
     ReprintRequestModule,
-    TransferModule
+    TransferModule,
+    PaymentModule
   ],
   controllers: [],
   providers: [

@@ -15,7 +15,8 @@ export const PAYMENT_CONDITION_STATUS = {
   ACHIEVED: 'ACHIEVED',
   PAID: 'PAID',
   CANCELLED: 'CANCELLED',
-  MISSED: 'MISSED' // Trạng thái đóng/bỏ lỡ khi hủy hợp đồng cũ
+  MISSED: 'MISSED',
+  DISABLED: 'DISABLED'
 } as const
 
 // Ánh xạ chính xác enum CoOwnerApprovalStatus cho luồng hook duyệt chương truyện (B-TRF-05)

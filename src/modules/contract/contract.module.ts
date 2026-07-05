@@ -6,9 +6,10 @@ import { ContractRepo } from './contract.repo'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { AuthModule } from '../auth/auth.module'
 import { NotificationModule } from '../notification/notification.module'
+import { PaymentModule } from '../payment/payment.module'
 
 @Module({
-  imports: [EventEmitterModule, AuthModule, NotificationModule],
+  imports: [EventEmitterModule, AuthModule, NotificationModule, PaymentModule],
   controllers: [ContractController],
   providers: [
     ContractService,

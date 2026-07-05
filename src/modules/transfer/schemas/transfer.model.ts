@@ -3,19 +3,17 @@ import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { TRANSFER_REQUEST_STATUS, CO_OWNER_APPROVAL_STATUS } from '../transfer.constant'
 
-// 1. Schema cho TransferContractSignature (Nguồn chữ ký duy nhất)
 export const TransferContractSignatureSchema = extendApi(
   z.object({
     id: z.string(),
     transferContractId: z.string(),
     userId: z.string(),
-    role: z.string(), // "MANGAKA_A" | "MANGAKA_B" | "BOARD"
+    role: z.string(),
     signedAt: z.coerce.date()
   }),
-  { title: 'TransferContractSignature', description: 'Chi tiết chữ ký số của các bên trong hợp đồng chuyển nhượng' }
+  { title: 'TransferContractSignature', description: 'Một chữ ký của hợp đồng chuyển nhượng' }
 )
 
-// 2. Schema cho TransferContract (Hợp đồng 3 bên)
 export const TransferContractModelSchema = extendApi(
   z.object({
     id: z.string(),
@@ -25,15 +23,14 @@ export const TransferContractModelSchema = extendApi(
     toMangakaId: z.string().nullable(),
     transferType: z.nativeEnum($Enums.TransferType).nullable(),
     transferAmount: z.number().nullable(),
-    newOwnershipSplit: z.any().nullable(), // Lưu cấu trúc Json chia tỷ lệ doanh thu mới
+    newOwnershipSplit: z.any().nullable(),
     coOwnerApprovalRequired: z.boolean().default(false),
     status: z.nativeEnum($Enums.TransferContractStatus),
     createdAt: z.coerce.date()
   }),
-  { title: 'TransferContractModel', description: 'Hợp đồng chuyển nhượng 3 bên phản ánh điều khoản thương lượng' }
+  { title: 'TransferContractModel', description: 'Hợp đồng chuyển nhượng 3 bên' }
 )
 
-// 3. Schema cho TransferRequest (Yêu cầu chuyển nhượng)
 export const TransferRequestModelSchema = extendApi(
   z.object({
     id: z.string(),
@@ -49,10 +46,9 @@ export const TransferRequestModelSchema = extendApi(
     originalContractId: z.string().nullable(),
     createdAt: z.coerce.date()
   }),
-  { title: 'TransferRequestModel', description: 'Hồ sơ yêu cầu chuyển nhượng do Mangaka B nộp lên' }
+  { title: 'TransferRequestModel', description: 'Yêu cầu chuyển nhượng tác phẩm' }
 )
 
-// 4. Schema cho ChapterCoOwnerApproval (Bản ghi hook duyệt độc lập cho Co-owner)
 export const ChapterCoOwnerApprovalSchema = extendApi(
   z.object({
     id: z.string(),
@@ -66,7 +62,7 @@ export const ChapterCoOwnerApprovalSchema = extendApi(
     escalatedToId: z.string().nullable(),
     createdAt: z.coerce.date()
   }),
-  { title: 'ChapterCoOwnerApproval', description: 'Bản ghi theo dõi tiến độ phê duyệt chương truyện của đồng sở hữu' }
+  { title: 'ChapterCoOwnerApproval', description: 'Trạng thái co-owner duyệt chapter mới' }
 )
 
 export type TransferContractSignatureType = z.infer<typeof TransferContractSignatureSchema>

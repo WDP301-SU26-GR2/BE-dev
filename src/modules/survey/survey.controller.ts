@@ -11,7 +11,9 @@ import {
   CreateSurveyPeriodBodyDto,
   ImportSurveyDataBodyDto,
   ReaderVoteBodyDto,
+  ReaderVoteResDto,
   RankingRecordListResDto,
+  SurveyDataResDto,
   SurveyPeriodResDto,
   UpdateSurveyPeriodStatusBodyDto,
   VotingConfigBodyDto,
@@ -39,7 +41,7 @@ export class SurveyController {
 
   @Post('vote/otp')
   @IsPublic()
-  @ApiOperation({ summary: 'Yêu cầu OTP để bình chọn Guest Voting' })
+  @ApiOperation({ summary: 'Reader yêu cầu OTP cho Guest Voting. Public.' })
   @ApiErrors(VoteOtpRateLimitException)
   @ZodResponse({ status: 200, type: MessageResDto })
   requestOtp(@Body() body: VoteOtpRequestBodyDto, @Req() req: Request) {
@@ -48,7 +50,7 @@ export class SurveyController {
 
   @Post('vote')
   @IsPublic()
-  @ApiOperation({ summary: 'Xác thực OTP và gửi bình chọn Guest Voting' })
+  @ApiOperation({ summary: 'Reader xác thực OTP và gửi vote. Public.' })
   @ApiErrors(
     ReaderAlreadyVotedException,
     SurveyPeriodNotFoundException,
@@ -62,7 +64,7 @@ export class SurveyController {
 
   @Get('survey-periods')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
-  @ApiOperation({ summary: 'Lấy danh sách kỳ bình chọn' })
+  @ApiOperation({ summary: 'Danh sách kỳ bình chọn' })
   @ZodResponse({ status: 200, type: [SurveyPeriodResDto] })
   getSurveyPeriods() {
     return this.surveyService.getSurveyPeriods()
@@ -70,7 +72,7 @@ export class SurveyController {
 
   @Get('survey-periods/:id')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
-  @ApiOperation({ summary: 'Lấy chi tiết kỳ bình chọn' })
+  @ApiOperation({ summary: 'Chi tiết kỳ bình chọn' })
   @ZodResponse({ status: 200, type: SurveyPeriodResDto })
   getSurveyPeriodById(@Param('id') id: string) {
     return this.surveyService.getSurveyPeriodById(id)
@@ -78,21 +80,23 @@ export class SurveyController {
 
   @Get('survey-periods/:id/votes')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
-  @ApiOperation({ summary: 'Lấy danh sách phiếu bình chọn của kỳ bình chọn' })
+  @ApiOperation({ summary: 'Danh sách phiếu vote của kỳ bình chọn' })
+  @ZodResponse({ status: 200, type: [ReaderVoteResDto] })
   getSurveyPeriodVotes(@Param('id') id: string) {
     return this.surveyService.getSurveyPeriodVotes(id)
   }
 
   @Get('survey-periods/:id/survey-data')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
-  @ApiOperation({ summary: 'Lấy dữ liệu nhập từ offline của kỳ bình chọn' })
+  @ApiOperation({ summary: 'Danh sách dữ liệu vote offline của kỳ bình chọn' })
+  @ZodResponse({ status: 200, type: [SurveyDataResDto] })
   getSurveyPeriodSurveyData(@Param('id') id: string) {
     return this.surveyService.getSurveyPeriodSurveyData(id)
   }
 
   @Post('survey-periods')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Tạo kỳ bình chọn mới' })
+  @ApiOperation({ summary: 'Editor tạo kỳ bình chọn mới → DRAFT/OPEN/CLOSED' })
   @ZodResponse({ status: 201, type: SurveyPeriodResDto })
   createSurveyPeriod(@Body() body: CreateSurveyPeriodBodyDto, @ActiveUser('userId') userId: string) {
     return this.surveyService.createSurveyPeriod(body, userId)
@@ -100,7 +104,7 @@ export class SurveyController {
 
   @Patch('survey-periods/:id/status')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Cập nhật trạng thái kỳ bình chọn' })
+  @ApiOperation({ summary: 'Editor cập nhật trạng thái kỳ bình chọn → OPEN/CLOSED/REFLECTED' })
   @ApiErrors(SurveyPeriodNotFoundException)
   @ZodResponse({ status: 200, type: SurveyPeriodResDto })
   updateSurveyPeriodStatus(
@@ -113,7 +117,7 @@ export class SurveyController {
 
   @Post('survey-data/import')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Nhập dữ liệu bình chọn offline từ postcard' })
+  @ApiOperation({ summary: 'Editor nhập vote offline từ postcard' })
   @ApiErrors(SurveyPeriodNotFoundException, SurveyDataImportNotAllowedException)
   @ZodResponse({ status: 201, type: MessageResDto })
   importSurveyData(@Body() body: ImportSurveyDataBodyDto, @ActiveUser('userId') userId: string) {
@@ -122,7 +126,7 @@ export class SurveyController {
 
   @Post('survey-periods/:id/finalize')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Hoàn tất tính toán xếp hạng cho kỳ bình chọn' })
+  @ApiOperation({ summary: 'Editor finalize ranking cho kỳ bình chọn' })
   @ApiErrors(SurveyPeriodNotFoundException, SurveyPeriodAlreadyFinalizedException, SurveyDataImportNotAllowedException)
   @ZodResponse({ status: 200, type: MessageResDto })
   finalizeRanking(@Param('id') id: string, @ActiveUser('userId') userId: string) {
@@ -131,7 +135,7 @@ export class SurveyController {
 
   @Get('survey-periods/:id/rankings')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
-  @ApiOperation({ summary: 'Lấy kết quả xếp hạng của kỳ bình chọn' })
+  @ApiOperation({ summary: 'Danh sách ranking của kỳ bình chọn' })
   @ZodResponse({ status: 200, type: RankingRecordListResDto })
   getRankingRecords(@Param('id') id: string) {
     return this.surveyService.getRankingRecords(id)
@@ -139,7 +143,7 @@ export class SurveyController {
 
   @Get('voting-config')
   @Roles(RoleName.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Lấy cấu hình bình chọn hiện tại' })
+  @ApiOperation({ summary: 'Xem cấu hình bình chọn hiện tại' })
   @ZodResponse({ status: 200, type: VotingConfigResDto })
   getVotingConfig() {
     return this.surveyService.getVotingConfig()
@@ -147,7 +151,7 @@ export class SurveyController {
 
   @Patch('voting-config')
   @Roles(RoleName.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Cập nhật cấu hình bình chọn' })
+  @ApiOperation({ summary: 'Super Admin cập nhật cấu hình bình chọn' })
   @ApiErrors(VotingConfigNotFoundException)
   @ZodResponse({ status: 200, type: VotingConfigResDto })
   updateVotingConfig(@Body() body: VotingConfigBodyDto) {

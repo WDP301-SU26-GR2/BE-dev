@@ -42,6 +42,8 @@ model User {
   editorContracts  Contract[]        @relation("EditorRelation")
   boardSessions    BoardSession[]
 
+  receivedPayments PaymentRecord[] @relation("PaymentReceiver")
+
   @@index([deletedAt])
 }
 
@@ -189,6 +191,19 @@ enum PaymentType {
   CONDITION_PAYOUT
   REVENUE_SHARE
   COMPENSATION
+  CHAPTER_MILESTONE
+  RECURRING_CHAPTER
+  RANKING_MILESTONE
+  TIME_BOUND
+  TRANSFER
+}
+
+enum PaymentSource {
+  CONTRACT
+  REPRINT
+  TRANSFER
+  TERMINATION
+  MANUAL
 }
 
 enum ReprintRevisionMode {
@@ -437,10 +452,13 @@ enum PaymentConditionStatus {
   PAID
   CANCELLED
   MISSED
+  DISABLED
 }
 
 // REVIEW: inferred
 enum PaymentRecordStatus {
+  TRIGGERED
+  MISSED
   PENDING
   APPROVED
   PAID
@@ -1032,13 +1050,14 @@ model PaymentCondition {
   contractId String   @db.ObjectId
   contract   Contract @relation(fields: [contractId], references: [id])
 
-  conditionType   ConditionType
-  thresholdConfig Json?
-  payoutAmount    Float?
-  payoutPct       Float?
-  isRecurring     Boolean                @default(false)
-  status          PaymentConditionStatus @default(PENDING)
-  achievedAt      DateTime?
+  conditionType      ConditionType
+  thresholdConfig    Json?
+  payoutAmount       Float?
+  payoutPct          Float?
+  isRecurring        Boolean                @default(false)
+  status             PaymentConditionStatus @default(PENDING)
+  lastTriggeredValue Int?                   @default(0)
+  achievedAt         DateTime?
 
   payments PaymentRecord[]
 
@@ -1052,17 +1071,40 @@ model PaymentRecord {
   conditionId String?           @db.ObjectId
   condition   PaymentCondition? @relation(fields: [conditionId], references: [id])
 
-  approvedBy  String?             @db.ObjectId
-  paymentType PaymentType
-  amount      Float
-  period      String?
-  status      PaymentRecordStatus @default(PENDING)
-  paidAt      DateTime?
-  createdAt   DateTime            @default(now())
+  receiverId String @db.ObjectId
+  receiver   User   @relation("PaymentReceiver", fields: [receiverId], references: [id])
+
+  seriesId String? @db.ObjectId
+
+  description   String?
+  approvedBy    String?       @db.ObjectId
+  approvedAt    DateTime?
+  paymentType   PaymentType
+  paymentSource PaymentSource @default(CONTRACT)
+  amount        Float
+  period        String?
+
+  paymentMethod        String?
+  transactionReference String?
+  status               PaymentRecordStatus @default(PENDING)
+  paidAt               DateTime?
+
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  note String?
+
+  createdBy String?  @db.ObjectId
+  createdAt DateTime @default(now())
 
   @@index([contractId])
   @@index([conditionId])
   @@index([approvedBy])
+  @@index([receiverId])
+  @@index([seriesId])
+  @@index([status])
+  @@index([paymentType])
+  @@index([paymentSource])
 }
 
 model ContractAmendment {

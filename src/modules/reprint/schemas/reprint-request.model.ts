@@ -31,7 +31,7 @@ export const ReprintRequestModelSchema = extendApi(
   }),
   {
     title: 'ReprintRequestModel',
-    description: 'Domain model định nghĩa cấu trúc dữ liệu cho yêu cầu tái bản tác phẩm'
+    description: 'Một yêu cầu tái bản tác phẩm'
   }
 )
 
