@@ -3,7 +3,7 @@ import { ManuscriptStatus, NotificationType } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
-import { ChapterNotFoundException, NotSeriesEditorException } from '../errors/chapter.errors'
+import { ChapterNotFoundException, ChapterOnHoldException, NotSeriesEditorException } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { ManuscriptStateService } from './manuscript-state.service'
 import { ChapterMessages } from '../chapter.messages'
@@ -23,6 +23,8 @@ export class ChapterPublishService {
     if (!chapter) throw ChapterNotFoundException
     const series = await this.chapterRepository.findSeriesById(chapter.seriesId)
     if (!series || series.editorId !== userId) throw NotSeriesEditorException
+    // PA-04: hold check SAU editor check — người ngoài cuộc nhận 403, không lộ trạng thái hold
+    if (chapter.hold) throw ChapterOnHoldException
 
     // B1-INTEGRATION: chặn publish nếu series chưa có Contract FULLY_EXECUTED (BR-CONTRACT-05).
     // Defer — khi B1 xong: if (!contractExecuted) throw ContractNotExecutedException

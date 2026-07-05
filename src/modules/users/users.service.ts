@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common'
+import { AdminModerationService } from './services/admin-moderation.service'
+import { AdminStatsService } from './services/admin-stats.service'
 import { AdminUserQueryService } from './services/admin-user-query.service'
 import { AdminUserService } from './services/admin-user.service'
 import { AssistantDirectoryService } from './services/assistant-directory.service'
@@ -6,6 +8,7 @@ import { AssistantProfileService } from './services/assistant-profile.service'
 import { MangakaProfileService } from './services/mangaka-profile.service'
 import {
   AdminCreateUserBodyType,
+  AdminUpdateUserStatusBodyType,
   AssistantProfileBodyType,
   ListAssistantsQueryType,
   ListUsersQueryType,
@@ -17,6 +20,8 @@ export class UsersService {
   constructor(
     private readonly adminUserService: AdminUserService,
     private readonly adminUserQueryService: AdminUserQueryService,
+    private readonly adminModerationService: AdminModerationService,
+    private readonly adminStatsService: AdminStatsService,
     private readonly mangakaProfileService: MangakaProfileService,
     private readonly assistantProfileService: AssistantProfileService,
     private readonly assistantDirectoryService: AssistantDirectoryService
@@ -32,6 +37,26 @@ export class UsersService {
 
   getUserById(id: string) {
     return this.adminUserQueryService.getById(id)
+  }
+
+  updateUserStatus(id: string, body: AdminUpdateUserStatusBodyType, adminId: string) {
+    return this.adminModerationService.updateStatus(id, body, adminId)
+  }
+
+  deleteUser(id: string, adminId: string) {
+    return this.adminModerationService.deleteUser(id, adminId)
+  }
+
+  restoreUser(id: string, adminId: string) {
+    return this.adminModerationService.restoreUser(id, adminId)
+  }
+
+  resetUserPassword(id: string, adminId: string) {
+    return this.adminModerationService.resetPassword(id, adminId)
+  }
+
+  getAdminStats() {
+    return this.adminStatsService.getStats()
   }
 
   upsertMangakaProfile(userId: string, body: MangakaProfileBodyType) {

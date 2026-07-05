@@ -54,6 +54,7 @@ function nameRow(over: Record<string, unknown> = {}) {
 const mangaka = { userId: 'm1', roleName: 'MANGAKA' }
 const editor = { userId: 'e1', roleName: 'EDITOR' }
 const admin = { userId: 'a1', roleName: 'SUPER_ADMIN' }
+const board = { userId: 'b1', roleName: 'BOARD_MEMBER' }
 
 describe('SeriesQueryService.list', () => {
   it('MANGAKA → scope mangaka + paginated mapped result', async () => {
@@ -135,6 +136,38 @@ describe('SeriesQueryService.getById', () => {
     seriesRepository.findById.mockResolvedValue(seriesRow({ editorId: 'other', status: SeriesStatus.IN_REVIEW }))
     await expect(service.getById(editor, SID)).rejects.toBe(SeriesAccessDeniedException)
   })
+
+  it('SUPER_ADMIN cannot view DRAFT series detail', async () => {
+    const { service, seriesRepository } = makeService()
+    seriesRepository.findById.mockResolvedValue(seriesRow({ status: SeriesStatus.DRAFT }))
+
+    await expect(service.getById(admin, SID)).rejects.toBe(SeriesAccessDeniedException)
+  })
+
+  it('BOARD_MEMBER cannot view WITHDRAWN series detail', async () => {
+    const { service, seriesRepository } = makeService()
+    seriesRepository.findById.mockResolvedValue(seriesRow({ status: SeriesStatus.WITHDRAWN }))
+
+    await expect(service.getById(board, SID)).rejects.toBe(SeriesAccessDeniedException)
+  })
+
+  it('MANGAKA owner can still view own DRAFT series detail', async () => {
+    const { service, seriesRepository } = makeService()
+    seriesRepository.findById.mockResolvedValue(seriesRow({ mangakaId: 'm1', status: SeriesStatus.DRAFT }))
+
+    const res = await service.getById(mangaka, SID)
+
+    expect(res).toMatchObject({ id: SID, status: SeriesStatus.DRAFT })
+  })
+
+  it('assigned EDITOR can still view WITHDRAWN series detail', async () => {
+    const { service, seriesRepository } = makeService()
+    seriesRepository.findById.mockResolvedValue(seriesRow({ editorId: 'e1', status: SeriesStatus.WITHDRAWN }))
+
+    const res = await service.getById(editor, SID)
+
+    expect(res).toMatchObject({ id: SID, status: SeriesStatus.WITHDRAWN })
+  })
 })
 
 describe('SeriesQueryService.listNames', () => {
@@ -144,6 +177,14 @@ describe('SeriesQueryService.listNames', () => {
     seriesRepository.findNamesBySeriesId.mockResolvedValue([nameRow()])
     const res = await service.listNames(mangaka, SID)
     expect(res.items[0]).toMatchObject({ id: NID, seriesId: SID })
+  })
+
+  it('SUPER_ADMIN cannot list names for DRAFT series', async () => {
+    const { service, seriesRepository } = makeService()
+    seriesRepository.findById.mockResolvedValue(seriesRow({ status: SeriesStatus.DRAFT }))
+
+    await expect(service.listNames(admin, SID)).rejects.toBe(SeriesAccessDeniedException)
+    expect(seriesRepository.findNamesBySeriesId).not.toHaveBeenCalled()
   })
 })
 
@@ -168,5 +209,13 @@ describe('SeriesQueryService.getName', () => {
     seriesRepository.findNameById.mockResolvedValue(nameRow({ seriesId: SID }))
     const res = await service.getName(mangaka, SID, NID)
     expect(res).toMatchObject({ id: NID, seriesId: SID })
+  })
+
+  it('BOARD_MEMBER cannot get name for WITHDRAWN series', async () => {
+    const { service, seriesRepository } = makeService()
+    seriesRepository.findById.mockResolvedValue(seriesRow({ status: SeriesStatus.WITHDRAWN }))
+
+    await expect(service.getName(board, SID, NID)).rejects.toBe(SeriesAccessDeniedException)
+    expect(seriesRepository.findNameById).not.toHaveBeenCalled()
   })
 })

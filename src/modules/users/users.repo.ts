@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { AvailabilityStatus, Prisma, RegistrationType, Specialization, UserStatus } from '@prisma/client'
+import { AvailabilityStatus, ChapterStatus, Prisma, RegistrationType, Specialization, UserStatus } from '@prisma/client'
 import { RoleName, RoleNameType } from 'src/core/security/constants/role.constant'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { AssistantProfileBodyType, MangakaProfileBodyType } from './schemas/users-schemas'
@@ -20,6 +20,11 @@ export type AssistantDirectoryFilter = {
   level?: string
   availableFrom?: string
   availableTo?: string
+}
+
+export type UserRoleCountRow = {
+  role: { code: RoleNameType }
+  _count: { _all: number }
 }
 
 // Whitelist field trả ra cho admin — KHÔNG bao giờ chứa password.
@@ -186,6 +191,93 @@ export class UsersRepository {
 
   async findUserByIdForAdmin(id: string) {
     return await this.prismaService.user.findUnique({ where: { id }, select: ADMIN_USER_SELECT })
+  }
+
+  async findModerationTargetById(id: string) {
+    return await this.prismaService.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        status: true,
+        deletedAt: true,
+        role: { select: { code: true } }
+      }
+    })
+  }
+
+  // select whitelist ADMIN_USER_SELECT — KHÔNG trả password ra service layer
+  async updateUserStatus(id: string, status: UserStatus) {
+    return await this.prismaService.user.update({ where: { id }, data: { status }, select: ADMIN_USER_SELECT })
+  }
+
+  async softDeleteUser(id: string, deletedAt: Date) {
+    return await this.prismaService.user.update({ where: { id }, data: { deletedAt } })
+  }
+
+  async restoreUser(id: string) {
+    return await this.prismaService.user.update({
+      where: { id },
+      data: { deletedAt: { unset: true } },
+      select: ADMIN_USER_SELECT
+    })
+  }
+
+  async resetUserPassword(id: string, password: string) {
+    return await this.prismaService.user.update({
+      where: { id },
+      data: { password, mustChangePassword: true }
+    })
+  }
+
+  async revokeRefreshTokensByUserId(userId: string) {
+    return await this.prismaService.refreshToken.deleteMany({ where: { userId } })
+  }
+
+  async groupUsersByStatus() {
+    return await this.prismaService.user.groupBy({
+      by: ['status'],
+      where: { deletedAt: { isSet: false } },
+      _count: { _all: true }
+    })
+  }
+
+  async groupUsersByRole(): Promise<UserRoleCountRow[]> {
+    const [roles, rows] = await Promise.all([
+      this.prismaService.role.findMany({ select: { id: true, code: true } }),
+      this.prismaService.user.groupBy({
+        by: ['roleId'],
+        where: { deletedAt: { isSet: false } },
+        _count: { _all: true }
+      })
+    ])
+    const codeById = new Map(roles.map((role) => [role.id, role.code as RoleNameType]))
+    return rows.flatMap((row) => {
+      const code = codeById.get(row.roleId)
+      return code ? [{ role: { code }, _count: row._count }] : []
+    })
+  }
+
+  async countDeletedUsers(): Promise<number> {
+    return await this.prismaService.user.count({ where: { deletedAt: { isSet: true } } })
+  }
+
+  // Stats admin đọc chéo collection qua PrismaService — ngoại lệ read-only (spec 2026-07-04 §3.4)
+  async groupSeriesByStatus() {
+    return await this.prismaService.series.groupBy({ by: ['status'], _count: { _all: true } })
+  }
+
+  async countChapters(): Promise<{ total: number; published: number }> {
+    const [total, published] = await Promise.all([
+      this.prismaService.chapter.count(),
+      this.prismaService.chapter.count({ where: { status: ChapterStatus.PUBLISHED } })
+    ])
+    return { total, published }
+  }
+
+  async groupTasksByStatus() {
+    return await this.prismaService.task.groupBy({ by: ['status'], _count: { _all: true } })
   }
 
   // ---- Assistant directory (A-TSK-06) ----

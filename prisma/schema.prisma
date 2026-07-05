@@ -119,6 +119,22 @@ enum RoleCode {
   SUPER_ADMIN
 }
 
+enum AuditEntityType {
+  SERIES
+  MANUSCRIPT
+  PAGE
+  CHAPTER
+  TASK
+  DEADLINE_REQUEST
+  USER
+  REGION
+  APP_CONFIG
+  CONTRACT
+  BOARD_DECISION
+  REPRINT_REQUEST
+  TRANSFER_REQUEST
+}
+
 enum PublicationType {
   WEEKLY
   MONTHLY
@@ -240,6 +256,7 @@ enum TaskStatus {
   APPROVED
   REVISION_REQUESTED
   ON_HOLD
+  CANCELLED
 }
 
 enum ManuscriptStatus {
@@ -285,6 +302,26 @@ enum ChapterStatus {
   IN_PRODUCTION
   COMPLETED
   PUBLISHED
+}
+
+enum ChapterHoldAction {
+  HOLD
+  RESUME
+}
+
+type ChapterHold {
+  reason             String
+  expectedReturnDate DateTime?
+  heldBy             String    @db.ObjectId
+  heldAt             DateTime  @default(now())
+}
+
+type ChapterHoldEntry {
+  action             ChapterHoldAction
+  by                 String            @db.ObjectId
+  reason             String?
+  expectedReturnDate DateTime?
+  at                 DateTime          @default(now())
 }
 
 // REVIEW: inferred
@@ -353,6 +390,7 @@ enum AnnotationTargetType {
   REGION
   TASK
   MANUSCRIPT
+  NAME
 }
 
 // REVIEW: inferred
@@ -677,8 +715,10 @@ model Chapter {
   chapterNumber Int
   title         String?
   totalPages    Int?
-  status        ChapterStatus @default(DRAFT)
+  status        ChapterStatus      @default(DRAFT)
   publishedAt   DateTime?
+  hold          ChapterHold?
+  holdHistory   ChapterHoldEntry[]
 
   schedule        Schedule?
   manuscript      Manuscript?
@@ -829,12 +869,13 @@ model Task {
   regionId    String? @db.ObjectId
   assistantId String? @db.ObjectId
 
-  taskType  Specialization?
-  status    TaskStatus      @default(ASSIGNED)
-  priority  Int             @default(0)
-  deadline  DateTime?
-  createdAt DateTime        @default(now())
-  assetIds  String[]        @default([]) @db.ObjectId
+  taskType     Specialization?
+  status       TaskStatus      @default(ASSIGNED)
+  priority     Int             @default(0)
+  deadline     DateTime?
+  createdAt    DateTime        @default(now())
+  assetIds     String[]        @default([]) @db.ObjectId
+  statusReason String?
 
   versions    TaskVersion[]
   annotations Annotation[]
@@ -1389,6 +1430,39 @@ model BoardConfig {
   updatedAt            DateTime @updatedAt
 
   @@index([updatedBy])
+}
+
+model AppConfig {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  updatedBy String? @db.ObjectId
+
+  coOwnerApprovalGraceDays     Int   @default(7)
+  nameMaxReviewRounds          Int   @default(8)
+  reputationRecommendThreshold Float @default(4)
+  hiatusTooLongDays            Int   @default(30)
+  lowVoteReliabilityThreshold  Int   @default(10)
+  maxUploadBytes               Int   @default(15728640)
+  assignmentGraceDays          Int   @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedBy])
+}
+
+model AuditLog {
+  id         String          @id @default(auto()) @map("_id") @db.ObjectId
+  actorId    String?         @db.ObjectId
+  entityType AuditEntityType
+  entityId   String          @db.ObjectId
+  action     String
+  fromState  String?
+  toState    String?
+  reason     String?
+  createdAt  DateTime        @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
 }
 
 model Notification {

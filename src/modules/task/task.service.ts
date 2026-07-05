@@ -7,6 +7,7 @@ import { TaskRepository, TaskListWhere } from './task.repo'
 import { toTaskRes } from './task.mapper'
 import {
   BatchCreateTaskBodyType,
+  CancelTaskBodyType,
   CreateRegionBodyType,
   CreateTaskBodyType,
   ListTasksQueryType,
@@ -53,6 +54,9 @@ export class TaskService {
   reassignTask(userId: string, id: string, body: ReassignTaskBodyType) {
     return this.taskAssignService.reassign(userId, id, body)
   }
+  cancelTask(userId: string, id: string, body: CancelTaskBodyType) {
+    return this.taskAssignService.cancel(userId, id, body)
+  }
   updateTask(userId: string, id: string, body: UpdateTaskBodyType) {
     return this.taskAssignService.update(userId, id, body)
   }
@@ -88,14 +92,23 @@ export class TaskService {
   async listTasks(userId: string, roleName: string, query: ListTasksQueryType) {
     let where: TaskListWhere
     if (roleName === RoleName.ASSISTANT) {
+      if (query.pageId && !OBJECT_ID_RE.test(query.pageId))
+        return { items: [], total: 0, limit: query.limit, offset: query.offset }
+      if (query.regionId && !OBJECT_ID_RE.test(query.regionId))
+        return { items: [], total: 0, limit: query.limit, offset: query.offset }
       where = {
         assistantId: userId,
         ...(query.status ? { status: query.status } : {}),
-        ...(query.pageId ? { pageId: query.pageId } : {})
+        ...(query.pageId ? { pageId: query.pageId } : {}),
+        ...(query.regionId ? { regionId: query.regionId } : {})
       }
     } else {
       // MANGAKA: bắt buộc pageId thuộc sở hữu; thiếu/không sở hữu → rỗng
       if (!query.pageId || !OBJECT_ID_RE.test(query.pageId))
+        return { items: [], total: 0, limit: query.limit, offset: query.offset }
+      if (query.regionId && !OBJECT_ID_RE.test(query.regionId))
+        return { items: [], total: 0, limit: query.limit, offset: query.offset }
+      if (query.assistantId && !OBJECT_ID_RE.test(query.assistantId))
         return { items: [], total: 0, limit: query.limit, offset: query.offset }
       const page = await this.taskRepository.findPageWithOwner(query.pageId)
       if (!page || page.chapter.series.mangakaId !== userId)
@@ -103,7 +116,8 @@ export class TaskService {
       where = {
         pageId: query.pageId,
         ...(query.status ? { status: query.status } : {}),
-        ...(query.assistantId ? { assistantId: query.assistantId } : {})
+        ...(query.assistantId ? { assistantId: query.assistantId } : {}),
+        ...(query.regionId ? { regionId: query.regionId } : {})
       }
     }
     const page = { limit: query.limit, offset: query.offset }

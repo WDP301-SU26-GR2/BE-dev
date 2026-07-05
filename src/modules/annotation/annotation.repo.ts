@@ -43,6 +43,22 @@ export class AnnotationRepository {
     })
   }
 
+  async targetExists(targetType: AnnotationTargetType, targetId: string): Promise<boolean> {
+    const select = { id: true } as const
+    switch (targetType) {
+      case AnnotationTargetType.PAGE:
+        return Boolean(await this.prismaService.page.findUnique({ where: { id: targetId }, select }))
+      case AnnotationTargetType.REGION:
+        return Boolean(await this.prismaService.region.findUnique({ where: { id: targetId }, select }))
+      case AnnotationTargetType.TASK:
+        return Boolean(await this.prismaService.task.findUnique({ where: { id: targetId }, select }))
+      case AnnotationTargetType.MANUSCRIPT:
+        return Boolean(await this.prismaService.manuscript.findUnique({ where: { id: targetId }, select }))
+      case AnnotationTargetType.NAME:
+        return Boolean(await this.prismaService.name.findUnique({ where: { id: targetId }, select }))
+    }
+  }
+
   setResolved(id: string, isResolved: boolean) {
     return this.prismaService.annotation.update({
       where: { id },

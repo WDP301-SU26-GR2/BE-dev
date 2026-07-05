@@ -1,7 +1,7 @@
 import { extendApi } from '@anatine/zod-openapi'
 import { AssetType } from '@prisma/client'
 import { z } from 'zod'
-import { ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES } from '../storage.constant'
+import { ALLOWED_CONTENT_TYPES } from '../storage.constant'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 
 export const SignUploadBodySchema = extendApi(
@@ -11,7 +11,11 @@ export const SignUploadBodySchema = extendApi(
       contentType: z
         .enum(ALLOWED_CONTENT_TYPES)
         .describe('Loại file cho phép: image/png · image/jpeg · image/webp · application/pdf'),
-      contentLength: z.number().int().positive().max(MAX_UPLOAD_BYTES),
+      contentLength: z
+        .number()
+        .int()
+        .positive()
+        .describe('Bytes - must be less than or equal to maxUploadBytes from AppConfig (default 15MB)'),
       assetType: zEnum(AssetType, 'AssetType').optional()
     })
     .strict(),

@@ -2,6 +2,9 @@ import { createZodDto } from 'nestjs-zod'
 import {
   AdminCreateUserBodySchema,
   AdminCreateUserResSchema,
+  AdminResetPasswordResSchema,
+  AdminStatsResSchema,
+  AdminUpdateUserStatusBodySchema,
   AdminUserListResSchema,
   AdminUserResSchema,
   AssistantDirectoryListResSchema,
@@ -15,6 +18,9 @@ import {
 
 export class AdminCreateUserBodyDto extends createZodDto(AdminCreateUserBodySchema) {}
 export class AdminCreateUserResDto extends createZodDto(AdminCreateUserResSchema) {}
+export class AdminUpdateUserStatusBodyDto extends createZodDto(AdminUpdateUserStatusBodySchema) {}
+export class AdminResetPasswordResDto extends createZodDto(AdminResetPasswordResSchema) {}
+export class AdminStatsResDto extends createZodDto(AdminStatsResSchema) {}
 export class MangakaProfileBodyDto extends createZodDto(MangakaProfileBodySchema) {}
 export class MangakaProfileResDto extends createZodDto(MangakaProfileResSchema) {}
 export class AssistantProfileBodyDto extends createZodDto(AssistantProfileBodySchema) {}
