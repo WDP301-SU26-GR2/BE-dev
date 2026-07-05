@@ -12,6 +12,8 @@ export function toSeriesRes(series: Series) {
     genres: series.genres,
     demographic: series.demographic,
     publicationType: series.publicationType,
+    magazine: series.magazine,
+    startIssueNumber: series.startIssueNumber,
     status: series.status,
     statusReason: series.statusReason,
     relationshipType: series.relationshipType,

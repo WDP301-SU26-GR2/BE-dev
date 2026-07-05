@@ -22,4 +22,3 @@ export const CONDITION_TYPE = {
 } as const
 
 export type PaymentConditionStatusType = (typeof PAYMENT_CONDITION_STATUS)[keyof typeof PAYMENT_CONDITION_STATUS]
-

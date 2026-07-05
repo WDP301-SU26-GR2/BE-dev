@@ -212,7 +212,11 @@ export class TransferRepo {
   }
 
   // B-TRF-05: Khởi tạo tiến trình hook kiểm duyệt cho Co-owner khi có chương mới nộp lên
-  createCoOwnerChapterApproval(data: { chapterId: string; coOwnerId: string; deadline: Date }): Promise<ChapterCoOwnerApproval> {
+  createCoOwnerChapterApproval(data: {
+    chapterId: string
+    coOwnerId: string
+    deadline: Date
+  }): Promise<ChapterCoOwnerApproval> {
     return this.prisma.chapterCoOwnerApproval.create({
       data: {
         chapterId: data.chapterId,
@@ -238,6 +242,6 @@ export class TransferRepo {
       where: { id },
       data
     })
-    return result as ChapterCoOwnerApproval // Ép kiểu an toàn trước khi trả về
+    return result // Ép kiểu an toàn trước khi trả về
   }
 }

@@ -16,7 +16,7 @@ describe('BoardService notifications', () => {
       description: 'desc',
       allowedEditorIds: ['board-1', 'board-2'],
       startTime: new Date('2030-01-01T00:00:00.000Z')
-    } as any)
+    })
 
     expect(notificationService.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({

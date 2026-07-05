@@ -42,6 +42,8 @@ describe('Genre/Demographic enums', () => {
       genres: ['ACTION'],
       demographic: null,
       publicationType: null,
+      magazine: null,
+      startIssueNumber: null,
       status: 'DRAFT',
       statusReason: null,
       relationshipType: null,
@@ -50,6 +52,31 @@ describe('Genre/Demographic enums', () => {
       proposal: null
     })
     expect(ok.genres).toEqual(['ACTION'])
+  })
+
+  it('SeriesRes preserves serialization slot (magazine + startIssueNumber)', () => {
+    const ok = SeriesResSchema.parse({
+      id: 'a',
+      mangakaId: 'm',
+      editorId: null,
+      coOwnerId: null,
+      parentSeriesId: null,
+      title: 'T',
+      coverImage: null,
+      genres: [],
+      demographic: null,
+      publicationType: 'WEEKLY',
+      magazine: 'Weekly Shonen',
+      startIssueNumber: 5,
+      status: 'SERIALIZED',
+      statusReason: null,
+      relationshipType: null,
+      createdAt: '2026-06-29T00:00:00.000Z',
+      reviewStartedAt: null,
+      proposal: null
+    })
+    expect(ok.magazine).toBe('Weekly Shonen')
+    expect(ok.startIssueNumber).toBe(5)
   })
 })
 
@@ -98,6 +125,8 @@ describe('series schemas — coverImage', () => {
       genres: [],
       demographic: null,
       publicationType: null,
+      magazine: null,
+      startIssueNumber: null,
       status: 'DRAFT',
       statusReason: null,
       relationshipType: null,

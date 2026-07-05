@@ -120,7 +120,13 @@ export class ContractService {
       boardSignedAt: null
     }
 
-    const updated = await this.contractRepo.updateAndLogVersion(contractId, updateData, editorId, nextVersionNumber, note)
+    const updated = await this.contractRepo.updateAndLogVersion(
+      contractId,
+      updateData,
+      editorId,
+      nextVersionNumber,
+      note
+    )
 
     await this.notificationService.notifySafe({
       recipientId: contract.mangakaId,

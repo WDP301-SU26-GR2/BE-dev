@@ -78,6 +78,15 @@ export const SeriesResSchema = extendApi(
     genres: z.array(zEnum(Genre, 'Genre')),
     demographic: zEnum(Demographic, 'Demographic').nullable(),
     publicationType: zEnum(PublicationType, 'PublicationType').nullable(),
+    magazine: z
+      .string()
+      .nullable()
+      .describe('Tạp chí Board chọn khi serial hoá (Flow 1 slot); null tới khi series SERIALIZED'),
+    startIssueNumber: z
+      .number()
+      .int()
+      .nullable()
+      .describe('Số kỳ (issue) series bắt đầu đăng (Flow 1 slot); null tới khi series SERIALIZED'),
     status: zEnum(SeriesStatus, 'SeriesStatus'),
     statusReason: z
       .string()

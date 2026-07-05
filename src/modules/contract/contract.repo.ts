@@ -30,11 +30,7 @@ export class ContractRepo {
 
   findManyByViewer(userId: string, roleName: string): Promise<Contract[]> {
     const where =
-      roleName === RoleName.EDITOR
-        ? { editorId: userId }
-        : roleName === RoleName.MANGAKA
-          ? { mangakaId: userId }
-          : {}
+      roleName === RoleName.EDITOR ? { editorId: userId } : roleName === RoleName.MANGAKA ? { mangakaId: userId } : {}
 
     return this.prisma.contract.findMany({
       where,

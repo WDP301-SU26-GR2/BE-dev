@@ -93,7 +93,7 @@ export class TransferService {
     }
 
     return this.transferRepo.updateTransferRequest(id, {
-      status: TRANSFER_REQUEST_STATUS.REJECTED_BY_BOARD as any,
+      status: TRANSFER_REQUEST_STATUS.REJECTED_BY_BOARD,
       boardDecisionId: dto.boardSessionId
     })
   }
@@ -143,7 +143,7 @@ export class TransferService {
     }
 
     return this.transferRepo.updateTransferRequest(id, {
-      status: TRANSFER_REQUEST_STATUS.NEGOTIATING as any
+      status: TRANSFER_REQUEST_STATUS.NEGOTIATING
     })
   }
 
@@ -167,7 +167,7 @@ export class TransferService {
     }
 
     return this.transferRepo.updateTransferRequest(id, {
-      status: TRANSFER_REQUEST_STATUS.REJECTED_BY_ORIGINAL_MANGAKA as any
+      status: TRANSFER_REQUEST_STATUS.REJECTED_BY_ORIGINAL_MANGAKA
     })
   }
 
@@ -228,7 +228,7 @@ export class TransferService {
     }
 
     const freshSignatures: TransferContractSignature[] = updatedContract.signatures ?? []
-    const uniqueRolesSigned = new Set<string>(freshSignatures.map((s: TransferContractSignature) => s.role as string))
+    const uniqueRolesSigned = new Set<string>(freshSignatures.map((s: TransferContractSignature) => s.role))
 
     if (uniqueRolesSigned.has('MANGAKA_A') && uniqueRolesSigned.has('MANGAKA_B') && uniqueRolesSigned.has('BOARD')) {
       await this.transferRepo.updateTransferContractStatus(id, $Enums.TransferContractStatus.FULLY_EXECUTED)
