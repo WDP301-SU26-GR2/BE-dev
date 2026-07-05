@@ -24,7 +24,7 @@ describe('TaskCascadeService', () => {
     repo.findTaskStatusesByPage.mockResolvedValue(['SUBMITTED', 'APPROVED'])
     repo.findTaskStatusesByChapter.mockResolvedValue(['SUBMITTED', 'NOTREACHED' as never]) // chapter not all submitted
     await service.fireOnSubmitted(TASK as never, 'm')
-    expect(pageState.transition).toHaveBeenCalledWith('p', 'COMPOSITE_READY')
+    expect(pageState.transition).toHaveBeenCalledWith('p', 'COMPOSITE_READY', 'm')
     expect(manuscriptState.transition).not.toHaveBeenCalled()
   })
 
@@ -68,7 +68,7 @@ describe('TaskCascadeService', () => {
     repo.findTaskStatusesByChapter.mockResolvedValue(['SUBMITTED', 'CANCELLED'])
     repo.findManuscriptStatusByChapter.mockResolvedValue({ status: 'IN_PRODUCTION' })
     await service.fireOnSubmitted(TASK as never, 'm')
-    expect(pageState.transition).toHaveBeenCalledWith('p', 'COMPOSITE_READY')
+    expect(pageState.transition).toHaveBeenCalledWith('p', 'COMPOSITE_READY', 'm')
     expect(manuscriptState.transition).toHaveBeenCalledWith('c', 'COMPOSITE_REVIEW', { changedBy: 'm' })
   })
 

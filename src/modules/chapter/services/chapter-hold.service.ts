@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
-import { ManuscriptStatus, NotificationType } from '@prisma/client'
+import { AuditEntityType, ManuscriptStatus, NotificationType } from '@prisma/client'
+import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { toChapterRes } from '../chapter.mapper'
 import { ChapterRepository } from '../chapter.repo'
@@ -27,7 +28,8 @@ const HOLDABLE_MANUSCRIPT_STATUSES: ManuscriptStatus[] = [
 export class ChapterHoldService {
   constructor(
     private readonly chapterRepository: ChapterRepository,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly auditService: AuditService
   ) {}
 
   private async requireEditorChapter(editorId: string, chapterId: string) {
@@ -56,6 +58,13 @@ export class ChapterHoldService {
       referenceType: 'CHAPTER_HELD',
       content: ChapterMessages.notification.chapterHeld(body.reason)
     })
+    await this.auditService.record({
+      actorId: editorId,
+      entityType: AuditEntityType.CHAPTER,
+      entityId: chapterId,
+      action: 'HOLD',
+      reason: body.reason
+    })
     return toChapterRes(updated)
   }
 
@@ -69,6 +78,12 @@ export class ChapterHoldService {
       referenceId: chapterId,
       referenceType: 'CHAPTER_RESUMED',
       content: ChapterMessages.notification.chapterResumed
+    })
+    await this.auditService.record({
+      actorId: editorId,
+      entityType: AuditEntityType.CHAPTER,
+      entityId: chapterId,
+      action: 'RESUME'
     })
     return toChapterRes(updated)
   }

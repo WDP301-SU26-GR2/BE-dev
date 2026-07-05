@@ -37,6 +37,7 @@ function make() {
     applyReputation: jest.fn().mockResolvedValue(undefined)
   }
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+  const appConfigService = { get: jest.fn().mockResolvedValue({ reputationRecommendThreshold: 4.2 }) }
   const studioAssignmentService = {
     findEndedForPairById: jest
       .fn()
@@ -47,9 +48,17 @@ function make() {
     new ReputationService(),
     assistantProfileService as never,
     notificationService as never,
-    studioAssignmentService as never
+    studioAssignmentService as never,
+    appConfigService as never
   )
-  return { service, reviewsRepository, assistantProfileService, notificationService, studioAssignmentService }
+  return {
+    service,
+    reviewsRepository,
+    assistantProfileService,
+    notificationService,
+    studioAssignmentService,
+    appConfigService
+  }
 }
 
 describe('AssistantReviewService.createOrUpdate', () => {
@@ -70,7 +79,7 @@ describe('AssistantReviewService.createOrUpdate', () => {
       ratingAvg: 4.8,
       ratingCount: 5,
       reputationScore: 4.15,
-      isRecommended: true
+      isRecommended: false
     })
     expect(notificationService.notifySafe).toHaveBeenCalledWith({
       recipientId: 'a1',

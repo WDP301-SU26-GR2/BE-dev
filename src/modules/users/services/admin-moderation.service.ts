@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { $Enums, NotificationType } from '@prisma/client'
+import { $Enums, AuditEntityType, NotificationType } from '@prisma/client'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
 import { EmailQueue } from 'src/infrastructure/email/email.queue'
+import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import {
   CannotModifyAdminUserException,
@@ -27,7 +28,8 @@ export class AdminModerationService {
     private readonly usersRepository: UsersRepository,
     private readonly hashingService: HashingService,
     private readonly emailQueue: EmailQueue,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly auditService: AuditService
   ) {}
 
   private async getTarget(id: string): Promise<NonNullable<ModerationTarget>> {
@@ -38,7 +40,7 @@ export class AdminModerationService {
     return target
   }
 
-  async updateStatus(id: string, body: AdminUpdateUserStatusBodyType) {
+  async updateStatus(id: string, body: AdminUpdateUserStatusBodyType, adminId: string) {
     const target = await this.getTarget(id)
     if (target.deletedAt) throw UserNotFoundException
 
@@ -59,30 +61,57 @@ export class AdminModerationService {
         referenceId: id,
         ...notice
       })
+      await this.auditService.record({
+        actorId: adminId,
+        entityType: AuditEntityType.USER,
+        entityId: id,
+        action: this.auditActionForStatus(body.status),
+        fromState: target.status,
+        toState: body.status,
+        reason: body.reason
+      })
     }
 
     return toAdminUserView(updated)
   }
 
-  async deleteUser(id: string) {
+  private auditActionForStatus(status: $Enums.UserStatus) {
+    if (status === $Enums.UserStatus.BANNED) return 'BAN'
+    if (status === $Enums.UserStatus.BLOCKED) return 'BLOCK'
+    return 'REACTIVATE'
+  }
+
+  async deleteUser(id: string, adminId: string) {
     const target = await this.getTarget(id)
     if (target.deletedAt) throw UserAlreadyDeletedException
 
     await this.usersRepository.softDeleteUser(id, new Date())
     await this.usersRepository.revokeRefreshTokensByUserId(id)
+    await this.auditService.record({
+      actorId: adminId,
+      entityType: AuditEntityType.USER,
+      entityId: id,
+      action: 'SOFT_DELETE'
+    })
 
     return { message: UsersMessages.response.userDeleted }
   }
 
-  async restoreUser(id: string) {
+  async restoreUser(id: string, adminId: string) {
     const target = await this.getTarget(id)
     if (!target.deletedAt) throw UserNotDeletedException
 
     const restored = await this.usersRepository.restoreUser(id)
+    await this.auditService.record({
+      actorId: adminId,
+      entityType: AuditEntityType.USER,
+      entityId: id,
+      action: 'RESTORE'
+    })
     return toAdminUserView(restored)
   }
 
-  async resetPassword(id: string) {
+  async resetPassword(id: string, adminId: string) {
     const target = await this.getTarget(id)
     if (target.deletedAt) throw UserNotFoundException
 
@@ -90,6 +119,12 @@ export class AdminModerationService {
     const password = await this.hashingService.hash(temporaryPassword)
     await this.usersRepository.resetUserPassword(id, password)
     await this.usersRepository.revokeRefreshTokensByUserId(id)
+    await this.auditService.record({
+      actorId: adminId,
+      entityType: AuditEntityType.USER,
+      entityId: id,
+      action: 'RESET_PASSWORD'
+    })
 
     try {
       await this.emailQueue.enqueueAdminCred({

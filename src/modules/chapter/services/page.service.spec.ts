@@ -48,6 +48,6 @@ describe('PageService.createPage', () => {
     const svc = new PageService(repo as never, manuscriptState as never, pageState as never)
     await svc.updatePage('u1', 'p1', { compositeFile: 'k2', status: PageStatus.IN_PROGRESS })
     expect(repo.updatePage).toHaveBeenCalledWith('p1', { compositeFile: 'k2' })
-    expect(pageState.transition).toHaveBeenCalledWith('p1', PageStatus.IN_PROGRESS)
+    expect(pageState.transition).toHaveBeenCalledWith('p1', PageStatus.IN_PROGRESS, 'u1')
   })
 })
