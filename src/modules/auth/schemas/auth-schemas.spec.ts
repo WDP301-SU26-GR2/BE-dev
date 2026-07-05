@@ -19,6 +19,14 @@ describe('RegisterBodySchema', () => {
     expect(RegisterBodySchema.safeParse({ ...baseRegisterBody, phoneNumber: '0901234567' }).success).toBe(false)
   })
 
+  it('rejects phone with non-digit characters', () => {
+    expect(RegisterBodySchema.safeParse({ ...baseRegisterBody, phoneNumber: '+84abc9999' }).success).toBe(false)
+  })
+
+  it('rejects phone longer than E.164 max (15 digits)', () => {
+    expect(RegisterBodySchema.safeParse({ ...baseRegisterBody, phoneNumber: '+8491234567890123' }).success).toBe(false)
+  })
+
   it('rejects password without uppercase', () => {
     expect(
       RegisterBodySchema.safeParse({
