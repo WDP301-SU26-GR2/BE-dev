@@ -1,18 +1,21 @@
 import { Injectable } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
-import { ContractStatus } from '@prisma/client'
+import { ContractStatus, NotificationType } from '@prisma/client'
 import { ContractRepo } from '../contract.repo'
 import { ContractErrors } from '../errors/contract.errors'
 import { CONTRACT_EVENTS } from '../contract.constant'
 import { CreateContractBodyDto, EditorUpdateContractBodyDto } from '../dto/contract.dto'
 import { AuthOtpService } from 'src/modules/auth/services/auth-otp.service'
+import { NotificationService } from 'src/modules/notification/notification.service'
+import { RoleName } from 'src/core/security/constants/role.constant'
 
 @Injectable()
 export class ContractService {
   constructor(
     private readonly contractRepo: ContractRepo,
     private readonly authOtpService: AuthOtpService,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventEmitter: EventEmitter2,
+    private readonly notificationService: NotificationService
   ) {}
 
   // Hàm kiểm tra trạng thái hoạt động của module
@@ -20,9 +23,67 @@ export class ContractService {
     return { status: 'OK', module: 'Contract' }
   }
 
+  async getContracts(userId: string, roleName: string) {
+    return this.contractRepo.findManyByViewer(userId, roleName)
+  }
+
+  async getContractById(contractId: string, userId: string, roleName: string) {
+    const contract = await this.contractRepo.findById(contractId)
+    if (!contract) throw ContractErrors.NotFound()
+    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
+
+    return contract
+  }
+
+  async getContractVersions(contractId: string, userId: string, roleName: string) {
+    const contract = await this.contractRepo.findById(contractId)
+    if (!contract) throw ContractErrors.NotFound()
+    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
+
+    return this.contractRepo.findVersionsByContractId(contractId)
+  }
+
+  async getContractVersionById(contractId: string, versionId: string, userId: string, roleName: string) {
+    const contract = await this.contractRepo.findById(contractId)
+    if (!contract) throw ContractErrors.NotFound()
+    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
+
+    const version = await this.contractRepo.findVersionById(contractId, versionId)
+    if (!version) throw ContractErrors.NotFound()
+
+    return version
+  }
+
+  private canViewContract(contract: { editorId: string | null; mangakaId: string }, userId: string, roleName: string) {
+    if (roleName === RoleName.BOARD_MEMBER) return true
+    if (roleName === RoleName.EDITOR) return contract.editorId === userId
+    if (roleName === RoleName.MANGAKA) return contract.mangakaId === userId
+
+    return false
+  }
+
   // Khởi tạo bản hợp đồng nháp (Editor tạo)
-  createDraft(editorId: string, dto: CreateContractBodyDto) {
-    return this.contractRepo.createDraft(editorId, dto)
+  async createDraft(editorId: string, dto: CreateContractBodyDto) {
+    const contract = await this.contractRepo.createDraft(editorId, dto)
+
+    await Promise.all([
+      this.notificationService.notifySafe({
+        recipientId: editorId,
+        type: NotificationType.CONTRACT,
+        referenceId: contract.id,
+        referenceType: 'CONTRACT_DRAFT_CREATED',
+        content: 'Bản hợp đồng nháp đã được tạo thành công.'
+      }),
+      this.notificationService.notifySafe({
+        recipientId: dto.mangakaId,
+        type: NotificationType.CONTRACT,
+        referenceId: contract.id,
+        referenceType: 'CONTRACT_DRAFT_CREATED',
+        content: 'Một hợp đồng mới đã được tạo cho bạn và đang chờ xem xét.'
+      })
+    ])
+
+    return contract
   }
 
   // Gửi hợp đồng sang cho Mangaka xem xét và thương lượng
@@ -31,7 +92,17 @@ export class ContractService {
     if (!contract) throw ContractErrors.NotFound()
     if (contract.editorId !== editorId) throw ContractErrors.UnauthorizedEditor()
 
-    return this.contractRepo.updateStatus(contractId, ContractStatus.MANGAKA_REVIEW)
+    const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.MANGAKA_REVIEW)
+
+    await this.notificationService.notifySafe({
+      recipientId: contract.mangakaId,
+      type: NotificationType.CONTRACT,
+      referenceId: updated.id,
+      referenceType: 'CONTRACT_SENT_TO_MANGAKA',
+      content: 'Hợp đồng đã được gửi cho bạn để xem xét và ký kết.'
+    })
+
+    return updated
   }
 
   // Editor cập nhật lại điều khoản thương lượng và tự động tăng số hiệu phiên bản (versionNumber)
@@ -49,7 +120,17 @@ export class ContractService {
       boardSignedAt: null
     }
 
-    return this.contractRepo.updateAndLogVersion(contractId, updateData, editorId, nextVersionNumber, note)
+    const updated = await this.contractRepo.updateAndLogVersion(contractId, updateData, editorId, nextVersionNumber, note)
+
+    await this.notificationService.notifySafe({
+      recipientId: contract.mangakaId,
+      type: NotificationType.CONTRACT,
+      referenceId: updated.id,
+      referenceType: 'CONTRACT_UPDATED',
+      content: 'Hợp đồng đã được editor cập nhật và cần bạn xem xét lại.'
+    })
+
+    return updated
   }
 
   // Mangaka đồng ý với các điều khoản hiện tại, sẵn sàng chuyển qua bước ký kết
@@ -57,7 +138,17 @@ export class ContractService {
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
 
-    return this.contractRepo.updateStatus(contractId, ContractStatus.MANGAKA_APPROVED)
+    const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.MANGAKA_APPROVED)
+
+    await this.notificationService.notifySafe({
+      recipientId: contract.editorId ?? '',
+      type: NotificationType.CONTRACT,
+      referenceId: updated.id,
+      referenceType: 'CONTRACT_MANGAKA_APPROVED',
+      content: 'Mangaka đã đồng ý các điều khoản hợp đồng.'
+    })
+
+    return updated
   }
 
   // Tiến trình ký kết từ phía Mangaka
@@ -144,6 +235,25 @@ export class ContractService {
         this.eventEmitter.emit(CONTRACT_EVENTS.EXECUTED, result)
       }
 
+      if (result) {
+        await Promise.all([
+          this.notificationService.notifySafe({
+            recipientId: contract.mangakaId,
+            type: NotificationType.CONTRACT,
+            referenceId: result.id,
+            referenceType: 'CONTRACT_FULLY_EXECUTED',
+            content: 'Hợp đồng đã được ký kết hoàn tất.'
+          }),
+          this.notificationService.notifySafe({
+            recipientId: contract.editorId ?? '',
+            type: NotificationType.CONTRACT,
+            referenceId: result.id,
+            referenceType: 'CONTRACT_FULLY_EXECUTED',
+            content: 'Hợp đồng đã được ký kết hoàn tất.'
+          })
+        ])
+      }
+
       return {
         status: 'COMPLETED',
         message: 'Toàn bộ thành viên Hội đồng Ban giám đốc đã ký kết thành công!',
@@ -210,21 +320,18 @@ export class ContractService {
     })
 
     return {
-      success: true,
-      data: {
-        id: contract.id,
-        status: contract.status,
-        mangaka: {
-          id: contract.mangakaId,
-          isSigned: !!contract.mangakaSignedAt,
-          signedAt: contract.mangakaSignedAt
-        },
-        boardProgress: {
-          totalRequired: allowedEditorIds.length,
-          totalSigned: boardSignatures.signedEditors.length,
-          signedEditors: boardSignatures.signedEditors,
-          pendingEditors: boardSignatures.pendingEditors
-        }
+      id: contract.id,
+      status: contract.status,
+      mangaka: {
+        id: contract.mangakaId,
+        isSigned: !!contract.mangakaSignedAt,
+        signedAt: contract.mangakaSignedAt
+      },
+      boardProgress: {
+        totalRequired: allowedEditorIds.length,
+        totalSigned: boardSignatures.signedEditors.length,
+        signedEditors: boardSignatures.signedEditors,
+        pendingEditors: boardSignatures.pendingEditors
       }
     }
   }

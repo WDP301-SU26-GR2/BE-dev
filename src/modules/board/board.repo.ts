@@ -1,31 +1,96 @@
 import { Injectable } from '@nestjs/common'
-import { PrismaService } from 'src/infrastructure/database/prisma.service' // Đảm bảo đường dẫn này đúng với project của bạn
-import { CreateBoardDecisionBodyDto, CreateSeriesReportBodyDto, UpdateBoardConfigBodyDto } from './dto/board.dto'
-import { VoteDataType } from './schemas/board.model'
+import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import {
+  CreateBoardDecisionBodyDto,
+  CreateBoardSessionBodyDto,
+  CreateSeriesReportBodyDto,
+  UpdateBoardConfigBodyDto
+} from './dto/board.dto'
+import { BoardDecisionDataType, VoteDataType } from './schemas/board.model'
+import { $Enums } from '@prisma/client'
 
 @Injectable()
 export class BoardRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Lấy cấu hình biểu quyết đang hoạt động (Mặc định) của Hội đồng.
-   */
-  async getActiveConfig() {
-    return this.prisma.boardConfig.findFirst()
+  // ================= TÌM KIẾM ĐỘC LẬP (ĐÃ BỔ SUNG) =================
+  async findSessionById(id: string) {
+    return this.prisma.boardSession.findUnique({ where: { id } })
   }
 
-  /**
-   * Tìm kiếm thông tin chi tiết của một Quyết định họp qua ID.
-   */
+  async findConfigById(id: string) {
+    return this.prisma.boardConfig.findUnique({ where: { id } })
+  }
+
   async findDecisionById(id: string) {
-    return this.prisma.boardDecision.findUnique({
-      where: { id }
+    return this.prisma.boardDecision.findUnique({ where: { id } })
+  }
+
+  async findManySessions() {
+    return this.prisma.boardSession.findMany({ orderBy: { createdAt: 'desc' } })
+  }
+
+  async findManyDecisions() {
+    return this.prisma.boardDecision.findMany({ orderBy: { id: 'desc' } })
+  }
+
+  async findManyReports() {
+    return this.prisma.seriesReport.findMany({ orderBy: { createdAt: 'desc' } })
+  }
+
+  async findReportById(id: string) {
+    return this.prisma.seriesReport.findUnique({ where: { id } })
+  }
+
+  async findExpiredUpcomingSessions() {
+    return this.prisma.boardSession.findMany({
+      where: {
+        status: 'UPCOMING',
+        startTime: {
+          lte: new Date() // Nhỏ hơn hoặc bằng thời gian hiện tại
+        }
+      }
     })
   }
 
-  /**
-   * Khởi tạo bản ghi Quyết định họp mới với trạng thái ban đầu là PENDING.
-   */
+  // ================= CÁC API KHÁC =================
+  async findActiveSessionByTitle(title: string) {
+    return this.prisma.boardSession.findFirst({
+      where: { title, status: { in: ['UPCOMING', 'ACTIVE'] } }
+    })
+  }
+
+  async findFirstOpenSession() {
+    return this.prisma.boardSession.findFirst({ where: { status: 'ACTIVE' } })
+  }
+
+  async createSession(creatorId: string, dto: CreateBoardSessionBodyDto) {
+    return this.prisma.boardSession.create({
+      data: {
+        title: dto.title,
+        description: dto.description ?? null,
+        creatorId: creatorId,
+        status: 'UPCOMING',
+        allowedEditorIds: dto.allowedEditorIds,
+        startTime: dto.startTime
+      }
+    })
+  }
+
+  async updateSessionStatus(id: string, status: $Enums.BoardSessionStatus) {
+    return this.prisma.boardSession.update({
+      where: { id },
+      data: { status }
+    })
+  }
+
+  async updateSessionStatusByAuto(id: string, status: $Enums.BoardSessionStatus) {
+    return this.prisma.boardSession.update({
+      where: { id },
+      data: { status }
+    })
+  }
+
   async createDecision(dto: CreateBoardDecisionBodyDto) {
     return this.prisma.boardDecision.create({
       data: {
@@ -33,87 +98,58 @@ export class BoardRepository {
         targetSeriesId: dto.targetSeriesId ?? null,
         decisionType: dto.decisionType,
         details: dto.details ?? null,
-        result: 'PENDING', // Giá trị khởi tạo mặc định thuần chuỗi an toàn
+        result: 'PENDING',
         approveCount: 0,
         rejectCount: 0,
         totalVotes: 0,
         quorumMet: false,
-        votes: [] // Khởi tạo mảng phiếu bầu rỗng (MongoDB composite/embedded array)
+        votes: []
       }
     })
   }
 
-  /**
-   * Đẩy một phiếu bầu mới (Vote Object) vào mảng phiếu bầu của Quyết định họp.
-   * Cú pháp { push: vote } tối ưu hoàn hảo cho cấu trúc Embedded Documents của Prisma MongoDB.
-   */
-  async pushVoteToDecision(id: string, vote: VoteDataType) {
+  async pushVoteToDecision(decisionId: string, vote: VoteDataType) {
     return this.prisma.boardDecision.update({
-      where: { id },
-      data: {
-        votes: {
-          push: vote
-        }
-      }
+      where: { id: decisionId },
+      data: { votes: { push: vote } }
     })
   }
 
-  /**
-   * Cập nhật kết quả tính toán cuối cùng (Số phiếu, Đạt Quorum, Trạng thái) của cuộc họp.
-   */
-  async updateDecisionResult(
-    id: string,
-    data: {
-      quorumMet: boolean
-      totalVotes: number
-      approveCount: number
-      rejectCount: number
-      result: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PENDING_QUORUM'
-      decidedAt?: Date | null
-    }
-  ) {
+  async updateDecisionCounters(decisionId: string, data: any): Promise<BoardDecisionDataType> {
     return this.prisma.boardDecision.update({
-      where: { id },
+      where: { id: decisionId },
       data
-    })
+    }) as unknown as Promise<BoardDecisionDataType>
+    // Dùng cấu trúc này một lần duy nhất tại Repo để ép kiểu thô từ Prisma về Model của bạn
   }
 
-  /**
-   * Lưu trữ báo cáo phân tích số liệu xu hướng đính kèm phiên họp của Editor.
-   */
-  async createSeriesReport(dto: CreateSeriesReportBodyDto) {
+  async createSeriesReport(data: CreateSeriesReportBodyDto & { preparedBy: string }) {
     return this.prisma.seriesReport.create({
       data: {
-        seriesId: dto.seriesId,
-        boardDecisionId: dto.boardDecisionId,
-        preparedBy: dto.preparedBy,
-        reportType: dto.reportType,
-        content: dto.content,
-        attachments: dto.attachments ?? []
+        seriesId: data.seriesId,
+        boardDecisionId: data.boardDecisionId,
+        preparedBy: data.preparedBy,
+        reportType: data.reportType,
+        content: data.content,
+        attachments: data.attachments ?? []
       }
     })
   }
 
-  /**
-   * Thay đổi điều lệ và cấu trúc tham số đại biểu Hội đồng (Admin).
-   */
-  async updateConfig(id: string, dto: UpdateBoardConfigBodyDto) {
+  async updateConfig(id: string, data: UpdateBoardConfigBodyDto & { updatedBy: string }) {
     return this.prisma.boardConfig.update({
       where: { id },
       data: {
-        boardTotalMembers: dto.boardTotalMembers,
-        quorumMin: dto.quorumMin,
-        approveMajorityRatio: dto.approveMajorityRatio,
-        updatedBy: dto.updatedBy,
+        boardTotalMembers: data.boardTotalMembers,
+        quorumMin: data.quorumMin,
+        approveMajorityRatio: data.approveMajorityRatio,
+        updatedBy: data.updatedBy,
         updatedAt: new Date()
       }
     })
   }
 
-  /**
-   * Cung cấp Prisma Client gốc để chạy các Transaction liên module (nếu cần ở tầng Service).
-   */
-  getPrismaClient() {
-    return this.prisma
+  async getActiveConfig() {
+    return this.prisma.boardConfig.findFirst()
   }
 }
