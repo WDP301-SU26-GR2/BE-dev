@@ -150,7 +150,8 @@ export class PaymentEngineService {
 
   async generateRevenueSharePayments(contract: ContractWithSeries, revenue: number, period: string) {
     const receivers = await this.resolveRevenueShareReceivers(contract)
-    const publisherPct = contract.publisherOwnershipPct ?? Math.max(0, 100 - receivers.reduce((sum, r) => sum + r.pct, 0))
+    const publisherPct =
+      contract.publisherOwnershipPct ?? Math.max(0, 100 - receivers.reduce((sum, r) => sum + r.pct, 0))
     const publisherAmount = (revenue * publisherPct) / 100
     this.logger.debug(`Publisher revenue share retained for contract ${contract.id}: ${publisherAmount}`)
 
@@ -314,7 +315,9 @@ export class PaymentEngineService {
     return 0
   }
 
-  private async resolveRevenueShareReceivers(contract: ContractWithSeries): Promise<Array<{ receiverId: string; pct: number }>> {
+  private async resolveRevenueShareReceivers(
+    contract: ContractWithSeries
+  ): Promise<Array<{ receiverId: string; pct: number }>> {
     const series = contract.series
     const mangakaPct = contract.mangakaOwnershipPct ?? 0
     if (!series?.coOwnerId) return [{ receiverId: contract.mangakaId, pct: mangakaPct }]

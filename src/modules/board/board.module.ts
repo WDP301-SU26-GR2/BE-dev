@@ -8,7 +8,7 @@ import { NotificationModule } from '../notification/notification.module'
 @Module({
   imports: [NotificationModule],
   controllers: [BoardController],
-  providers: [BoardService, BoardRepository, BoardGateway, ],
+  providers: [BoardService, BoardRepository, BoardGateway],
   exports: [BoardService] // Xuất BoardService ra ngoài nếu các module khác (như Contract) cần inject để dùng chung
 })
 export class BoardModule {}

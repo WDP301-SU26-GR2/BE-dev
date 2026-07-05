@@ -12,6 +12,8 @@ const baseSeries = {
   genres: [],
   demographic: null,
   publicationType: null,
+  magazine: null,
+  startIssueNumber: null,
   status: 'DRAFT',
   statusReason: null,
   relationshipType: null,
@@ -36,5 +38,17 @@ describe('toSeriesRes', () => {
     const res = toSeriesRes({ ...baseSeries, genres: ['ACTION', 'DRAMA'], demographic: 'SEINEN' } as unknown as Series)
     expect(res.genres).toEqual(['ACTION', 'DRAMA'])
     expect(res.demographic).toBe('SEINEN')
+  })
+
+  it('surfaces serialization slot (magazine + startIssueNumber) when set', () => {
+    const res = toSeriesRes({ ...baseSeries, magazine: 'Weekly Shonen', startIssueNumber: 5 })
+    expect(res.magazine).toBe('Weekly Shonen')
+    expect(res.startIssueNumber).toBe(5)
+  })
+
+  it('returns null slot fields when unset', () => {
+    const res = toSeriesRes(baseSeries)
+    expect(res.magazine).toBeNull()
+    expect(res.startIssueNumber).toBeNull()
   })
 })

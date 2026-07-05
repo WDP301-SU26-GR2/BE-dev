@@ -595,6 +595,8 @@ model Series {
   status                  SeriesStatus               @default(DRAFT)
   statusReason            String?
   relationshipType        RelationshipType?
+  magazine                String? // Flow 1 slot: tạp chí Board chọn khi serial hoá (null tới khi SERIALIZED — set bởi A1)
+  startIssueNumber        Int? // Flow 1 slot: số kỳ (issue) series bắt đầu đăng (null tới khi SERIALIZED — set bởi A1)
   coOwnerApprovalRequired Boolean                    @default(false)
   reviewStartedAt         DateTime?
   statusHistory           SeriesStatusHistoryEntry[]

@@ -9,7 +9,14 @@ import { PrismaService } from 'src/infrastructure/database/prisma.service'
 
 @Module({
   controllers: [PaymentController],
-  providers: [PaymentService, PaymentEngineService, PaymentListener, PaymentRecordRepo, PaymentConditionRepo, PrismaService],
+  providers: [
+    PaymentService,
+    PaymentEngineService,
+    PaymentListener,
+    PaymentRecordRepo,
+    PaymentConditionRepo,
+    PrismaService
+  ],
   exports: [
     PaymentService // Export để các module khác trong hệ thống có thể gọi trực tiếp hàm tạo payment ngầm
   ]

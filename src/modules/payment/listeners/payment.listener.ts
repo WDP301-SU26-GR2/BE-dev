@@ -12,10 +12,7 @@ export class PaymentListener {
   }
 
   @OnEvent('ranking.finalized')
-  handleRankingFinalized(payload: {
-    surveyPeriodId: string
-    rankings?: Array<{ seriesId: string; rank: number }>
-  }) {
+  handleRankingFinalized(payload: { surveyPeriodId: string; rankings?: Array<{ seriesId: string; rank: number }> }) {
     return this.paymentEngineService.handleRankingFinalized({
       surveyPeriodId: payload.surveyPeriodId,
       rankings: payload.rankings ?? []
