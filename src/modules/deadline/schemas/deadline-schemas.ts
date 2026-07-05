@@ -3,11 +3,18 @@ import { $Enums } from '@prisma/client'
 import { z } from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 
+const zFutureDeadline = z
+  .string()
+  .datetime({ offset: true })
+  .refine((value) => new Date(value).getTime() > Date.now(), {
+    message: 'Deadline must be in the future'
+  })
+
 export const CreateDeadlineRequestBodySchema = extendApi(
   z
     .object({
       chapterId: z.string().min(1),
-      requestedDeadline: z.string().datetime({ offset: true }),
+      requestedDeadline: zFutureDeadline,
       reason: z.string().min(1).max(1000)
     })
     .strict(),
@@ -17,7 +24,7 @@ export const CreateDeadlineRequestBodySchema = extendApi(
 export const CounterDeadlineBodySchema = extendApi(
   z
     .object({
-      requestedDeadline: z.string().datetime({ offset: true }),
+      requestedDeadline: zFutureDeadline,
       reason: z.string().min(1).max(1000)
     })
     .strict(),

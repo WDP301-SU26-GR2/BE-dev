@@ -1,4 +1,4 @@
-import { NameStatus, ProposalStatus, SeriesStatus } from '@prisma/client'
+import { AuditEntityType, NameStatus, ProposalStatus, SeriesStatus } from '@prisma/client'
 import { SeriesStateService } from './series-state.service'
 
 function makeRepo(overrides: Record<string, unknown> = {}) {
@@ -12,30 +12,44 @@ function makeRepo(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function makeAudit() {
+  return { record: jest.fn().mockResolvedValue(undefined) }
+}
+
 describe('SeriesStateService.transition', () => {
   it('allows a valid transition and records history', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: SeriesStatus.DRAFT }) })
-    const svc = new SeriesStateService(repo as never)
-    const res = await svc.transition('s1', SeriesStatus.IN_REVIEW, { changedBy: 'u1' })
+    const audit = makeAudit()
+    const svc = new SeriesStateService(repo as never, audit as never)
+    const res = await svc.transition('s1', SeriesStatus.IN_REVIEW, { changedBy: 'u1', reason: 'ready' })
     expect(repo.updateStatusWithHistory).toHaveBeenCalledWith('s1', {
       fromStatus: SeriesStatus.DRAFT,
       toStatus: SeriesStatus.IN_REVIEW,
       changedBy: 'u1',
-      reason: undefined
+      reason: 'ready'
+    })
+    expect(audit.record).toHaveBeenCalledWith({
+      actorId: 'u1',
+      entityType: AuditEntityType.SERIES,
+      entityId: 's1',
+      action: 'TRANSITION',
+      fromState: SeriesStatus.DRAFT,
+      toState: SeriesStatus.IN_REVIEW,
+      reason: 'ready'
     })
     expect(res).toMatchObject({ status: SeriesStatus.IN_REVIEW })
   })
 
   it('rejects an invalid transition with 409', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: SeriesStatus.DRAFT }) })
-    const svc = new SeriesStateService(repo as never)
+    const svc = new SeriesStateService(repo as never, makeAudit() as never)
     await expect(svc.transition('s1', SeriesStatus.PITCHED, { changedBy: 'u1' })).rejects.toBeDefined()
     expect(repo.updateStatusWithHistory).not.toHaveBeenCalled()
   })
 
   it('throws when series not found', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue(null) })
-    const svc = new SeriesStateService(repo as never)
+    const svc = new SeriesStateService(repo as never, makeAudit() as never)
     await expect(svc.transition('sX', SeriesStatus.IN_REVIEW, { changedBy: 'u1' })).rejects.toBeDefined()
   })
 })
@@ -52,7 +66,7 @@ describe('SeriesStateService.tryAdvanceToReadyToPitch', () => {
       findById: jest.fn().mockResolvedValue(inReviewBothApproved),
       findNameById: jest.fn().mockResolvedValue({ id: 'n1', status: NameStatus.APPROVED })
     })
-    const svc = new SeriesStateService(repo as never)
+    const svc = new SeriesStateService(repo as never, makeAudit() as never)
     await svc.tryAdvanceToReadyToPitch('s1', 'editor1')
     expect(repo.updateStatusWithHistory).toHaveBeenCalledWith('s1', {
       fromStatus: SeriesStatus.IN_REVIEW,
@@ -67,7 +81,7 @@ describe('SeriesStateService.tryAdvanceToReadyToPitch', () => {
       findById: jest.fn().mockResolvedValue(inReviewBothApproved),
       findNameById: jest.fn().mockResolvedValue({ id: 'n1', status: NameStatus.IN_REVIEW })
     })
-    const svc = new SeriesStateService(repo as never)
+    const svc = new SeriesStateService(repo as never, makeAudit() as never)
     await svc.tryAdvanceToReadyToPitch('s1', 'editor1')
     expect(repo.updateStatusWithHistory).not.toHaveBeenCalled()
   })
@@ -80,7 +94,7 @@ describe('SeriesStateService.tryAdvanceToReadyToPitch', () => {
         proposal: { status: ProposalStatus.PROPOSAL_REVIEW, nameId: 'n1' }
       })
     })
-    const svc = new SeriesStateService(repo as never)
+    const svc = new SeriesStateService(repo as never, makeAudit() as never)
     await svc.tryAdvanceToReadyToPitch('s1', 'editor1')
     expect(repo.updateStatusWithHistory).not.toHaveBeenCalled()
   })

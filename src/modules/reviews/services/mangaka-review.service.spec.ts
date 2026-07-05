@@ -37,13 +37,15 @@ function make() {
     applyReputation: jest.fn().mockResolvedValue(undefined)
   }
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+  const appConfigService = { get: jest.fn().mockResolvedValue({ reputationRecommendThreshold: 4 }) }
   const service = new MangakaReviewService(
     reviewsRepository as never,
     new ReputationService(),
     mangakaProfileService as never,
-    notificationService as never
+    notificationService as never,
+    appConfigService as never
   )
-  return { service, reviewsRepository, mangakaProfileService, notificationService }
+  return { service, reviewsRepository, mangakaProfileService, notificationService, appConfigService }
 }
 
 describe('MangakaReviewService.createOrUpdate', () => {

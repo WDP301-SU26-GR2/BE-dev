@@ -1,4 +1,4 @@
-import { SeriesStatus } from '@prisma/client'
+import { AuditEntityType, SeriesStatus } from '@prisma/client'
 import {
   NotAssignedEditorException,
   ReviewAlreadyStartedException,
@@ -36,13 +36,14 @@ function make() {
     releaseSeries: jest.fn(),
     findById: jest.fn()
   }
-  const service = new SeriesClaimService(seriesRepository as never)
-  return { service, seriesRepository }
+  const audit = { record: jest.fn().mockResolvedValue(undefined) }
+  const service = new SeriesClaimService(seriesRepository as never, audit as never)
+  return { service, seriesRepository, audit }
 }
 
 describe('SeriesClaimService.claim', () => {
   it('returns the claimed series when the atomic update wins', async () => {
-    const { service, seriesRepository } = make()
+    const { service, seriesRepository, audit } = make()
     seriesRepository.claimSeries.mockResolvedValue(1)
     seriesRepository.findById.mockResolvedValue(seriesRow({ editorId: 'e1' }))
 
@@ -51,6 +52,12 @@ describe('SeriesClaimService.claim', () => {
     expect(seriesRepository.claimSeries).toHaveBeenCalledWith(SID, 'e1')
     expect(res.editorId).toBe('e1')
     expect(res.reviewStartedAt).toBeNull()
+    expect(audit.record).toHaveBeenCalledWith({
+      actorId: 'e1',
+      entityType: AuditEntityType.SERIES,
+      entityId: SID,
+      action: 'CLAIM'
+    })
   })
 
   it('throws SeriesNotFound when the row does not exist', async () => {
@@ -79,7 +86,7 @@ describe('SeriesClaimService.claim', () => {
 
 describe('SeriesClaimService.release', () => {
   it('returns the released series when the atomic update wins', async () => {
-    const { service, seriesRepository } = make()
+    const { service, seriesRepository, audit } = make()
     seriesRepository.releaseSeries.mockResolvedValue(1)
     seriesRepository.findById.mockResolvedValue(seriesRow({ editorId: null }))
 
@@ -87,6 +94,12 @@ describe('SeriesClaimService.release', () => {
 
     expect(seriesRepository.releaseSeries).toHaveBeenCalledWith(SID, 'e1')
     expect(res.editorId).toBeNull()
+    expect(audit.record).toHaveBeenCalledWith({
+      actorId: 'e1',
+      entityType: AuditEntityType.SERIES,
+      entityId: SID,
+      action: 'RELEASE'
+    })
   })
 
   it('throws SeriesNotFound when the row does not exist', async () => {

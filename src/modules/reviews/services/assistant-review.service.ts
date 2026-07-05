@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { NotificationType } from '@prisma/client'
+import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { StudioAssignmentService } from 'src/modules/studio/services/studio-assignment.service'
 import { AssistantProfileService } from 'src/modules/users/services/assistant-profile.service'
@@ -16,7 +17,8 @@ export class AssistantReviewService {
     private readonly reputationService: ReputationService,
     private readonly assistantProfileService: AssistantProfileService,
     private readonly notificationService: NotificationService,
-    private readonly studioAssignmentService: StudioAssignmentService
+    private readonly studioAssignmentService: StudioAssignmentService,
+    private readonly appConfigService: AppConfigService
   ) {}
 
   async createOrUpdate(reviewerId: string, body: CreateAssistantReviewBodyType): Promise<ReviewResType> {
@@ -40,7 +42,8 @@ export class AssistantReviewService {
     })
 
     const { sum, count } = await this.reviewsRepository.aggregateAssistantReviews(body.assistantId)
-    const reputation = this.reputationService.compute(sum, count)
+    const config = await this.appConfigService.get()
+    const reputation = this.reputationService.compute(sum, count, config.reputationRecommendThreshold)
     await this.assistantProfileService.applyReputation(body.assistantId, {
       ratingAvg: reputation.ratingAvg,
       ratingCount: count,

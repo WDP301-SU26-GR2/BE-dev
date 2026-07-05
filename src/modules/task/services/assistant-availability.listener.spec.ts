@@ -14,8 +14,8 @@ describe('AssistantAvailabilityListener', () => {
       'IN_PROGRESS',
       'REVISION_REQUESTED'
     ])
-    expect(taskState.transition).toHaveBeenCalledWith('t1', 'ON_HOLD')
-    expect(taskState.transition).toHaveBeenCalledWith('t2', 'ON_HOLD')
+    expect(taskState.transition).toHaveBeenCalledWith('t1', 'ON_HOLD', undefined, null)
+    expect(taskState.transition).toHaveBeenCalledWith('t2', 'ON_HOLD', undefined, null)
   })
 
   it('ignores non-leave status', async () => {

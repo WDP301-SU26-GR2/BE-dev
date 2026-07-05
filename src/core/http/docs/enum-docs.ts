@@ -7,6 +7,8 @@ const valuesOf = <T extends EnumLike>(enumObject: T) => Object.values(enumObject
 
 export const ENUM_DOCS = {
   RoleCode: 'Allowed role codes: MANGAKA, ASSISTANT, EDITOR, BOARD_MEMBER, SUPER_ADMIN',
+  AuditEntityType:
+    'Audited entity type: SERIES, MANUSCRIPT, PAGE, CHAPTER, TASK, DEADLINE_REQUEST, USER, REGION, APP_CONFIG, CONTRACT, BOARD_DECISION, REPRINT_REQUEST, TRANSFER_REQUEST',
   UserStatus: 'User lifecycle status: INACTIVE, ACTIVE, BANNED, BLOCKED',
   RegistrationType: 'How the account was created: SELF_REGISTERED or ADMIN_CREATED',
   OtpPurpose: 'OTP purpose: REGISTER, FORGOT_PASSWORD, SIGNING_CONTRACT',
@@ -24,7 +26,7 @@ export const ENUM_DOCS = {
   ChapterStatus: 'Chapter production status',
   ManuscriptStatus: 'Manuscript production status',
   PageStatus: 'Page production status',
-  AnnotationTargetType: 'Annotation target: PAGE, REGION, TASK, MANUSCRIPT',
+  AnnotationTargetType: 'Annotation target: PAGE, REGION, TASK, MANUSCRIPT, NAME',
   AnnotationType: 'Annotation type: TEXT, HIGHLIGHT, DRAWING',
   ReviewStage: 'Review stage: ASSISTANT, MANGAKA, EDITOR',
   AssetType: 'Uploaded asset type',
@@ -32,6 +34,7 @@ export const ENUM_DOCS = {
   AiJobType: 'AI job type: SEGMENT; COLOR/NUMBER are reserved for Spec 3',
   AiJobStatus: 'AI job lifecycle: QUEUED -> RUNNING -> SUCCEEDED | FAILED',
   AiSegmentMode: 'Segmentation mode: MODEL (YOLO deep learning) or HEURISTIC (OpenCV baseline)',
+  WarningLevel: 'Deadline warning: NONE an toan, YELLOW nguy co, RED kho kip, CRITICAL qua han',
   DeadlineRequestStatus:
     'Deadline negotiation status: PROPOSED, COUNTER_PROPOSED, AGREED_BY_PARTIES, APPROVED, REJECTED, ESCALATED, BOARD_REVIEW',
   TaskStatus:

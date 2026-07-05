@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { NotificationType } from '@prisma/client'
+import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { MangakaProfileService } from 'src/modules/users/services/mangaka-profile.service'
 import { CannotReviewSelfException } from '../errors/reviews.errors'
@@ -14,7 +15,8 @@ export class MangakaReviewService {
     private readonly reviewsRepository: ReviewsRepository,
     private readonly reputationService: ReputationService,
     private readonly mangakaProfileService: MangakaProfileService,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly appConfigService: AppConfigService
   ) {}
 
   async createOrUpdate(reviewerId: string, body: CreateMangakaReviewBodyType): Promise<ReviewResType> {
@@ -30,7 +32,8 @@ export class MangakaReviewService {
     })
 
     const { sum, count } = await this.reviewsRepository.aggregateMangakaReviews(body.mangakaId)
-    const reputation = this.reputationService.compute(sum, count)
+    const config = await this.appConfigService.get()
+    const reputation = this.reputationService.compute(sum, count, config.reputationRecommendThreshold)
     await this.mangakaProfileService.applyReputation(body.mangakaId, {
       ratingAvg: reputation.ratingAvg,
       ratingCount: count,

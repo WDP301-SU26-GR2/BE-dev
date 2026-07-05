@@ -24,7 +24,7 @@ describe('TaskCascadeService', () => {
     repo.findTaskStatusesByPage.mockResolvedValue(['SUBMITTED', 'APPROVED'])
     repo.findTaskStatusesByChapter.mockResolvedValue(['SUBMITTED', 'NOTREACHED' as never]) // chapter not all submitted
     await service.fireOnSubmitted(TASK as never, 'm')
-    expect(pageState.transition).toHaveBeenCalledWith('p', 'COMPOSITE_READY')
+    expect(pageState.transition).toHaveBeenCalledWith('p', 'COMPOSITE_READY', 'm')
     expect(manuscriptState.transition).not.toHaveBeenCalled()
   })
 
@@ -40,6 +40,51 @@ describe('TaskCascadeService', () => {
     repo.findManuscriptStatusByChapter.mockResolvedValue({ status: 'IN_PRODUCTION' })
     await service.fireOnSubmitted(TASK as never, 'm')
     expect(manuscriptState.transition).toHaveBeenCalledWith('c', 'COMPOSITE_REVIEW', { changedBy: 'm' })
+  })
+
+  // PA-04: chapter đang hold → cascade skip toàn bộ (không transition page/manuscript)
+  it('skips entirely when chapter is on hold', async () => {
+    repo.findPageWithOwner.mockResolvedValue({
+      id: 'p',
+      chapterId: 'c',
+      status: 'IN_PROGRESS',
+      chapter: { seriesId: 's', hold: { reason: 'sick' }, series: { mangakaId: 'm' } }
+    })
+    await service.fireOnSubmitted(TASK as never, 'm')
+    expect(repo.findTaskStatusesByPage).not.toHaveBeenCalled()
+    expect(pageState.transition).not.toHaveBeenCalled()
+    expect(manuscriptState.transition).not.toHaveBeenCalled()
+  })
+
+  // PA-03/PA-12: CANCELLED bị lọc khỏi mẫu số — 1 task hủy KHÔNG chặn cascade vĩnh viễn
+  it('ignores CANCELLED tasks in the all-submitted denominator', async () => {
+    repo.findPageWithOwner.mockResolvedValue({
+      id: 'p',
+      chapterId: 'c',
+      status: 'IN_PROGRESS',
+      chapter: { seriesId: 's', series: { mangakaId: 'm' } }
+    })
+    repo.findTaskStatusesByPage.mockResolvedValue(['SUBMITTED', 'CANCELLED'])
+    repo.findTaskStatusesByChapter.mockResolvedValue(['SUBMITTED', 'CANCELLED'])
+    repo.findManuscriptStatusByChapter.mockResolvedValue({ status: 'IN_PRODUCTION' })
+    await service.fireOnSubmitted(TASK as never, 'm')
+    expect(pageState.transition).toHaveBeenCalledWith('p', 'COMPOSITE_READY', 'm')
+    expect(manuscriptState.transition).toHaveBeenCalledWith('c', 'COMPOSITE_REVIEW', { changedBy: 'm' })
+  })
+
+  // Mọi task của page đều CANCELLED → mẫu số rỗng → KHÔNG cascade (giữ semantics length > 0)
+  it('does not cascade when all tasks are CANCELLED', async () => {
+    repo.findPageWithOwner.mockResolvedValue({
+      id: 'p',
+      chapterId: 'c',
+      status: 'IN_PROGRESS',
+      chapter: { seriesId: 's', series: { mangakaId: 'm' } }
+    })
+    repo.findTaskStatusesByPage.mockResolvedValue(['CANCELLED', 'CANCELLED'])
+    repo.findTaskStatusesByChapter.mockResolvedValue(['CANCELLED'])
+    await service.fireOnSubmitted(TASK as never, 'm')
+    expect(pageState.transition).not.toHaveBeenCalled()
+    expect(manuscriptState.transition).not.toHaveBeenCalled()
   })
 
   it('swallows transition error (no throw)', async () => {

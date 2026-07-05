@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { StorageService as StorageInfra } from 'src/infrastructure/storage/storage.service'
+import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import {
   AssetNotFoundException,
   DownloadForbiddenException,
@@ -9,7 +10,7 @@ import {
   UnsupportedFileTypeException
 } from './errors/storage.errors'
 import { SignUploadBodyType } from './schemas/storage-schemas'
-import { ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES } from './storage.constant'
+import { ALLOWED_CONTENT_TYPES } from './storage.constant'
 import { StorageRepository } from './storage.repo'
 
 const PRIVILEGED_DOWNLOAD_ROLES: string[] = [RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN]
@@ -18,7 +19,8 @@ const PRIVILEGED_DOWNLOAD_ROLES: string[] = [RoleName.EDITOR, RoleName.BOARD_MEM
 export class StorageService {
   constructor(
     private readonly storageInfra: StorageInfra,
-    private readonly storageRepository: StorageRepository
+    private readonly storageRepository: StorageRepository,
+    private readonly appConfigService: AppConfigService
   ) {}
 
   async signUpload(userId: string, body: SignUploadBodyType) {
@@ -26,7 +28,8 @@ export class StorageService {
       throw UnsupportedFileTypeException
     }
 
-    if (body.contentLength <= 0 || body.contentLength > MAX_UPLOAD_BYTES) {
+    const config = await this.appConfigService.get()
+    if (body.contentLength <= 0 || body.contentLength > config.maxUploadBytes) {
       throw FileTooLargeException
     }
 

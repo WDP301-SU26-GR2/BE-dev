@@ -11,7 +11,11 @@ import {
   CreateAnnotationBodyDto,
   ListAnnotationQueryDto
 } from './dto/annotation.dto'
-import { AnnotationForbiddenException, AnnotationNotFoundException } from './errors/annotation.errors'
+import {
+  AnnotationForbiddenException,
+  AnnotationNotFoundException,
+  AnnotationTargetNotFoundException
+} from './errors/annotation.errors'
 
 @ApiTags('annotations')
 @ApiBearerAuth()
@@ -21,9 +25,11 @@ export class AnnotationController {
 
   @Post()
   @ApiOperation({
-    summary: 'Tạo annotation/markup (TEXT/HIGHLIGHT/DRAWING + coordinates) trên target (Page/Region/Task/Manuscript)'
+    summary:
+      'Tạo annotation/markup (TEXT/HIGHLIGHT/DRAWING + coordinates) trên target (Page/Region/Task/Manuscript/Name)'
   })
   @ApiResponse({ status: 422, description: 'Validation fail (targetType/targetId/annotationType/...)' })
+  @ApiErrors(AnnotationTargetNotFoundException)
   @ZodResponse({ status: 201, type: AnnotationResDto })
   create(@Body() body: CreateAnnotationBodyDto, @ActiveUser() user: JwtAccessTokenPayload) {
     return this.annotationService.create(user.userId, user.roleName, body)
