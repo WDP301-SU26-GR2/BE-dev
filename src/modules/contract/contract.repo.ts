@@ -3,6 +3,7 @@ import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { CreateContractBodyType } from './schemas/contract-schema'
 import type { Contract, ContractVersion } from '@prisma/client'
 import { ContractStatus, Prisma } from '@prisma/client'
+import { RoleName } from 'src/core/security/constants/role.constant'
 
 @Injectable()
 export class ContractRepo {
@@ -24,6 +25,33 @@ export class ContractRepo {
     return this.prisma.contract.findUnique({
       where: { id },
       include: { versions: true }
+    })
+  }
+
+  findManyByViewer(userId: string, roleName: string): Promise<Contract[]> {
+    const where =
+      roleName === RoleName.EDITOR
+        ? { editorId: userId }
+        : roleName === RoleName.MANGAKA
+          ? { mangakaId: userId }
+          : {}
+
+    return this.prisma.contract.findMany({
+      where,
+      orderBy: { createdAt: 'desc' }
+    })
+  }
+
+  findVersionsByContractId(contractId: string): Promise<ContractVersion[]> {
+    return this.prisma.contractVersion.findMany({
+      where: { contractId },
+      orderBy: { versionNumber: 'asc' }
+    })
+  }
+
+  findVersionById(contractId: string, versionId: string): Promise<ContractVersion | null> {
+    return this.prisma.contractVersion.findFirst({
+      where: { id: versionId, contractId }
     })
   }
 
