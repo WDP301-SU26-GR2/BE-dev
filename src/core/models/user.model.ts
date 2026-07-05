@@ -6,7 +6,10 @@ import { zEnum } from 'src/core/http/docs/enum-docs'
 export const UserStatus = $Enums.UserStatus
 export type UserStatusType = $Enums.UserStatus
 
-export const PhoneNumberE164Schema = z.string().regex(/^\+[1-9]\d{1,14}$/)
+export const PhoneNumberE164Schema = z
+  .string()
+  .regex(/^\+[1-9]\d{1,14}$/, 'Phone number must be E.164 format (e.g. +84912345678)')
+  .describe('E.164 format, e.g. +84912345678')
 
 export const UserSchema = z.object({
   id: z.string(),

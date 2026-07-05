@@ -10,7 +10,7 @@ const CoordinatesSchema = z
     width: z.number().positive(),
     height: z.number().positive()
   })
-  .describe('Toạ độ vùng trên trang (pixel)')
+  .describe('Toạ độ vùng trên trang (pixel, top-left origin; x,y ≥ 0; width,height > 0)')
 
 // ---- Region (A-TSK-01/02) ----
 export const CreateRegionBodySchema = extendApi(
@@ -150,7 +150,7 @@ export const ListTasksQuerySchema = extendApi(
   z
     .object({
       pageId: z.string().optional(),
-      regionId: z.string().optional(),
+      regionId: z.string().optional().describe('Lọc task theo vùng (Region id)'),
       assistantId: z.string().optional(),
       status: zEnum($Enums.TaskStatus, 'TaskStatus').optional(),
       limit: z.coerce.number().int().positive().max(100).default(20),
