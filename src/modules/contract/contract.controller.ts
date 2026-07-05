@@ -1,45 +1,123 @@
 import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common'
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
+import { ZodResponse } from 'nestjs-zod'
 import { ContractService } from './services/contract.service'
-import { CreateContractBodyDto, EditorUpdateContractBodyDto, SignContractWithOtpBodyDto } from './dto/contract.dto'
+import { PaymentService } from '../payment/services/payment.service'
+import {
+  CreateContractBodyDto,
+  EditorUpdateContractBodyDto,
+  SignContractWithOtpBodyDto,
+  ContractResDto,
+  ContractVersionResDto,
+  ContractHealthResDto,
+  ContractSignResDto,
+  ContractStatusProgressResDto
+} from './dto/contract.dto'
+import {
+  CreatePaymentConditionBodyDto,
+  UpdatePaymentConditionBodyDto,
+  PaymentConditionResDto,
+  PaymentConditionListResDto
+} from '../payment/dto/payment-condition.dto'
+import {
+  PaymentConditionNotFoundException,
+  PaymentConditionNotEditableException,
+  ContractNotFoundForPaymentException,
+  UnauthorizedPaymentConditionEditorException
+} from '../payment/errors/payment.error'
+import { ContractErrors } from './errors/contract.errors'
+import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
 import { ContractStatus } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
-import { Roles } from 'src/core/security/decorators/roles.decorator' // Đường dẫn import tùy thuộc dự án của bạn
-import { ActiveUser } from 'src/core/security/decorators/active-user.decorator' // Đường dẫn import tùy thuộc dự án của bạn
+import { Roles } from 'src/core/security/decorators/roles.decorator'
+import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 
 @ApiTags('contracts')
 @ApiBearerAuth()
 @Controller('contracts')
 export class ContractController {
-  constructor(private readonly contractService: ContractService) {}
+  constructor(
+    private readonly contractService: ContractService,
+    private readonly paymentService: PaymentService
+  ) {}
 
+  @ApiOperation({ summary: 'Health check module contract' })
   @Get('health')
+  @ZodResponse({ status: 200, type: ContractHealthResDto })
   health() {
     return this.contractService.healthCheck()
   }
 
-  // 1. Tạo mới tài nguyên hợp đồng nháp
+  @ApiOperation({ summary: 'Danh sách hợp đồng theo scope role hiện tại' })
+  @Get()
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 200, type: [ContractResDto] })
+  getContracts(@ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
+    return this.contractService.getContracts(userId, roleName)
+  }
+
+  @ApiOperation({ summary: 'Chi tiết hợp đồng' })
+  @Get(':id')
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 200, type: ContractResDto })
+  getContractById(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.contractService.getContractById(id, userId, roleName)
+  }
+
+  @ApiOperation({ summary: 'Danh sách phiên bản hợp đồng' })
+  @Get(':id/versions')
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 200, type: [ContractVersionResDto] })
+  getContractVersions(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.contractService.getContractVersions(id, userId, roleName)
+  }
+
+  @ApiOperation({ summary: 'Chi tiết một phiên bản hợp đồng' })
+  @Get(':id/versions/:versionId')
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 200, type: ContractVersionResDto })
+  getContractVersionById(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.contractService.getContractVersionById(id, versionId, userId, roleName)
+  }
+
+  @ApiOperation({ summary: 'Editor tạo hợp đồng nháp cho series → DRAFT' })
   @Post()
   @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 201, type: ContractResDto })
   createDraft(@ActiveUser('userId') userId: string, @Body() dto: CreateContractBodyDto) {
     return this.contractService.createDraft(userId, dto)
   }
 
-  // 2. Cập nhật chi tiết các điều khoản thương lượng hợp đồng
+  @ApiOperation({ summary: 'Editor cập nhật điều khoản hợp đồng nháp' })
   @Patch(':id')
   @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 200, type: ContractResDto })
   updateContract(
     @Param('id') id: string,
     @ActiveUser('userId') userId: string,
-    @Body() dto: EditorUpdateContractBodyDto // Đưa note thẳng vào chung DTO phẳng giúp code gọn hơn
+    @Body() dto: EditorUpdateContractBodyDto
   ) {
     const { note, ...updateData } = dto
     return this.contractService.editorUpdateContract(id, userId, updateData, note)
   }
 
-  // 3. Cập nhật trạng thái chu trình luồng đi hợp đồng
+  @ApiOperation({ summary: 'Editor/Mangaka cập nhật trạng thái hợp đồng theo workflow' })
   @Patch(':id/status')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA)
+  @ZodResponse({ status: 200, type: ContractResDto })
   updateStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body('status') status: ContractStatus) {
     if (status === ContractStatus.MANGAKA_REVIEW) {
       return this.contractService.sendToMangaka(id, userId)
@@ -47,11 +125,13 @@ export class ContractController {
     if (status === ContractStatus.MANGAKA_APPROVED) {
       return this.contractService.mangakaApprove(id)
     }
+    throw ContractErrors.InvalidStatus()
   }
 
-  // 4. Tạo tài nguyên "Chữ ký số xác thực của Mangaka"
+  @ApiOperation({ summary: 'Mangaka ký hợp đồng bằng OTP' })
   @Post(':id/signatures/mangaka')
   @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 201, type: ContractResDto })
   signMangaka(
     @Param('id') id: string,
     @ActiveUser('userId') userId: string,
@@ -61,9 +141,10 @@ export class ContractController {
     return this.contractService.signByMangakaWithOtp(id, userId, userEmail, body.otpCode)
   }
 
-  // 5. Tạo tài nguyên "Chữ ký số đồng thuận của Ban Giám Đốc"
+  @ApiOperation({ summary: 'Board ký hợp đồng bằng OTP' })
   @Post(':id/signatures/board')
   @Roles(RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 201, type: ContractSignResDto })
   signBoard(
     @Param('id') id: string,
     @ActiveUser('userId') userId: string,
@@ -73,10 +154,76 @@ export class ContractController {
     return this.contractService.signByBoardWithOtp(id, userId, userEmail, body.otpCode)
   }
 
-  // 6. Kiểm tra trạng thái hợp đồng và tiến trình ký kết
+  @ApiOperation({ summary: 'Xem trạng thái hợp đồng và tiến độ ký' })
   @Get(':id/status')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 200, type: ContractStatusProgressResDto })
   checkStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') role: string) {
     return this.contractService.checkContractStatus(id, userId, role)
+  }
+
+  @ApiOperation({ summary: 'Editor tạo điều kiện thanh toán cho hợp đồng' })
+  @Post(':contractId/payment-conditions')
+  @ApiResponse({ status: 422, description: 'Validation fail' })
+  @ApiErrors(new ContractNotFoundForPaymentException(), new UnauthorizedPaymentConditionEditorException())
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 201, type: PaymentConditionResDto })
+  createPaymentCondition(
+    @Param('contractId') contractId: string,
+    @ActiveUser('userId') editorId: string,
+    @Body() dto: CreatePaymentConditionBodyDto
+  ) {
+    return this.paymentService.createPaymentCondition(contractId, editorId, dto)
+  }
+
+  @ApiOperation({ summary: 'Danh sách điều kiện thanh toán của hợp đồng' })
+  @Get(':contractId/payment-conditions')
+  @ApiErrors(new ContractNotFoundForPaymentException(), new UnauthorizedPaymentConditionEditorException())
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 200, type: PaymentConditionListResDto })
+  getPaymentConditions(
+    @Param('contractId') contractId: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.paymentService.getPaymentConditionsByContract(contractId, userId, roleName)
+  }
+
+  @ApiOperation({ summary: 'Editor cập nhật điều kiện thanh toán của hợp đồng' })
+  @Patch(':contractId/payment-conditions/:conditionId')
+  @ApiResponse({ status: 422, description: 'Validation fail' })
+  @ApiErrors(
+    new ContractNotFoundForPaymentException(),
+    new UnauthorizedPaymentConditionEditorException(),
+    new PaymentConditionNotFoundException(),
+    new PaymentConditionNotEditableException()
+  )
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 200, type: PaymentConditionResDto })
+  updatePaymentCondition(
+    @Param('contractId') contractId: string,
+    @Param('conditionId') conditionId: string,
+    @ActiveUser('userId') editorId: string,
+    @Body() dto: UpdatePaymentConditionBodyDto
+  ) {
+    return this.paymentService.updatePaymentCondition(contractId, conditionId, editorId, dto)
+  }
+
+  @ApiOperation({ summary: 'Editor vô hiệu hóa điều kiện thanh toán' })
+  @Patch(':contractId/payment-conditions/:conditionId/disable')
+  @ApiErrors(
+    new ContractNotFoundForPaymentException(),
+    new UnauthorizedPaymentConditionEditorException(),
+    new PaymentConditionNotFoundException(),
+    new PaymentConditionNotEditableException()
+  )
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 200, type: PaymentConditionResDto })
+  disablePaymentCondition(
+    @Param('contractId') contractId: string,
+    @Param('conditionId') conditionId: string,
+    @ActiveUser('userId') editorId: string
+  ) {
+    return this.paymentService.disablePaymentCondition(contractId, conditionId, editorId)
   }
 }
