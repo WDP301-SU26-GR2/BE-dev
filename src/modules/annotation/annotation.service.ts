@@ -1,15 +1,25 @@
 import { Injectable } from '@nestjs/common'
 import { AnnotationTargetType } from '@prisma/client'
 import { AnnotationRepository } from './annotation.repo'
-import { AnnotationForbiddenException, AnnotationNotFoundException } from './errors/annotation.errors'
+import {
+  AnnotationForbiddenException,
+  AnnotationNotFoundException,
+  AnnotationTargetNotFoundException
+} from './errors/annotation.errors'
 import { toAnnotationRes } from './annotation.mapper'
 import { CreateAnnotationBodyType } from './schemas/annotation-schemas'
+
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class AnnotationService {
   constructor(private readonly annotationRepository: AnnotationRepository) {}
 
   async create(authorId: string, authorRole: string, body: CreateAnnotationBodyType) {
+    if (!OBJECT_ID_RE.test(body.targetId)) throw AnnotationTargetNotFoundException
+    if (!(await this.annotationRepository.targetExists(body.targetType, body.targetId))) {
+      throw AnnotationTargetNotFoundException
+    }
     const created = await this.annotationRepository.create({
       authorId,
       authorRole,
@@ -25,6 +35,7 @@ export class AnnotationService {
   }
 
   async list(targetType: AnnotationTargetType, targetId: string) {
+    if (!OBJECT_ID_RE.test(targetId)) return { items: [] }
     const items = await this.annotationRepository.findByTarget(targetType, targetId)
     return { items: items.map(toAnnotationRes) }
   }

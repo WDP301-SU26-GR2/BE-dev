@@ -20,7 +20,7 @@ export class AssistantAvailabilityListener {
     const tasks = await this.taskRepository.findTasksByAssistantInStatuses(payload.assistantId, ON_HOLD_SOURCE_STATUSES)
     for (const task of tasks) {
       try {
-        await this.taskStateService.transition(task.id, 'ON_HOLD')
+        await this.taskStateService.transition(task.id, 'ON_HOLD', undefined, null)
       } catch (error) {
         this.logger.warn(`Failed to hold task ${task.id} on assistant leave: ${String(error)}`)
       }

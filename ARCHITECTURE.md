@@ -49,6 +49,8 @@ BE-dev/
 │   │   ├── annotation/             # markup review (shared Mangaka↔Assistant, Editor↔Mangaka)
 │   │   ├── storage/                # signed URL (presign PUT/GET) wiring
 │   │   ├── ai/                     # Spec 2 AI segmentation jobs, queue, proposal-first apply
+│   │   ├── audit/                  # PA-06 AuditLog (@Global) dual-write best-effort + GET /audit
+│   │   ├── app-config/             # PA-10 registry tham số nghiệp vụ (@Global) + GET/PATCH /admin/app-config
 │   │   ├── contract/               # ⚠️ BE-B (B1 Contract/Payment) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
 │   │   └── board/                  # ⚠️ BE-B (B5 Board/Decision engine) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
 │   │       # mỗi module: controller(s) + service (orchestrator) + services/ (use-case + state)
@@ -445,8 +447,19 @@ interface JwtRefreshTokenPayload {
 (recipient + type + ref). Inject thẳng ở bất kỳ module nào.
 
 ### Storage — `StorageService` (`@Global`, R2)
-Presigned URL: BE **không ôm bytes**, chỉ cấp signed PUT/GET có hạn + validate type/size (≤15MB) + RBAC; DB lưu **object key**.
-S3Client tắt CRC32 mặc định + pin content-type vào chữ ký (xem gotcha trong `AGENTS.md` §10).
+Presigned URL: BE **không ôm bytes**, chỉ cấp signed PUT/GET có hạn + validate type/size (ngưỡng = `AppConfig.maxUploadBytes`,
+default 15MB) + RBAC; DB lưu **object key**. S3Client tắt CRC32 mặc định + pin content-type vào chữ ký (xem gotcha `AGENTS.md` §10).
+
+### Audit — `AuditService` (`@Global`, PA-06)
+
+`record({ actorId, entityType, entityId, action, fromState?, toState?, reason? })` — **dual-write** (GIỮ `statusHistory[]`
+embedded + THÊM collection `AuditLog` tập trung + `GET /audit` cho SUPER_ADMIN/BOARD_MEMBER). **Best-effort** (nuốt lỗi,
+KHÔNG throw — mirror `notifySafe`); gọi SAU commit, NGOÀI transaction. Cắm ở 10 điểm state-transition/moderation/config BE-A.
+
+### AppConfig — `AppConfigService` (`@Global`, PA-10)
+
+`get()` trả registry 7 tham số nghiệp vụ (cache in-memory TTL 30s + lazy-seed + invalidate-on-PATCH). `GET/PATCH /admin/app-config`
+(SUPER_ADMIN). Wire BE-A: `nameMaxReviewRounds`/`maxUploadBytes`/`reputationRecommendThreshold`; env/constant cũ = **seed default**.
 
 ### State Machine (single-writer)
 Mỗi state machine chỉ ghi bởi 1 `<entity>-state.service.ts`: validate transition theo `*_TRANSITIONS` (sai → 409) +

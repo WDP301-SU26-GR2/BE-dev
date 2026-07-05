@@ -5,18 +5,27 @@ export const TaskMessages = {
     taskAssigned: 'You have been assigned a new task',
     taskSubmittedForReview: 'A task was submitted for your review',
     taskRevisionRequested: 'Revision requested on your task',
-    taskApproved: 'Your task was approved'
+    taskApproved: 'Your task was approved',
+    taskCancelled: 'Your task was cancelled',
+    taskReassigned: 'Your task was reassigned to another assistant'
+  },
+  reason: {
+    regionDeleted: 'Region deleted',
+    cancelledByMangaka: 'Cancelled by mangaka',
+    reassigned: 'Reassigned to another assistant'
   },
   error: {
     pageNotFound: 'Error.PageNotFound',
     regionNotFound: 'Error.RegionNotFound',
-    regionHasTasks: 'Error.RegionHasTasks',
     taskNotFound: 'Error.TaskNotFound',
     notSeriesOwner: 'Error.NotSeriesOwner',
     notTaskAssignee: 'Error.NotTaskAssignee',
     assistantNotHired: 'Error.AssistantNotHired',
     assetNotFound: 'Error.AssetNotFound',
     taskNotReassignable: 'Error.TaskNotReassignable',
+    taskNotCancellable: 'Error.TaskNotCancellable',
+    regionHasApprovedTasks: 'Error.RegionHasApprovedTasks',
+    chapterOnHold: 'Error.ChapterOnHold',
     invalidTaskTransition: 'Error.InvalidTaskTransition'
   }
 } as const

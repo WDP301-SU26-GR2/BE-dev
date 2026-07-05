@@ -2,14 +2,15 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
-import { MessageResDto } from 'src/core/http/dto/response.dto'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import {
   BatchCreateTaskBodyDto,
+  CancelTaskBodyDto,
   CreateRegionBodyDto,
   CreateTaskBodyDto,
+  DeleteRegionResDto,
   ListTasksQueryDto,
   ReassignTaskBodyDto,
   RegionListResDto,
@@ -24,13 +25,15 @@ import {
 import {
   AssetNotFoundException,
   AssistantNotHiredException,
+  ChapterOnHoldTaskException,
   InvalidTaskTransitionException,
   NotSeriesOwnerException,
   NotTaskAssigneeException,
   PageNotFoundException,
-  RegionHasTasksException,
+  RegionHasApprovedTasksException,
   RegionNotFoundException,
   TaskNotFoundException,
+  TaskNotCancellableException,
   TaskNotReassignableException
 } from './errors/task.errors'
 import { TaskService } from './task.service'
@@ -45,7 +48,7 @@ export class TaskController {
   @Post('pages/:id/regions')
   @ApiOperation({ summary: 'Mangaka khoanh vùng manual trên trang → Region' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(PageNotFoundException, NotSeriesOwnerException)
+  @ApiErrors(PageNotFoundException, NotSeriesOwnerException, ChapterOnHoldTaskException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: RegionResDto })
   createRegion(
@@ -71,7 +74,7 @@ export class TaskController {
   @Patch('regions/:id')
   @ApiOperation({ summary: 'Sửa vùng (partial)' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(RegionNotFoundException, NotSeriesOwnerException)
+  @ApiErrors(RegionNotFoundException, NotSeriesOwnerException, ChapterOnHoldTaskException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: RegionResDto })
   updateRegion(
@@ -83,11 +86,21 @@ export class TaskController {
   }
 
   @Delete('regions/:id')
-  @ApiOperation({ summary: 'Xoá vùng (chặn nếu đã có Task)' })
-  @ApiErrors(RegionNotFoundException, NotSeriesOwnerException, RegionHasTasksException)
+  @ApiOperation({
+    summary: 'Xoá vùng → cascade CANCELLED task chưa kết thúc + notify Assistant (chặn nếu có APPROVED)'
+  })
+  @ApiErrors(
+    RegionNotFoundException,
+    NotSeriesOwnerException,
+    RegionHasApprovedTasksException,
+    ChapterOnHoldTaskException
+  )
   @Roles(RoleName.MANGAKA)
-  @ZodResponse({ status: 200, type: MessageResDto })
-  removeRegion(@Param('id') id: string, @ActiveUser('userId') userId: string): Promise<MessageResDto> {
+  @ZodResponse({ status: 200, type: DeleteRegionResDto })
+  removeRegion(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string
+  ): Promise<InstanceType<typeof DeleteRegionResDto>> {
     return this.taskService.removeRegion(userId, id)
   }
 
@@ -95,7 +108,13 @@ export class TaskController {
   @Post('tasks')
   @ApiOperation({ summary: 'Giao task cho Assistant (enforce BR-ASSIST-01)' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(PageNotFoundException, NotSeriesOwnerException, AssistantNotHiredException, AssetNotFoundException)
+  @ApiErrors(
+    PageNotFoundException,
+    NotSeriesOwnerException,
+    AssistantNotHiredException,
+    AssetNotFoundException,
+    ChapterOnHoldTaskException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TaskResDto })
   createTask(
@@ -108,7 +127,13 @@ export class TaskController {
   @Post('tasks/batch')
   @ApiOperation({ summary: 'Giao nhiều task (all-or-nothing)' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(PageNotFoundException, NotSeriesOwnerException, AssistantNotHiredException, AssetNotFoundException)
+  @ApiErrors(
+    PageNotFoundException,
+    NotSeriesOwnerException,
+    AssistantNotHiredException,
+    AssetNotFoundException,
+    ChapterOnHoldTaskException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TaskListResDto })
   createTaskBatch(
@@ -121,7 +146,7 @@ export class TaskController {
   @Patch('tasks/:id')
   @ApiOperation({ summary: 'Sửa task (assetIds/deadline/priority)' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(TaskNotFoundException, NotSeriesOwnerException, AssetNotFoundException)
+  @ApiErrors(TaskNotFoundException, NotSeriesOwnerException, AssetNotFoundException, ChapterOnHoldTaskException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: TaskResDto })
   updateTask(
@@ -146,7 +171,7 @@ export class TaskController {
   }
 
   @Get('tasks')
-  @ApiOperation({ summary: 'Danh sách task (Assistant=được giao; Mangaka=theo pageId sở hữu)' })
+  @ApiOperation({ summary: 'Danh sách task theo status/regionId (Assistant=được giao; Mangaka=theo pageId sở hữu)' })
   @Roles(RoleName.MANGAKA, RoleName.ASSISTANT)
   @ZodResponse({ status: 200, type: TaskListResDto })
   listTasks(
@@ -204,11 +229,33 @@ export class TaskController {
     return this.taskService.requestRevision(userId, id, body)
   }
 
+  @Post('tasks/:id/cancel')
+  @ApiOperation({ summary: 'Mangaka cancels a non-terminal task -> CANCELLED and notifies assigned Assistant' })
+  @ApiResponse({ status: 422, description: 'Validation fail' })
+  @ApiErrors(TaskNotFoundException, NotSeriesOwnerException, TaskNotCancellableException)
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 201, type: TaskResDto })
+  cancelTask(
+    @Param('id') id: string,
+    @Body() body: CancelTaskBodyDto,
+    @ActiveUser('userId') userId: string
+  ): Promise<InstanceType<typeof TaskResDto>> {
+    return this.taskService.cancelTask(userId, id, body)
+  }
+
   // ---- Reassign (A-TSK-05) ----
   @Post('tasks/:id/reassign')
-  @ApiOperation({ summary: 'Giao lại task ON_HOLD cho Assistant khác → ASSIGNED' })
+  @ApiOperation({
+    summary: 'Giao lại task (ASSIGNED/IN_PROGRESS/REVISION_REQUESTED/ON_HOLD) cho Assistant khác → ASSIGNED'
+  })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(TaskNotFoundException, NotSeriesOwnerException, TaskNotReassignableException, AssistantNotHiredException)
+  @ApiErrors(
+    TaskNotFoundException,
+    NotSeriesOwnerException,
+    TaskNotReassignableException,
+    AssistantNotHiredException,
+    ChapterOnHoldTaskException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TaskResDto })
   reassignTask(

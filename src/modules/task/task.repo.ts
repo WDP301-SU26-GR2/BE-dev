@@ -17,7 +17,7 @@ export class TaskRepository {
         chapterId: true,
         status: true,
         originalFile: true,
-        chapter: { select: { seriesId: true, series: { select: { mangakaId: true } } } }
+        chapter: { select: { seriesId: true, hold: true, series: { select: { mangakaId: true } } } }
       }
     })
   }
@@ -68,6 +68,23 @@ export class TaskRepository {
 
   async countTasksByRegion(regionId: string): Promise<number> {
     return await this.prismaService.task.count({ where: { regionId } })
+  }
+
+  async findTasksByRegion(regionId: string): Promise<Array<Pick<Task, 'id' | 'status' | 'assistantId'>>> {
+    return await this.prismaService.task.findMany({
+      where: { regionId },
+      select: { id: true, status: true, assistantId: true }
+    })
+  }
+
+  async cancelTasksAndDeleteRegion(regionId: string, taskIds: string[], statusReason: string): Promise<void> {
+    await this.prismaService.$transaction([
+      this.prismaService.task.updateMany({
+        where: { id: { in: taskIds } },
+        data: { status: TaskStatus.CANCELLED, statusReason }
+      }),
+      this.prismaService.region.delete({ where: { id: regionId } })
+    ])
   }
 
   async findAiRegionsByPage(pageId: string): Promise<Region[]> {
@@ -137,8 +154,11 @@ export class TaskRepository {
   }
 
   // single-writer status (gọi từ TaskStateService)
-  async updateTaskStatus(id: string, status: TaskStatus): Promise<Task> {
-    return await this.prismaService.task.update({ where: { id }, data: { status } })
+  async updateTaskStatus(id: string, status: TaskStatus, statusReason?: string): Promise<Task> {
+    return await this.prismaService.task.update({
+      where: { id },
+      data: { status, ...(statusReason !== undefined ? { statusReason } : {}) }
+    })
   }
 
   // partial-update fields (assetIds/deadline/priority); chỉ ghi khi != undefined

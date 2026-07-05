@@ -1,10 +1,11 @@
-import { DeadlineRequestStatus } from '@prisma/client'
+import { AuditEntityType, DeadlineRequestStatus } from '@prisma/client'
 import { InvalidDeadlineRequestTransitionException, DeadlineRequestNotFoundException } from '../errors/deadline.errors'
 import { DeadlineRequestStateService } from './deadline-request-state.service'
 
 describe('DeadlineRequestStateService', () => {
   const repo = { findById: jest.fn(), applyTransition: jest.fn() }
-  const service = new DeadlineRequestStateService(repo as never)
+  const audit = { record: jest.fn().mockResolvedValue(undefined) }
+  const service = new DeadlineRequestStateService(repo as never, audit as never)
 
   beforeEach(() => jest.clearAllMocks())
 
@@ -23,6 +24,15 @@ describe('DeadlineRequestStateService', () => {
       by: 'editor-1',
       reason: 'Need another date',
       extra: undefined
+    })
+    expect(audit.record).toHaveBeenCalledWith({
+      actorId: 'editor-1',
+      entityType: AuditEntityType.DEADLINE_REQUEST,
+      entityId: 'deadline-1',
+      action: 'TRANSITION',
+      fromState: DeadlineRequestStatus.PROPOSED,
+      toState: DeadlineRequestStatus.COUNTER_PROPOSED,
+      reason: 'Need another date'
     })
   })
 

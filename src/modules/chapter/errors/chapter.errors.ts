@@ -11,6 +11,11 @@ export const InvalidPageTransitionException = new ConflictException(E.invalidPag
 export const PagesNotAllCompletedException = new ConflictException(E.pagesNotAllCompleted)
 export const DuplicateChapterNumberException = new ConflictException(E.duplicateChapterNumber)
 export const PageNotFoundException = new NotFoundException(E.pageNotFound)
+export const ChapterAccessDeniedException = new ForbiddenException([{ message: E.chapterAccessDenied, path: 'id' }])
+export const ChapterNotHoldableException = new ConflictException([{ message: E.chapterNotHoldable, path: 'id' }])
+export const ChapterAlreadyOnHoldException = new ConflictException([{ message: E.chapterAlreadyOnHold, path: 'id' }])
+export const ChapterNotOnHoldException = new ConflictException([{ message: E.chapterNotOnHold, path: 'id' }])
+export const ChapterOnHoldException = new ConflictException([{ message: E.chapterOnHold, path: 'id' }])
 
 export const NameNotApprovedException = new UnprocessableEntityException([
   { message: E.nameNotApproved, path: 'nameId' }

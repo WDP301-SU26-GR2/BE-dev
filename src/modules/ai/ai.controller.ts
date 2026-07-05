@@ -6,6 +6,7 @@ import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { NotSeriesOwnerException, PageNotFoundException } from 'src/modules/task/errors/task.errors'
+import { ChapterOnHoldTaskException } from 'src/modules/task/errors/task.errors'
 import { AiService } from './ai.service'
 import {
   AiJobListResDto,
@@ -39,7 +40,8 @@ export class AiController {
     PageHasNoFileException,
     AiNotEnabledException,
     SegmentJobAlreadyRunningException,
-    AiEnqueueFailedException
+    AiEnqueueFailedException,
+    ChapterOnHoldTaskException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: SegmentAcceptedResDto })
@@ -77,7 +79,13 @@ export class AiController {
   @ApiOperation({
     summary: 'Apply one AI proposal into Region[] while preserving manual/confirmed/task-linked regions'
   })
-  @ApiErrors(AiJobNotFoundException, AiJobNotApplicableException, PageNotFoundException, NotSeriesOwnerException)
+  @ApiErrors(
+    AiJobNotFoundException,
+    AiJobNotApplicableException,
+    PageNotFoundException,
+    NotSeriesOwnerException,
+    ChapterOnHoldTaskException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ApplyAiJobResDto })
   applyJob(

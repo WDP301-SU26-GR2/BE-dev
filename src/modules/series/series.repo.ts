@@ -6,6 +6,7 @@ import { CreateProposalBodyType, UpdateProposalBodyType } from './schemas/series
 
 // Trạng thái series "đang chờ editor pick-up" (chưa gán editor) — hàng đợi review của Editor.
 const REVIEW_QUEUE_STATES: SeriesStatus[] = [SeriesStatus.IN_REVIEW]
+const BOARD_HIDDEN_STATES: SeriesStatus[] = [SeriesStatus.DRAFT, SeriesStatus.WITHDRAWN]
 
 export type SeriesListScope = { kind: 'mangaka'; userId: string } | { kind: 'editor'; userId: string } | { kind: 'all' }
 
@@ -174,6 +175,8 @@ export class SeriesRepository {
   // KHÔNG `editorId:null` (không match doc absent → trả rỗng). Xem AGENTS §10.
   private buildSeriesListWhere(filter: SeriesListFilter): Prisma.SeriesWhereInput {
     const scope = filter.scope
+    const statusWhere: Prisma.SeriesWhereInput | undefined = filter.status ? { status: filter.status } : undefined
+    const boardVisibilityWhere: Prisma.SeriesWhereInput = { status: { notIn: BOARD_HIDDEN_STATES } }
     const scopeWhere: Prisma.SeriesWhereInput =
       scope.kind === 'mangaka'
         ? { mangakaId: scope.userId }
@@ -182,7 +185,10 @@ export class SeriesRepository {
               OR: [{ editorId: scope.userId }, { editorId: { isSet: false }, status: { in: REVIEW_QUEUE_STATES } }]
             }
           : {}
-    return { ...(filter.status ? { status: filter.status } : {}), ...scopeWhere }
+    if (scope.kind === 'all') {
+      return statusWhere ? { AND: [statusWhere, boardVisibilityWhere], ...scopeWhere } : { ...boardVisibilityWhere }
+    }
+    return { ...(statusWhere ?? {}), ...scopeWhere }
   }
 
   async findSeriesForList(filter: SeriesListFilter, page: { limit: number; offset: number }) {

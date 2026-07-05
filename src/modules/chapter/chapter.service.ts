@@ -5,11 +5,14 @@ import {
   CreateChapterBodyType,
   CreatePageBodyType,
   ExtendDeadlineBodyType,
+  HoldChapterBodyType,
   SetScheduleBodyType,
   UpdatePageBodyType
 } from './schemas/chapter-schemas'
 import { ChapterCreationService } from './services/chapter-creation.service'
+import { ChapterHoldService } from './services/chapter-hold.service'
 import { ChapterPublishService } from './services/chapter-publish.service'
+import { ChapterProgressService } from './services/chapter-progress.service'
 import { ManuscriptReviewService } from './services/manuscript-review.service'
 import { PageService } from './services/page.service'
 import { ScheduleService } from './services/schedule.service'
@@ -20,9 +23,11 @@ export class ChapterService {
   constructor(
     private readonly creationService: ChapterCreationService,
     private readonly scheduleService: ScheduleService,
+    private readonly holdService: ChapterHoldService,
     private readonly pageService: PageService,
     private readonly reviewService: ManuscriptReviewService,
     private readonly publishService: ChapterPublishService,
+    private readonly progressService: ChapterProgressService,
     private readonly chapterRepository: ChapterRepository
   ) {}
 
@@ -50,6 +55,22 @@ export class ChapterService {
   async extendDeadline(userId: string, chapterId: string, body: ExtendDeadlineBodyType) {
     await this.scheduleService.extendDeadline(userId, chapterId, body)
     return this.getOne(chapterId)
+  }
+
+  progress(user: { userId: string; roleName: string }, chapterId: string) {
+    return this.progressService.getProgress(user, chapterId)
+  }
+
+  studioOverview(userId: string) {
+    return this.progressService.overviewForMangaka(userId)
+  }
+
+  hold(userId: string, chapterId: string, body: HoldChapterBodyType) {
+    return this.holdService.hold(userId, chapterId, body)
+  }
+
+  resume(userId: string, chapterId: string) {
+    return this.holdService.resume(userId, chapterId)
   }
 
   async createPage(userId: string, chapterId: string, body: CreatePageBodyType) {
