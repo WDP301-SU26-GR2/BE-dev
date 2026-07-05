@@ -51,7 +51,7 @@ export const CreateContractBodySchema = extendApi(
         })
       }
     }),
-  { title: 'CreateContractBody', description: 'Cấu trúc dữ liệu đầu vào đầy đủ để khởi tạo hợp đồng nháp' }
+  { title: 'CreateContractBody', description: 'Editor tạo hợp đồng nháp cho series' }
 )
 
 // 2. Schema phục vụ API Editor cập nhật sửa đổi điều khoản thương lượng (PATCH /contracts/:id)
@@ -79,12 +79,10 @@ export const EditorUpdateContractBodySchema = extendApi(
     .superRefine(({ contractType, publisherOwnershipPct, mangakaOwnershipPct }, ctx) => {
       if (contractType === 'FULL_BUYOUT') return
 
-      // 🌟 FIX LOGIC TẠI ĐÂY: Kiểm tra xem có sự xuất hiện của việc thay đổi tỷ lệ hay không
       const hasPub = publisherOwnershipPct !== undefined
       const hasMan = mangakaOwnershipPct !== undefined
 
       if (hasPub && hasMan) {
-        // Nếu truyền cả 2, tiến hành check tổng 100% bình thường
         if (publisherOwnershipPct + mangakaOwnershipPct !== 100) {
           ctx.addIssue({
             code: 'custom',
@@ -93,7 +91,6 @@ export const EditorUpdateContractBodySchema = extendApi(
           })
         }
       } else if (hasPub || hasMan) {
-        // Nếu chỉ truyền 1 trong 2 trường, bắt lỗi yêu cầu truyền đủ cặp để đảm bảo tính toàn vẹn ở Gateway
         ctx.addIssue({
           code: 'custom',
           message:
@@ -102,7 +99,7 @@ export const EditorUpdateContractBodySchema = extendApi(
         })
       }
     }),
-  { title: 'EditorUpdateContractBody', description: 'Cấu trúc dữ liệu cho phép cập nhật linh hoạt các điều khoản' }
+  { title: 'EditorUpdateContractBody', description: 'Editor cập nhật điều khoản hợp đồng nháp' }
 )
 
 // 3. Schema phục vụ API xác thực chữ ký bảo mật số bằng mã OTP (POST /contracts/:id/sign-...)
@@ -112,7 +109,92 @@ export const SignContractWithOtpBodySchema = extendApi(
       otpCode: z.string().length(6, { message: 'Mã xác thực OTP bắt buộc phải nhập đúng 6 ký số' })
     })
     .strict(),
-  { title: 'SignContractWithOtpBody', description: 'Payload xác thực mã OTP an toàn hệ thống' }
+  { title: 'SignContractWithOtpBody', description: 'Xác thực chữ ký hợp đồng bằng OTP' }
+)
+
+export const ContractResSchema = extendApi(
+  z.object({
+    id: z.string(),
+    seriesId: z.string(),
+    mangakaId: z.string(),
+    editorId: z.string().nullable(),
+    boardDecisionId: z.string().nullable(),
+    sourceTransferRequestId: z.string().nullable().optional(),
+    contractType: z.nativeEnum($Enums.ContractType),
+    valuationAmount: z.number().nullable(),
+    publisherOwnershipPct: z.number().nullable(),
+    mangakaOwnershipPct: z.number().nullable(),
+    terminationClause: z.string().nullable(),
+    contractStart: z.any().nullable(),
+    contractEnd: z.any().nullable(),
+    status: z.nativeEnum($Enums.ContractStatus),
+    mangakaSignedAt: z.any().nullable(),
+    boardSignedAt: z.any().nullable(),
+    createdAt: z.any()
+  }),
+  { title: 'ContractRes', description: 'Chi tiết hợp đồng' }
+)
+
+export const ContractVersionResSchema = extendApi(
+  z.object({
+    id: z.string(),
+    contractId: z.string(),
+    versionNumber: z.number(),
+    valuationAmount: z.number().nullable(),
+    publisherOwnershipPct: z.number().nullable(),
+    mangakaOwnershipPct: z.number().nullable(),
+    terminationClause: z.string().nullable(),
+    editedById: z.string(),
+    note: z.string().nullable(),
+    createdAt: z.any()
+  }),
+  { title: 'ContractVersionRes', description: 'Chi tiết phiên bản hợp đồng' }
+)
+
+export const ContractHealthResSchema = extendApi(
+  z.object({
+    status: z.string(),
+    module: z.string()
+  }),
+  { title: 'ContractHealthRes', description: 'Health check module contract' }
+)
+
+export const ContractSignResSchema = extendApi(
+  z.object({
+    status: z.string(),
+    message: z.string(),
+    contract: ContractResSchema.nullable()
+  }),
+  { title: 'ContractSignRes', description: 'Kết quả ký hợp đồng' }
+)
+
+export const ContractStatusProgressResSchema = extendApi(
+  z.object({
+    id: z.string(),
+    status: z.nativeEnum($Enums.ContractStatus),
+    mangaka: z.object({
+      id: z.string(),
+      isSigned: z.boolean(),
+      signedAt: z.any().nullable()
+    }),
+    boardProgress: z.object({
+      totalRequired: z.number(),
+      totalSigned: z.number(),
+      signedEditors: z.array(
+        z.object({
+          id: z.string(),
+          actionAt: z.any()
+        })
+      ),
+      pendingEditors: z.array(
+        z.object({
+          id: z.string(),
+          actionAt: z.null()
+        })
+      )
+    })
+  }),
+  { title: 'ContractStatusProgressRes', description: 'Trạng thái hợp đồng và tiến độ ký' }
 )
 
 // Cung cấp các Types gọn gàng ra bên ngoài
