@@ -19,19 +19,23 @@ import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 import { BoardModule } from './modules/board/board.module'
 import { StudioModule } from './modules/studio/studio.module'
+import { SurveyModule } from './modules/survey/survey.module'
 import { TaskModule } from './modules/task/task.module'
 import { DeadlineModule } from './modules/deadline/deadline.module'
 import { AiModule } from './modules/ai/ai.module'
+import { ReprintRequestModule } from './modules/reprint/reprint-request.module'
+import { TransferModule } from './modules/transfer/transfer.module'
+import { PaymentModule } from './modules/payment/payment.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { AppConfigModule } from './modules/app-config/app-config.module'
 
 @Module({
   imports: [
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     CoreModule,
     AuthModule,
     ContractModule,
-    ScheduleModule.forRoot(),
     EmailQueueModule,
     UsersModule,
     NotificationModule,
@@ -41,10 +45,14 @@ import { AppConfigModule } from './modules/app-config/app-config.module'
     ChapterModule,
     AnnotationModule,
     BoardModule,
+    SurveyModule,
     StudioModule,
     TaskModule,
     DeadlineModule,
     AiModule,
+    ReprintRequestModule,
+    TransferModule,
+    PaymentModule,
     AuditModule,
     AppConfigModule
   ],
