@@ -8,7 +8,7 @@ export const VoteOtpRequestBodySchema = extendApi(
       captchaToken: z.string().min(1, { message: 'Captcha token là bắt buộc.' })
     })
     .strict(),
-  { title: 'VoteOtpRequestBody', description: 'Payload yêu cầu OTP bình chọn cho Guest Voting.' }
+  { title: 'VoteOtpRequestBody', description: 'Reader yêu cầu OTP cho Guest Voting' }
 )
 
 export const ReaderVoteBodySchema = extendApi(
@@ -21,7 +21,7 @@ export const ReaderVoteBodySchema = extendApi(
       captchaScore: z.number().min(0).max(1).optional()
     })
     .strict(),
-  { title: 'ReaderVoteBody', description: 'Payload xác thực OTP và nộp vote cho kỳ bình chọn.' }
+  { title: 'ReaderVoteBody', description: 'Reader xác thực OTP và gửi vote' }
 )
 
 export const CreateSurveyPeriodBodySchema = extendApi(
@@ -34,7 +34,7 @@ export const CreateSurveyPeriodBodySchema = extendApi(
       status: z.enum(['DRAFT', 'OPEN', 'CLOSED']).optional()
     })
     .strict(),
-  { title: 'CreateSurveyPeriodBody', description: 'Tạo kỳ bình chọn mới.' }
+  { title: 'CreateSurveyPeriodBody', description: 'Editor tạo kỳ bình chọn mới' }
 )
 
 export const UpdateSurveyPeriodStatusBodySchema = extendApi(
@@ -43,7 +43,7 @@ export const UpdateSurveyPeriodStatusBodySchema = extendApi(
       status: z.enum(['OPEN', 'CLOSED', 'REFLECTED'])
     })
     .strict(),
-  { title: 'UpdateSurveyPeriodStatusBody', description: 'Cập nhật trạng thái kỳ bình chọn.' }
+  { title: 'UpdateSurveyPeriodStatusBody', description: 'Editor cập nhật trạng thái kỳ bình chọn' }
 )
 
 export const ImportSurveyDataBodySchema = extendApi(
@@ -65,7 +65,7 @@ export const ImportSurveyDataBodySchema = extendApi(
         .min(1, { message: 'Phải có ít nhất một entry.' })
     })
     .strict(),
-  { title: 'ImportSurveyDataBody', description: 'Payload nhập dữ liệu bình chọn offline từ postcard.' }
+  { title: 'ImportSurveyDataBody', description: 'Editor nhập vote offline từ postcard' }
 )
 
 export const VotingConfigBodySchema = extendApi(
@@ -80,7 +80,7 @@ export const VotingConfigBodySchema = extendApi(
       captchaThreshold: z.number().min(0).max(1).optional()
     })
     .strict(),
-  { title: 'VotingConfigBody', description: 'Cập nhật cấu hình bình chọn.' }
+  { title: 'VotingConfigBody', description: 'Cập nhật cấu hình bình chọn' }
 )
 
 export const SurveyPeriodResSchema = extendApi(
@@ -94,7 +94,7 @@ export const SurveyPeriodResSchema = extendApi(
       status: z.enum(['DRAFT', 'OPEN', 'CLOSED', 'REFLECTED'])
     })
     .strict(),
-  { title: 'SurveyPeriodRes', description: 'Chi tiết kỳ bình chọn.' }
+  { title: 'SurveyPeriodRes', description: 'Chi tiết kỳ bình chọn' }
 )
 
 export const VotingConfigResSchema = extendApi(
@@ -111,7 +111,7 @@ export const VotingConfigResSchema = extendApi(
       updatedAt: z.string().datetime()
     })
     .strict(),
-  { title: 'VotingConfigRes', description: 'Cấu hình hiện tại của hệ thống bình chọn.' }
+  { title: 'VotingConfigRes', description: 'Cấu hình bình chọn hiện tại' }
 )
 
 export const RankingRecordResSchema = extendApi(
@@ -126,7 +126,7 @@ export const RankingRecordResSchema = extendApi(
       isReliable: z.boolean()
     })
     .strict(),
-  { title: 'RankingRecordRes', description: 'Kết quả xếp hạng tổng hợp cho một series.' }
+  { title: 'RankingRecordRes', description: 'Kết quả ranking của một series' }
 )
 
 export const RankingRecordListResSchema = extendApi(
@@ -135,5 +135,65 @@ export const RankingRecordListResSchema = extendApi(
       items: z.array(RankingRecordResSchema)
     })
     .strict(),
-  { title: 'RankingRecordListRes', description: 'Danh sách kết quả xếp hạng.' }
+  { title: 'RankingRecordListRes', description: 'Danh sách ranking' }
+)
+
+export const ReaderVoteResSchema = extendApi(
+  z
+    .object({
+      id: z.string(),
+      surveyPeriodId: z.string(),
+      seriesIds: z.array(z.string()),
+      identityHash: z.string().nullable(),
+      authMethod: z.enum(['EMAIL_OTP', 'PHONE_OTP', 'CAPTCHA_ONLY']).nullable(),
+      ipHash: z.string().nullable(),
+      captchaScore: z.number().nullable(),
+      voteWeight: z.number(),
+      isFlagged: z.boolean(),
+      votedAt: z.any()
+    })
+    .strict(),
+  { title: 'ReaderVoteRes', description: 'Một phiếu vote reader' }
+)
+
+export const ReaderVoteListResSchema = extendApi(
+  z
+    .object({
+      data: z.array(ReaderVoteResSchema)
+    })
+    .strict(),
+  { title: 'ReaderVoteListRes', description: 'Danh sách phiếu vote reader' }
+)
+
+export const SurveyDataEntryResSchema = extendApi(
+  z
+    .object({
+      seriesId: z.string().nullable(),
+      voteCount: z.number().int()
+    })
+    .strict(),
+  { title: 'SurveyDataEntryRes', description: 'Một entry vote offline' }
+)
+
+export const SurveyDataResSchema = extendApi(
+  z
+    .object({
+      id: z.string(),
+      surveyPeriodId: z.string(),
+      importedBy: z.string().nullable(),
+      surveyDate: z.any().nullable(),
+      importedAt: z.any(),
+      entries: z.array(SurveyDataEntryResSchema)
+    })
+    .strict(),
+  { title: 'SurveyDataRes', description: 'Một lần nhập vote offline' }
+)
+
+export const SurveyDataListResSchema = extendApi(
+  z
+    .object({
+      data: z.array(SurveyDataResSchema)
+    })
+    .strict(),
+  { title: 'SurveyDataListRes', description: 'Danh sách dữ liệu vote offline' }
 )

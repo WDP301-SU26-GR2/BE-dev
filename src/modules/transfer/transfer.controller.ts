@@ -42,7 +42,7 @@ export class TransferController {
 
   // ---- Transfer Request (B-TRF-01/02) ----
   @Post('requests')
-  @ApiOperation({ summary: 'Mangaka B nộp hồ sơ yêu cầu nhận chuyển nhượng tác phẩm' })
+  @ApiOperation({ summary: 'Mangaka B tạo yêu cầu chuyển nhượng tác phẩm → PENDING_SCREENING' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
   @ApiErrors(NoActiveContractFoundException)
   @Roles(RoleName.MANGAKA)
@@ -55,7 +55,7 @@ export class TransferController {
   }
 
   @Get('requests/mine')
-  @ApiOperation({ summary: 'Danh sách hồ sơ chuyển nhượng của Mangaka hiện tại' })
+  @ApiOperation({ summary: 'Danh sách yêu cầu chuyển nhượng của Mangaka hiện tại' })
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: TransferRequestListResDto })
   getTransferRequestsByMangaka(
@@ -65,7 +65,7 @@ export class TransferController {
   }
 
   @Get('requests/pending-board')
-  @ApiOperation({ summary: 'Danh sách hồ sơ chờ Hội đồng sàng lọc và duyệt chương' })
+  @ApiOperation({ summary: 'Danh sách yêu cầu chuyển nhượng chờ Board xử lý' })
   @Roles(RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: TransferRequestListResDto })
   getPendingBoardRequests(): Promise<InstanceType<typeof TransferRequestListResDto>> {
@@ -73,7 +73,7 @@ export class TransferController {
   }
 
   @Get('requests/:id')
-  @ApiOperation({ summary: 'Chi tiết hồ sơ yêu cầu chuyển nhượng' })
+  @ApiOperation({ summary: 'Chi tiết yêu cầu chuyển nhượng' })
   @ApiErrors(TransferRequestNotFoundException)
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: TransferRequestResDto })
@@ -82,7 +82,7 @@ export class TransferController {
   }
 
   @Post('requests/:id/board-approve')
-  @ApiOperation({ summary: 'Board duyệt qua vòng sàng lọc hồ sơ năng lực ban đầu' })
+  @ApiOperation({ summary: 'Board duyệt sàng lọc yêu cầu chuyển nhượng' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
   @ApiErrors(TransferRequestNotFoundException, InvalidStatusForScreeningException)
   @Roles(RoleName.BOARD_MEMBER)
@@ -95,7 +95,7 @@ export class TransferController {
   }
 
   @Post('requests/:id/board-reject')
-  @ApiOperation({ summary: 'Board từ chối hồ sơ năng lực ở vòng sàng lọc ban đầu' })
+  @ApiOperation({ summary: 'Board từ chối sàng lọc yêu cầu chuyển nhượng' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
   @ApiErrors(TransferRequestNotFoundException, InvalidStatusForScreeningException)
   @Roles(RoleName.BOARD_MEMBER)
@@ -108,7 +108,7 @@ export class TransferController {
   }
 
   @Post('requests/:id/assign-full-buyout')
-  @ApiOperation({ summary: 'Mô hình A (Full Buyout) - Board quyết định bàn giao thẳng tác phẩm cho Mangaka B' })
+  @ApiOperation({ summary: 'Board chọn Full Buyout → bàn giao series cho Mangaka B' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
   @ApiErrors(TransferRequestNotFoundException, OnlyAppliesToFullBuyoutException, OriginalContractIdNotFoundException)
   @Roles(RoleName.BOARD_MEMBER)
@@ -119,7 +119,7 @@ export class TransferController {
 
   // ---- Negotiation & Three-Party Contracts (B-TRF-03) ----
   @Post('requests/:id/start-negotiation')
-  @ApiOperation({ summary: 'Mô hình B (Revenue Share) - Editor kích hoạt luồng thương lượng với Mangaka A' })
+  @ApiOperation({ summary: 'Editor bắt đầu thương lượng Revenue Share với Mangaka A' })
   @ApiErrors(TransferRequestNotFoundException, OnlyAppliesToRevenueShareException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: TransferRequestResDto })
@@ -146,7 +146,7 @@ export class TransferController {
   }
 
   @Post('contracts')
-  @ApiOperation({ summary: 'Editor lập dự thảo hợp đồng thỏa thuận chuyển nhượng 3 bên' })
+  @ApiOperation({ summary: 'Editor tạo hợp đồng chuyển nhượng 3 bên → DRAFT' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
   @ApiErrors(TransferRequestNotFoundException)
   @Roles(RoleName.EDITOR)
@@ -158,7 +158,7 @@ export class TransferController {
   }
 
   @Post('contracts/:id/sign')
-  @ApiOperation({ summary: 'Ký số xác thực bằng mã OTP dành cho các bên tương ứng' })
+  @ApiOperation({ summary: 'Mangaka/Board ký hợp đồng chuyển nhượng bằng OTP' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
   @ApiErrors(
     TransferContractNotFoundException,
@@ -178,7 +178,7 @@ export class TransferController {
   }
 
   @Get('contracts/:id/signatures')
-  @ApiOperation({ summary: 'Xem danh sách chữ ký số hiện tại của hợp đồng' })
+  @ApiOperation({ summary: 'Danh sách chữ ký của hợp đồng chuyển nhượng' })
   @ApiErrors(TransferContractNotFoundException)
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: TransferSignatureListResDto })
@@ -188,7 +188,7 @@ export class TransferController {
 
   // ---- Co-Owner Chapter Approval (B-TRF-05) ----
   @Post('chapters/:chapterId/co-owner-approve')
-  @ApiOperation({ summary: 'Hook kiểm duyệt: Co-owner (Mangaka A) phê duyệt chương mới' })
+  @ApiOperation({ summary: 'Co-owner duyệt chapter mới → APPROVED' })
   @ApiErrors(NotTheCoOwnerForChapterException, ChapterApprovalIsNotPendingException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: MessageResDto })
@@ -200,7 +200,7 @@ export class TransferController {
   }
 
   @Post('chapters/:chapterId/co-owner-reject')
-  @ApiOperation({ summary: 'Hook kiểm duyệt: Co-owner (Mangaka A) từ chối chương mới kèm lý do' })
+  @ApiOperation({ summary: 'Co-owner từ chối chapter mới → REJECTED' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
   @ApiErrors(NotTheCoOwnerForChapterException, ChapterApprovalIsNotPendingException)
   @Roles(RoleName.MANGAKA)
@@ -214,7 +214,7 @@ export class TransferController {
   }
 
   @Post('chapters/:chapterId/escalate')
-  @ApiOperation({ summary: 'Hệ thống tự động leo thang phê duyệt lên Hội đồng do quá hạn phản hồi' })
+  @ApiOperation({ summary: 'Editor/Board escalate duyệt chapter lên Hội đồng' })
   @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 201, type: MessageResDto })
   escalateChapterApproval(@Param('chapterId') chapterId: string): Promise<MessageResDto> {

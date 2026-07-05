@@ -12,7 +12,8 @@ export type BoardDecisionResultType = z.infer<typeof BoardDecisionResult>
 
 // 🔥 TỰ ĐỊNH NGHĨA: Trạng thái của một Phiên họp Hội đồng
 export const BoardSessionStatus = $Enums.BoardSessionStatus
-export type BoardSessionStatusType = z.infer<typeof BoardSessionStatus>
+export const BoardSessionStatusSchema = z.nativeEnum($Enums.BoardSessionStatus)
+export type BoardSessionStatusType = z.infer<typeof BoardSessionStatusSchema>
 
 // 🔥 Base Vote Schema (Mảng đối tượng nhúng trong MongoDB)
 export const VoteSchema = extendApi(
@@ -22,7 +23,7 @@ export const VoteSchema = extendApi(
     note: z.string().nullable(),
     votedAt: z.coerce.date()
   }),
-  { title: 'Vote', description: 'Cấu trúc đối tượng phiếu bầu nhúng trong Decision' }
+  { title: 'Vote', description: 'Một phiếu biểu quyết của quyết định Hội đồng' }
 )
 
 // 🔥 Base BoardSession Schema (Bổ sung mới)
@@ -32,13 +33,13 @@ export const BoardSessionSchema = extendApi(
     title: z.string(),
     description: z.string().nullable(),
     creatorId: z.string(),
-    status: BoardSessionStatus,
+    status: BoardSessionStatusSchema,
     allowedEditorIds: z.array(z.string()),
     startTime: z.coerce.date(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date()
   }),
-  { title: 'BoardSession', description: 'Gốc thực thể phiên họp Hội đồng tổng' }
+  { title: 'BoardSession', description: 'Phiên họp Hội đồng' }
 )
 
 // 🔥 Base BoardDecision Schema
@@ -60,7 +61,7 @@ export const BoardDecisionSchema = extendApi(
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date()
   }),
-  { title: 'BoardDecision', description: 'Core Board Decision Schema' }
+  { title: 'BoardDecision', description: 'Quyết định biểu quyết của Hội đồng' }
 )
 
 // 🔥 Base SeriesReport Schema
@@ -76,7 +77,7 @@ export const SeriesReportSchema = extendApi(
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date()
   }),
-  { title: 'SeriesReport', description: 'Core Series Report Schema từ Editor' }
+  { title: 'SeriesReport', description: 'Báo cáo phân tích series từ Editor' }
 )
 
 // 🔥 Base BoardConfig Schema
@@ -90,7 +91,7 @@ export const BoardConfigSchema = extendApi(
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date()
   }),
-  { title: 'BoardConfig', description: 'Core Board Configuration Schema' }
+  { title: 'BoardConfig', description: 'Cấu hình biểu quyết Hội đồng' }
 )
 
 export type VoteDataType = z.infer<typeof VoteSchema>

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
+import { ReprintChapterSchema } from './reprint-request.model'
 
 // B-RPT-01: Payload tạo yêu cầu tái bản ban đầu từ Board/Editor
 export const CreateReprintRequestBodySchema = extendApi(
@@ -19,7 +20,7 @@ export const CreateReprintRequestBodySchema = extendApi(
     }),
   {
     title: 'CreateReprintRequestBody',
-    description: 'Payload tạo mới yêu cầu tái bản tác phẩm từ Ban biên tập/Hội đồng'
+    description: 'Editor tạo yêu cầu tái bản'
   }
 )
 
@@ -33,7 +34,7 @@ export const MangakaReviewReprintBodySchema = extendApi(
     .strict(),
   {
     title: 'MangakaReviewReprintBody',
-    description: 'Payload quyết định phản hồi từ Mangaka đối với yêu cầu tái bản'
+    description: 'Mangaka phản hồi yêu cầu tái bản'
   }
 )
 
@@ -47,7 +48,7 @@ export const BoardApproveReprintBodySchema = extendApi(
     .strict(),
   {
     title: 'BoardApproveReprintBody',
-    description: 'Payload phê duyệt hoặc bác bỏ yêu cầu tái bản từ phía Hội đồng'
+    description: 'Board duyệt/từ chối yêu cầu tái bản'
   }
 )
 
@@ -61,7 +62,7 @@ export const SubmitChapterManuscriptBodySchema = extendApi(
     .strict(),
   {
     title: 'SubmitChapterManuscriptBody',
-    description: 'Payload cập nhật bản thảo sửa đổi cho một chương truyện cụ thể'
+    description: 'Mangaka nộp manuscript sửa đổi cho chapter'
   }
 )
 
@@ -75,7 +76,54 @@ export const EditorApproveChapterBodySchema = extendApi(
     .strict(),
   {
     title: 'EditorApproveChapterBody',
-    description: 'Payload Editor phê duyệt hoặc yêu cầu chỉnh sửa lại chương truyện tái bản'
+    description: 'Editor duyệt/yêu cầu sửa chapter tái bản'
+  }
+)
+
+export const ReprintRequestResSchema = extendApi(
+  z.object({
+    id: z.string(),
+    seriesId: z.string(),
+    requestedBy: z.string().nullable(),
+    revisionMode: z.nativeEnum($Enums.ReprintRevisionMode).nullable(),
+    reason: z.string().nullable(),
+    chapterRangeStart: z.number().int().nullable(),
+    chapterRangeEnd: z.number().int().nullable(),
+    status: z.string(),
+    mangakaApprovedAt: z.any().nullable(),
+    boardApprovedAt: z.any().nullable(),
+    publishedAt: z.any().nullable(),
+    createdAt: z.any(),
+    chapters: z.array(ReprintChapterSchema)
+  }),
+  {
+    title: 'ReprintRequestRes',
+    description: 'Chi tiết yêu cầu tái bản'
+  }
+)
+
+export const ReprintRequestListResSchema = extendApi(
+  z.object({
+    data: z.array(ReprintRequestResSchema)
+  }),
+  {
+    title: 'ReprintRequestListRes',
+    description: 'Danh sách yêu cầu tái bản'
+  }
+)
+
+export const ReprintChapterResSchema = extendApi(ReprintChapterSchema, {
+  title: 'ReprintChapterRes',
+  description: 'Chi tiết chapter trong yêu cầu tái bản'
+})
+
+export const ReprintChapterListResSchema = extendApi(
+  z.object({
+    data: z.array(ReprintChapterSchema)
+  }),
+  {
+    title: 'ReprintChapterListRes',
+    description: 'Danh sách chapter trong yêu cầu tái bản'
   }
 )
 
