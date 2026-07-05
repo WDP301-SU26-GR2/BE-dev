@@ -24,6 +24,8 @@ export class DeadlineWarningCron {
 
     const threshold = new Date(Date.now() + envConfig.DEADLINE_WARN_THRESHOLD_HOURS * 3600 * 1000)
     const chapters = await this.chapterRepository.findChaptersNearDeadline(threshold)
+    const now = new Date()
+    const tasks = await this.chapterRepository.findTasksNearDeadline(now, threshold)
     const today = new Date().toISOString().slice(0, 10)
 
     for (const chapter of chapters) {
@@ -41,6 +43,19 @@ export class DeadlineWarningCron {
       }
     }
 
-    this.logger.log(`Deadline warning cron: scanned ${chapters.length} chapter(s)`)
+    for (const task of tasks) {
+      const targets = [task.assistantId, task.mangakaId].filter((id): id is string => typeof id === 'string')
+      for (const recipientId of targets) {
+        await this.notificationQueue.enqueue({
+          recipientId,
+          type: NotificationType.DEADLINE,
+          referenceId: task.taskId,
+          referenceType: `TASK_DEADLINE_WARNING:${today}`,
+          content: ChapterMessages.notification.taskDeadlineWarning(task.taskId)
+        })
+      }
+    }
+
+    this.logger.log(`Deadline warning cron: scanned ${chapters.length} chapter(s), ${tasks.length} task(s)`)
   }
 }

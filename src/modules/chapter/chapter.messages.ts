@@ -7,10 +7,13 @@ export const ChapterMessages = {
     awaitingCoOwnerApproval: 'Chapter awaiting co-owner approval',
     chapterPublished: 'Chapter published',
     deadlineWarning: (chapterId: string) => `Chapter ${chapterId} is approaching its deadline`,
+    taskDeadlineWarning: (taskId: string) => `Task ${taskId} is approaching its deadline`,
     manuscriptSubmitted: 'Manuscript submitted for review',
     editorRequestedRevision: 'Editor requested revision',
     manuscriptResubmitted: 'Manuscript resubmitted',
-    manuscriptApproved: 'Manuscript approved (ready for print)'
+    manuscriptApproved: 'Manuscript approved (ready for print)',
+    chapterHeld: (reason: string) => `Chapter production is on hold: ${reason}`,
+    chapterResumed: 'Chapter production has resumed'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/chapter.errors.ts.
   error: {
@@ -24,6 +27,11 @@ export const ChapterMessages = {
     pageNotFound: 'Error.PageNotFound',
     nameNotApproved: 'Error.NameNotApproved',
     nameNotInSeries: 'Error.NameNotInSeries',
-    contractNotExecuted: 'Error.ContractNotExecuted'
+    contractNotExecuted: 'Error.ContractNotExecuted',
+    chapterAccessDenied: 'Error.ChapterAccessDenied',
+    chapterNotHoldable: 'Error.ChapterNotHoldable',
+    chapterAlreadyOnHold: 'Error.ChapterAlreadyOnHold',
+    chapterNotOnHold: 'Error.ChapterNotOnHold',
+    chapterOnHold: 'Error.ChapterOnHold'
   }
 } as const

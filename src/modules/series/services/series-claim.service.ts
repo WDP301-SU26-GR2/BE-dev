@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common'
+import { AuditEntityType } from '@prisma/client'
+import { AuditService } from 'src/modules/audit/audit.service'
 import {
   NotAssignedEditorException,
   ReviewAlreadyStartedException,
@@ -12,7 +14,10 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class SeriesClaimService {
-  constructor(private readonly seriesRepository: SeriesRepository) {}
+  constructor(
+    private readonly seriesRepository: SeriesRepository,
+    private readonly auditService: AuditService
+  ) {}
 
   async claim(editorId: string, seriesId: string) {
     if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
@@ -25,6 +30,12 @@ export class SeriesClaimService {
 
     const updated = await this.seriesRepository.findById(seriesId)
     if (!updated) throw SeriesNotFoundException
+    await this.auditService.record({
+      actorId: editorId,
+      entityType: AuditEntityType.SERIES,
+      entityId: seriesId,
+      action: 'CLAIM'
+    })
     return toSeriesRes(updated)
   }
 
@@ -40,6 +51,12 @@ export class SeriesClaimService {
 
     const updated = await this.seriesRepository.findById(seriesId)
     if (!updated) throw SeriesNotFoundException
+    await this.auditService.record({
+      actorId: editorId,
+      entityType: AuditEntityType.SERIES,
+      entityId: seriesId,
+      action: 'RELEASE'
+    })
     return toSeriesRes(updated)
   }
 }

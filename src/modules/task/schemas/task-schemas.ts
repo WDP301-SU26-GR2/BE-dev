@@ -4,8 +4,13 @@ import { $Enums } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 
 const CoordinatesSchema = z
-  .object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
-  .describe('Toạ độ vùng trên trang (pixel)')
+  .object({
+    x: z.number().nonnegative(),
+    y: z.number().nonnegative(),
+    width: z.number().positive(),
+    height: z.number().positive()
+  })
+  .describe('Toạ độ vùng trên trang (pixel, top-left origin; x,y ≥ 0; width,height > 0)')
 
 // ---- Region (A-TSK-01/02) ----
 export const CreateRegionBodySchema = extendApi(
@@ -48,6 +53,14 @@ export const RegionListResSchema = extendApi(z.object({ items: z.array(RegionRes
   title: 'RegionListRes',
   description: 'Danh sách vùng của 1 trang'
 })
+
+export const DeleteRegionResSchema = extendApi(
+  z.object({
+    regionId: z.string(),
+    cancelledTaskIds: z.array(z.string()).describe('Task ids cascaded to CANCELLED')
+  }),
+  { title: 'DeleteRegionRes', description: 'Region delete result with cascaded task cancellation' }
+)
 
 // ---- Task (A-TSK-03/04/09) ----
 export const CreateTaskBodySchema = extendApi(
@@ -96,6 +109,11 @@ export const ReassignTaskBodySchema = extendApi(z.object({ assistantId: z.string
   description: 'Giao lại task ON_HOLD cho Assistant khác'
 })
 
+export const CancelTaskBodySchema = extendApi(z.object({ reason: z.string().min(1).optional() }).strict(), {
+  title: 'CancelTaskBody',
+  description: 'Mangaka cancels a task that is not APPROVED/CANCELLED'
+})
+
 export const TaskVersionResSchema = z.object({
   submittedBy: z.string().nullable(),
   versionNumber: z.number(),
@@ -113,6 +131,7 @@ export const TaskResSchema = extendApi(
     assistantId: z.string().nullable(),
     taskType: zEnum($Enums.Specialization, 'Specialization').nullable(),
     status: zEnum($Enums.TaskStatus, 'TaskStatus'),
+    statusReason: z.string().nullable().describe('Latest status-change reason for cancel/reassign'),
     priority: z.number(),
     deadline: z.string().nullable(),
     assetIds: z.array(z.string()),
@@ -131,6 +150,7 @@ export const ListTasksQuerySchema = extendApi(
   z
     .object({
       pageId: z.string().optional(),
+      regionId: z.string().optional().describe('Lọc task theo vùng (Region id)'),
       assistantId: z.string().optional(),
       status: zEnum($Enums.TaskStatus, 'TaskStatus').optional(),
       limit: z.coerce.number().int().positive().max(100).default(20),
@@ -142,10 +162,12 @@ export const ListTasksQuerySchema = extendApi(
 
 export type CreateRegionBodyType = z.infer<typeof CreateRegionBodySchema>
 export type UpdateRegionBodyType = z.infer<typeof UpdateRegionBodySchema>
+export type DeleteRegionResType = z.infer<typeof DeleteRegionResSchema>
 export type CreateTaskBodyType = z.infer<typeof CreateTaskBodySchema>
 export type BatchCreateTaskBodyType = z.infer<typeof BatchCreateTaskBodySchema>
 export type UpdateTaskBodyType = z.infer<typeof UpdateTaskBodySchema>
 export type SubmitTaskBodyType = z.infer<typeof SubmitTaskBodySchema>
 export type RequestRevisionBodyType = z.infer<typeof RequestRevisionBodySchema>
 export type ReassignTaskBodyType = z.infer<typeof ReassignTaskBodySchema>
+export type CancelTaskBodyType = z.infer<typeof CancelTaskBodySchema>
 export type ListTasksQueryType = z.infer<typeof ListTasksQuerySchema>

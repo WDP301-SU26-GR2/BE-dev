@@ -2,13 +2,14 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums, Genre, RoleCode } from '@prisma/client'
 import { zEnum, zRole, zRoleSubset } from 'src/core/http/docs/enum-docs'
+import { PhoneNumberE164Schema } from 'src/core/models/user.model'
 
 export const AdminCreateUserBodySchema = extendApi(
   z
     .object({
       email: z.string().email(),
       name: z.string().min(2).max(100),
-      phoneNumber: z.string().min(9).max(15),
+      phoneNumber: PhoneNumberE164Schema,
       roleCode: zRoleSubset([RoleCode.EDITOR, RoleCode.BOARD_MEMBER])
     })
     .strict(),
@@ -23,6 +24,46 @@ export const AdminCreateUserResSchema = extendApi(
     temporaryPassword: z.string()
   }),
   { title: 'AdminCreateUserRes', description: 'Created user + one-time temporary password' }
+)
+
+export const AdminUpdateUserStatusBodySchema = extendApi(
+  z
+    .object({
+      status: z
+        .enum([$Enums.UserStatus.ACTIVE, $Enums.UserStatus.BANNED, $Enums.UserStatus.BLOCKED])
+        .describe('Allowed status changes: ACTIVE, BANNED, BLOCKED. INACTIVE is not allowed (pre-verify state).'),
+      reason: z.string().min(1).optional().describe('Ban/block reason — included in the notification sent to the user')
+    })
+    .strict(),
+  { title: 'AdminUpdateUserStatusBody', description: 'Super Admin updates a non-admin user status' }
+)
+
+export const AdminResetPasswordResSchema = extendApi(
+  z.object({
+    temporaryPassword: z.string().describe('Returned once only — user is forced to change it on next login')
+  }),
+  { title: 'AdminResetPasswordRes', description: 'One-time temporary password returned only in this response' }
+)
+
+export const AdminStatsResSchema = extendApi(
+  z.object({
+    users: z.object({
+      total: z.number().describe('Users not soft-deleted'),
+      deleted: z.number().describe('Soft-deleted users'),
+      byStatus: z.record(zEnum($Enums.UserStatus, 'UserStatus'), z.number()),
+      byRole: z.record(zRole(), z.number())
+    }),
+    series: z.object({
+      total: z.number(),
+      byStatus: z.record(zEnum($Enums.SeriesStatus, 'SeriesStatus'), z.number())
+    }),
+    chapters: z.object({ total: z.number(), published: z.number() }),
+    tasks: z.object({
+      total: z.number(),
+      byStatus: z.record(zEnum($Enums.TaskStatus, 'TaskStatus'), z.number())
+    })
+  }),
+  { title: 'AdminStatsRes', description: 'System snapshot (groupBy counts, zero-filled enum maps)' }
 )
 
 export const MangakaProfileBodySchema = extendApi(
@@ -93,6 +134,7 @@ export const AssistantProfileResSchema = extendApi(
 )
 
 export type AdminCreateUserBodyType = z.infer<typeof AdminCreateUserBodySchema>
+export type AdminUpdateUserStatusBodyType = z.infer<typeof AdminUpdateUserStatusBodySchema>
 export type MangakaProfileBodyType = z.infer<typeof MangakaProfileBodySchema>
 export type AssistantProfileBodyType = z.infer<typeof AssistantProfileBodySchema>
 

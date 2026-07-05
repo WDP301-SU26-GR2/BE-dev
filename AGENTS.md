@@ -9,7 +9,9 @@
   `@nestjs/event-emitter` (domain events), AWS SDK v3 → Cloudflare R2 (object storage), Resend (email), pnpm.
 - **Feature modules BE-A**: `auth`, `users`, `notification`, `reviews`, `series`, `chapter`,
   `annotation`, `storage`, `studio` (A4-a: CollaborationInvite/StudioAssignment/directory), `task`, `ai`
-  (A4-b: Region/Task/TaskVersion + cascade A4→A3) (Creation & Production). **BE-B** (Commercial & Governance) **đã bắt đầu**: module
+  (A4-b: Region/Task/TaskVersion + cascade A4→A3), `audit` (PA-06: AuditLog `@Global` dual-write + `GET /audit`),
+  `app-config` (PA-10: registry tham số nghiệp vụ `@Global` + `GET/PATCH /admin/app-config`) (Creation & Production).
+  **BE-B** (Commercial & Governance) **đã bắt đầu**: module
   `contract` (B1) **và** `board` (B5 — Board/Decision engine) đã có trong repo — **KHÔNG sửa hộ BE-B**
   (chỉ để sẵn convention dùng chung ở `core/`).
 - **Quy tắc vàng**: Vertical slice (NestJS chuẩn). Mỗi module tự chứa đủ: controller(s), service(s), repo,
@@ -177,6 +179,13 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   Emit event **SAU** khi DB write commit (không trong transaction).
 - **NotificationService** (`@Global`): `notify({ recipientId, type, referenceId?, referenceType?, content? })`,
   idempotent theo (recipient + type + ref). Inject thẳng ở bất kỳ module nào.
+- **AuditService** (`@Global`, PA-06): `record({ actorId, entityType, entityId, action, fromState?, toState?, reason? })` —
+  **dual-write** bổ sung (GIỮ `statusHistory[]` embedded per-entity, THÊM collection `AuditLog` tập trung). **Best-effort**:
+  tự nuốt lỗi + log, **KHÔNG BAO GIỜ throw** (mirror `notifySafe`); gọi **SAU** DB write chính commit, NGOÀI transaction.
+  Mọi state-transition BE-A cắm; BE-B (Contract/BoardDecision) cắm tương tự. `actorId` null = hành động hệ thống.
+- **AppConfigService** (`@Global`, PA-10): `get()` trả registry tham số nghiệp vụ (cache in-memory TTL 30s + lazy-seed +
+  invalidate-on-PATCH). Wire BE-A: `nameMaxReviewRounds` (PA-05), `maxUploadBytes` (A7), `reputationRecommendThreshold`
+  (A-AUTH-07); 4 key còn lại seed sẵn chờ BE-B. Env/constant cũ = **seed default**, KHÔNG còn đọc runtime.
 
 ## 9. State Machine & Single-writer
 

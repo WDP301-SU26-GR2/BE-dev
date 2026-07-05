@@ -5,6 +5,7 @@ export const AnnotationMessages = {
   // Error codes (FE maps these keys to localized text). Consumed by errors/annotation.errors.ts.
   error: {
     annotationNotFound: 'Error.AnnotationNotFound',
-    annotationForbidden: 'Error.AnnotationForbidden'
+    annotationForbidden: 'Error.AnnotationForbidden',
+    targetNotFound: 'Error.AnnotationTargetNotFound'
   }
 } as const

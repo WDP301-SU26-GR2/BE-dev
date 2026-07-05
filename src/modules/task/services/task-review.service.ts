@@ -60,7 +60,7 @@ export class TaskReviewService {
   async start(assistantId: string, taskId: string) {
     const task = await this.requireTask(taskId)
     if (task.assistantId !== assistantId) throw NotTaskAssigneeException
-    await this.taskStateService.transition(taskId, 'IN_PROGRESS')
+    await this.taskStateService.transition(taskId, 'IN_PROGRESS', undefined, assistantId)
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
     return toTaskRes(updated)
@@ -69,7 +69,7 @@ export class TaskReviewService {
   async submit(assistantId: string, taskId: string, body: SubmitTaskBodyType) {
     const task = await this.requireTask(taskId)
     if (task.assistantId !== assistantId) throw NotTaskAssigneeException
-    await this.taskStateService.transition(taskId, 'SUBMITTED')
+    await this.taskStateService.transition(taskId, 'SUBMITTED', undefined, assistantId)
     const versionNumber = (task.versions?.length ?? 0) + 1
     await this.taskRepository.pushTaskVersion(taskId, { submittedBy: assistantId, versionNumber, file: body.file })
     const updated = await this.taskRepository.findTaskById(taskId)
@@ -90,8 +90,8 @@ export class TaskReviewService {
   async approve(mangakaId: string, taskId: string) {
     const task = await this.requireTask(taskId)
     await this.requireOwner(mangakaId, task.pageId)
-    await this.taskStateService.transition(taskId, 'UNDER_REVIEW')
-    await this.taskStateService.transition(taskId, 'APPROVED')
+    await this.taskStateService.transition(taskId, 'UNDER_REVIEW', undefined, mangakaId)
+    await this.taskStateService.transition(taskId, 'APPROVED', undefined, mangakaId)
     await this.taskRepository.setLatestVersionReview(taskId, { reviewStatus: 'APPROVED', reviewerNote: null })
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
@@ -110,8 +110,8 @@ export class TaskReviewService {
   async requestRevision(mangakaId: string, taskId: string, body: RequestRevisionBodyType) {
     const task = await this.requireTask(taskId)
     await this.requireOwner(mangakaId, task.pageId)
-    await this.taskStateService.transition(taskId, 'UNDER_REVIEW')
-    await this.taskStateService.transition(taskId, 'REVISION_REQUESTED')
+    await this.taskStateService.transition(taskId, 'UNDER_REVIEW', undefined, mangakaId)
+    await this.taskStateService.transition(taskId, 'REVISION_REQUESTED', undefined, mangakaId)
     // Prisma enum TaskVersionReviewStatus: PENDING | APPROVED | REVISION_REQUESTED.
     await this.taskRepository.setLatestVersionReview(taskId, {
       reviewStatus: 'REVISION_REQUESTED',
