@@ -166,3 +166,16 @@ export const NameListResSchema = extendApi(z.object({ items: z.array(NameResSche
   title: 'NameListRes',
   description: 'Danh sách Name của series'
 })
+
+// Spec 2 / Flow 5: Editor gửi series vào HIATUS. reason bắt buộc; expectedReturnDate optional (ISO 8601).
+export const HiatusBodySchema = extendApi(
+  z
+    .object({
+      reason: z.string().min(1).max(1000),
+      expectedReturnDate: z.string().datetime({ message: 'expectedReturnDate phải là ISO 8601' }).optional()
+    })
+    .strict(),
+  { title: 'HiatusBody', description: 'Lý do Editor cho series tạm ngưng (Spec 2 Flow 5)' }
+)
+
+export type HiatusBodyType = z.infer<typeof HiatusBodySchema>

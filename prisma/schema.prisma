@@ -637,6 +637,8 @@ model Series {
   startIssueNumber        Int? // Flow 1 slot: số kỳ (issue) series bắt đầu đăng (null tới khi SERIALIZED — set bởi A1)
   coOwnerApprovalRequired Boolean                    @default(false)
   reviewStartedAt         DateTime?
+  hiatusStartedAt         DateTime? // Spec 2: set when entering HIATUS, null when resumed — used to compute pausedMs
+  endingChapterAllowance  Int? // Spec 2: N ending chapters Board grants on CANCELLATION (informational + audit)
   statusHistory           SeriesStatusHistoryEntry[]
 
   proposal SeriesProposal?
@@ -666,7 +668,7 @@ type SeriesProposal {
 type SeriesStatusHistoryEntry {
   fromStatus String
   toStatus   String
-  changedBy  String   @db.ObjectId
+  changedBy  String?  @db.ObjectId
   reason     String?
   at         DateTime
 }

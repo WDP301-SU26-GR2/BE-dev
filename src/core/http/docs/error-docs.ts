@@ -75,6 +75,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.SeriesAccessDenied': 'current user cannot access this series',
   'Error.SeriesAlreadyClaimed': 'series has already been claimed',
   'Error.SeriesNotFound': 'series does not exist',
+  'Error.SeriesNotInEndingState': 'Series không ở trạng thái CANCELLING/COMPLETING nên không thể chốt kết thúc.',
   'Error.SeriesNotReadyToPitch': 'series is not ready to pitch',
   'Error.SegmentJobAlreadyRunning': 'a segmentation job is already queued/running for this page',
   'Error.UnauthorizedAccess': 'authentication token is missing or invalid',

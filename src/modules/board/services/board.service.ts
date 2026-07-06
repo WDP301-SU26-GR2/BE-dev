@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { BoardRepository } from '../board.repo'
 import * as Errors from '../errors/board.errors'
 import {
@@ -12,13 +12,18 @@ import { BoardGateway } from '../board.gateway'
 import { $Enums, NotificationType } from '@prisma/client'
 import { BoardDecisionDataType } from '../schemas/board.model'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { DomainEvent, DomainEventPayload } from 'src/core/events/domain-events'
+import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 
 @Injectable()
 export class BoardService {
+  private readonly logger = new Logger(BoardService.name)
+
   constructor(
     private readonly boardRepo: BoardRepository,
     private readonly boardGateway: BoardGateway,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly eventBus: DomainEventBus
   ) {}
 
   /**
@@ -218,6 +223,26 @@ export class BoardService {
       result,
       decidedAt
     })
+
+    // Spec 2 / Flow 5: emit BoardDecisionFinalized when result is final (best-effort).
+    // Series listener reacts to drive lifecycle transitions (CANCELLATION/COMPLETION/FORMAT_CHANGE/SERIALIZATION outcomes).
+    if (result === 'APPROVED' || result === 'REJECTED') {
+      const decision = await this.boardRepo.findDecisionById(decisionId)
+      if (decision) {
+        try {
+          const payload: DomainEventPayload[typeof DomainEvent.BoardDecisionFinalized] = {
+            decisionId: decision.id,
+            decisionType: (decision.decisionType as DomainEventPayload[typeof DomainEvent.BoardDecisionFinalized]['decisionType']) ?? '',
+            targetSeriesId: decision.targetSeriesId ?? null,
+            result: result as 'APPROVED' | 'REJECTED',
+            details: (decision.details as Record<string, unknown> | null) ?? null
+          }
+          this.eventBus.emit(DomainEvent.BoardDecisionFinalized, payload)
+        } catch (e) {
+          this.logger.warn(`Failed to emit BoardDecisionFinalized for ${decisionId}: ${(e as Error).message}`)
+        }
+      }
+    }
 
     // 🌟 ÉP KIỂU ĐẦU RA AN TOÀN: Triệt tiêu hoàn toàn lỗi ESLint no-unsafe-return
     return updatedDecision

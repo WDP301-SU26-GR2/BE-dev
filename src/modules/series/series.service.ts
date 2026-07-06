@@ -7,7 +7,9 @@ import {
   UpdateNamePagesBodyType,
   UpdateProposalBodyType
 } from './schemas/series-schemas'
+import { toSeriesRes } from './series.mapper'
 import { NameService } from './services/name.service'
+import { SeriesLifecycleService } from './services/series-lifecycle.service'
 import { SeriesPitchService } from './services/series-pitch.service'
 import { SeriesProposalService } from './services/series-proposal.service'
 import { SeriesClaimService } from './services/series-claim.service'
@@ -19,7 +21,8 @@ export class SeriesService {
     private readonly nameService: NameService,
     private readonly pitchService: SeriesPitchService,
     private readonly queryService: SeriesQueryService,
-    private readonly claimService: SeriesClaimService
+    private readonly claimService: SeriesClaimService,
+    private readonly lifecycleService: SeriesLifecycleService
   ) {}
 
   createProposal(mangakaId: string, body: CreateProposalBodyType) {
@@ -104,5 +107,23 @@ export class SeriesService {
 
   getName(caller: SeriesCaller, seriesId: string, nameId: string) {
     return this.queryService.getName(caller, seriesId, nameId)
+  }
+
+  // Spec 2 / Flow 5: Editor-driven series lifecycle (HIATUS / RESUME / FINALIZE_ENDING).
+  // Lifecycle service returns raw Prisma entity; controller's @ZodResponse(SeriesResDto) requires
+  // ISO-string createdAt, so wrap with toSeriesRes() ở orchestrator.
+  async hiatus(editorId: string, seriesId: string, reason: string, expectedReturnDate?: string) {
+    const series = await this.lifecycleService.hiatus(seriesId, editorId, reason, expectedReturnDate)
+    return toSeriesRes(series)
+  }
+
+  async resume(editorId: string, seriesId: string) {
+    const series = await this.lifecycleService.resume(seriesId, editorId)
+    return toSeriesRes(series)
+  }
+
+  async finalizeEnding(editorId: string, seriesId: string) {
+    const series = await this.lifecycleService.finalizeEnding(seriesId, editorId)
+    return toSeriesRes(series)
   }
 }

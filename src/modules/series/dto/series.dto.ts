@@ -3,6 +3,7 @@ import {
   AddNamePageBodySchema,
   CreateProposalBodySchema,
   CreateProposalResSchema,
+  HiatusBodySchema,
   ListSeriesQuerySchema,
   NameListResSchema,
   NameResSchema,
@@ -24,3 +25,4 @@ export class CreateProposalResDto extends createZodDto(CreateProposalResSchema) 
 export class ListSeriesQueryDto extends createZodDto(ListSeriesQuerySchema) {}
 export class SeriesListResDto extends createZodDto(SeriesListResSchema) {}
 export class NameListResDto extends createZodDto(NameListResSchema) {}
+export class HiatusBodyDto extends createZodDto(HiatusBodySchema) {}
