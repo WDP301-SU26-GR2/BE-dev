@@ -1,21 +1,23 @@
 import { Injectable } from '@nestjs/common'
-import { EventEmitter2 } from '@nestjs/event-emitter'
 import { ContractStatus, NotificationType } from '@prisma/client'
 import { ContractRepo } from '../contract.repo'
 import { ContractErrors } from '../errors/contract.errors'
-import { CONTRACT_EVENTS } from '../contract.constant'
 import { CreateContractBodyDto, EditorUpdateContractBodyDto } from '../dto/contract.dto'
 import { AuthOtpService } from 'src/modules/auth/services/auth-otp.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
+import { DomainEvent } from 'src/core/events/domain-events'
+import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
+
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class ContractService {
   constructor(
     private readonly contractRepo: ContractRepo,
     private readonly authOtpService: AuthOtpService,
-    private readonly eventEmitter: EventEmitter2,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly domainEventBus: DomainEventBus
   ) {}
 
   // Hàm kiểm tra trạng thái hoạt động của module
@@ -62,8 +64,11 @@ export class ContractService {
     return false
   }
 
-  // Khởi tạo bản hợp đồng nháp (Editor tạo)
+  // Khởi tạo bản hợp đồng nháp (Editor tạo). B-CON-01: chỉ tạo được sau khi series đã SERIALIZED.
   async createDraft(editorId: string, dto: CreateContractBodyDto) {
+    if (!OBJECT_ID_RE.test(dto.seriesId)) throw ContractErrors.NotFound()
+    const seriesStatus = await this.contractRepo.findSeriesStatus(dto.seriesId)
+    if (seriesStatus !== 'SERIALIZED') throw ContractErrors.SeriesNotSerialized()
     const contract = await this.contractRepo.createDraft(editorId, dto)
 
     await Promise.all([
@@ -139,10 +144,12 @@ export class ContractService {
     return updated
   }
 
-  // Mangaka đồng ý với các điều khoản hiện tại, sẵn sàng chuyển qua bước ký kết
-  async mangakaApprove(contractId: string) {
+  // Mangaka đồng ý với các điều khoản hiện tại, sẵn sàng chuyển qua bước ký kết.
+  // B-CON-02: chỉ Mangaka của HĐ được approve (chặn approve hộ HĐ người khác).
+  async mangakaApprove(contractId: string, userId: string) {
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
+    if (contract.mangakaId !== userId) throw ContractErrors.UnauthorizedEditor()
 
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.MANGAKA_APPROVED)
 
@@ -186,7 +193,7 @@ export class ContractService {
     const result = await this.contractRepo.updateStatus(contractId, nextStatus, updatedData)
 
     if (nextStatus === ContractStatus.FULLY_EXECUTED) {
-      this.eventEmitter.emit(CONTRACT_EVENTS.EXECUTED, result)
+      this.domainEventBus.emit(DomainEvent.ContractExecuted, { contractId: result.id, seriesId: result.seriesId })
     }
     return result
   }
@@ -237,8 +244,8 @@ export class ContractService {
       // Gọi Repo thực thi lưu chữ ký cuối cùng và cập nhật trạng thái hợp đồng chính
       result = await this.contractRepo.executeBoardSignature(contractId, loggedInUserId, true, nextStatus, updatedData)
 
-      if (nextStatus === ContractStatus.FULLY_EXECUTED) {
-        this.eventEmitter.emit(CONTRACT_EVENTS.EXECUTED, result)
+      if (nextStatus === ContractStatus.FULLY_EXECUTED && result) {
+        this.domainEventBus.emit(DomainEvent.ContractExecuted, { contractId: result.id, seriesId: result.seriesId })
       }
 
       if (result) {

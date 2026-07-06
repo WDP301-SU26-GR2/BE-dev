@@ -26,7 +26,7 @@ export type DomainEventName = (typeof DomainEvent)[keyof typeof DomainEvent]
 // Payload mỗi event. Khi đổi → cập nhật cả 2 phía emit/listen.
 export interface DomainEventPayload {
   [DomainEvent.SeriesSerialized]: { seriesId: string }
-  [DomainEvent.ChapterPublished]: { chapterId: string; seriesId: string; publishedAt: string }
+  [DomainEvent.ChapterPublished]: { chapterId: string; seriesId: string; chapterNumber: number; publishedAt: string }
   [DomainEvent.AssistantAvailabilityChanged]: { assistantId: string; availabilityStatus: string }
   [DomainEvent.SeriesHiatusStarted]: { seriesId: string }
   [DomainEvent.SeriesHiatusEnded]: { seriesId: string; pausedMs: number }

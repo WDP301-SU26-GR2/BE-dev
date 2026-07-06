@@ -1,8 +1,11 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 
 export const ContractErrors = {
   // Lỗi khi tìm kiếm một hợp đồng không tồn tại trong DB
   NotFound: () => new NotFoundException('CONTRACT_NOT_FOUND'),
+
+  // B-CON-01: chỉ được tạo hợp đồng sau khi series đã được Board serial hoá (SERIALIZED)
+  SeriesNotSerialized: () => new ConflictException('SERIES_NOT_SERIALIZED'),
 
   // Lỗi khi Editor này cố tình sửa hợp đồng của Editor khác phụ trách
   UnauthorizedEditor: () => new ForbiddenException('ONLY_ASSIGNED_EDITOR_CAN_EDIT'),

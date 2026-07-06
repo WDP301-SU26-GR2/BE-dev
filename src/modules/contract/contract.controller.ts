@@ -93,7 +93,8 @@ export class ContractController {
     return this.contractService.getContractVersionById(id, versionId, userId, roleName)
   }
 
-  @ApiOperation({ summary: 'Editor tạo hợp đồng nháp cho series → DRAFT' })
+  @ApiOperation({ summary: 'Editor tạo hợp đồng nháp cho series đã SERIALIZED → DRAFT (B-CON-01)' })
+  @ApiErrors(ContractErrors.SeriesNotSerialized(), ContractErrors.NotFound())
   @Post()
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ContractResDto })
@@ -123,7 +124,7 @@ export class ContractController {
       return this.contractService.sendToMangaka(id, userId)
     }
     if (status === ContractStatus.MANGAKA_APPROVED) {
-      return this.contractService.mangakaApprove(id)
+      return this.contractService.mangakaApprove(id, userId)
     }
     throw ContractErrors.InvalidStatus()
   }

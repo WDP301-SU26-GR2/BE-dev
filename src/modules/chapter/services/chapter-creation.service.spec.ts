@@ -1,11 +1,11 @@
-import { NameStatus } from '@prisma/client'
+import { NameStatus, SeriesStatus } from '@prisma/client'
 import { ChapterCreationService } from './chapter-creation.service'
 
 const body = { seriesId: 's1', nameId: 'n1', chapterNumber: 1, title: 'Ch1' }
 
 function makeRepo(over: Record<string, unknown> = {}) {
   return {
-    findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' }),
+    findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1', status: SeriesStatus.SERIALIZED }),
     findNameById: jest.fn().mockResolvedValue({ id: 'n1', seriesId: 's1', status: NameStatus.APPROVED }),
     findChapterByNumber: jest.fn().mockResolvedValue(null),
     createChapter: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1', chapterNumber: 1 }),
@@ -20,6 +20,15 @@ describe('ChapterCreationService.create', () => {
     const res = await svc.create('u1', body)
     expect(repo.createChapter).toHaveBeenCalledWith({ seriesId: 's1', nameId: 'n1', chapterNumber: 1, title: 'Ch1' })
     expect(res).toMatchObject({ id: 'c1' })
+  })
+
+  it('rejects when series is not SERIALIZED (409)', async () => {
+    const repo = makeRepo({
+      findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1', status: SeriesStatus.PITCHED })
+    })
+    const svc = new ChapterCreationService(repo as never)
+    await expect(svc.create('u1', body)).rejects.toBeDefined()
+    expect(repo.createChapter).not.toHaveBeenCalled()
   })
 
   it('rejects when caller is not the series owner (403)', async () => {

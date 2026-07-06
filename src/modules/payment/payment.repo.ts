@@ -5,8 +5,7 @@ import {
   PaymentConditionStatus,
   PaymentRecordStatus,
   PaymentSource,
-  PaymentType,
-  Prisma
+  PaymentType
 } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 

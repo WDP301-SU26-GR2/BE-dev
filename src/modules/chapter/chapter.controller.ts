@@ -35,7 +35,8 @@ import {
   NotSeriesEditorException,
   NotSeriesOwnerException,
   PageNotFoundException,
-  PagesNotAllCompletedException
+  PagesNotAllCompletedException,
+  SeriesNotSerializedException
 } from './errors/chapter.errors'
 import { ChapterService } from './chapter.service'
 
@@ -52,7 +53,8 @@ export class ChapterController {
     ChapterNotFoundException,
     DuplicateChapterNumberException,
     NameNotInSeriesException,
-    NameNotApprovedException
+    NameNotApprovedException,
+    SeriesNotSerializedException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
@@ -224,7 +226,7 @@ export class ChapterController {
   @Post('chapters/:id/publish')
   @ApiOperation({
     summary:
-      'Editor xuất bản chapter (chỉ READY_FOR_PRINT) → PUBLISHED + emit chapter.published. Co-owner/Contract gate: defer B1/B3.'
+      'Editor xuất bản chapter (chỉ READY_FOR_PRINT) → PUBLISHED + emit chapter.published. Chặn nếu series chưa có Contract FULLY_EXECUTED (BR-CONTRACT-05). Co-owner gate: defer B3.'
   })
   @ApiErrors(
     NotSeriesEditorException,

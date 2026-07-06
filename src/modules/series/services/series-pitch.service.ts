@@ -20,10 +20,8 @@ export class SeriesPitchService {
     if (series.status !== SeriesStatus.READY_TO_PITCH) throw SeriesNotReadyToPitchException
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PITCHED)
     const updated = await this.seriesStateService.transition(seriesId, SeriesStatus.PITCHED, { changedBy: editorId })
-    // B5-INTEGRATION: gọi BoardDecisionPort.openSerializationDecision({ seriesId, editorId }) khi B5 sẵn sàng.
-    //   Board APPROVE -> transition PITCHED->SERIALIZED + domainEventBus.emit(DomainEvent.SeriesSerialized, { seriesId })
-    //   Board REJECT  -> transition PITCHED->REJECTED
-    //   notify board members deferred until a role-recipient helper exists.
+    // Serial hoá do Board quyết bất đồng bộ: Editor tạo BoardDecision (SERIALIZATION) → Board vote →
+    // BoardDecisionFinalized (BE-B emit) → SeriesIntegrationListener serialize (PITCHED→SERIALIZED). Pitch chỉ set PITCHED.
     return toSeriesRes(updated)
   }
 }
