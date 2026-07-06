@@ -24,5 +24,8 @@ export const NameNotInSeriesException = new UnprocessableEntityException([
   { message: E.nameNotInSeries, path: 'nameId' }
 ])
 
-// ĐỊNH NGHĨA SẴN — defer B1, CHƯA throw (// B1-INTEGRATION: bật khi B1 xong).
+// A2 (Spec 1): chặn tạo chapter khi series chưa SERIALIZED.
+export const SeriesNotSerializedException = new ConflictException(E.seriesNotSerialized)
+
+// A3 (Spec 1): chặn publish khi series chưa có Contract FULLY_EXECUTED (BR-CONTRACT-05).
 export const ContractNotExecutedException = new ConflictException(E.contractNotExecuted)

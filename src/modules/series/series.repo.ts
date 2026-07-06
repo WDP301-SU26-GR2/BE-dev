@@ -253,15 +253,4 @@ export class SeriesRepository {
       }
     })
   }
-
-  // B1 (Contract) integration: đánh dấu Contract đã executed trên Series (gate cho chapter publish).
-  // Spec 2 / B1: dùng để chapter publish kiểm tra Contract đã executed hay chưa.
-  // Implementation thực tế dùng Contract.status lookup — không cần field thêm trên Series.
-  // Listener chỉ cần signal rằng contract đã chạy; chi tiết enforce chuyển sang contract service (BE-B).
-  setExecutedContract(seriesId: string, contractId: string): void {
-    // No-op: contract gating handled in Contract service (BE-B). Method tồn tại để có thể inject
-    // mock trong unit test listener; production route lookup sẽ ở chapter-publish gate.
-    void seriesId
-    void contractId
-  }
 }

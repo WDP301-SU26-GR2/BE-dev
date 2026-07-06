@@ -4,9 +4,10 @@ import { ChapterPublishService } from './chapter-publish.service'
 
 function makeDeps(series: Record<string, unknown>) {
   const repo = {
-    findChapterById: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1' }),
+    findChapterById: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1', chapterNumber: 7, hold: null }),
     findSeriesById: jest.fn().mockResolvedValue(series),
-    findManuscriptByChapterId: jest.fn().mockResolvedValue({ id: 'm1', status: ManuscriptStatus.READY_FOR_PRINT })
+    findManuscriptByChapterId: jest.fn().mockResolvedValue({ id: 'm1', status: ManuscriptStatus.READY_FOR_PRINT }),
+    findExecutedContractBySeriesId: jest.fn().mockResolvedValue({ id: 'k1' })
   }
   const manuscriptState = {
     transition: jest.fn().mockResolvedValue({ id: 'c1', publishedAt: new Date('2026-06-24T00:00:00.000Z') })
@@ -34,7 +35,7 @@ describe('ChapterPublishService.publish', () => {
     expect(manuscriptState.transition).toHaveBeenCalledWith('c1', ManuscriptStatus.PUBLISHED, { changedBy: 'e1' })
     expect(eventBus.emit).toHaveBeenCalledWith(
       DomainEvent.ChapterPublished,
-      expect.objectContaining({ chapterId: 'c1', seriesId: 's1' })
+      expect.objectContaining({ chapterId: 'c1', seriesId: 's1', chapterNumber: 7 })
     )
     expect(notification.notify).not.toHaveBeenCalled()
     expect(notification.notifySafe).not.toHaveBeenCalled()
@@ -61,6 +62,25 @@ describe('ChapterPublishService.publish', () => {
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'a1', referenceType: 'MANUSCRIPT_AWAITING_CO_OWNER' })
     )
+  })
+
+  it('throws ContractNotExecuted when series has no FULLY_EXECUTED contract', async () => {
+    const { repo, manuscriptState, eventBus, notification } = makeDeps({
+      id: 's1',
+      mangakaId: 'u1',
+      editorId: 'e1',
+      coOwnerId: null
+    })
+    repo.findExecutedContractBySeriesId = jest.fn().mockResolvedValue(null)
+    const svc = new ChapterPublishService(
+      repo as never,
+      manuscriptState as never,
+      eventBus as never,
+      notification as never
+    )
+    await expect(svc.publish('e1', 'c1')).rejects.toBeDefined()
+    expect(manuscriptState.transition).not.toHaveBeenCalled()
+    expect(eventBus.emit).not.toHaveBeenCalled()
   })
 
   it('non-editor cannot publish (403)', async () => {
