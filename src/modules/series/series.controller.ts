@@ -9,6 +9,7 @@ import { RoleName } from 'src/core/security/constants/role.constant'
 import {
   CreateProposalBodyDto,
   CreateProposalResDto,
+  HiatusBodyDto,
   ListSeriesQueryDto,
   NameListResDto,
   NameResDto,
@@ -19,6 +20,7 @@ import {
 } from './dto/series.dto'
 import {
   InvalidProposalStateException,
+  InvalidSeriesTransitionException,
   NameNotFoundException,
   NotAssignedEditorException,
   NotSeriesOwnerException,
@@ -29,6 +31,7 @@ import {
   SeriesAccessDeniedException,
   SeriesAlreadyClaimedException,
   SeriesNotFoundException,
+  SeriesNotInEndingStateException,
   SeriesNotReadyToPitchException
 } from './errors/series.errors'
 import { SeriesService } from './series.service'
@@ -191,5 +194,35 @@ export class SeriesController {
   @ZodResponse({ status: 201, type: SeriesResDto })
   release(@Param('id') id: string, @ActiveUser('userId') userId: string) {
     return this.seriesService.release(userId, id)
+  }
+
+  // Spec 2 / Flow 5: Editor-driven series lifecycle.
+  @Post(':id/hiatus')
+  @ApiOperation({ summary: 'Editor cho series tạm ngưng (SERIALIZED→HIATUS). Dừng đồng hồ TIME_BOUND.' })
+  @ApiErrors(NotAssignedEditorException, SeriesNotFoundException, InvalidSeriesTransitionException)
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 201, type: SeriesResDto })
+  hiatus(@Param('id') id: string, @Body() body: HiatusBodyDto, @ActiveUser('userId') userId: string) {
+    return this.seriesService.hiatus(userId, id, body.reason, body.expectedReturnDate)
+  }
+
+  @Post(':id/resume')
+  @ApiOperation({
+    summary: 'Editor cho series hoạt động lại (HIATUS→SERIALIZED). Dời deadline TIME_BOUND theo thời gian hiatus.'
+  })
+  @ApiErrors(NotAssignedEditorException, SeriesNotFoundException, InvalidSeriesTransitionException)
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 201, type: SeriesResDto })
+  resume(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.seriesService.resume(userId, id)
+  }
+
+  @Post(':id/finalize-ending')
+  @ApiOperation({ summary: 'Editor chốt kết thúc: CANCELLING→CANCELLED / COMPLETING→COMPLETED.' })
+  @ApiErrors(NotAssignedEditorException, SeriesNotFoundException, SeriesNotInEndingStateException)
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 201, type: SeriesResDto })
+  finalizeEnding(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.seriesService.finalizeEnding(userId, id)
   }
 }

@@ -13,7 +13,19 @@ export const SeriesMessages = {
     proposalRejected: (reason: string) => `Proposal rejected: ${reason}`,
     nameRevision: (reason: string) => `Name needs revision: ${reason}`,
     nameApproved: 'Name approved',
-    nameLoopWarning: (rounds: number) => `Name review loop has reached ${rounds} rounds`
+    nameLoopWarning: (rounds: number) => `Name review loop has reached ${rounds} rounds`,
+    seriesCancelling: (allowance: number | null) =>
+      allowance != null
+        ? `Hội đồng đã quyết định huỷ series. Bạn được cấp ${allowance} chương để kết thúc.`
+        : 'Hội đồng đã quyết định huỷ series.',
+    seriesCompleting: 'Hội đồng đã duyệt kết thúc series.',
+    seriesFormatChanged: 'Hội đồng đã đổi hình thức xuất bản của series.',
+    seriesContinued: 'Hội đồng quyết định giữ series tiếp tục.',
+    seriesRejected: 'Hội đồng đã từ chối serial hoá series.',
+    seriesHiatusStarted: 'Series đã tạm ngưng (hiatus).',
+    seriesResumed: 'Series đã hoạt động trở lại.',
+    seriesCancelled: 'Series đã chính thức bị huỷ.',
+    seriesCompleted: 'Series đã chính thức hoàn thành.'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/series.errors.ts.
   error: {
@@ -30,6 +42,7 @@ export const SeriesMessages = {
     seriesAlreadyClaimed: 'Error.SeriesAlreadyClaimed',
     reviewAlreadyStarted: 'Error.ReviewAlreadyStarted',
     notAssignedEditor: 'Error.NotAssignedEditor',
-    proposalNotDeletable: 'Error.ProposalNotDeletable'
+    proposalNotDeletable: 'Error.ProposalNotDeletable',
+    seriesNotInEndingState: 'Error.SeriesNotInEndingState'
   }
 } as const

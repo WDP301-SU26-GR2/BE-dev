@@ -9,6 +9,9 @@ import { SeriesProposalService } from './services/series-proposal.service'
 import { SeriesClaimService } from './services/series-claim.service'
 import { SeriesQueryService } from './services/series-query.service'
 import { SeriesStateService } from './services/series-state.service'
+import { SeriesLifecycleService } from './services/series-lifecycle.service'
+import { SeriesSerializeService } from './services/series-serialize.service'
+import { SeriesIntegrationListener } from './services/series-integration.listener'
 
 @Module({
   controllers: [SeriesController, NameController],
@@ -20,7 +23,10 @@ import { SeriesStateService } from './services/series-state.service'
     NameService,
     SeriesPitchService,
     SeriesClaimService,
-    SeriesQueryService
+    SeriesQueryService,
+    SeriesLifecycleService,
+    SeriesSerializeService,
+    SeriesIntegrationListener
   ]
 })
 export class SeriesModule {}

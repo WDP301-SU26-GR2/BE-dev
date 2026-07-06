@@ -12,7 +12,7 @@ export class SeriesStateService {
     private readonly auditService: AuditService
   ) {}
 
-  async transition(seriesId: string, toStatus: SeriesStatus, opts: { changedBy: string; reason?: string }) {
+  async transition(seriesId: string, toStatus: SeriesStatus, opts: { changedBy: string | null; reason?: string }) {
     const series = await this.seriesRepository.findById(seriesId)
     if (!series) throw SeriesNotFoundException
     const from = series.status

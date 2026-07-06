@@ -255,4 +255,44 @@ export class PaymentRecordRepo {
       orderBy: { createdAt: 'desc' }
     })
   }
+
+  // B-CON-10: pause TIME_BOUND conditions of a series when hiatus starts.
+  // Only flips PENDING -> DISABLED for FULLY_EXECUTED contracts (cron markMissed auto-stops for DISABLED).
+  pauseTimeBoundConditions(seriesId: string) {
+    return this.prisma.paymentCondition.updateMany({
+      where: {
+        conditionType: ConditionType.TIME_BOUND,
+        status: PaymentConditionStatus.PENDING,
+        contract: { seriesId, status: ContractStatus.FULLY_EXECUTED }
+      },
+      data: { status: PaymentConditionStatus.DISABLED }
+    })
+  }
+
+  // B-CON-10: resume — fetch DISABLED TIME_BOUND conditions of the series to shift deadlines.
+  findDisabledTimeBoundConditions(seriesId: string) {
+    return this.prisma.paymentCondition.findMany({
+      where: {
+        conditionType: ConditionType.TIME_BOUND,
+        status: PaymentConditionStatus.DISABLED,
+        contract: { seriesId, status: ContractStatus.FULLY_EXECUTED }
+      }
+    })
+  }
+
+  // B-CON-10: resume — flip back to PENDING with shifted thresholdConfig (deadline moved forward).
+  resumeTimeBoundCondition(conditionId: string, thresholdConfig: unknown) {
+    return this.prisma.paymentCondition.update({
+      where: { id: conditionId },
+      data: { status: PaymentConditionStatus.PENDING, thresholdConfig: thresholdConfig as any }
+    })
+  }
+
+  // B-CON-09: cancellation — terminate all FULLY_EXECUTED contracts of the series.
+  terminateContractsBySeries(seriesId: string) {
+    return this.prisma.contract.updateMany({
+      where: { seriesId, status: ContractStatus.FULLY_EXECUTED },
+      data: { status: ContractStatus.TERMINATED }
+    })
+  }
 }

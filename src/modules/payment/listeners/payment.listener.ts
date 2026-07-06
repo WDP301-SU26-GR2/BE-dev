@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { OnEvent } from '@nestjs/event-emitter'
 import { PaymentEngineService } from '../services/payment-engine.service'
+import { DomainEvent } from 'src/core/events/domain-events'
 
 @Injectable()
 export class PaymentListener {
@@ -27,5 +28,15 @@ export class PaymentListener {
   @OnEvent('contract.revenue_reported')
   handleRevenueReported(payload: { contractId: string; revenue: number; period: string }) {
     return this.paymentEngineService.handleRevenueReported(payload)
+  }
+
+  @OnEvent(DomainEvent.SeriesHiatusStarted)
+  handleSeriesHiatusStarted(payload: { seriesId: string }) {
+    return this.paymentEngineService.handleSeriesHiatusStarted(payload)
+  }
+
+  @OnEvent(DomainEvent.SeriesHiatusEnded)
+  handleSeriesHiatusEnded(payload: { seriesId: string; pausedMs: number }) {
+    return this.paymentEngineService.handleSeriesHiatusEnded(payload)
   }
 }
