@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common'
-import { NameStatus, Prisma, ProposalStatus, PublicationType, SeriesStatus } from '@prisma/client'
+import {
+  FranchiseConsentStatus,
+  NameStatus,
+  Prisma,
+  ProposalStatus,
+  PublicationType,
+  SeriesStatus
+} from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { SeriesNotFoundException } from './errors/series.errors'
 import { CreateProposalBodyType, UpdateProposalBodyType } from './schemas/series-schemas'
@@ -19,7 +26,11 @@ export type SeriesListFilter = {
 export class SeriesRepository {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async createProposalSeries(mangakaId: string, body: CreateProposalBodyType) {
+  async createProposalSeries(
+    mangakaId: string,
+    body: CreateProposalBodyType,
+    franchiseConsentStatus?: FranchiseConsentStatus
+  ) {
     const series = await this.prismaService.series.create({
       data: {
         mangakaId,
@@ -30,6 +41,7 @@ export class SeriesRepository {
         publicationType: body.publicationType ?? null,
         parentSeriesId: body.parentSeriesId ?? null,
         relationshipType: body.relationshipType ?? null,
+        franchiseConsentStatus: franchiseConsentStatus ?? null,
         status: SeriesStatus.DRAFT,
         proposal: {
           synopsis: body.synopsis ?? null,
@@ -251,6 +263,22 @@ export class SeriesRepository {
         startIssueNumber: slot.startIssueNumber,
         publicationType: slot.publicationType as PublicationType
       }
+    })
+  }
+
+  // Spec 3 §4.5: contractType của Contract FULLY_EXECUTED (gate franchise). null nếu chưa có.
+  async findExecutedContractType(seriesId: string): Promise<'FULL_BUYOUT' | 'REVENUE_SHARE' | null> {
+    const contract = await this.prismaService.contract.findFirst({
+      where: { seriesId, status: 'FULLY_EXECUTED' },
+      select: { contractType: true }
+    })
+    return contract?.contractType ?? null
+  }
+
+  async setFranchiseConsentStatus(seriesId: string, status: FranchiseConsentStatus) {
+    return await this.prismaService.series.update({
+      where: { id: seriesId },
+      data: { franchiseConsentStatus: status }
     })
   }
 }

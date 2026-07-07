@@ -47,6 +47,7 @@ describe('Genre/Demographic enums', () => {
       status: 'DRAFT',
       statusReason: null,
       relationshipType: null,
+      franchiseConsentStatus: null,
       createdAt: '2026-06-29T00:00:00.000Z',
       reviewStartedAt: null,
       proposal: null
@@ -71,6 +72,7 @@ describe('Genre/Demographic enums', () => {
       status: 'SERIALIZED',
       statusReason: null,
       relationshipType: null,
+      franchiseConsentStatus: null,
       createdAt: '2026-06-29T00:00:00.000Z',
       reviewStartedAt: null,
       proposal: null
@@ -130,6 +132,7 @@ describe('series schemas — coverImage', () => {
       status: 'DRAFT',
       statusReason: null,
       relationshipType: null,
+      franchiseConsentStatus: null,
       createdAt: '2026-06-23T00:00:00.000Z',
       reviewStartedAt: null,
       proposal: null

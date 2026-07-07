@@ -1,6 +1,7 @@
 import { ContractService } from './contract.service'
 import { ContractStatus } from '@prisma/client'
 import { CreateContractBodyDto } from '../dto/contract.dto'
+import { RoleName } from 'src/core/security/constants/role.constant'
 
 type Mocks = {
   contractRepo: any
@@ -89,5 +90,60 @@ describe('ContractService.signByMangakaWithOtp (ContractExecuted emit)', () => {
     m.contractRepo.updateStatus.mockResolvedValue({ id: 'c1', seriesId: 's1', status: ContractStatus.FULLY_EXECUTED })
     await makeService(m).signByMangakaWithOtp('c1', 'm1', 'm1@x.test', '123456')
     expect(m.domainEventBus.emit).toHaveBeenCalledWith('contract.executed', { contractId: 'c1', seriesId: 's1' })
+  })
+})
+
+describe('ContractService.reportRevenue', () => {
+  const base = {
+    id: 'c1',
+    editorId: 'ed1',
+    mangakaId: 'm1',
+    contractType: 'REVENUE_SHARE',
+    status: 'FULLY_EXECUTED',
+    seriesId: 's1'
+  }
+
+  it('emits RevenueReported for BOARD_MEMBER', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue(base)
+    const res = await makeService(m).reportRevenue('507f1f77bcf86cd799439011', 'anyBoard', RoleName.BOARD_MEMBER, {
+      revenue: 1000,
+      period: '2026Q1'
+    })
+    expect(m.domainEventBus.emit).toHaveBeenCalledWith('contract.revenue_reported', {
+      contractId: '507f1f77bcf86cd799439011',
+      revenue: 1000,
+      period: '2026Q1'
+    })
+    expect(res).toHaveProperty('message')
+  })
+
+  it('403 when EDITOR not the contract editor', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue(base)
+    await expect(
+      makeService(m).reportRevenue('507f1f77bcf86cd799439011', 'otherEd', RoleName.EDITOR, {
+        revenue: 1,
+        period: 'p'
+      })
+    ).rejects.toMatchObject({ status: 403 })
+  })
+
+  it('409 when not REVENUE_SHARE', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({ ...base, contractType: 'FULL_BUYOUT' })
+    await expect(
+      makeService(m).reportRevenue('507f1f77bcf86cd799439011', 'b', RoleName.BOARD_MEMBER, {
+        revenue: 1,
+        period: 'p'
+      })
+    ).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('404 on malformed id', async () => {
+    const m = makeMocks()
+    await expect(
+      makeService(m).reportRevenue('bad', 'b', RoleName.BOARD_MEMBER, { revenue: 1, period: 'p' })
+    ).rejects.toMatchObject({ status: 404 })
   })
 })

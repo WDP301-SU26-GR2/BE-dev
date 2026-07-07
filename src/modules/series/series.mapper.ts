@@ -17,6 +17,7 @@ export function toSeriesRes(series: Series) {
     status: series.status,
     statusReason: series.statusReason,
     relationshipType: series.relationshipType,
+    franchiseConsentStatus: series.franchiseConsentStatus,
     createdAt: series.createdAt.toISOString(),
     reviewStartedAt: series.reviewStartedAt ? series.reviewStartedAt.toISOString() : null,
     proposal: series.proposal

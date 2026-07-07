@@ -25,25 +25,18 @@ export class ReprintRequestRepo {
     })
   }
 
-  async findMany(params: { requestedBy?: string; status?: string; seriesId?: string }) {
+  // Spec 3 §4.4: MANGAKA chỉ thấy reprint của series mình (series.mangakaId===userId); Board/Editor/Admin → all.
+  async findManyScoped(params: { userId: string; roleName: string; status?: string; seriesId?: string }) {
     const where: any = {}
-
-    if (params.requestedBy) {
-      where.requestedBy = params.requestedBy
+    if (params.status) where.status = params.status
+    if (params.seriesId) where.seriesId = params.seriesId
+    if (params.roleName === 'MANGAKA') {
+      const owned = await this.prisma.series.findMany({ where: { mangakaId: params.userId }, select: { id: true } })
+      const ids = owned.map((s) => s.id)
+      if (ids.length === 0) return []
+      where.seriesId = params.seriesId && ids.includes(params.seriesId) ? params.seriesId : { in: ids }
     }
-
-    if (params.status) {
-      where.status = params.status
-    }
-
-    if (params.seriesId) {
-      where.seriesId = params.seriesId
-    }
-
-    return this.prisma.reprintRequest.findMany({
-      where,
-      orderBy: { createdAt: 'desc' }
-    })
+    return this.prisma.reprintRequest.findMany({ where, orderBy: { createdAt: 'desc' } })
   }
 
   // Lấy hợp đồng mới nhất đang có hiệu lực thi hành đầy đủ (FULLY_EXECUTED) để xác định Ownership (B-RPT-02)

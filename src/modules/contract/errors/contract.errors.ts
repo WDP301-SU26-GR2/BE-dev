@@ -7,6 +7,9 @@ export const ContractErrors = {
   // B-CON-01: chỉ được tạo hợp đồng sau khi series đã được Board serial hoá (SERIALIZED)
   SeriesNotSerialized: () => new ConflictException([{ message: 'Error.SeriesNotSerialized', path: 'seriesId' }]),
 
+  // B-CON-07: route revenue chỉ áp dụng cho hợp đồng REVENUE_SHARE đã FULLY_EXECUTED
+  RevenueNotApplicable: () => new ConflictException('REVENUE_NOT_APPLICABLE'),
+
   // Lỗi khi Editor này cố tình sửa hợp đồng của Editor khác phụ trách
   UnauthorizedEditor: () => new ForbiddenException('ONLY_ASSIGNED_EDITOR_CAN_EDIT'),
 

@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common'
-import { NameStatus, NotificationType, ProposalStatus, SeriesStatus } from '@prisma/client'
+import { FranchiseConsentStatus, NameStatus, NotificationType, ProposalStatus, SeriesStatus } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import {
+  FranchiseConsentRequiredException,
   InvalidProposalStateException,
+  NotFranchiseConsentTargetException,
+  NotOriginalMangakaException,
   NotSeriesOwnerException,
   ParentSeriesNotFoundException,
-  ProposalNotEditableException,
   ProposalNotDeletableException,
+  ProposalNotEditableException,
   SeriesNotFoundException
 } from '../errors/series.errors'
 import { toNameRes, toSeriesRes } from '../series.mapper'
@@ -27,13 +30,27 @@ export class SeriesProposalService {
   ) {}
 
   async createProposal(mangakaId: string, body: CreateProposalBodyType) {
+    let franchiseConsentStatus: FranchiseConsentStatus | undefined
+    let notifyParentMangakaId: string | null = null
     if (body.parentSeriesId) {
       const parent = await this.seriesRepository.findById(body.parentSeriesId)
       if (!parent) throw ParentSeriesNotFoundException
-      // B1-INTEGRATION: khi có Contract module, nếu parent contractType=REVENUE_SHARE & Mangaka gốc còn quyền
-      // -> yêu cầu Mangaka gốc đồng ý trước khi cho proposal franchise tiếp tục.
+      const parentContractType = await this.seriesRepository.findExecutedContractType(body.parentSeriesId)
+      if (parentContractType === 'REVENUE_SHARE' && parent.mangakaId !== mangakaId) {
+        franchiseConsentStatus = FranchiseConsentStatus.PENDING
+        notifyParentMangakaId = parent.mangakaId
+      }
     }
-    const { series, name } = await this.seriesRepository.createProposalSeries(mangakaId, body)
+    const { series, name } = await this.seriesRepository.createProposalSeries(mangakaId, body, franchiseConsentStatus)
+    if (notifyParentMangakaId) {
+      await this.notificationService.notifySafe({
+        recipientId: notifyParentMangakaId,
+        type: NotificationType.SYSTEM,
+        referenceId: series.id,
+        referenceType: 'FRANCHISE_CONSENT_REQUESTED',
+        content: SeriesMessages.notification.franchiseConsentRequested
+      })
+    }
     return { series: toSeriesRes(series), name: toNameRes(name) }
   }
 
@@ -51,6 +68,12 @@ export class SeriesProposalService {
     if (series.status !== SeriesStatus.DRAFT) throw InvalidProposalStateException
     const nameId = series.proposal?.nameId
     if (!nameId) throw InvalidProposalStateException
+    if (
+      series.franchiseConsentStatus === FranchiseConsentStatus.PENDING ||
+      series.franchiseConsentStatus === FranchiseConsentStatus.REJECTED
+    ) {
+      throw FranchiseConsentRequiredException
+    }
 
     // Single-writer: Series.status chỉ đổi qua SeriesStateService.
     // Cập nhật proposal + Name trước, transition (ghi audit) sau cùng.
@@ -147,6 +170,30 @@ export class SeriesProposalService {
     if (series.status !== SeriesStatus.DRAFT) throw ProposalNotDeletableException
     await this.seriesRepository.deleteSeriesWithNames(seriesId)
     return { message: SeriesMessages.response.proposalDeleted }
+  }
+
+  // A-SER-06: Mangaka gốc đồng ý/từ chối series phái sinh. REJECTED chỉ block submit (creator tự withdraw).
+  async franchiseConsent(seriesId: string, callerId: string, approve: boolean) {
+    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    const derivative = await this.seriesRepository.findById(seriesId)
+    if (!derivative) throw SeriesNotFoundException
+    if (derivative.franchiseConsentStatus == null || !derivative.parentSeriesId) {
+      throw NotFranchiseConsentTargetException
+    }
+    const parent = await this.seriesRepository.findById(derivative.parentSeriesId)
+    if (!parent || parent.mangakaId !== callerId) throw NotOriginalMangakaException
+    const status = approve ? FranchiseConsentStatus.APPROVED : FranchiseConsentStatus.REJECTED
+    const updated = await this.seriesRepository.setFranchiseConsentStatus(seriesId, status)
+    await this.notificationService.notifySafe({
+      recipientId: derivative.mangakaId,
+      type: NotificationType.SYSTEM,
+      referenceId: seriesId,
+      referenceType: approve ? 'FRANCHISE_CONSENT_APPROVED' : 'FRANCHISE_CONSENT_REJECTED',
+      content: approve
+        ? SeriesMessages.notification.franchiseConsentApproved
+        : SeriesMessages.notification.franchiseConsentRejected
+    })
+    return toSeriesRes(updated)
   }
 
   private async requireSeries(seriesId: string) {

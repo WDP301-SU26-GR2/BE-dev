@@ -21,16 +21,17 @@ import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 export class ReprintRequestController {
   constructor(private readonly reprintRequestService: ReprintRequestService) {}
 
-  @ApiOperation({ summary: 'Danh sách yêu cầu tái bản (filter status/seriesId)' })
+  @ApiOperation({ summary: 'Danh sách yêu cầu tái bản (filter status/seriesId, scope theo role)' })
   @Get()
   @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.MANGAKA, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: [ReprintRequestResDto] })
   findAll(
     @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string,
     @Query('status') status?: string,
     @Query('seriesId') seriesId?: string
   ) {
-    return this.reprintRequestService.findAll(userId, { status, seriesId })
+    return this.reprintRequestService.findAll(userId, roleName, { status, seriesId })
   }
 
   @ApiOperation({ summary: 'Chi tiết yêu cầu tái bản' })
