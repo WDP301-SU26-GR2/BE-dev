@@ -1,6 +1,7 @@
 import { ManuscriptStatus } from '@prisma/client'
 import { ChapterCoOwnerService } from './chapter-coowner.service'
 import { DomainEvent } from 'src/core/events/domain-events'
+import { NotCoOwnerException, CoOwnerApprovalNotPendingException } from '../errors/chapter.errors'
 
 const CHAPTER_ID = '507f1f77bcf86cd799439011'
 
@@ -66,14 +67,14 @@ describe('ChapterCoOwnerService (A-CHP-06 / B-TRF-05)', () => {
 
   it('denies a caller who is not the co-owner (403)', async () => {
     const m = makeMocks()
-    await expect(make(m).approve('someoneElse', CHAPTER_ID)).rejects.toBeDefined()
+    await expect(make(m).approve('someoneElse', CHAPTER_ID)).rejects.toBe(NotCoOwnerException)
     expect(m.manuscriptStateService.transition).not.toHaveBeenCalled()
   })
 
   it('rejects when approval record is not PENDING (409)', async () => {
     const m = makeMocks()
     m.chapterRepository.findCoOwnerApprovalByChapterId.mockResolvedValue({ id: 'ap1', status: 'APPROVED' })
-    await expect(make(m).approve('coA', CHAPTER_ID)).rejects.toBeDefined()
+    await expect(make(m).approve('coA', CHAPTER_ID)).rejects.toBe(CoOwnerApprovalNotPendingException)
     expect(m.manuscriptStateService.transition).not.toHaveBeenCalled()
   })
 })
