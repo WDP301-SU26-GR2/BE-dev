@@ -1,10 +1,14 @@
 import { SurveyService } from './survey.service'
 import { DomainEvent } from 'src/core/events/domain-events'
+import { IdentityHashService } from 'src/infrastructure/crypto/identity-hash.service'
+
+// Real (not mocked) so identity/ip hashing determinism is exercised end-to-end in submitVote tests.
+const identityHash = new IdentityHashService('test-pepper')
 
 type Mocks = {
   surveyRepository: any
   authOtpService: any
-  hashingService: any
+  identityHashService: IdentityHashService
   rateLimitService: any
   domainEventBus: any
   notificationService: any
@@ -17,11 +21,13 @@ function makeMocks(): Mocks {
       getSurveyDataByPeriod: jest.fn(),
       getReaderVotesByPeriod: jest.fn(),
       findPreviousSurveyPeriod: jest.fn(),
+      findReaderVoteByPeriodAndIdentity: jest.fn(),
+      createReaderVote: jest.fn().mockResolvedValue({}),
       createRankingRecord: jest.fn().mockResolvedValue({}),
       updateSurveyPeriodStatus: jest.fn().mockResolvedValue({})
     },
-    authOtpService: { sendOTPService: jest.fn() },
-    hashingService: { hash: jest.fn().mockResolvedValue('h') },
+    authOtpService: { sendOTPService: jest.fn(), validateOtpCode: jest.fn(), burnOtp: jest.fn() },
+    identityHashService: identityHash,
     rateLimitService: { checkAndConsume: jest.fn() },
     domainEventBus: { emit: jest.fn() },
     notificationService: { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -32,7 +38,7 @@ function makeService(m: Mocks) {
   return new SurveyService(
     m.surveyRepository as never,
     m.authOtpService as never,
-    m.hashingService as never,
+    m.identityHashService,
     m.rateLimitService as never,
     m.domainEventBus as never,
     m.notificationService as never
@@ -88,5 +94,38 @@ describe('SurveyService.finalizeRanking — RankingFinalized event payload (B-VO
     const [, payload] = emitCalls[0]
     expect(payload.surveyPeriodId).toBe('sp2')
     expect(payload.rankings).toEqual([])
+  })
+})
+
+describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)', () => {
+  const OPEN_PERIOD = { id: 'sp1', status: 'OPEN' }
+  const VOTE_BODY = { surveyPeriodId: 'sp1', seriesIds: ['sA'], phoneNumber: '+84900000000', otpCode: '123456' }
+  const IP = '203.0.113.9'
+
+  it('uses HMAC identityHash for BOTH the dedup lookup and the stored vote (so "1 phone = 1 vote/period" holds)', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
+    m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue(null)
+
+    await makeService(m).submitVote(VOTE_BODY, IP)
+
+    const expectedIdentityHash = identityHash.hash(VOTE_BODY.phoneNumber)
+    const expectedIpHash = identityHash.hash(IP)
+
+    // dedup lookup keyed by the deterministic hash
+    expect(m.surveyRepository.findReaderVoteByPeriodAndIdentity).toHaveBeenCalledWith('sp1', expectedIdentityHash)
+    // stored vote carries the SAME deterministic hash (unique constraint can now catch repeats)
+    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledWith(
+      expect.objectContaining({ identityHash: expectedIdentityHash, ipHash: expectedIpHash })
+    )
+  })
+
+  it('rejects a second vote from the same phone in the same period (dedup hit)', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
+    m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue({ id: 'existing' })
+
+    await expect(makeService(m).submitVote(VOTE_BODY as never, IP)).rejects.toBeDefined()
+    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
   })
 })
