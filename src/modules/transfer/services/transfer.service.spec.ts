@@ -1,4 +1,5 @@
 import { TransferService } from './transfer.service'
+import { InvalidTransferStateException, ValuationRequiredException } from '../errors/transfer.error'
 
 function makeRepo(overrides: Record<string, unknown> = {}) {
   return {
@@ -39,6 +40,27 @@ describe('TransferService — Part 2 hardening', () => {
       expect(arg.valuationAmount).toBe(5000)
       expect(arg.conditions).toEqual([{ description: 'B adds 5 chapters', type: 'RECURRING', value: 5 }])
     })
+
+    it('rejects when valuationAmount <= 0 (ValuationRequired)', async () => {
+      const repo = makeRepo()
+      repo.findTransferRequestById.mockResolvedValue({
+        id: '507f1f77bcf86cd799439011',
+        status: 'UNDER_REVIEW',
+        originalContractType: 'FULL_BUYOUT',
+        originalContractId: 'k0',
+        seriesId: 's1',
+        requestingMangakaId: 'B'
+      })
+
+      await expect(
+        make(repo).boardAssignFullBuyout('507f1f77bcf86cd799439011', {
+          boardSessionId: 'bs1',
+          valuationAmount: 0,
+          conditions: [{ description: 'x', type: 'RECURRING', value: 1 }]
+        })
+      ).rejects.toBe(ValuationRequiredException)
+      expect(repo.createNewContractFromTransfer).not.toHaveBeenCalled()
+    })
   })
 
   describe('createTransferContract (B-TRF-03)', () => {
@@ -52,7 +74,7 @@ describe('TransferService — Part 2 hardening', () => {
 
       await expect(
         make(repo).createTransferContract({ transferRequestId: '507f1f77bcf86cd799439011' } as never)
-      ).rejects.toBeDefined()
+      ).rejects.toBe(InvalidTransferStateException)
       expect(repo.createTransferContract).not.toHaveBeenCalled()
     })
 

@@ -176,6 +176,7 @@ export class ContractService {
 
   // B-CON-02: Mangaka yêu cầu chỉnh sửa điều khoản (MANGAKA_REVIEW → NEGOTIATION).
   async mangakaRequestChanges(contractId: string, userId: string) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
     if (contract.mangakaId !== userId) throw ContractErrors.UnauthorizedEditor()
@@ -194,6 +195,7 @@ export class ContractService {
 
   // B-CON-02 (BOARD_REVIEW): Board duyệt điều khoản sau khi Mangaka gật (MANGAKA_APPROVED → BOARD_APPROVED).
   async boardApprove(contractId: string) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
     this.assertTransition(contract.status, ContractStatus.BOARD_APPROVED)
@@ -220,6 +222,7 @@ export class ContractService {
 
   // B-CON-02 (BOARD_REVIEW): Board yêu cầu chỉnh sửa (MANGAKA_APPROVED → NEGOTIATION, phải gửi lại Mangaka).
   async boardRequestChanges(contractId: string) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
     this.assertTransition(contract.status, ContractStatus.NEGOTIATION)

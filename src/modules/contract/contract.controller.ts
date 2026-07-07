@@ -171,6 +171,7 @@ export class ContractController {
   @ApiOperation({ summary: 'Mangaka ký hợp đồng bằng OTP' })
   @Post(':id/signatures/mangaka')
   @Roles(RoleName.MANGAKA)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.AlreadySigned(), ContractErrors.NotSignableYet())
   @ZodResponse({ status: 201, type: ContractResDto })
   signMangaka(
     @Param('id') id: string,
@@ -184,6 +185,14 @@ export class ContractController {
   @ApiOperation({ summary: 'Board ký hợp đồng bằng OTP' })
   @Post(':id/signatures/board')
   @Roles(RoleName.BOARD_MEMBER)
+  @ApiErrors(
+    ContractErrors.NotFound(),
+    ContractErrors.AlreadySigned(),
+    ContractErrors.NotSignableYet(),
+    ContractErrors.BoardDecisionNotFound(),
+    ContractErrors.NotAuthorizedInBoard(),
+    ContractErrors.BoardMemberAlreadySigned()
+  )
   @ZodResponse({ status: 201, type: ContractSignResDto })
   signBoard(
     @Param('id') id: string,

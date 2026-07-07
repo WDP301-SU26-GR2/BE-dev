@@ -207,6 +207,7 @@ export class TransferService {
     role: 'MANGAKA_A' | 'MANGAKA_B' | 'BOARD',
     dto: SignTransferContractBodyDto
   ) {
+    if (!OBJECT_ID_RE.test(id)) throw TransferContractNotFoundException
     const contract = await this.transferRepo.findTransferContractById(id)
     if (!contract) {
       throw TransferContractNotFoundException
@@ -269,6 +270,7 @@ export class TransferService {
   }
 
   async getSignatures(id: string) {
+    if (!OBJECT_ID_RE.test(id)) throw TransferContractNotFoundException
     const contract = await this.transferRepo.findTransferContractById(id)
     if (!contract) {
       throw TransferContractNotFoundException

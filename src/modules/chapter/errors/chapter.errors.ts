@@ -10,7 +10,7 @@ export const InvalidManuscriptTransitionException = new ConflictException(E.inva
 export const InvalidPageTransitionException = new ConflictException(E.invalidPageTransition)
 export const NotCoOwnerException = new ForbiddenException(E.notCoOwner)
 export const CoOwnerApprovalNotPendingException = new ConflictException([
-  { message: E.coOwnerApprovalNotPending, path: 'id' }
+  { message: E.coOwnerApprovalNotPending, path: 'status' }
 ])
 export const CoOwnerApprovalNotFoundException = new NotFoundException(E.coOwnerApprovalNotFound)
 export const PagesNotAllCompletedException = new ConflictException(E.pagesNotAllCompleted)
