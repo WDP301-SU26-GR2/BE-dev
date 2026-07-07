@@ -25,6 +25,8 @@ export const BoardDecisionTransferSchema = extendApi(
 )
 
 // B-TRF-02 (Mô hình A): Board định giá lại + đặt điều kiện thanh toán cho HĐ FULL_BUYOUT mới của B.
+// `type` validate theo Prisma enum `ConditionType` (CHAPTER_MILESTONE | RECURRING_CHAPTER | RANKING_MILESTONE | TIME_BOUND)
+// — fail-fast 422 nếu Board gửi giá trị ngoài enum (tránh Prisma P2009 → 500 ở runtime).
 export const AssignFullBuyoutSchema = extendApi(
   z.object({
     boardSessionId: z.string().min(1, 'BOARD_SESSION_ID_REQUIRED'),
@@ -33,7 +35,9 @@ export const AssignFullBuyoutSchema = extendApi(
       .array(
         z.object({
           description: z.string().min(1),
-          type: z.string().min(1),
+          type: z.nativeEnum($Enums.ConditionType, {
+            error: 'INVALID_CONDITION_TYPE'
+          }),
           value: z.number().positive()
         })
       )
