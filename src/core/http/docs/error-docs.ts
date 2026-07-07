@@ -97,5 +97,15 @@ export const ERROR_HINTS: Record<string, string> = {
     'only ASSIGNED/IN_PROGRESS/REVISION_REQUESTED/ON_HOLD tasks can be reassigned; review or cancel submitted tasks first',
   'Error.TaskNotCancellable': 'task is APPROVED/CANCELLED and cannot be cancelled',
   'Error.ChapterOnHold': 'chapter is on hold; resume before production mutations',
-  'Error.InvalidTaskTransition': 'invalid task status transition'
+  'Error.InvalidTaskTransition': 'invalid task status transition',
+  'Error.ContractNotAmendable': 'contract must be FULLY_EXECUTED to create an amendment (BR-CONTRACT-01)',
+  'Error.OpenAmendmentExists': 'contract already has a non-terminal amendment (DRAFT/PENDING_SIGNATURES)',
+  'Error.AmendmentNotFound': 'amendment id not found under this contract',
+  'Error.AmendmentNotEditable': 'amendment can only be edited while DRAFT',
+  'Error.AmendmentNotSubmittable': 'amendment can only be submitted while DRAFT',
+  'Error.AmendmentNoChanges': 'submit requires at least one changed term + non-empty changedClauses',
+  'Error.AmendmentNotPendingSignatures': 'amendment must be PENDING_SIGNATURES to sign/reject',
+  'Error.MangakaSignNotRequired': 'FULL_BUYOUT amendment is board-signed only; mangaka signature not required',
+  'Error.AmendmentNotVoidable': 'amendment is already terminal (FULLY_EXECUTED/VOIDED)',
+  'Error.OwnershipMismatch': 'ownership split must total 100; FULL_BUYOUT stays 100/0'
 }

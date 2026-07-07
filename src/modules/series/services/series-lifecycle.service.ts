@@ -62,11 +62,15 @@ export class SeriesLifecycleService {
   async complete(seriesId: string) {
     const series = await this.seriesStateService.transition(seriesId, SeriesStatus.COMPLETING, { changedBy: null })
     await this.notifyOwners(series, 'SERIES_COMPLETING', SeriesMessages.notification.seriesCompleting, seriesId)
+    this.eventBus.emit(DomainEvent.ContractAmendmentRequested, {
+      seriesId,
+      trigger: 'COMPLETION',
+      summary: 'Early completion — review contract terms'
+    })
     return series
   }
 
   // Called by listener when Board APPROVED FORMAT_CHANGE. Only changes publicationType, NO status transition.
-  // Contract Amendment deferred to Spec 3.
   async changeFormat(seriesId: string, publicationType?: PublicationType) {
     if (!publicationType) {
       this.logger.warn(`FORMAT_CHANGE for series ${seriesId} without publicationType in details — skipped.`)
@@ -74,13 +78,19 @@ export class SeriesLifecycleService {
     }
     await this.seriesRepository.updatePublicationType(seriesId, publicationType)
     const series = await this.seriesRepository.findById(seriesId)
-    if (series)
+    if (series) {
       await this.notifyOwners(
         series,
         'SERIES_FORMAT_CHANGED',
         SeriesMessages.notification.seriesFormatChanged,
         seriesId
       )
+      this.eventBus.emit(DomainEvent.ContractAmendmentRequested, {
+        seriesId,
+        trigger: 'FORMAT_CHANGE',
+        summary: `Publication type changed to ${publicationType}`
+      })
+    }
   }
 
   // Editor-driven. Guard assigned editor + SERIALIZED (transition table enforces).
