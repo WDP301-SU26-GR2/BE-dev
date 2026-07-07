@@ -13,7 +13,10 @@ export const ChapterMessages = {
     manuscriptResubmitted: 'Manuscript resubmitted',
     manuscriptApproved: 'Manuscript approved (ready for print)',
     chapterHeld: (reason: string) => `Chapter production is on hold: ${reason}`,
-    chapterResumed: 'Chapter production has resumed'
+    chapterResumed: 'Chapter production has resumed',
+    coOwnerApproved: 'Co-owner approved the chapter — published',
+    coOwnerRejected: (reason: string) => `Co-owner requested revision: ${reason}`,
+    coOwnerApprovalEscalated: 'Co-owner approval overdue — escalated to the Board'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/chapter.errors.ts.
   error: {
@@ -33,6 +36,9 @@ export const ChapterMessages = {
     chapterNotHoldable: 'Error.ChapterNotHoldable',
     chapterAlreadyOnHold: 'Error.ChapterAlreadyOnHold',
     chapterNotOnHold: 'Error.ChapterNotOnHold',
-    chapterOnHold: 'Error.ChapterOnHold'
+    chapterOnHold: 'Error.ChapterOnHold',
+    notCoOwner: 'Error.NotCoOwner',
+    coOwnerApprovalNotPending: 'Error.CoOwnerApprovalNotPending',
+    coOwnerApprovalNotFound: 'Error.CoOwnerApprovalNotFound'
   }
 } as const

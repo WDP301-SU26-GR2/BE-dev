@@ -22,6 +22,13 @@ export const ContractErrors = {
   // Lỗi khi trạng thái hợp đồng không hợp lệ cho hành động hiện tại (ví dụ: đang DRAFT mà đòi ký)
   InvalidStatus: () => new BadRequestException('INVALID_CONTRACT_STATUS_FOR_THIS_ACTION'),
 
+  // B-CON-02: chuyển trạng thái không hợp lệ theo CONTRACT_TRANSITIONS (Requiment Flow 6)
+  InvalidContractTransition: () =>
+    new ConflictException([{ message: 'Error.InvalidContractTransition', path: 'status' }]),
+
+  // B-CON-02: chưa BOARD_APPROVED thì chưa được ký
+  NotSignableYet: () => new ConflictException([{ message: 'Error.ContractNotSignableYet', path: 'status' }]),
+
   AlreadySigned: () => new BadRequestException('CONTRACT_ALREADY_SIGNED_BY_THIS_PARTY'),
 
   BoardDecisionNotFound: () =>

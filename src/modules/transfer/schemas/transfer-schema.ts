@@ -24,6 +24,24 @@ export const BoardDecisionTransferSchema = extendApi(
   { title: 'BoardDecisionTransferBody', description: 'Board duyệt/từ chối yêu cầu chuyển nhượng' }
 )
 
+// B-TRF-02 (Mô hình A): Board định giá lại + đặt điều kiện thanh toán cho HĐ FULL_BUYOUT mới của B.
+export const AssignFullBuyoutSchema = extendApi(
+  z.object({
+    boardSessionId: z.string().min(1, 'BOARD_SESSION_ID_REQUIRED'),
+    valuationAmount: z.number().positive('VALUATION_MUST_BE_POSITIVE'),
+    conditions: z
+      .array(
+        z.object({
+          description: z.string().min(1),
+          type: z.string().min(1),
+          value: z.number().positive()
+        })
+      )
+      .min(1, 'AT_LEAST_ONE_CONDITION')
+  }),
+  { title: 'AssignFullBuyoutBody', description: 'Board giao FULL_BUYOUT cho Mangaka B (định giá lại + điều kiện)' }
+)
+
 export const CreateTransferContractSchema = extendApi(
   z.object({
     transferRequestId: z.string().min(1, 'TRANSFER_REQUEST_ID_REQUIRED'),

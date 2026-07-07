@@ -42,13 +42,90 @@ describe('ContractService.mangakaApprove (B-CON-02 auth)', () => {
     expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
   })
 
-  it('approves when caller is the mangaka', async () => {
+  it('approves when caller is the mangaka (from MANGAKA_REVIEW)', async () => {
     const m = makeMocks()
-    m.contractRepo.findById.mockResolvedValue({ id: 'c1', mangakaId: 'm1', editorId: 'e1' })
+    m.contractRepo.findById.mockResolvedValue({
+      id: 'c1',
+      mangakaId: 'm1',
+      editorId: 'e1',
+      status: ContractStatus.MANGAKA_REVIEW
+    })
     m.contractRepo.updateStatus.mockResolvedValue({ id: 'c1', status: ContractStatus.MANGAKA_APPROVED })
     const res = await makeService(m).mangakaApprove('c1', 'm1')
     expect(m.contractRepo.updateStatus).toHaveBeenCalledWith('c1', ContractStatus.MANGAKA_APPROVED)
     expect(res).toMatchObject({ id: 'c1' })
+  })
+
+  it('409 InvalidContractTransition when approving from a non-MANGAKA_REVIEW status', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: 'c1',
+      mangakaId: 'm1',
+      editorId: 'e1',
+      status: ContractStatus.DRAFT
+    })
+    await expect(makeService(m).mangakaApprove('c1', 'm1')).rejects.toMatchObject({ status: 409 })
+    expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
+  })
+})
+
+describe('ContractService — B-CON-02 BOARD_REVIEW + request-changes', () => {
+  it('boardApprove: MANGAKA_APPROVED → BOARD_APPROVED', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: 'c1',
+      mangakaId: 'm1',
+      editorId: 'e1',
+      status: ContractStatus.MANGAKA_APPROVED
+    })
+    m.contractRepo.updateStatus.mockResolvedValue({ id: 'c1', status: ContractStatus.BOARD_APPROVED })
+    await makeService(m).boardApprove('c1')
+    expect(m.contractRepo.updateStatus).toHaveBeenCalledWith('c1', ContractStatus.BOARD_APPROVED)
+  })
+
+  it('boardApprove: 409 when contract is still MANGAKA_REVIEW (not yet mangaka-approved)', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({ id: 'c1', mangakaId: 'm1', status: ContractStatus.MANGAKA_REVIEW })
+    await expect(makeService(m).boardApprove('c1')).rejects.toMatchObject({ status: 409 })
+    expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
+  })
+
+  it('mangakaRequestChanges: MANGAKA_REVIEW → NEGOTIATION (only the contract mangaka)', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: 'c1',
+      mangakaId: 'm1',
+      editorId: 'e1',
+      status: ContractStatus.MANGAKA_REVIEW
+    })
+    m.contractRepo.updateStatus.mockResolvedValue({ id: 'c1', status: ContractStatus.NEGOTIATION })
+    await makeService(m).mangakaRequestChanges('c1', 'm1')
+    expect(m.contractRepo.updateStatus).toHaveBeenCalledWith('c1', ContractStatus.NEGOTIATION)
+  })
+
+  it('boardRequestChanges: MANGAKA_APPROVED → NEGOTIATION (resets signatures)', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({ id: 'c1', mangakaId: 'm1', status: ContractStatus.MANGAKA_APPROVED })
+    m.contractRepo.updateStatus.mockResolvedValue({ id: 'c1', status: ContractStatus.NEGOTIATION })
+    await makeService(m).boardRequestChanges('c1')
+    expect(m.contractRepo.updateStatus).toHaveBeenCalledWith('c1', ContractStatus.NEGOTIATION, {
+      mangakaSignedAt: null,
+      boardSignedAt: null
+    })
+  })
+
+  it('signByMangaka: 409 NotSignableYet when contract is not BOARD_APPROVED', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: 'c1',
+      mangakaId: 'm1',
+      mangakaSignedAt: null,
+      status: ContractStatus.MANGAKA_APPROVED
+    })
+    await expect(makeService(m).signByMangakaWithOtp('c1', 'm1', 'm1@x.test', '123456')).rejects.toMatchObject({
+      status: 409
+    })
+    expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
   })
 })
 
@@ -85,7 +162,8 @@ describe('ContractService.signByMangakaWithOtp (ContractExecuted emit)', () => {
       id: 'c1',
       mangakaId: 'm1',
       mangakaSignedAt: null,
-      boardSignedAt: new Date() // board already signed → mangaka sign flips to FULLY_EXECUTED
+      boardSignedAt: new Date(), // board already signed → mangaka sign flips to FULLY_EXECUTED
+      status: ContractStatus.BOARD_APPROVED // B-CON-02: signable only after board approves terms
     })
     m.contractRepo.updateStatus.mockResolvedValue({ id: 'c1', seriesId: 's1', status: ContractStatus.FULLY_EXECUTED })
     await makeService(m).signByMangakaWithOtp('c1', 'm1', 'm1@x.test', '123456')

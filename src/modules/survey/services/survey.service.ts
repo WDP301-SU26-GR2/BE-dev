@@ -11,7 +11,9 @@ import {
   VoteOtpRateLimitException,
   SurveyDataImportNotAllowedException,
   RankingFinalizeNotAllowedException,
-  VotingConfigNotFoundException
+  TooManySeriesSelectedException,
+  RankingAccessDeniedException,
+  SeriesNotFoundForRankingException
 } from '../errors/survey.errors'
 import {
   CreateSurveyPeriodBodyDto,
@@ -29,6 +31,18 @@ import { SURVEY_CONFIG } from '../survey.constant'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { AppConfigService } from 'src/modules/app-config/app-config.service'
+import { SurveyConfigService } from './survey-config.service'
+import { bottomThirdCount, computeRiskLevel, nextConsecutiveCount } from './ranking-finalize.helpers'
+
+// B-VOT-07 / Spec 5: per-period reliability threshold uses AppConfig.lowVoteReliabilityThreshold
+// (read at finalize time, not a static constant) — this constant is the SEED default for AppConfig
+// when no row exists, matching schema @default() and the spec.
+const DEFAULT_LOW_VOTE_RELIABILITY_THRESHOLD = 10
+
+// 24-hex ObjectId guard — must guard every route/param that hits Prisma where: { id } on ObjectId fields
+// to avoid P2023 (malformed id) → 500. Mirrors the pattern from series-query/admin-user-query.
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class SurveyService {
@@ -38,7 +52,9 @@ export class SurveyService {
     private readonly identityHashService: IdentityHashService,
     private readonly rateLimitService: RateLimitService,
     private readonly domainEventBus: DomainEventBus,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly surveyConfigService: SurveyConfigService,
+    private readonly appConfigService: AppConfigService
   ) {}
 
   private mapSurveyPeriod(surveyPeriod: {
@@ -87,11 +103,38 @@ export class SurveyService {
     }
   }
 
+  private mapRankingItem(r: {
+    seriesId: string
+    rankPosition: number | null
+    voteCount: number
+    previousRank: number | null
+    rankChange: number | null
+    isAtRisk: boolean
+    riskLevel: string
+    isReliable: boolean
+    recordedAt: Date
+  }) {
+    return {
+      seriesId: r.seriesId,
+      rankPosition: r.rankPosition ?? undefined,
+      voteCount: r.voteCount,
+      previousRank: r.previousRank,
+      rankChange: r.rankChange,
+      isAtRisk: r.isAtRisk,
+      riskLevel: r.riskLevel as 'NONE' | 'LOW' | 'MEDIUM' | 'SEVERE',
+      isReliable: r.isReliable,
+      recordedAt: r.recordedAt.toISOString()
+    }
+  }
+
   async requestOtp(body: VoteOtpRequestBodyDto, ip: string) {
+    // B-VOT-06: rate-limit quota đọc từ VotingConfig DB (admin có thể giảm/tăng qua PATCH).
+    const config = await this.surveyConfigService.get()
+
     // 1. Kiểm tra Rate Limit theo Số điện thoại
     const phoneLimit = await this.rateLimitService.checkAndConsume({
       key: `survey:otp:phone:${body.phoneNumber}`,
-      max: SURVEY_CONFIG.otpRequestLimitPerPhonePerDay,
+      max: config.phoneRateLimit,
       windowSec: 86400
     })
     if (!phoneLimit.allowed) {
@@ -101,7 +144,7 @@ export class SurveyService {
     // 2. Kiểm tra Rate Limit theo IP gán cho Guest
     const ipLimit = await this.rateLimitService.checkAndConsume({
       key: `survey:otp:ip:${ip}`,
-      max: SURVEY_CONFIG.otpRequestLimitPerIpPerDay,
+      max: config.ipRateLimit,
       windowSec: 86400
     })
     if (!ipLimit.allowed) {
@@ -120,6 +163,15 @@ export class SurveyService {
   }
 
   async submitVote(body: ReaderVoteBodyDto, ip: string) {
+    // B-VOT-06: captcha threshold + maxSeriesPerVote từ VotingConfig DB.
+    const config = await this.surveyConfigService.get()
+
+    // Enforce maxSeriesPerVote từ config (admin có thể giảm xuống dưới 3 nhưng không vượt 3 —
+    // schema .max(3) là trần cứng Requiment §1.15, cấu hình chỉ có ý nghĩa "giảm dưới 3").
+    if (body.seriesIds.length > config.maxSeriesPerVote) {
+      throw TooManySeriesSelectedException
+    }
+
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(body.surveyPeriodId)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     if (surveyPeriod.status !== 'OPEN') throw SurveyPeriodNotOpenException
@@ -150,7 +202,7 @@ export class SurveyService {
     // Hủy OTP ngay lập tức sau khi xác thực thành công (Single-use OTP)
     await this.authOtpService.burnOtp(body.phoneNumber, OtpPurpose.VOTE)
 
-    const isCaptchaFlagged = body.captchaScore != null && body.captchaScore < SURVEY_CONFIG.captchaThreshold
+    const isCaptchaFlagged = body.captchaScore != null && body.captchaScore < config.captchaThreshold
     const weight = isCaptchaFlagged ? SURVEY_CONFIG.voteWeightForFlagged : 1
     const isFlagged = isCaptchaFlagged
 
@@ -174,18 +226,21 @@ export class SurveyService {
   }
 
   async getSurveyPeriodById(id: string) {
+    if (!OBJECT_ID_RE.test(id)) throw SurveyPeriodNotFoundException
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     return this.mapSurveyPeriod(surveyPeriod)
   }
 
   async getSurveyPeriodVotes(id: string) {
+    if (!OBJECT_ID_RE.test(id)) throw SurveyPeriodNotFoundException
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     return this.surveyRepository.getReaderVotesByPeriod(id)
   }
 
   async getSurveyPeriodSurveyData(id: string) {
+    if (!OBJECT_ID_RE.test(id)) throw SurveyPeriodNotFoundException
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     return this.surveyRepository.getSurveyDataByPeriod(id)
@@ -206,6 +261,7 @@ export class SurveyService {
   }
 
   async updateSurveyPeriodStatus(id: string, body: UpdateSurveyPeriodStatusBodyDto, userId?: string) {
+    if (!OBJECT_ID_RE.test(id)) throw SurveyPeriodNotFoundException
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     const updated = await this.surveyRepository.updateSurveyPeriodStatus(id, body.status)
@@ -237,6 +293,7 @@ export class SurveyService {
   }
 
   async finalizeRanking(surveyPeriodId: string, userId?: string) {
+    if (!OBJECT_ID_RE.test(surveyPeriodId)) throw SurveyPeriodNotFoundException
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     if (surveyPeriod.status === 'REFLECTED') throw SurveyPeriodAlreadyFinalizedException
@@ -249,6 +306,7 @@ export class SurveyService {
       ? await this.surveyRepository.getRankingRecordsByPeriod(previousPeriod.id)
       : []
 
+    // 1. Merge 2 nguồn cùng thang đo (giữ logic cũ) — seriesScores là Map từ seriesId → {score, offlineVotes}
     const seriesScores = new Map<string, { score: number; offlineVotes: number }>()
 
     const addSeriesScore = (seriesId: string, deltaScore: number, deltaOfflineVotes = 0) => {
@@ -287,16 +345,48 @@ export class SurveyService {
       return prevRankA - prevRankB
     })
 
-    const totalSeries = rankingItems.length
-    const bottomThreshold = Math.ceil(totalSeries / 3)
+    // 2. B-VOT-05: gather context for at-risk + reliability evaluation.
+    // Read AppConfig + VotingConfig once (cached 30s in services).
+    const appConfig = await this.appConfigService.get()
+    const seriesIds = rankingItems.map((i) => i.seriesId)
+    const publishedCounts =
+      seriesIds.length > 0 ? await this.surveyRepository.countPublishedChaptersBySeriesIds(seriesIds) : new Map()
+    const ownership = seriesIds.length > 0 ? await this.surveyRepository.findSeriesOwnershipByIds(seriesIds) : []
+    const statusById = new Map(ownership.map((o) => [o.id, o.status]))
+    const heldThreshold = new Date(Date.now() - appConfig.hiatusTooLongDays * 86_400_000)
+    const heldSeries =
+      seriesIds.length > 0
+        ? await this.surveyRepository.findHeldChapterSeriesIds(seriesIds, heldThreshold)
+        : new Set<string>()
+
+    // 3. Compute per-record state — Spec 5 §3 (tiering) + §4 (reliability).
+    const N = rankingItems.length
+    const bottom = bottomThirdCount(N)
+    const periodTotal = rankingItems.reduce((s, i) => s + i.score, 0)
+    const periodLowData = periodTotal < appConfig.lowVoteReliabilityThreshold
+
+    // 4. Materialize RankingRecord rows + collect per-series result for notify (Task 8).
+    const perSeriesResult: Array<{ seriesId: string; isAtRisk: boolean; riskLevel: string }> = []
+    const severeSeriesIds: string[] = []
 
     for (let index = 0; index < rankingItems.length; index++) {
       const item = rankingItems[index]
       const previous = previousRecords.find((record) => record.seriesId === item.seriesId)
       const previousRank = previous?.rankPosition ?? null
       const rankChange = previousRank != null ? previousRank - (index + 1) : null
-      const isAtRisk = index >= totalSeries - bottomThreshold
-      const isReliable = item.score >= SURVEY_CONFIG.minReliableWeightedVotes
+
+      // B-VOT-05: loại trừ khỏi at-risk nếu <8 chương PUBLISHED hoặc series HIATUS.
+      // Spec 5 §3 "reset" rule: khi bị loại trừ → reset consecutiveAtRiskCount về 0 (không carry/freeze).
+      const excluded =
+        (publishedCounts.get(item.seriesId) ?? 0) < SURVEY_CONFIG.minChaptersForRiskEvaluation ||
+        statusById.get(item.seriesId) === 'HIATUS'
+
+      const isAtRisk = !excluded && index >= N - bottom
+      const prevCount = previous?.consecutiveAtRiskCount ?? 0
+      const consecutiveAtRiskCount = nextConsecutiveCount(prevCount, isAtRisk)
+      const riskLevel = computeRiskLevel(isAtRisk, consecutiveAtRiskCount)
+      // B-VOT-07: per-period (lowData) + per-series (long-held chapter) → isReliable.
+      const isReliable = !periodLowData && !heldSeries.has(item.seriesId)
 
       await this.surveyRepository.createRankingRecord({
         seriesId: item.seriesId,
@@ -306,8 +396,13 @@ export class SurveyService {
         previousRank,
         rankChange,
         isAtRisk,
+        riskLevel,
+        consecutiveAtRiskCount,
         isReliable
       })
+
+      perSeriesResult.push({ seriesId: item.seriesId, isAtRisk, riskLevel })
+      if (riskLevel === 'SEVERE') severeSeriesIds.push(item.seriesId)
     }
 
     await this.surveyRepository.updateSurveyPeriodStatus(surveyPeriodId, 'REFLECTED')
@@ -317,9 +412,15 @@ export class SurveyService {
         type: NotificationType.SURVEY,
         referenceId: surveyPeriodId,
         referenceType: 'SURVEY_RANKING_FINALIZED',
-        content: 'Kết quả xếp hạng kỳ bình chọn đã được tính toán.'
+        content: SurveyMessages.notification.rankingFinalized
       })
     }
+
+    // 5. B-VOT-05 AC5 + B-VOT-07: notify Mangaka/Editor/Board, bỏ qua nếu kỳ thiếu dữ liệu.
+    if (!periodLowData) {
+      await this.notifyRankingOutcome(perSeriesResult, ownership, severeSeriesIds)
+    }
+
     this.domainEventBus.emit(DomainEvent.RankingFinalized, {
       surveyPeriodId,
       rankings: rankingItems.map((item, index) => ({ seriesId: item.seriesId, rank: index + 1 }))
@@ -327,7 +428,55 @@ export class SurveyService {
     return { message: SurveyMessages.response.rankingFinalized }
   }
 
+  // B-VOT-05 AC5 + B-VOT-07: fan-out notify cho 3 role.
+  //  - Mangaka của từng series at-risk: cảnh báo + riskLevel.
+  //  - Editor phụ trách (nếu có) của series at-risk: cùng nội dung.
+  //  - Board: 1 thông báo tổng hợp SEVERE digest (bỏ qua nếu không có SEVERE).
+  private async notifyRankingOutcome(
+    results: Array<{ seriesId: string; isAtRisk: boolean; riskLevel: string }>,
+    ownership: Array<{ id: string; mangakaId: string; editorId: string | null }>,
+    severe: string[]
+  ): Promise<void> {
+    const ownerById = new Map(ownership.map((o) => [o.id, o]))
+
+    for (const r of results) {
+      if (!r.isAtRisk) continue
+      const owner = ownerById.get(r.seriesId)
+      if (!owner) continue
+      await this.notificationService.notifySafe({
+        recipientId: owner.mangakaId,
+        type: NotificationType.SURVEY,
+        referenceId: r.seriesId,
+        referenceType: 'RANKING_AT_RISK',
+        content: SurveyMessages.notification.rankingAtRisk
+      })
+      if (owner.editorId) {
+        await this.notificationService.notifySafe({
+          recipientId: owner.editorId,
+          type: NotificationType.SURVEY,
+          referenceId: r.seriesId,
+          referenceType: 'RANKING_AT_RISK',
+          content: SurveyMessages.notification.rankingAtRisk
+        })
+      }
+    }
+
+    if (severe.length > 0) {
+      const boardIds = await this.surveyRepository.findBoardMemberIds()
+      for (const boardId of boardIds) {
+        await this.notificationService.notifySafe({
+          recipientId: boardId,
+          type: NotificationType.SURVEY,
+          referenceId: severe[0],
+          referenceType: 'RANKING_SEVERE_DIGEST',
+          content: SurveyMessages.notification.rankingSevereDigest(severe.length)
+        })
+      }
+    }
+  }
+
   async getRankingRecords(surveyPeriodId: string) {
+    if (!OBJECT_ID_RE.test(surveyPeriodId)) throw SurveyPeriodNotFoundException
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     const items = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
@@ -339,17 +488,48 @@ export class SurveyService {
         previousRank: item.previousRank,
         rankChange: item.rankChange,
         isAtRisk: item.isAtRisk,
+        riskLevel: item.riskLevel ?? 'NONE',
+        consecutiveAtRiskCount: item.consecutiveAtRiskCount ?? 0,
         isReliable: item.isReliable
       }))
     }
   }
 
+  // PB-04: bảng xếp hạng toàn tạp chí 1 kỳ — FULL cho mọi role nội bộ (không scope theo owner).
+  // Mangaka cần thấy hạng mình so với series khác; ranking tổng hợp không nhạy cảm per-series.
+  async getBoardRanking(surveyPeriodId: string) {
+    if (!OBJECT_ID_RE.test(surveyPeriodId)) throw SurveyPeriodNotFoundException
+    const period = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
+    if (!period) throw SurveyPeriodNotFoundException
+    const items = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
+    const sorted = [...items].sort((a, b) => (a.rankPosition ?? 0) - (b.rankPosition ?? 0))
+    return { items: sorted.map((r) => this.mapRankingItem(r as never)) }
+  }
+
+  // PB-04: trend xếp hạng 1 series — scoping theo owner.
+  // MANGAKA phải là mangakaId; EDITOR phải là editorId; BOARD/ADMIN mọi series.
+  async getSeriesTrend(seriesId: string, periods: number, caller: { userId: string; roleName: string }) {
+    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundForRankingException
+    const [owner] = await this.surveyRepository.findSeriesOwnershipByIds([seriesId])
+    if (!owner) throw SeriesNotFoundForRankingException
+    const role = caller.roleName
+    const allowed =
+      role === 'BOARD_MEMBER' ||
+      role === 'SUPER_ADMIN' ||
+      (role === 'MANGAKA' && owner.mangakaId === caller.userId) ||
+      (role === 'EDITOR' && owner.editorId === caller.userId)
+    if (!allowed) throw RankingAccessDeniedException
+    const items = await this.surveyRepository.getRankingRecordsBySeries(seriesId, periods)
+    return { items: items.map((r) => this.mapRankingItem(r as never)) }
+  }
+
+  // B-VOT-06: VotingConfig read cached via SurveyConfigService (lazy-seed §1.15).
   async getVotingConfig() {
-    const config = await this.surveyRepository.getVotingConfig()
-    if (!config) throw VotingConfigNotFoundException
+    const config = await this.surveyConfigService.get()
     return this.mapVotingConfig(config)
   }
 
+  // B-VOT-06: PATCH ghi DB + invalidate cache → caller tiếp theo đọc config mới.
   async updateVotingConfig(body: VotingConfigBodyDto) {
     const config = await this.surveyRepository.updateVotingConfig({
       authMode: body.authMode,
@@ -360,6 +540,10 @@ export class SurveyService {
       phoneRateLimit: body.phoneRateLimit,
       captchaThreshold: body.captchaThreshold
     })
+    this.surveyConfigService.invalidate()
     return this.mapVotingConfig(config)
   }
 }
+
+// Re-export the constant for legacy imports (e.g. spec mocks) — keeps external surface unchanged.
+export { DEFAULT_LOW_VOTE_RELIABILITY_THRESHOLD }
