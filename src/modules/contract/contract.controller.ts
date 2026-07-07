@@ -141,6 +141,33 @@ export class ContractController {
     throw ContractErrors.InvalidStatus()
   }
 
+  @ApiOperation({ summary: 'B-CON-02: Mangaka yêu cầu chỉnh sửa điều khoản → NEGOTIATION' })
+  @Post(':id/request-changes')
+  @Roles(RoleName.MANGAKA)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.UnauthorizedEditor(), ContractErrors.InvalidContractTransition())
+  @ZodResponse({ status: 201, type: ContractResDto })
+  requestChanges(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.contractService.mangakaRequestChanges(id, userId)
+  }
+
+  @ApiOperation({ summary: 'B-CON-02 (BOARD_REVIEW): Hội đồng duyệt điều khoản → BOARD_APPROVED' })
+  @Post(':id/board-approve')
+  @Roles(RoleName.BOARD_MEMBER)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.InvalidContractTransition())
+  @ZodResponse({ status: 201, type: ContractResDto })
+  boardApprove(@Param('id') id: string) {
+    return this.contractService.boardApprove(id)
+  }
+
+  @ApiOperation({ summary: 'B-CON-02 (BOARD_REVIEW): Hội đồng yêu cầu chỉnh sửa → NEGOTIATION' })
+  @Post(':id/board-request-changes')
+  @Roles(RoleName.BOARD_MEMBER)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.InvalidContractTransition())
+  @ZodResponse({ status: 201, type: ContractResDto })
+  boardRequestChanges(@Param('id') id: string) {
+    return this.contractService.boardRequestChanges(id)
+  }
+
   @ApiOperation({ summary: 'Mangaka ký hợp đồng bằng OTP' })
   @Post(':id/signatures/mangaka')
   @Roles(RoleName.MANGAKA)

@@ -20,6 +20,13 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.ChapterNotOnHold': 'chapter is not on hold; nothing to resume',
   'Error.SeriesNotSerialized': 'series must be SERIALIZED for this action (create chapter / create contract)',
   'Error.ContractNotExecuted': 'series has no FULLY_EXECUTED contract; cannot publish (BR-CONTRACT-05)',
+  'Error.InvalidContractTransition': 'contract status transition not allowed by CONTRACT_TRANSITIONS (Flow 6)',
+  'Error.ContractNotSignableYet': 'contract must reach BOARD_APPROVED before it can be signed (B-CON-02)',
+  'Error.NotCoOwner': 'only the series co-owner (PARTIAL_TRANSFER) can approve/reject this chapter',
+  'Error.CoOwnerApprovalNotPending': 'co-owner approval is not PENDING; already decided or escalated',
+  'Error.CoOwnerApprovalNotFound': 'no co-owner approval record exists for this chapter',
+  'Error.InvalidTransferState': 'transfer request is not in the required state for this action (B-TRF-03)',
+  'Error.ValuationRequired': 'a positive valuationAmount is required for Full Buyout re-valuation (B-TRF-02)',
   REVENUE_NOT_APPLICABLE: 'contract must be REVENUE_SHARE and FULLY_EXECUTED to report revenue',
   'Error.DeadlineRequestAccessDenied': 'current user cannot access or mutate this deadline request',
   'Error.DeadlineRequestNotAllowed': 'deadline action is not allowed for the current chapter or request state',
@@ -107,5 +114,9 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.AmendmentNotPendingSignatures': 'amendment must be PENDING_SIGNATURES to sign/reject',
   'Error.MangakaSignNotRequired': 'FULL_BUYOUT amendment is board-signed only; mangaka signature not required',
   'Error.AmendmentNotVoidable': 'amendment is already terminal (FULLY_EXECUTED/VOIDED)',
-  'Error.OwnershipMismatch': 'ownership split must total 100; FULL_BUYOUT stays 100/0'
+  'Error.OwnershipMismatch': 'ownership split must total 100; FULL_BUYOUT stays 100/0',
+  // Spec 5 — voting/ranking completion
+  'Error.TooManySeriesSelected': 'số series vượt maxSeriesPerVote (VotingConfig); trần cứng 3 theo Requiment §1.15',
+  'Error.RankingAccessDenied':
+    'MANGAKA chỉ xem được series mình sở hữu; EDITOR chỉ xem được series mình phụ trách; BOARD/SUPER_ADMIN xem mọi series'
 }

@@ -12,6 +12,7 @@ import {
 import { ChapterCreationService } from './services/chapter-creation.service'
 import { ChapterHoldService } from './services/chapter-hold.service'
 import { ChapterPublishService } from './services/chapter-publish.service'
+import { ChapterCoOwnerService } from './services/chapter-coowner.service'
 import { ChapterProgressService } from './services/chapter-progress.service'
 import { ManuscriptReviewService } from './services/manuscript-review.service'
 import { PageService } from './services/page.service'
@@ -27,6 +28,7 @@ export class ChapterService {
     private readonly pageService: PageService,
     private readonly reviewService: ManuscriptReviewService,
     private readonly publishService: ChapterPublishService,
+    private readonly coOwnerService: ChapterCoOwnerService,
     private readonly progressService: ChapterProgressService,
     private readonly chapterRepository: ChapterRepository
   ) {}
@@ -110,6 +112,14 @@ export class ChapterService {
   }
   async publish(userId: string, chapterId: string) {
     await this.publishService.publish(userId, chapterId)
+    return this.getOne(chapterId)
+  }
+  async coOwnerApprove(userId: string, chapterId: string) {
+    await this.coOwnerService.approve(userId, chapterId)
+    return this.getOne(chapterId)
+  }
+  async coOwnerReject(userId: string, chapterId: string, reason: string) {
+    await this.coOwnerService.reject(userId, chapterId, reason)
     return this.getOne(chapterId)
   }
 }

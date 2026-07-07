@@ -13,6 +13,8 @@ import { PageStateService } from './services/page-state.service'
 import { ScheduleService } from './services/schedule.service'
 import { ChapterPublishedListener } from './services/chapter-notification.listener'
 import { DeadlineWarningCron } from './services/deadline-warning.cron'
+import { ChapterCoOwnerService } from './services/chapter-coowner.service'
+import { CoOwnerEscalationCron } from './services/coowner-escalation.cron'
 import { StudioOverviewController } from './studio-overview.controller'
 
 @Module({
@@ -29,8 +31,10 @@ import { StudioOverviewController } from './studio-overview.controller'
     PageService,
     ManuscriptReviewService,
     ChapterPublishService,
+    ChapterCoOwnerService,
     ChapterPublishedListener,
-    DeadlineWarningCron
+    DeadlineWarningCron,
+    CoOwnerEscalationCron
   ],
   exports: [PageStateService, ManuscriptStateService, ScheduleService]
 })

@@ -10,6 +10,8 @@ import {
   VotingConfigResSchema,
   RankingRecordResSchema,
   RankingRecordListResSchema,
+  BoardRankingListResSchema,
+  GetSeriesTrendQuerySchema,
   ReaderVoteResSchema,
   ReaderVoteListResSchema,
   SurveyDataResSchema,
@@ -26,7 +28,14 @@ export class SurveyPeriodResDto extends createZodDto(SurveyPeriodResSchema) {}
 export class VotingConfigResDto extends createZodDto(VotingConfigResSchema) {}
 export class RankingRecordResDto extends createZodDto(RankingRecordResSchema) {}
 export class RankingRecordListResDto extends createZodDto(RankingRecordListResSchema) {}
+export class BoardRankingListResDto extends createZodDto(BoardRankingListResSchema) {}
+export class GetSeriesTrendQueryDto extends createZodDto(GetSeriesTrendQuerySchema) {}
 export class ReaderVoteResDto extends createZodDto(ReaderVoteResSchema) {}
 export class ReaderVoteListResDto extends createZodDto(ReaderVoteListResSchema) {}
 export class SurveyDataResDto extends createZodDto(SurveyDataResSchema) {}
 export class SurveyDataListResDto extends createZodDto(SurveyDataListResSchema) {}
+
+export type GetSeriesTrendQueryType = {
+  seriesId: string
+  periods: number
+}

@@ -1,5 +1,7 @@
 import { extendApi } from '@anatine/zod-openapi'
+import { RiskLevel } from '@prisma/client'
 import z from 'zod'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 
 export const VoteOtpRequestBodySchema = extendApi(
   z
@@ -123,6 +125,8 @@ export const RankingRecordResSchema = extendApi(
       previousRank: z.number().int().nullable(),
       rankChange: z.number().int().nullable(),
       isAtRisk: z.boolean(),
+      riskLevel: zEnum(RiskLevel, 'RiskLevel'),
+      consecutiveAtRiskCount: z.number().int(),
       isReliable: z.boolean()
     })
     .strict(),
@@ -136,6 +140,44 @@ export const RankingRecordListResSchema = extendApi(
     })
     .strict(),
   { title: 'RankingRecordListRes', description: 'Danh sách ranking' }
+)
+
+// PB-04 trend/board ranking item — bổ sung recordedAt ISO string.
+export const BoardRankingItemSchema = extendApi(
+  z
+    .object({
+      seriesId: z.string(),
+      rankPosition: z.number().int().optional(),
+      voteCount: z.number(),
+      previousRank: z.number().int().nullable(),
+      rankChange: z.number().int().nullable(),
+      isAtRisk: z.boolean(),
+      riskLevel: zEnum(RiskLevel, 'RiskLevel'),
+      isReliable: z.boolean(),
+      recordedAt: z.string()
+    })
+    .strict(),
+  { title: 'BoardRankingItem', description: 'Item ranking trong bảng xếp hạng toàn tạp chí / trend 1 series' }
+)
+
+export const BoardRankingListResSchema = extendApi(
+  z
+    .object({
+      items: z.array(BoardRankingItemSchema)
+    })
+    .strict(),
+  { title: 'BoardRankingListRes', description: 'Danh sách ranking (bảng tạp chí hoặc trend 1 series)' }
+)
+
+// PB-04 query DTO cho /rankings trend
+export const GetSeriesTrendQuerySchema = extendApi(
+  z
+    .object({
+      seriesId: z.string().min(1, { message: 'seriesId là bắt buộc.' }),
+      periods: z.coerce.number().int().min(1).max(60).default(12)
+    })
+    .strict(),
+  { title: 'GetSeriesTrendQuery', description: 'Query lấy trend ranking của 1 series (mặc định 12 kỳ gần nhất)' }
 )
 
 export const ReaderVoteResSchema = extendApi(
