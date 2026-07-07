@@ -9,6 +9,7 @@ import { RoleName } from 'src/core/security/constants/role.constant'
 import {
   CreateProposalBodyDto,
   CreateProposalResDto,
+  FranchiseConsentBodyDto,
   HiatusBodyDto,
   ListSeriesQueryDto,
   NameListResDto,
@@ -19,10 +20,13 @@ import {
   UpdateProposalBodyDto
 } from './dto/series.dto'
 import {
+  FranchiseConsentRequiredException,
   InvalidProposalStateException,
   InvalidSeriesTransitionException,
   NameNotFoundException,
   NotAssignedEditorException,
+  NotFranchiseConsentTargetException,
+  NotOriginalMangakaException,
   NotSeriesOwnerException,
   ParentSeriesNotFoundException,
   ProposalNotDeletableException,
@@ -117,7 +121,12 @@ export class SeriesController {
 
   @Post(':id/submit')
   @ApiOperation({ summary: 'Mangaka submit → mở 2 vòng review (proposal+Name), Series DRAFT→IN_REVIEW' })
-  @ApiErrors(NotSeriesOwnerException, SeriesNotFoundException, InvalidProposalStateException)
+  @ApiErrors(
+    NotSeriesOwnerException,
+    SeriesNotFoundException,
+    InvalidProposalStateException,
+    FranchiseConsentRequiredException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: CreateProposalResDto })
   submit(@Param('id') id: string, @ActiveUser('userId') userId: string) {
@@ -167,6 +176,21 @@ export class SeriesController {
   @ZodResponse({ status: 201, type: SeriesResDto })
   withdraw(@Param('id') id: string, @Body() body: ReasonBodyDto, @ActiveUser('userId') userId: string) {
     return this.seriesService.withdraw(userId, id, body.reason)
+  }
+
+  @Post(':id/franchise-consent')
+  @ApiOperation({
+    summary: 'Mangaka gốc đồng ý/từ chối series phái sinh (A-SER-06). REJECTED chỉ block submit.'
+  })
+  @ApiErrors(SeriesNotFoundException, NotOriginalMangakaException, NotFranchiseConsentTargetException)
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 201, type: SeriesResDto })
+  franchiseConsent(
+    @Param('id') id: string,
+    @Body() body: FranchiseConsentBodyDto,
+    @ActiveUser('userId') userId: string
+  ) {
+    return this.seriesService.franchiseConsent(id, userId, body.approve)
   }
 
   @Post(':id/pitch')

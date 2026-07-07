@@ -20,3 +20,6 @@ export const ProposalNotDeletableException = new ConflictException(E.proposalNot
 export const ParentSeriesNotFoundException = new UnprocessableEntityException([
   { message: E.parentSeriesNotFound, path: 'parentSeriesId' }
 ])
+export const FranchiseConsentRequiredException = new ConflictException(E.franchiseConsentRequired)
+export const NotOriginalMangakaException = new ForbiddenException(E.notOriginalMangaka)
+export const NotFranchiseConsentTargetException = new ConflictException(E.notFranchiseConsentTarget)

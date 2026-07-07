@@ -1,5 +1,10 @@
 import { ProposalStatus, SeriesStatus } from '@prisma/client'
 import { SeriesProposalService } from './series-proposal.service'
+import {
+  FranchiseConsentRequiredException,
+  NotFranchiseConsentTargetException,
+  NotOriginalMangakaException
+} from '../errors/series.errors'
 
 const baseSeries = {
   id: 's1',
@@ -51,7 +56,11 @@ function make(seriesOverride: Record<string, unknown> = {}) {
     updateProposalContent: jest.fn().mockResolvedValue(series),
     updateNameStatus: jest.fn().mockResolvedValue({ ...baseName, status: 'SUBMITTED', submittedAt: new Date() }),
     deleteSeriesWithNames: jest.fn().mockResolvedValue(undefined),
-    markReviewStarted: jest.fn().mockResolvedValue(undefined)
+    markReviewStarted: jest.fn().mockResolvedValue(undefined),
+    findExecutedContractType: jest.fn().mockResolvedValue(null),
+    setFranchiseConsentStatus: jest
+      .fn()
+      .mockImplementation((id, status) => Promise.resolve({ ...series, franchiseConsentStatus: status }))
   }
   const seriesStateService = {
     transition: jest.fn().mockImplementation((id, toStatus) => Promise.resolve({ ...series, status: toStatus })),
@@ -70,7 +79,11 @@ describe('SeriesProposalService', () => {
   it('createProposal returns mapped series + name', async () => {
     const { service, seriesRepository } = make()
     const res = await service.createProposal('m1', { title: 'T', genres: [], characterDesigns: [], namePages: [] })
-    expect(seriesRepository.createProposalSeries).toHaveBeenCalledWith('m1', expect.objectContaining({ title: 'T' }))
+    expect(seriesRepository.createProposalSeries).toHaveBeenCalledWith(
+      'm1',
+      expect.objectContaining({ title: 'T' }),
+      undefined
+    )
     expect(res.series.id).toBe('s1')
     expect(res.name.id).toBe('n1')
   })
@@ -221,6 +234,83 @@ describe('SeriesProposalService', () => {
     const { service, seriesRepository } = make()
 
     await expect(service.deleteProposal('m1', 'bad-id')).rejects.toBeDefined()
+    expect(seriesRepository.findById).not.toHaveBeenCalled()
+  })
+})
+
+describe('franchise gate', () => {
+  const FRANCHISE_ID = '507f1f77bcf86cd799439011'
+
+  it('createProposal → PENDING when parent REVENUE_SHARE & different mangaka', async () => {
+    const { service, seriesRepository, notificationService } = make()
+    seriesRepository.findById = jest.fn().mockResolvedValue({ id: 'p1', mangakaId: 'A' })
+    seriesRepository.findExecutedContractType = jest.fn().mockResolvedValue('REVENUE_SHARE')
+    await service.createProposal('B', { parentSeriesId: 'p1', title: 't', namePages: [] } as never)
+    expect(seriesRepository.createProposalSeries).toHaveBeenCalledWith('B', expect.anything(), 'PENDING')
+    expect(notificationService.notifySafe).toHaveBeenCalled()
+  })
+
+  it('createProposal → undefined consent when parent FULL_BUYOUT', async () => {
+    const { service, seriesRepository } = make()
+    seriesRepository.findById = jest.fn().mockResolvedValue({ id: 'p1', mangakaId: 'A' })
+    seriesRepository.findExecutedContractType = jest.fn().mockResolvedValue('FULL_BUYOUT')
+    await service.createProposal('B', { parentSeriesId: 'p1', title: 't', namePages: [] } as never)
+    expect(seriesRepository.createProposalSeries).toHaveBeenCalledWith('B', expect.anything(), undefined)
+  })
+
+  it('submit → 409 when consent PENDING', async () => {
+    const { service, seriesRepository } = make({
+      status: SeriesStatus.DRAFT,
+      franchiseConsentStatus: 'PENDING'
+    })
+    seriesRepository.findById = jest.fn().mockResolvedValue({
+      id: 'd1',
+      mangakaId: 'm1',
+      status: SeriesStatus.DRAFT,
+      franchiseConsentStatus: 'PENDING',
+      proposal: { nameId: 'n1' }
+    })
+    await expect(service.submit('m1', 'd1')).rejects.toBe(FranchiseConsentRequiredException)
+  })
+
+  it('franchiseConsent → APPROVED by original mangaka', async () => {
+    const { service, seriesRepository } = make()
+    seriesRepository.findById = jest
+      .fn()
+      .mockResolvedValueOnce({ id: 'd1', mangakaId: 'B', parentSeriesId: 'p1', franchiseConsentStatus: 'PENDING' })
+      .mockResolvedValueOnce({ id: 'p1', mangakaId: 'A' })
+    seriesRepository.setFranchiseConsentStatus = jest.fn().mockResolvedValue({
+      id: 'd1',
+      mangakaId: 'B',
+      status: SeriesStatus.DRAFT,
+      franchiseConsentStatus: 'APPROVED',
+      createdAt: new Date('2026-07-07T00:00:00.000Z')
+    })
+    const res = await service.franchiseConsent(FRANCHISE_ID, 'A', true)
+    expect(seriesRepository.setFranchiseConsentStatus).toHaveBeenCalledWith(FRANCHISE_ID, 'APPROVED')
+    expect(res.franchiseConsentStatus).toBe('APPROVED')
+  })
+
+  it('franchiseConsent → 403 when caller not original mangaka', async () => {
+    const { service, seriesRepository } = make()
+    seriesRepository.findById = jest
+      .fn()
+      .mockResolvedValueOnce({ id: 'd1', mangakaId: 'B', parentSeriesId: 'p1', franchiseConsentStatus: 'PENDING' })
+      .mockResolvedValueOnce({ id: 'p1', mangakaId: 'A' })
+    await expect(service.franchiseConsent(FRANCHISE_ID, 'notA', true)).rejects.toBe(NotOriginalMangakaException)
+  })
+
+  it('franchiseConsent → 409 when status null', async () => {
+    const { service, seriesRepository } = make()
+    seriesRepository.findById = jest
+      .fn()
+      .mockResolvedValueOnce({ id: 'd1', mangakaId: 'B', parentSeriesId: 'p1', franchiseConsentStatus: null })
+    await expect(service.franchiseConsent(FRANCHISE_ID, 'A', true)).rejects.toBe(NotFranchiseConsentTargetException)
+  })
+
+  it('franchiseConsent → 404 on malformed id', async () => {
+    const { service, seriesRepository } = make()
+    await expect(service.franchiseConsent('bad', 'A', true)).rejects.toBeDefined()
     expect(seriesRepository.findById).not.toHaveBeenCalled()
   })
 })

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { ContractStatus, NotificationType } from '@prisma/client'
 import { ContractRepo } from '../contract.repo'
 import { ContractErrors } from '../errors/contract.errors'
-import { CreateContractBodyDto, EditorUpdateContractBodyDto } from '../dto/contract.dto'
+import { CreateContractBodyDto, EditorUpdateContractBodyDto, ReportRevenueBodyDto } from '../dto/contract.dto'
 import { AuthOtpService } from 'src/modules/auth/services/auth-otp.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
@@ -347,5 +347,24 @@ export class ContractService {
         pendingEditors: boardSignatures.pendingEditors
       }
     }
+  }
+
+  // B-CON-07 (Flow 6): Board/Editor nhập doanh thu kỳ cho HĐ REVENUE_SHARE FULLY_EXECUTED → emit RevenueReported → engine chia theo ownership.
+  async reportRevenue(contractId: string, userId: string, roleName: string, body: ReportRevenueBodyDto) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
+    const contract = await this.contractRepo.findById(contractId)
+    if (!contract) throw ContractErrors.NotFound()
+    if (contract.contractType !== 'REVENUE_SHARE' || contract.status !== 'FULLY_EXECUTED') {
+      throw ContractErrors.RevenueNotApplicable()
+    }
+    if (roleName === RoleName.EDITOR && contract.editorId !== userId) {
+      throw ContractErrors.UnauthorizedEditor()
+    }
+    this.domainEventBus.emit(DomainEvent.RevenueReported, {
+      contractId,
+      revenue: body.revenue,
+      period: body.period
+    })
+    return { message: 'Đã ghi nhận doanh thu, hệ thống đang chia theo hợp đồng.' }
   }
 }

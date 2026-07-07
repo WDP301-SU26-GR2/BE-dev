@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import {
   Demographic,
+  FranchiseConsentStatus,
   Genre,
   NameStatus,
   ProposalStatus,
@@ -93,6 +94,9 @@ export const SeriesResSchema = extendApi(
       .nullable()
       .describe('Lý do của lần đổi status gần nhất (reject/withdraw/cancel...); null nếu không có'),
     relationshipType: zEnum(RelationshipType, 'RelationshipType').nullable(),
+    franchiseConsentStatus: zEnum(FranchiseConsentStatus, 'FranchiseConsentStatus')
+      .nullable()
+      .describe('Gate đồng ý franchise: null=không gate; PENDING chờ Mangaka gốc; APPROVED/REJECTED đã quyết'),
     createdAt: z.string().describe('ISO 8601'),
     reviewStartedAt: z
       .string()
@@ -179,3 +183,11 @@ export const HiatusBodySchema = extendApi(
 )
 
 export type HiatusBodyType = z.infer<typeof HiatusBodySchema>
+
+// Spec 3 / A-SER-06: Mangaka gốc đồng ý/từ chối series phái sinh (franchise gate).
+export const FranchiseConsentBodySchema = extendApi(z.object({ approve: z.boolean() }).strict(), {
+  title: 'FranchiseConsentBody',
+  description: 'Mangaka gốc đồng ý (true)/từ chối (false) series phái sinh'
+})
+
+export type FranchiseConsentBodyType = z.infer<typeof FranchiseConsentBodySchema>
