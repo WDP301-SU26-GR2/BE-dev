@@ -62,6 +62,18 @@ describe('SeriesLifecycleService.complete', () => {
   })
 })
 
+describe('SeriesLifecycleService.complete — Spec 4 amendment wiring', () => {
+  it('emits ContractAmendmentRequested (COMPLETION)', async () => {
+    const d = makeDeps()
+    d.state.transition.mockResolvedValue({ id: 's1', mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.COMPLETING })
+    await make(d).complete('s1')
+    expect(d.bus.emit).toHaveBeenCalledWith(
+      DomainEvent.ContractAmendmentRequested,
+      expect.objectContaining({ seriesId: 's1', trigger: 'COMPLETION' })
+    )
+  })
+})
+
 describe('SeriesLifecycleService.changeFormat', () => {
   it('updates publicationType without status transition', async () => {
     const d = makeDeps()
@@ -73,6 +85,23 @@ describe('SeriesLifecycleService.changeFormat', () => {
     const d = makeDeps()
     await make(d).changeFormat('s1', undefined)
     expect(d.repo.updatePublicationType).not.toHaveBeenCalled()
+  })
+})
+
+describe('SeriesLifecycleService.changeFormat — Spec 4 amendment wiring', () => {
+  it('emits ContractAmendmentRequested (FORMAT_CHANGE) after publicationType change', async () => {
+    const d = makeDeps()
+    await make(d).changeFormat('s1', 'MONTHLY')
+    expect(d.bus.emit).toHaveBeenCalledWith(
+      DomainEvent.ContractAmendmentRequested,
+      expect.objectContaining({ seriesId: 's1', trigger: 'FORMAT_CHANGE' })
+    )
+  })
+
+  it('does NOT emit when publicationType missing (early return)', async () => {
+    const d = makeDeps()
+    await make(d).changeFormat('s1', undefined)
+    expect(d.bus.emit).not.toHaveBeenCalledWith(DomainEvent.ContractAmendmentRequested, expect.anything())
   })
 })
 
