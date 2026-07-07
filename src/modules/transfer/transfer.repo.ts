@@ -127,10 +127,10 @@ export class TransferRepo {
         status: 'DRAFT',
         conditions: {
           create: conditions.map((cond) => ({
-            conditionType: (cond.type as unknown as $Enums.ConditionType) ?? ('TIME_BOUND' as $Enums.ConditionType),
+            conditionType: (cond.type as unknown as $Enums.ConditionType) ?? 'TIME_BOUND',
             payoutAmount: cond.value,
             thresholdConfig: { description: cond.description },
-            status: PAYMENT_CONDITION_STATUS.PENDING as $Enums.PaymentConditionStatus
+            status: PAYMENT_CONDITION_STATUS.PENDING
           }))
         }
       }

@@ -33,12 +33,12 @@ describe('TransferService — Part 2 hardening', () => {
       await make(repo).boardAssignFullBuyout('507f1f77bcf86cd799439011', {
         boardSessionId: 'bs1',
         valuationAmount: 5000,
-        conditions: [{ description: 'B adds 5 chapters', type: 'RECURRING', value: 5 }]
+        conditions: [{ description: 'B adds 5 chapters', type: 'RECURRING_CHAPTER', value: 5 }]
       })
 
       const arg = repo.createNewContractFromTransfer.mock.calls[0][0]
       expect(arg.valuationAmount).toBe(5000)
-      expect(arg.conditions).toEqual([{ description: 'B adds 5 chapters', type: 'RECURRING', value: 5 }])
+      expect(arg.conditions).toEqual([{ description: 'B adds 5 chapters', type: 'RECURRING_CHAPTER', value: 5 }])
     })
 
     it('rejects when valuationAmount <= 0 (ValuationRequired)', async () => {
@@ -56,7 +56,7 @@ describe('TransferService — Part 2 hardening', () => {
         make(repo).boardAssignFullBuyout('507f1f77bcf86cd799439011', {
           boardSessionId: 'bs1',
           valuationAmount: 0,
-          conditions: [{ description: 'x', type: 'RECURRING', value: 1 }]
+          conditions: [{ description: 'x', type: 'TIME_BOUND', value: 1 }]
         })
       ).rejects.toBe(ValuationRequiredException)
       expect(repo.createNewContractFromTransfer).not.toHaveBeenCalled()
