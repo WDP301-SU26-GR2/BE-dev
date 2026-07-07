@@ -51,6 +51,7 @@ export class BoardController {
 
   @ApiOperation({ summary: 'Kích hoạt phiên họp Hội đồng → ACTIVE' })
   @Patch('sessions/:id/start')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: BoardSessionResDto })
   async startSession(@Param('id') id: string) {
     return this.boardService.startSessionManually(id)

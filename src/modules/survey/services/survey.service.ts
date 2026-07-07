@@ -23,7 +23,7 @@ import {
 } from '../dto/survey.dto'
 import { AuthOtpService } from 'src/modules/auth/services/auth-otp.service'
 import { OtpPurpose } from 'src/modules/auth/auth.constant'
-import { HashingService } from 'src/infrastructure/crypto/hashing.service'
+import { IdentityHashService } from 'src/infrastructure/crypto/identity-hash.service'
 import { RateLimitService } from 'src/core/security/services/rate-limit.service'
 import { SURVEY_CONFIG } from '../survey.constant'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
@@ -35,7 +35,7 @@ export class SurveyService {
   constructor(
     private readonly surveyRepository: SurveyRepository,
     private readonly authOtpService: AuthOtpService,
-    private readonly hashingService: HashingService,
+    private readonly identityHashService: IdentityHashService,
     private readonly rateLimitService: RateLimitService,
     private readonly domainEventBus: DomainEventBus,
     private readonly notificationService: NotificationService
@@ -124,8 +124,10 @@ export class SurveyService {
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     if (surveyPeriod.status !== 'OPEN') throw SurveyPeriodNotOpenException
 
-    const identityHash = await this.hashingService.hash(body.phoneNumber)
-    const ipHash = await this.hashingService.hash(ip)
+    // Deterministic HMAC (NOT bcrypt) so the (surveyPeriodId, identityHash) dedup + unique
+    // constraint actually catch repeat votes — see B-VOT-03 fix / IdentityHashService.
+    const identityHash = this.identityHashService.hash(body.phoneNumber)
+    const ipHash = this.identityHashService.hash(ip)
 
     const existingVote = await this.surveyRepository.findReaderVoteByPeriodAndIdentity(
       body.surveyPeriodId,
