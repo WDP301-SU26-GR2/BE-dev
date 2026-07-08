@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { FranchiseConsentStatus, NameStatus, NotificationType, ProposalStatus, SeriesStatus } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { NameRepo } from 'src/modules/name/name.repo'
 import {
   FranchiseConsentRequiredException,
   InvalidProposalStateException,
@@ -12,7 +13,8 @@ import {
   ProposalNotEditableException,
   SeriesNotFoundException
 } from '../errors/series.errors'
-import { toNameRes, toSeriesRes } from '../series.mapper'
+import { toNameRes } from 'src/modules/name/name.mapper'
+import { toSeriesRes } from '../series.mapper'
 import { SeriesRepository } from '../series.repo'
 import { CreateProposalBodyType, UpdateProposalBodyType } from '../schemas/series-schemas'
 import { SeriesStateService } from './series-state.service'
@@ -25,6 +27,7 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 export class SeriesProposalService {
   constructor(
     private readonly seriesRepository: SeriesRepository,
+    private readonly nameRepo: NameRepo,
     private readonly seriesStateService: SeriesStateService,
     private readonly notificationService: NotificationService
   ) {}
@@ -77,8 +80,9 @@ export class SeriesProposalService {
 
     // Single-writer: Series.status chỉ đổi qua SeriesStateService.
     // Cập nhật proposal + Name trước, transition (ghi audit) sau cùng.
+    // Spec 8: Name data access (incl. updateNameStatus) belongs to NameRepo (module name).
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVIEW)
-    const name = await this.seriesRepository.updateNameStatus(nameId, {
+    const name = await this.nameRepo.updateNameStatus(nameId, {
       status: NameStatus.SUBMITTED,
       submittedAt: new Date()
     })

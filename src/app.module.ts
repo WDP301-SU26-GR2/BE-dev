@@ -15,6 +15,7 @@ import { NotificationModule } from './modules/notification/notification.module'
 import { AnnotationModule } from './modules/annotation/annotation.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { SeriesModule } from './modules/series/series.module'
+import { NameModule } from './modules/name/name.module'
 import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 import { BoardModule } from './modules/board/board.module'
@@ -42,6 +43,7 @@ import { PublicationModule } from './modules/publication/publication.module'
     NotificationModule,
     ReviewsModule,
     SeriesModule,
+    NameModule,
     StorageModule,
     ChapterModule,
     AnnotationModule,

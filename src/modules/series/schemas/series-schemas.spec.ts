@@ -1,9 +1,4 @@
-import {
-  AddNamePageBodySchema,
-  CreateProposalBodySchema,
-  SeriesResSchema,
-  UpdateProposalBodySchema
-} from './series-schemas'
+import { CreateProposalBodySchema, SeriesResSchema, UpdateProposalBodySchema } from './series-schemas'
 
 describe('Genre/Demographic enums', () => {
   it('CreateProposalBody chấp nhận genres enum hợp lệ + demographic', () => {
@@ -105,14 +100,6 @@ describe('series schemas — coverImage', () => {
   it('UpdateProposalBody accepts null fields', () => {
     const parsed = UpdateProposalBodySchema.parse({ genres: null })
     expect(parsed.genres).toBeNull()
-  })
-
-  it('AddNamePageBody parses a valid page', () => {
-    expect(AddNamePageBodySchema.parse({ pageNumber: 1, fileUrl: 'k' })).toEqual({ pageNumber: 1, fileUrl: 'k' })
-  })
-
-  it('AddNamePageBody rejects missing fileUrl', () => {
-    expect(AddNamePageBodySchema.safeParse({ pageNumber: 1 }).success).toBe(false)
   })
 
   it('SeriesRes keeps coverImage', () => {

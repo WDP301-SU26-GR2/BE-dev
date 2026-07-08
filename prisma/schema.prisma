@@ -304,6 +304,11 @@ enum NameStatus {
   APPROVED
 }
 
+enum NameKind {
+  PROPOSAL
+  CHAPTER
+}
+
 // REVIEW: inferred
 enum ChapterStatus {
   DRAFT
@@ -705,6 +710,7 @@ model Name {
 
   chapterNumber Int?
   status        NameStatus @default(DRAFT)
+  kind          NameKind   @default(PROPOSAL)
   version       Int        @default(1)
   submittedAt   DateTime?
 

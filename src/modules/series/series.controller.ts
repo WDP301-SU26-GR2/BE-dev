@@ -12,8 +12,6 @@ import {
   FranchiseConsentBodyDto,
   HiatusBodyDto,
   ListSeriesQueryDto,
-  NameListResDto,
-  NameResDto,
   ReasonBodyDto,
   SeriesListResDto,
   SeriesResDto,
@@ -23,7 +21,6 @@ import {
   FranchiseConsentRequiredException,
   InvalidProposalStateException,
   InvalidSeriesTransitionException,
-  NameNotFoundException,
   NotAssignedEditorException,
   NotFranchiseConsentTargetException,
   NotOriginalMangakaException,
@@ -67,29 +64,6 @@ export class SeriesController {
   @ZodResponse({ status: 200, type: SeriesResDto })
   getSeries(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
     return this.seriesService.getSeries({ userId, roleName }, id)
-  }
-
-  @Get(':id/names')
-  @ApiOperation({ summary: 'Danh sách Name của series' })
-  @ApiErrors(SeriesAccessDeniedException, SeriesNotFoundException)
-  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
-  @ZodResponse({ status: 200, type: NameListResDto })
-  listNames(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
-    return this.seriesService.listNames({ userId, roleName }, id)
-  }
-
-  @Get(':id/names/:nameId')
-  @ApiOperation({ summary: 'Chi tiết 1 Name (kèm pages)' })
-  @ApiErrors(SeriesAccessDeniedException, SeriesNotFoundException, NameNotFoundException)
-  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
-  @ZodResponse({ status: 200, type: NameResDto })
-  getName(
-    @Param('id') id: string,
-    @Param('nameId') nameId: string,
-    @ActiveUser('userId') userId: string,
-    @ActiveUser('roleName') roleName: string
-  ) {
-    return this.seriesService.getName({ userId, roleName }, id, nameId)
   }
 
   @Post('proposals')

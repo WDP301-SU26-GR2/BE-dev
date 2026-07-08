@@ -222,9 +222,9 @@ describe('DeadlineFinalizeService.boardResolve (A-DL-03)', () => {
   it('409 when request is not in BOARD_REVIEW/ESCALATED', async () => {
     prepareMocks({ status: DeadlineRequestStatus.AGREED_BY_PARTIES })
 
-    await expect(
-      service.boardResolve('board-1', id, { decision: 'APPROVE' })
-    ).rejects.toBe(DeadlineNotAwaitingBoardException)
+    await expect(service.boardResolve('board-1', id, { decision: 'APPROVE' })).rejects.toBe(
+      DeadlineNotAwaitingBoardException
+    )
     expect(stateService.transition).not.toHaveBeenCalled()
     expect(scheduleService.extendDeadlineByBoard).not.toHaveBeenCalled()
   })

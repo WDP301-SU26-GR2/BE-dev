@@ -1,4 +1,4 @@
-import { Name, Series } from '@prisma/client'
+import { Series } from '@prisma/client'
 
 export function toSeriesRes(series: Series) {
   return {
@@ -30,17 +30,5 @@ export function toSeriesRes(series: Series) {
           createdAt: series.proposal.createdAt.toISOString()
         }
       : null
-  }
-}
-
-export function toNameRes(name: Name) {
-  return {
-    id: name.id,
-    seriesId: name.seriesId,
-    chapterNumber: name.chapterNumber,
-    status: name.status,
-    version: name.version,
-    submittedAt: name.submittedAt ? name.submittedAt.toISOString() : null,
-    pages: name.pages.map((p) => ({ pageNumber: p.pageNumber, fileUrl: p.fileUrl }))
   }
 }

@@ -31,6 +31,7 @@ import {
   InvalidManuscriptTransitionException,
   InvalidPageTransitionException,
   NameNotApprovedException,
+  NameNotChapterKindException,
   NameNotInSeriesException,
   NotSeriesEditorException,
   NotSeriesOwnerException,
@@ -50,13 +51,17 @@ export class ChapterController {
   constructor(private readonly chapterService: ChapterService) {}
 
   @Post('chapters')
-  @ApiOperation({ summary: 'Mangaka tạo Chapter từ Name APPROVED → Chapter + Manuscript(DRAFT) + Schedule' })
+  @ApiOperation({
+    summary:
+      'Mangaka tạo Chapter từ Name APPROVED (kind=CHAPTER) → Chapter + Manuscript(DRAFT) + Schedule. chapterNumber derive từ Name.'
+  })
   @ApiErrors(
     NotSeriesOwnerException,
     ChapterNotFoundException,
     DuplicateChapterNumberException,
     NameNotInSeriesException,
     NameNotApprovedException,
+    NameNotChapterKindException,
     SeriesNotSerializedException
   )
   @Roles(RoleName.MANGAKA)
