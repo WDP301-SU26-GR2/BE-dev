@@ -23,6 +23,7 @@ export const ENUM_DOCS = {
   SeriesStatus: 'Series state machine status',
   ProposalStatus: 'Series proposal review status',
   NameStatus: 'Name/chapter-name review status',
+  NameKind: 'Name storyboard kind: PROPOSAL (proposal chapter-sample) or CHAPTER (per-chapter storyboard)',
   ChapterStatus: 'Chapter production status',
   ManuscriptStatus: 'Manuscript production status',
   PageStatus: 'Page production status',

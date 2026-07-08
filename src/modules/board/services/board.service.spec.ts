@@ -74,7 +74,12 @@ describe('BoardService notifications', () => {
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
     const eventBus = { emit: jest.fn() }
 
-    const service = new BoardService(boardRepo as never, boardGateway as never, notificationService as never, eventBus as never)
+    const service = new BoardService(
+      boardRepo as never,
+      boardGateway as never,
+      notificationService as never,
+      eventBus as never
+    )
 
     await service.createSession('editor-1', {
       title: 'Board meeting',
@@ -169,16 +174,28 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
 
   it('createDecision: session roster even → InvalidBoardMembersException', async () => {
     // 4 items: passes schema .min(3), but hits service guard (4%2===0 → InvalidBoardMembersException).
-    const { service, boardRepo } = makeDecisionService({ id: 's', creatorId: 'c', allowedEditorIds: ['a', 'b', 'c', 'd'] })
+    const { service, boardRepo } = makeDecisionService({
+      id: 's',
+      creatorId: 'c',
+      allowedEditorIds: ['a', 'b', 'c', 'd']
+    })
     await expect(
-      service.createDecision({ boardSessionId: 's', decisionType: 'SERIALIZATION', targetSeriesId: '507f1f77bcf86cd799439011' } as never)
+      service.createDecision({
+        boardSessionId: 's',
+        decisionType: 'SERIALIZATION',
+        targetSeriesId: '507f1f77bcf86cd799439011'
+      } as never)
     ).rejects.toBeInstanceOf(InvalidBoardMembersException)
     expect(boardRepo.createDecision).not.toHaveBeenCalled()
   })
 
   it('createDecision: session roster odd → OK', async () => {
     const { service, boardRepo } = makeDecisionService({ id: 's', creatorId: 'c', allowedEditorIds: ['a', 'b', 'c'] })
-    await service.createDecision({ boardSessionId: 's', decisionType: 'SERIALIZATION', targetSeriesId: '507f1f77bcf86cd799439011' } as never)
+    await service.createDecision({
+      boardSessionId: 's',
+      decisionType: 'SERIALIZATION',
+      targetSeriesId: '507f1f77bcf86cd799439011'
+    } as never)
     expect(boardRepo.createDecision).toHaveBeenCalled()
   })
 })

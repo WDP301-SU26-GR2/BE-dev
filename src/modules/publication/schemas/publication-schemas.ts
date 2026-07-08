@@ -42,10 +42,10 @@ export const PublicationVersionResSchema = extendApi(
   { title: 'PublicationVersionRes', description: 'Publication version view' }
 )
 
-export const PublicationVersionListResSchema = extendApi(
-  z.object({ items: z.array(PublicationVersionResSchema) }),
-  { title: 'PublicationVersionListRes', description: 'Danh sách phiên bản phát hành của series' }
-)
+export const PublicationVersionListResSchema = extendApi(z.object({ items: z.array(PublicationVersionResSchema) }), {
+  title: 'PublicationVersionListRes',
+  description: 'Danh sách phiên bản phát hành của series'
+})
 
 export type CreatePublicationVersionType = z.infer<typeof CreatePublicationVersionSchema>
 export type UpdatePublicationVersionType = z.infer<typeof UpdatePublicationVersionSchema>

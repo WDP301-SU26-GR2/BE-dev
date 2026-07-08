@@ -90,9 +90,7 @@ describe('PublicationService (B-PUB-01)', () => {
 
   it('detail: malformed id → 404 PublicationVersionNotFound', async () => {
     const { svc } = make()
-    await expect(svc.getById('editor-1', RoleName.EDITOR, 'garbage')).rejects.toBe(
-      PublicationVersionNotFoundException
-    )
+    await expect(svc.getById('editor-1', RoleName.EDITOR, 'garbage')).rejects.toBe(PublicationVersionNotFoundException)
   })
 
   it('detail: BOARD_MEMBER can read', async () => {
@@ -109,9 +107,7 @@ describe('PublicationService (B-PUB-01)', () => {
 
   it('update: EDITOR not assigned → 403', async () => {
     const { svc } = make()
-    await expect(svc.update('other', RoleName.EDITOR, VER_ID, { notes: 'x' })).rejects.toBe(
-      SeriesAccessDeniedException
-    )
+    await expect(svc.update('other', RoleName.EDITOR, VER_ID, { notes: 'x' })).rejects.toBe(SeriesAccessDeniedException)
   })
 
   it('update: version not found → 404', async () => {

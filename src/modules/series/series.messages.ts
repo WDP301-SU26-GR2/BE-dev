@@ -11,9 +11,6 @@ export const SeriesMessages = {
     proposalResubmitted: 'Proposal resubmitted',
     proposalApproved: 'Proposal approved',
     proposalRejected: (reason: string) => `Proposal rejected: ${reason}`,
-    nameRevision: (reason: string) => `Name needs revision: ${reason}`,
-    nameApproved: 'Name approved',
-    nameLoopWarning: (rounds: number) => `Name review loop has reached ${rounds} rounds`,
     seriesCancelling: (allowance: number | null) =>
       allowance != null
         ? `Hội đồng đã quyết định huỷ series. Bạn được cấp ${allowance} chương để kết thúc.`
@@ -31,17 +28,16 @@ export const SeriesMessages = {
     franchiseConsentRejected: 'Mangaka gốc đã từ chối series phái sinh.'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/series.errors.ts.
+  // Name-related error codes moved to name module (errors/name.errors.ts).
   error: {
     seriesNotFound: 'Error.SeriesNotFound',
     notSeriesOwner: 'Error.NotSeriesOwner',
     proposalNotEditable: 'Error.ProposalNotEditable',
     invalidSeriesTransition: 'Error.InvalidSeriesTransition',
     invalidProposalState: 'Error.InvalidProposalState',
-    invalidNameState: 'Error.InvalidNameState',
     seriesNotReadyToPitch: 'Error.SeriesNotReadyToPitch',
     parentSeriesNotFound: 'Error.ParentSeriesNotFound',
     seriesAccessDenied: 'Error.SeriesAccessDenied',
-    nameNotFound: 'Error.NameNotFound',
     seriesAlreadyClaimed: 'Error.SeriesAlreadyClaimed',
     reviewAlreadyStarted: 'Error.ReviewAlreadyStarted',
     notAssignedEditor: 'Error.NotAssignedEditor',

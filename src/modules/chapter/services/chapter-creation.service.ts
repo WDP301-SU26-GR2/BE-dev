@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common'
-import { NameStatus, SeriesStatus } from '@prisma/client'
+import { NameKind, NameStatus, SeriesStatus } from '@prisma/client'
 import {
   ChapterNotFoundException,
   DuplicateChapterNumberException,
   NameNotApprovedException,
+  NameNotChapterKindException,
   NameNotInSeriesException,
   NotSeriesOwnerException,
   SeriesNotSerializedException
@@ -26,14 +27,18 @@ export class ChapterCreationService {
     const name = await this.chapterRepository.findNameById(body.nameId)
     if (!name || name.seriesId !== body.seriesId) throw NameNotInSeriesException
     if (name.status !== NameStatus.APPROVED) throw NameNotApprovedException
+    // Spec 8 §7: chỉ chapter-Name (kind=CHAPTER) mới tạo chapter được; proposal-Name → 422 NameNotChapterKind.
+    if (name.kind !== NameKind.CHAPTER) throw NameNotChapterKindException
+    const chapterNumber = name.chapterNumber
+    if (chapterNumber == null) throw NameNotChapterKindException
 
-    const dup = await this.chapterRepository.findChapterByNumber(body.seriesId, body.chapterNumber)
+    const dup = await this.chapterRepository.findChapterByNumber(body.seriesId, chapterNumber)
     if (dup) throw DuplicateChapterNumberException
 
     return this.chapterRepository.createChapter({
       seriesId: body.seriesId,
       nameId: body.nameId,
-      chapterNumber: body.chapterNumber,
+      chapterNumber,
       title: body.title ?? null
     })
   }

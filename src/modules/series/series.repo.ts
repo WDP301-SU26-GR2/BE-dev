@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import {
   FranchiseConsentStatus,
+  NameKind,
   NameStatus,
   Prisma,
   ProposalStatus,
@@ -56,6 +57,8 @@ export class SeriesRepository {
       data: {
         seriesId: series.id,
         chapterNumber: null,
+        // kind=PROPOSAL set explicitly: this is the only Name write outside NameRepo (atomic with proposal creation).
+        kind: NameKind.PROPOSAL,
         status: NameStatus.DRAFT,
         version: 1,
         pages: body.namePages.map((p) => ({ pageNumber: p.pageNumber, fileUrl: p.fileUrl }))
@@ -74,10 +77,6 @@ export class SeriesRepository {
 
   async findById(seriesId: string) {
     return await this.prismaService.series.findUnique({ where: { id: seriesId } })
-  }
-
-  async findNameById(nameId: string) {
-    return await this.prismaService.name.findUnique({ where: { id: nameId } })
   }
 
   async updateProposalContent(seriesId: string, body: UpdateProposalBodyType) {
@@ -147,18 +146,6 @@ export class SeriesRepository {
     })
   }
 
-  async updateNameStatus(nameId: string, data: { status: NameStatus; version?: number; submittedAt?: Date }) {
-    return await this.prismaService.name.update({ where: { id: nameId }, data })
-  }
-
-  async updateNamePages(nameId: string, pages: { pageNumber: number; fileUrl: string }[]) {
-    return await this.prismaService.name.update({ where: { id: nameId }, data: { pages: { set: pages } } })
-  }
-
-  async appendNamePage(nameId: string, page: { pageNumber: number; fileUrl: string }) {
-    return await this.prismaService.name.update({ where: { id: nameId }, data: { pages: { push: page } } })
-  }
-
   // Single-writer cho Series.status: chỉ method này (gọi từ SeriesStateService) ghi status + audit.
   // KHÔNG đụng `proposal` (composite) nên không bị wipe; chỉ set scalar `status`/`statusReason` + push history.
   async updateStatusWithHistory(
@@ -216,13 +203,6 @@ export class SeriesRepository {
   async countSeriesForList(filter: SeriesListFilter): Promise<number> {
     const where = this.buildSeriesListWhere(filter)
     return await this.prismaService.series.count({ where })
-  }
-
-  async findNamesBySeriesId(seriesId: string) {
-    return await this.prismaService.name.findMany({
-      where: { seriesId },
-      orderBy: { version: 'asc' }
-    })
   }
 
   // Spec 2: HIATUS timestamp — set when entering hiatus, null when resumed.

@@ -13,6 +13,7 @@ export const DomainEvent = {
   SeriesHiatusStarted: 'series.hiatus.started', // Spec 2: BE-A → BE-B (pause TIME_BOUND)
   SeriesHiatusEnded: 'series.hiatus.ended', // Spec 2: BE-A → BE-B (resume + shift deadline)
   ContractAmendmentRequested: 'contract.amendment_requested', // Spec 4: BE-A series (Flow 5) → BE-B contract (tạo DRAFT amendment stub)
+  NameApproved: 'name.approved', // Spec 8: name module → series (proposal-Name approved → advance READY_TO_PITCH)
 
   // Emitted by BE-B
   ContractExecuted: 'contract.executed', // B1 → A2 (sequel), A-CHP-05 (publish gate)
@@ -49,4 +50,5 @@ export interface DomainEventPayload {
     trigger: 'FORMAT_CHANGE' | 'COMPLETION'
     summary: string
   }
+  [DomainEvent.NameApproved]: { seriesId: string; nameId: string; kind: 'PROPOSAL' | 'CHAPTER' }
 }

@@ -80,10 +80,7 @@ export class DeadlineFinalizeService {
     if (!OBJECT_ID_RE.test(id)) throw DeadlineRequestNotFoundException
     const request = await this.deadlineRepository.findById(id)
     if (!request || !request.chapterId || !request.requestedDeadline) throw DeadlineRequestNotFoundException
-    if (
-      request.status !== DeadlineRequestStatus.BOARD_REVIEW &&
-      request.status !== DeadlineRequestStatus.ESCALATED
-    ) {
+    if (request.status !== DeadlineRequestStatus.BOARD_REVIEW && request.status !== DeadlineRequestStatus.ESCALATED) {
       throw DeadlineNotAwaitingBoardException
     }
     const ctx = await this.scheduleService.getDeadlineContext(request.chapterId)

@@ -39,7 +39,9 @@ export const DeadlineReasonBodySchema = extendApi(z.object({ reason: z.string().
 export const BoardResolveBodySchema = extendApi(
   z
     .object({
-      decision: z.enum(['APPROVE', 'REJECT']).describe('Board quyết định: APPROVE → cập nhật Schedule; REJECT → giữ nguyên'),
+      decision: z
+        .enum(['APPROVE', 'REJECT'])
+        .describe('Board quyết định: APPROVE → cập nhật Schedule; REJECT → giữ nguyên'),
       note: z.string().max(1000).nullish()
     })
     .strict(),

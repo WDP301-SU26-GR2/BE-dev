@@ -15,11 +15,7 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 export class PublicationService {
   constructor(private readonly repo: PublicationRepo) {}
 
-  private assertSeriesScope(
-    series: { mangakaId: string; editorId: string | null },
-    userId: string,
-    roleName: string
-  ) {
+  private assertSeriesScope(series: { mangakaId: string; editorId: string | null }, userId: string, roleName: string) {
     if (roleName === RoleName.BOARD_MEMBER || roleName === RoleName.SUPER_ADMIN) return
     if (roleName === RoleName.EDITOR && series.editorId === userId) return
     if (roleName === RoleName.MANGAKA && series.mangakaId === userId) return
@@ -50,11 +46,7 @@ export class PublicationService {
     return { items: items.map(toPublicationVersionRes) }
   }
 
-  private async loadVersionScoped(
-    id: string,
-    userId: string,
-    roleName: string
-  ) {
+  private async loadVersionScoped(id: string, userId: string, roleName: string) {
     if (!OBJECT_ID_RE.test(id)) throw PublicationVersionNotFoundException
     const version = await this.repo.findById(id)
     if (!version) throw PublicationVersionNotFoundException
