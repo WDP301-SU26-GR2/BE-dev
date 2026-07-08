@@ -1,23 +1,33 @@
 import { Injectable } from '@nestjs/common'
-import { NotificationType } from '@prisma/client'
+import { AuditEntityType, NotificationType } from '@prisma/client'
 import { ReprintRequestRepo } from '../reprint-request.repo'
 import { ReprintRequestErrors } from '../errors/reprint-request.error'
 import {
   CreateReprintRequestBodyDto,
   MangakaReviewReprintBodyDto,
   BoardApproveReprintBodyDto,
-  SubmitChapterManuscriptBodyDto,
-  EditorApproveChapterBodyDto
+  EditorApproveChapterBodyDto,
+  SubmitChapterManuscriptBodyDto
 } from '../dto/reprint-request.dto'
-import { REPRINT_REQUEST_STATUS, REPRINT_CHAPTER_STATUS } from '../reprint-request.constant'
+import { AssignReviserBodyType } from '../schemas/reprint-request-schema'
+import { REPRINT_CHAPTER_STATUS, REPRINT_REQUEST_STATUS } from '../reprint-request.constant'
+import { ReprintRequestMessages } from '../reprint-request.messages'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { AuditService } from 'src/modules/audit/audit.service'
+import { ReprintRequestStateService } from './reprint-request-state.service'
+
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class ReprintRequestService {
   constructor(
     private readonly reprintRequestRepo: ReprintRequestRepo,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly auditService: AuditService,
+    private readonly stateService: ReprintRequestStateService
   ) {}
+
+  // ─── READ paths ─────────────────────────────────────────────────────────────
 
   async findAll(userId: string, roleName: string, filters: { status?: string; seriesId?: string }) {
     return this.reprintRequestRepo.findManyScoped({
@@ -29,89 +39,161 @@ export class ReprintRequestService {
   }
 
   async findById(id: string) {
+    if (!OBJECT_ID_RE.test(id)) throw ReprintRequestErrors.NotFound()
     const request = await this.reprintRequestRepo.findById(id)
-    if (!request) {
-      throw ReprintRequestErrors.NotFound()
-    }
+    if (!request) throw ReprintRequestErrors.NotFound()
     return request
   }
 
   async getChapters(id: string) {
+    if (!OBJECT_ID_RE.test(id)) throw ReprintRequestErrors.NotFound()
     const request = await this.reprintRequestRepo.findById(id)
-    if (!request) {
-      throw ReprintRequestErrors.NotFound()
-    }
+    if (!request) throw ReprintRequestErrors.NotFound()
     return request.chapters ?? []
   }
 
   async getChapterById(id: string, chapterId: string) {
+    // chapterId is also an ObjectId (Prisma stores originalChapterId as @db.ObjectId).
+    if (!OBJECT_ID_RE.test(id) || !OBJECT_ID_RE.test(chapterId)) throw ReprintRequestErrors.NotFound()
     const request = await this.reprintRequestRepo.findById(id)
-    if (!request) {
-      throw ReprintRequestErrors.NotFound()
-    }
+    if (!request) throw ReprintRequestErrors.NotFound()
 
     const chapter = request.chapters?.find((item) => item.originalChapterId === chapterId)
-    if (!chapter) {
-      throw ReprintRequestErrors.ChapterNotFound()
-    }
+    if (!chapter) throw ReprintRequestErrors.ChapterNotFound()
 
     return chapter
   }
 
-  async updateChapterManuscript(id: string, chapterId: string, dto: SubmitChapterManuscriptBodyDto) {
+  // ─── B-RPT-03: Mangaka cập nhật manuscript (route duy nhất — params:chapterId) ──
+
+  async updateChapterManuscript(id: string, chapterId: string, dto: SubmitChapterManuscriptBodyDto, actorId?: string) {
+    if (!OBJECT_ID_RE.test(id) || !OBJECT_ID_RE.test(chapterId)) throw ReprintRequestErrors.NotFound()
     const request = await this.reprintRequestRepo.findById(id)
-    if (!request) {
-      throw ReprintRequestErrors.NotFound()
+    if (!request) throw ReprintRequestErrors.NotFound()
+    if (
+      request.status !== REPRINT_REQUEST_STATUS.BOARD_APPROVED &&
+      request.status !== REPRINT_REQUEST_STATUS.APPROVED
+    ) {
+      throw ReprintRequestErrors.InvalidReprintTransition()
     }
 
     const chapters = [...(request.chapters ?? [])]
     const targetChapter = chapters.find((item) => item.originalChapterId === chapterId)
-    if (!targetChapter) {
-      throw ReprintRequestErrors.ChapterNotFound()
-    }
+    if (!targetChapter) throw ReprintRequestErrors.ChapterNotFound()
 
     targetChapter.manuscriptFile = dto.manuscriptFile
     targetChapter.status = REPRINT_CHAPTER_STATUS.READY
 
     const updated = await this.reprintRequestRepo.update(id, { chapters })
+    await this.notificationService.notifySafe({
+      recipientId: request.requestedBy ?? '',
+      type: NotificationType.CONTRACT,
+      referenceId: updated.id,
+      referenceType: 'REPRINT_CHAPTER_SUBMITTED',
+      content: ReprintRequestMessages.notification.chapterSubmitted
+    })
+    // PB-07 / audit: ghi nhận submission để Board truy vết được.
+    if (actorId) {
+      await this.auditService.record({
+        actorId,
+        entityType: AuditEntityType.REPRINT_REQUEST,
+        entityId: id,
+        action: 'CHAPTER_MANUSCRIPT_SUBMITTED',
+        reason: `chapter=${chapterId}`
+      })
+    }
     return updated
   }
 
-  async approveChapter(id: string, chapterId: string, dto: EditorApproveChapterBodyDto) {
+  // ─── B-RPT-03 + B-RPT-04: Editor duyệt chapter (route duy nhất — params:chapterId)
+  //                        + auto-publish khi tất cả chapters đạt APPROVED.
+
+  async approveChapter(id: string, chapterId: string, dto: EditorApproveChapterBodyDto, actorId: string) {
+    if (!OBJECT_ID_RE.test(id) || !OBJECT_ID_RE.test(chapterId)) throw ReprintRequestErrors.NotFound()
     const request = await this.reprintRequestRepo.findById(id)
-    if (!request) {
-      throw ReprintRequestErrors.NotFound()
+    if (!request) throw ReprintRequestErrors.NotFound()
+    if (
+      request.status !== REPRINT_REQUEST_STATUS.BOARD_APPROVED &&
+      request.status !== REPRINT_REQUEST_STATUS.APPROVED
+    ) {
+      throw ReprintRequestErrors.InvalidReprintTransition()
     }
 
     const chapters = [...(request.chapters ?? [])]
     const targetChapter = chapters.find((item) => item.originalChapterId === chapterId)
-    if (!targetChapter) {
-      throw ReprintRequestErrors.ChapterNotFound()
-    }
+    if (!targetChapter) throw ReprintRequestErrors.ChapterNotFound()
 
     targetChapter.status = dto.approve ? REPRINT_CHAPTER_STATUS.APPROVED : REPRINT_CHAPTER_STATUS.IN_REVISION
 
+    const allChaptersPublished = chapters.every((ch) => ch.status === REPRINT_CHAPTER_STATUS.APPROVED)
+
+    if (allChaptersPublished) {
+      // B-RPT-04: state transition BOARD_APPROVED/APPROVED → PUBLISHED (doanh thu chia sau qua POST /contracts/:id/revenue).
+      this.stateService.assertTransition(request.status, REPRINT_REQUEST_STATUS.PUBLISHED)
+
+      const contract = await this.reprintRequestRepo.findActiveContractBySeriesId(request.seriesId)
+
+      const updated = await this.reprintRequestRepo.update(id, {
+        chapters,
+        status: REPRINT_REQUEST_STATUS.PUBLISHED,
+        publishedAt: new Date()
+      })
+
+      await this.stateService.audit(
+        id,
+        request.status,
+        REPRINT_REQUEST_STATUS.PUBLISHED,
+        actorId,
+        'all chapters approved'
+      )
+
+      await Promise.all([
+        this.notificationService.notifySafe({
+          recipientId: request.requestedBy ?? '',
+          type: NotificationType.CONTRACT,
+          referenceId: updated.id,
+          referenceType: 'REPRINT_REQUEST_PUBLISHED',
+          content: ReprintRequestMessages.notification.published
+        }),
+        contract?.mangakaId
+          ? this.notificationService.notifySafe({
+              recipientId: contract.mangakaId,
+              type: NotificationType.CONTRACT,
+              referenceId: updated.id,
+              referenceType: 'REPRINT_REQUEST_PUBLISHED',
+              content: ReprintRequestMessages.notification.published
+            })
+          : Promise.resolve()
+      ])
+
+      return updated
+    }
+
     const updated = await this.reprintRequestRepo.update(id, { chapters })
+    await this.notificationService.notifySafe({
+      recipientId: request.requestedBy ?? '',
+      type: NotificationType.CONTRACT,
+      referenceId: updated.id,
+      referenceType: 'REPRINT_CHAPTER_REVIEWED',
+      content: ReprintRequestMessages.notification.chapterReviewed
+    })
     return updated
   }
 
-  // B-RPT-01: Tạo ReprintRequest ban đầu ở trạng thái PENDING
+  // ─── B-RPT-01: Tạo ReprintRequest ban đầu ở trạng thái PENDING ────────────────
+
   async create(requestedBy: string, dto: CreateReprintRequestBodyDto) {
+    if (!OBJECT_ID_RE.test(dto.seriesId)) throw ReprintRequestErrors.ContractNotFound()
     const contract = await this.reprintRequestRepo.findActiveContractBySeriesId(dto.seriesId)
-    if (!contract) {
-      throw ReprintRequestErrors.ContractNotFound()
-    }
+    if (!contract) throw ReprintRequestErrors.ContractNotFound()
 
     const originalChapters = await this.reprintRequestRepo.findOriginalChaptersByRange(
       dto.seriesId,
       dto.chapterRangeStart,
       dto.chapterRangeEnd
     )
-    if (!originalChapters || originalChapters.length === 0) {
-      throw ReprintRequestErrors.OriginalChaptersNotFound()
-    }
+    if (!originalChapters || originalChapters.length === 0) throw ReprintRequestErrors.OriginalChaptersNotFound()
 
-    // Khởi tạo danh sách embedded chapters với trạng thái mặc định PENDING từ constant
     const initialChapters = originalChapters.map((ch) => ({
       originalChapterId: ch.id,
       manuscriptFile: null,
@@ -135,7 +217,7 @@ export class ReprintRequestService {
         type: NotificationType.CONTRACT,
         referenceId: createdRequest.id,
         referenceType: 'REPRINT_REQUEST_CREATED',
-        content: 'Yêu cầu tái bản đã được tạo và đang chờ xử lý.'
+        content: ReprintRequestMessages.notification.created
       }),
       contract?.mangakaId
         ? this.notificationService.notifySafe({
@@ -143,7 +225,7 @@ export class ReprintRequestService {
             type: NotificationType.CONTRACT,
             referenceId: createdRequest.id,
             referenceType: 'REPRINT_REQUEST_CREATED',
-            content: 'Có yêu cầu tái bản mới cần bạn xem xét.'
+            content: ReprintRequestMessages.notification.createdForMangaka
           })
         : Promise.resolve()
     ])
@@ -151,12 +233,12 @@ export class ReprintRequestService {
     return createdRequest
   }
 
-  // B-RPT-02: Nhánh theo Ownership Principle - Mangaka Review (Chỉ dành cho REVENUE_SHARE)
-  async mangakaReview(id: string, dto: MangakaReviewReprintBodyDto) {
+  // ─── B-RPT-02: Mangaka Review (chỉ dành cho REVENUE_SHARE) ────────────────────
+
+  async mangakaReview(id: string, dto: MangakaReviewReprintBodyDto, actorId: string) {
+    if (!OBJECT_ID_RE.test(id)) throw ReprintRequestErrors.NotFound()
     const request = await this.reprintRequestRepo.findById(id)
-    if (!request) {
-      throw ReprintRequestErrors.NotFound()
-    }
+    if (!request) throw ReprintRequestErrors.NotFound()
 
     const contract = await this.reprintRequestRepo.findActiveContractBySeriesId(request.seriesId)
     if (!contract || contract.contractType !== 'REVENUE_SHARE') {
@@ -164,83 +246,97 @@ export class ReprintRequestService {
     }
 
     if (request.status !== REPRINT_REQUEST_STATUS.PENDING && request.status !== REPRINT_REQUEST_STATUS.PROPOSED) {
-      throw ReprintRequestErrors.InvalidStatus()
+      throw ReprintRequestErrors.InvalidReprintTransition()
     }
 
     if (dto.accept) {
+      this.stateService.assertTransition(request.status, REPRINT_REQUEST_STATUS.MANGAKA_APPROVED)
       const updated = await this.reprintRequestRepo.update(id, {
         status: REPRINT_REQUEST_STATUS.MANGAKA_APPROVED,
         mangakaApprovedAt: new Date()
       })
+      await this.stateService.audit(
+        id,
+        request.status,
+        REPRINT_REQUEST_STATUS.MANGAKA_APPROVED,
+        actorId,
+        'mangaka review accepted'
+      )
       await this.notificationService.notifySafe({
         recipientId: request.requestedBy ?? '',
         type: NotificationType.CONTRACT,
         referenceId: updated.id,
         referenceType: 'REPRINT_REQUEST_MANGAKA_APPROVED',
-        content: 'Mangaka đã đồng ý yêu cầu tái bản.'
-      })
-      return updated
-    } else {
-      const updated = await this.reprintRequestRepo.update(id, {
-        status: REPRINT_REQUEST_STATUS.REJECTED
-      })
-      await this.notificationService.notifySafe({
-        recipientId: request.requestedBy ?? '',
-        type: NotificationType.CONTRACT,
-        referenceId: updated.id,
-        referenceType: 'REPRINT_REQUEST_REJECTED',
-        content: 'Yêu cầu tái bản đã bị từ chối.'
+        content: ReprintRequestMessages.notification.mangakaApproved
       })
       return updated
     }
+
+    this.stateService.assertTransition(request.status, REPRINT_REQUEST_STATUS.REJECTED)
+    const updated = await this.reprintRequestRepo.update(id, { status: REPRINT_REQUEST_STATUS.REJECTED })
+    await this.stateService.audit(
+      id,
+      request.status,
+      REPRINT_REQUEST_STATUS.REJECTED,
+      actorId,
+      'mangaka review rejected'
+    )
+    await this.notificationService.notifySafe({
+      recipientId: request.requestedBy ?? '',
+      type: NotificationType.CONTRACT,
+      referenceId: updated.id,
+      referenceType: 'REPRINT_REQUEST_REJECTED',
+      content: ReprintRequestMessages.notification.mangakaRejected
+    })
+    return updated
   }
 
-  // B-RPT-02: Hội đồng phê duyệt nội bộ quyết định chuyển sang BOARD_APPROVED (Vào luồng sản xuất)
-  async boardApprove(id: string, dto: BoardApproveReprintBodyDto) {
+  // ─── B-RPT-02: Board phê duyệt (vào luồng sản xuất) ─────────────────────────────
+
+  async boardApprove(id: string, dto: BoardApproveReprintBodyDto, actorId: string) {
+    if (!OBJECT_ID_RE.test(id)) throw ReprintRequestErrors.NotFound()
     const request = await this.reprintRequestRepo.findById(id)
-    if (!request) {
-      throw ReprintRequestErrors.NotFound()
-    }
+    if (!request) throw ReprintRequestErrors.NotFound()
 
     if (!dto.approve) {
-      const updated = await this.reprintRequestRepo.update(id, {
-        status: REPRINT_REQUEST_STATUS.REJECTED
-      })
+      this.stateService.assertTransition(request.status, REPRINT_REQUEST_STATUS.REJECTED)
+      const updated = await this.reprintRequestRepo.update(id, { status: REPRINT_REQUEST_STATUS.REJECTED })
+      await this.stateService.audit(id, request.status, REPRINT_REQUEST_STATUS.REJECTED, actorId, 'board rejected')
       await this.notificationService.notifySafe({
         recipientId: request.requestedBy ?? '',
         type: NotificationType.CONTRACT,
         referenceId: updated.id,
         referenceType: 'REPRINT_REQUEST_REJECTED',
-        content: 'Yêu cầu tái bản đã bị Hội đồng từ chối.'
+        content: ReprintRequestMessages.notification.boardRejected
       })
       return updated
     }
 
     const contract = await this.reprintRequestRepo.findActiveContractBySeriesId(request.seriesId)
-    if (!contract) {
-      throw ReprintRequestErrors.ContractNotFound()
-    }
+    if (!contract) throw ReprintRequestErrors.ContractNotFound()
 
-    // AC1: FULL_BUYOUT -> Duyệt thẳng từ PENDING sang BOARD_APPROVED
+    // AC1: FULL_BUYOUT → PENDING/PROPOSED → BOARD_APPROVED trực tiếp.
     if (contract.contractType === 'FULL_BUYOUT') {
       if (request.status !== REPRINT_REQUEST_STATUS.PENDING && request.status !== REPRINT_REQUEST_STATUS.PROPOSED) {
-        throw ReprintRequestErrors.InvalidStatus()
+        throw ReprintRequestErrors.InvalidReprintTransition()
       }
     }
-    // AC2: REVENUE_SHARE -> Bắt buộc phải thông qua trạng thái MANGAKA_APPROVED trước
+    // AC2: REVENUE_SHARE → phải qua MANGAKA_APPROVED.
     else if (contract.contractType === 'REVENUE_SHARE') {
       if (
         request.status !== REPRINT_REQUEST_STATUS.MANGAKA_APPROVED &&
         request.status !== REPRINT_REQUEST_STATUS.MANGAKA_REVIEW
       ) {
-        throw ReprintRequestErrors.InvalidStatus()
+        throw ReprintRequestErrors.InvalidReprintTransition()
       }
     }
 
+    this.stateService.assertTransition(request.status, REPRINT_REQUEST_STATUS.BOARD_APPROVED)
     const updated = await this.reprintRequestRepo.update(id, {
       status: REPRINT_REQUEST_STATUS.BOARD_APPROVED,
       boardApprovedAt: new Date()
     })
+    await this.stateService.audit(id, request.status, REPRINT_REQUEST_STATUS.BOARD_APPROVED, actorId, 'board approved')
 
     await Promise.all([
       this.notificationService.notifySafe({
@@ -248,7 +344,7 @@ export class ReprintRequestService {
         type: NotificationType.CONTRACT,
         referenceId: updated.id,
         referenceType: 'REPRINT_REQUEST_BOARD_APPROVED',
-        content: 'Yêu cầu tái bản đã được Hội đồng phê duyệt.'
+        content: ReprintRequestMessages.notification.boardApproved
       }),
       contract?.mangakaId
         ? this.notificationService.notifySafe({
@@ -256,7 +352,7 @@ export class ReprintRequestService {
             type: NotificationType.CONTRACT,
             referenceId: updated.id,
             referenceType: 'REPRINT_REQUEST_BOARD_APPROVED',
-            content: 'Yêu cầu tái bản đã được Hội đồng phê duyệt.'
+            content: ReprintRequestMessages.notification.boardApproved
           })
         : Promise.resolve()
     ])
@@ -264,104 +360,44 @@ export class ReprintRequestService {
     return updated
   }
 
-  // B-RPT-03: Giai đoạn sản xuất - Mangaka nộp file sửa đổi cho từng chương
-  async submitChapterManuscript(id: string, dto: SubmitChapterManuscriptBodyDto) {
+  // ─── PB-07: Gán reviser cho chapter tái bản (chỉ khi WITH_REVISION + FULL_BUYOUT) ──
+
+  async assignReviser(id: string, chapterId: string, dto: AssignReviserBodyType, actorId: string) {
+    if (!OBJECT_ID_RE.test(id) || !OBJECT_ID_RE.test(chapterId)) throw ReprintRequestErrors.NotFound()
     const request = await this.reprintRequestRepo.findById(id)
-    if (
-      !request ||
-      (request.status !== REPRINT_REQUEST_STATUS.BOARD_APPROVED && request.status !== REPRINT_REQUEST_STATUS.APPROVED)
-    ) {
-      throw ReprintRequestErrors.InvalidStatus()
+    if (!request) throw ReprintRequestErrors.NotFound()
+    if (request.revisionMode !== 'WITH_REVISION') throw ReprintRequestErrors.NotWithRevision()
+
+    const contract = await this.reprintRequestRepo.findActiveContractBySeriesId(request.seriesId)
+    if (!contract || contract.contractType !== 'FULL_BUYOUT') {
+      throw ReprintRequestErrors.ReviserOnlyForFullBuyout()
     }
 
-    const chapters = [...request.chapters]
-    const targetChapter = chapters.find((ch) => ch.originalChapterId === dto.originalChapterId)
-    if (!targetChapter) {
-      throw ReprintRequestErrors.ChapterNotFound()
+    if (dto.reviserType === 'OTHER_MANGAKA') {
+      const user = await this.reprintRequestRepo.findUserRole(dto.reviserId)
+      if (!user || user.role?.code !== 'MANGAKA') throw ReprintRequestErrors.ReviserMangakaNotFound()
     }
 
-    // Cập nhật file sửa đổi và chuyển trạng thái chương sang READY
-    targetChapter.manuscriptFile = dto.manuscriptFile
-    targetChapter.status = REPRINT_CHAPTER_STATUS.READY
+    const chapters = [...(request.chapters ?? [])]
+    const target = chapters.find((c) => c.originalChapterId === chapterId)
+    if (!target) throw ReprintRequestErrors.ChapterNotFound()
+    target.reviserId = dto.reviserId
+    target.reviserType = dto.reviserType
 
     const updated = await this.reprintRequestRepo.update(id, { chapters })
     await this.notificationService.notifySafe({
-      recipientId: request.requestedBy ?? '',
+      recipientId: dto.reviserId,
       type: NotificationType.CONTRACT,
-      referenceId: updated.id,
-      referenceType: 'REPRINT_CHAPTER_SUBMITTED',
-      content: 'Mangaka đã nộp bản thảo cho chương tái bản.'
+      referenceId: id,
+      referenceType: 'REPRINT_REVISION_ASSIGNED',
+      content: ReprintRequestMessages.notification.reviserAssigned
     })
-    return updated
-  }
-
-  // B-RPT-03 & B-RPT-04: Editor kiểm duyệt từng chương và tự động hoàn tất luồng xuất bản
-  async editorApproveChapter(id: string, dto: EditorApproveChapterBodyDto) {
-    const request = await this.reprintRequestRepo.findById(id)
-    if (
-      !request ||
-      (request.status !== REPRINT_REQUEST_STATUS.BOARD_APPROVED && request.status !== REPRINT_REQUEST_STATUS.APPROVED)
-    ) {
-      throw ReprintRequestErrors.InvalidStatus()
-    }
-
-    const chapters = [...request.chapters]
-    const targetChapter = chapters.find((ch) => ch.originalChapterId === dto.originalChapterId)
-    if (!targetChapter) {
-      throw ReprintRequestErrors.ChapterNotFound()
-    }
-
-    // Editor duyệt đạt yêu cầu -> Chương chuyển sang PUBLISHED
-    if (dto.approve) {
-      targetChapter.status = REPRINT_CHAPTER_STATUS.APPROVED
-    } else {
-      targetChapter.status = REPRINT_CHAPTER_STATUS.IN_REVISION
-    }
-
-    // B-RPT-04: Kiểm tra nếu toàn bộ các chương trong danh sách đã đạt trạng thái APPROVED
-    const allChaptersPublished = chapters.every((ch) => ch.status === REPRINT_CHAPTER_STATUS.APPROVED)
-
-    if (allChaptersPublished) {
-      const contract = await this.reprintRequestRepo.findActiveContractBySeriesId(request.seriesId)
-
-      // B-RPT-04: doanh thu tái bản KHÔNG chia lúc publish (chưa có doanh số).
-      // Editor/Board nhập revenue sau qua POST /contracts/:id/revenue (B-CON-07) → engine chia.
-
-      const updated = await this.reprintRequestRepo.update(id, {
-        chapters,
-        status: REPRINT_REQUEST_STATUS.PUBLISHED,
-        publishedAt: new Date()
-      })
-
-      await Promise.all([
-        this.notificationService.notifySafe({
-          recipientId: request.requestedBy ?? '',
-          type: NotificationType.CONTRACT,
-          referenceId: updated.id,
-          referenceType: 'REPRINT_REQUEST_PUBLISHED',
-          content: 'Tất cả chương tái bản đã được phê duyệt và công bố.'
-        }),
-        contract?.mangakaId
-          ? this.notificationService.notifySafe({
-              recipientId: contract.mangakaId,
-              type: NotificationType.CONTRACT,
-              referenceId: updated.id,
-              referenceType: 'REPRINT_REQUEST_PUBLISHED',
-              content: 'Tất cả chương tái bản đã được phê duyệt và công bố.'
-            })
-          : Promise.resolve()
-      ])
-
-      return updated
-    }
-
-    const updated = await this.reprintRequestRepo.update(id, { chapters })
-    await this.notificationService.notifySafe({
-      recipientId: request.requestedBy ?? '',
-      type: NotificationType.CONTRACT,
-      referenceId: updated.id,
-      referenceType: 'REPRINT_CHAPTER_REVIEWED',
-      content: 'Chương tái bản đã được duyệt/review và đang chờ hoàn tất luồng.'
+    await this.auditService.record({
+      actorId,
+      entityType: AuditEntityType.REPRINT_REQUEST,
+      entityId: id,
+      action: 'REVISER_ASSIGNED',
+      reason: ReprintRequestMessages.reason.reviserAssigned(dto.reviserType, dto.reviserId, chapterId)
     })
     return updated
   }

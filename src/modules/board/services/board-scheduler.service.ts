@@ -2,12 +2,16 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 import { BoardRepository } from '../board.repo'
 import { $Enums } from '@prisma/client'
+import { BoardSessionStateService } from './board-session-state.service'
 
 @Injectable()
 export class BoardSchedulerService {
   private readonly logger = new Logger(BoardSchedulerService.name)
 
-  constructor(private readonly boardRepo: BoardRepository) {}
+  constructor(
+    private readonly boardRepo: BoardRepository,
+    private readonly boardSessionStateService: BoardSessionStateService
+  ) {}
 
   /**
    * Hệ thống sẽ tự động lao vào hàm này MỖI PHÚT MỘT LẦN (Every Minute)
@@ -21,10 +25,16 @@ export class BoardSchedulerService {
 
     if (expiredSessions.length === 0) return
 
-    // 2. Duyệt qua từng cuộc họp để chuyển trạng thái sang ACTIVE
+    // 2. Duyệt qua từng cuộc họp để chuyển trạng thái sang ACTIVE (state service enforces UPCOMING→ACTIVE)
     for (const session of expiredSessions) {
-      await this.boardRepo.updateSessionStatusByAuto(session.id, $Enums.BoardSessionStatus.ACTIVE)
-      this.logger.warn(`[TỰ ĐỘNG KÍCH HOẠT]: Phiên họp "${session.title}" (ID: ${session.id}) đã chính thức bắt đầu!`)
+      try {
+        await this.boardSessionStateService.transition(session.id, $Enums.BoardSessionStatus.ACTIVE, null)
+        this.logger.warn(`[TỰ ĐỘNG KÍCH HOẠT]: Phiên họp "${session.title}" (ID: ${session.id}) đã chính thức bắt đầu!`)
+      } catch (e) {
+        this.logger.warn(
+          `[SKIP] Không thể tự động kích hoạt phiên "${session.title}" (ID: ${session.id}): ${(e as Error).message}`
+        )
+      }
     }
   }
 }

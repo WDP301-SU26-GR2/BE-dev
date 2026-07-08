@@ -12,6 +12,7 @@ import {
   FranchiseConsentBodyDto,
   HiatusBodyDto,
   ListSeriesQueryDto,
+  ProposeCompletionBodyDto,
   ReasonBodyDto,
   SeriesListResDto,
   SeriesResDto,
@@ -32,7 +33,9 @@ import {
   SeriesAccessDeniedException,
   SeriesAlreadyClaimedException,
   SeriesNotFoundException,
+  SeriesNotInCancellingStateException,
   SeriesNotInEndingStateException,
+  SeriesNotProposableForCompletionException,
   SeriesNotReadyToPitchException
 } from './errors/series.errors'
 import { SeriesService } from './series.service'
@@ -222,5 +225,31 @@ export class SeriesController {
   @ZodResponse({ status: 201, type: SeriesResDto })
   finalizeEnding(@Param('id') id: string, @ActiveUser('userId') userId: string) {
     return this.seriesService.finalizeEnding(userId, id)
+  }
+
+  // PB-06: Mangaka/Editor raises a soft natural-completion proposal. Status stays SERIALIZED/HIATUS;
+  // only `completionProposal` is set. Counterparty (the other side) gets a notification.
+  @Post(':id/propose-completion')
+  @ApiOperation({ summary: 'Đề xuất kết thúc series tự nhiên (Mangaka/Editor) — PB-06' })
+  @ApiErrors(SeriesAccessDeniedException, SeriesNotProposableForCompletionException, SeriesNotFoundException)
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR)
+  @ZodResponse({ status: 200, type: SeriesResDto })
+  proposeCompletion(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string,
+    @Body() dto: ProposeCompletionBodyDto
+  ) {
+    return this.seriesService.proposeCompletion(userId, roleName, id, dto)
+  }
+
+  // PB-06 / Req 1.11c: Editor closes a CANCELLING series without an ending (mangaka could not deliver).
+  @Post(':id/force-cancel')
+  @ApiOperation({ summary: 'Editor đóng series CANCELLING không ending (Req 1.11c) — PB-06' })
+  @ApiErrors(NotAssignedEditorException, SeriesNotInCancellingStateException, SeriesNotFoundException)
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 200, type: SeriesResDto })
+  forceCancel(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.seriesService.forceCancel(userId, id)
   }
 }

@@ -1,19 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { BoardRepository } from '../board.repo'
 import * as Errors from '../errors/board.errors'
+import { BoardMessages } from '../board.messages'
 import {
   CreateBoardDecisionBodyDto,
   CastVoteBodyDto,
   CreateSeriesReportBodyDto,
   UpdateBoardConfigBodyDto,
-  CreateBoardSessionBodyDto
+  CreateBoardSessionBodyDto,
+  BoardDecisionResDto,
+  BoardVoteResDto
 } from '../dto/board.dto'
 import { BoardGateway } from '../board.gateway'
-import { $Enums, NotificationType } from '@prisma/client'
+import { $Enums, AuditEntityType, NotificationType } from '@prisma/client'
 import { BoardDecisionDataType } from '../schemas/board.model'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { DomainEvent, DomainEventPayload } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
+import { AuditService } from 'src/modules/audit/audit.service'
+import { BoardSessionStateService } from './board-session-state.service'
+
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class BoardService {
@@ -23,7 +30,9 @@ export class BoardService {
     private readonly boardRepo: BoardRepository,
     private readonly boardGateway: BoardGateway,
     private readonly notificationService: NotificationService,
-    private readonly eventBus: DomainEventBus
+    private readonly eventBus: DomainEventBus,
+    private readonly auditService: AuditService,
+    private readonly boardSessionStateService: BoardSessionStateService
   ) {}
 
   /**
@@ -34,11 +43,11 @@ export class BoardService {
     // B-BRD-05: validate odd-size roster up-front (defense in depth — BoardConfig PATCH đã enforce qua zod superRefine,
     // nhưng createSession là entry khác nên check ở đây để khóa cứng).
     if (dto.allowedEditorIds.length === 0 || dto.allowedEditorIds.length % 2 === 0) {
-      throw new Errors.InvalidBoardMembersException()
+      throw Errors.InvalidBoardMembersException
     }
     const isSessionExist = await this.boardRepo.findActiveSessionByTitle(dto.title)
     if (isSessionExist) {
-      throw new Errors.SessionAlreadyExistsException(dto.title)
+      throw Errors.SessionAlreadyExistsException
     }
     const createdSession = await this.boardRepo.createSession(creatorId, dto)
 
@@ -50,7 +59,7 @@ export class BoardService {
           type: NotificationType.BOARD,
           referenceId: createdSession.id,
           referenceType: 'BOARD_SESSION_CREATED',
-          content: `Phiên họp Hội đồng "${dto.title}" đã được tạo và đang chờ triển khai.`
+          content: BoardMessages.notification.sessionCreated(dto.title)
         })
       )
     )
@@ -59,13 +68,10 @@ export class BoardService {
   }
 
   async startSessionManually(sessionId: string) {
-    const session = await this.boardRepo.findSessionById(sessionId)
-    if (!session) throw new Errors.SessionNotFoundException(sessionId)
-    if (session.status !== $Enums.BoardSessionStatus.UPCOMING) {
-      throw new Errors.SessionNotOpenException(session.status)
-    }
-
-    return this.boardRepo.updateSessionStatus(sessionId, $Enums.BoardSessionStatus.ACTIVE)
+    if (!OBJECT_ID_RE.test(sessionId)) throw Errors.SessionNotFoundException
+    // BoardSessionStateService enforces the UPCOMING → ACTIVE transition (and throws
+    // InvalidBoardSessionTransitionException / SessionNotFoundException otherwise).
+    return this.boardSessionStateService.transition(sessionId, $Enums.BoardSessionStatus.ACTIVE, null)
   }
 
   /**
@@ -74,7 +80,7 @@ export class BoardService {
   async getConfig() {
     const config = await this.boardRepo.getActiveConfig()
     if (!config) {
-      throw new Errors.BoardConfigNotFoundException()
+      throw Errors.BoardConfigNotFoundException
     }
     return config
   }
@@ -85,12 +91,10 @@ export class BoardService {
    */
   async createDecision(dto: CreateBoardDecisionBodyDto) {
     const session = await this.boardRepo.findSessionById(dto.boardSessionId)
-    if (!session) {
-      throw new Errors.SessionNotFoundException(dto.boardSessionId)
-    }
+    if (!session) throw Errors.SessionNotFoundException
     // B-BRD-05 (defense-in-depth): chặn decision gắn vào session có roster chẵn (session có thể tạo/sửa bằng đường khác).
     if (session.allowedEditorIds.length % 2 === 0) {
-      throw new Errors.InvalidBoardMembersException()
+      throw Errors.InvalidBoardMembersException
     }
     const decision = await this.boardRepo.createDecision(dto)
 
@@ -102,12 +106,12 @@ export class BoardService {
           type: NotificationType.BOARD,
           referenceId: decision.id,
           referenceType: 'BOARD_DECISION_CREATED',
-          content: 'Một quyết định mới đã được tạo cho phiên họp Hội đồng.'
+          content: BoardMessages.notification.decisionCreated
         })
       )
     )
 
-    return decision
+    return decision as unknown as BoardDecisionResDto
   }
 
   async getSessions() {
@@ -115,25 +119,28 @@ export class BoardService {
   }
 
   async getSessionById(sessionId: string) {
+    if (!OBJECT_ID_RE.test(sessionId)) throw Errors.SessionNotFoundException
     const session = await this.boardRepo.findSessionById(sessionId)
-    if (!session) throw new Errors.SessionNotFoundException(sessionId)
+    if (!session) throw Errors.SessionNotFoundException
     return session
   }
 
   async getDecisions() {
-    return this.boardRepo.findManyDecisions()
+    return (await this.boardRepo.findManyDecisions()) as unknown as BoardDecisionResDto[]
   }
 
   async getDecisionDetails(decisionId: string) {
+    if (!OBJECT_ID_RE.test(decisionId)) throw Errors.DecisionNotFoundException
     const decision = await this.boardRepo.findDecisionById(decisionId)
-    if (!decision) throw new Errors.DecisionNotFoundException(decisionId)
-    return decision
+    if (!decision) throw Errors.DecisionNotFoundException
+    return decision as unknown as BoardDecisionResDto
   }
 
   async getDecisionVotes(decisionId: string) {
+    if (!OBJECT_ID_RE.test(decisionId)) throw Errors.DecisionNotFoundException
     const decision = await this.boardRepo.findDecisionById(decisionId)
-    if (!decision) throw new Errors.DecisionNotFoundException(decisionId)
-    return decision.votes ?? []
+    if (!decision) throw Errors.DecisionNotFoundException
+    return (decision.votes ?? []) as unknown as BoardVoteResDto[]
   }
 
   async getReports() {
@@ -141,8 +148,9 @@ export class BoardService {
   }
 
   async getReportById(reportId: string) {
+    if (!OBJECT_ID_RE.test(reportId)) throw Errors.ReportNotFoundException
     const report = await this.boardRepo.findReportById(reportId)
-    if (!report) throw new Errors.ReportNotFoundException(reportId)
+    if (!report) throw Errors.ReportNotFoundException
     return report
   }
 
@@ -151,26 +159,27 @@ export class BoardService {
    * 🛡️ RÀO CHẮN: Kiểm soát chặt chẽ, ghi DB xong -> phát Realtime lập tức
    */
   async castVote(decisionId: string, voterId: string, dto: CastVoteBodyDto) {
+    if (!OBJECT_ID_RE.test(decisionId)) throw Errors.DecisionNotFoundException
     // Bước 1: Kiểm tra Quyết định có tồn tại thật không
     const decision = await this.boardRepo.findDecisionById(decisionId)
-    if (!decision) throw new Errors.DecisionNotFoundException()
+    if (!decision) throw Errors.DecisionNotFoundException
 
     // Bước 2: Kiểm tra Phiên họp tổng đính kèm có tồn tại thật không
     const session = await this.boardRepo.findSessionById(decision.boardSessionId)
-    if (!session) throw new Errors.SessionNotFoundException(decision.boardSessionId)
+    if (!session) throw Errors.SessionNotFoundException
 
     // Bước 3: Kiểm tra trạng thái phiên họp (Bắt buộc ACTIVE)
     if (session.status !== 'ACTIVE') {
-      throw new Errors.SessionNotOpenException(session.status)
+      throw Errors.SessionNotOpenException
     }
 
     // Bước 4: Kiểm tra quyền danh sách đại biểu
     const isAllowed = session.allowedEditorIds.includes(voterId)
-    if (!isAllowed) throw new Errors.VoterNotAllowedException()
+    if (!isAllowed) throw Errors.VoterNotAllowedException
 
     // Bước 5: Chặn Double-voting
     const hasVoted = decision.votes.some((vote) => vote.voterId === voterId)
-    if (hasVoted) throw new Errors.VoterAlreadyVotedException(voterId)
+    if (hasVoted) throw Errors.VoterAlreadyVotedException
 
     // Bước 6: Đẩy phiếu bầu mới vào DB
     const newVote = {
@@ -193,7 +202,7 @@ export class BoardService {
       result: finalDecision.result
     })
 
-    return { message: 'Thực hiện bỏ phiếu thành công.' }
+    return { message: BoardMessages.response.voteCast }
   }
 
   /**
@@ -256,6 +265,18 @@ export class BoardService {
       } catch (e) {
         this.logger.warn(`Failed to emit BoardDecisionFinalized for ${decisionId}: ${(e as Error).message}`)
       }
+      try {
+        await this.auditService.record({
+          actorId: null,
+          entityType: AuditEntityType.BOARD_DECISION,
+          entityId: before.id,
+          action: 'DECISION_FINALIZED',
+          fromState: before.result ?? 'PENDING',
+          toState: result
+        })
+      } catch (e) {
+        this.logger.warn(`Failed to audit DECISION_FINALIZED for ${decisionId}: ${(e as Error).message}`)
+      }
     }
 
     // 🌟 ÉP KIỂU ĐẦU RA AN TOÀN: Triệt tiêu hoàn toàn lỗi ESLint no-unsafe-return
@@ -267,27 +288,28 @@ export class BoardService {
    * 🛡️ RÀO CHẮN: Giải quyết dứt điểm lỗi crash bạn vừa gặp bằng kỹ thuật tách query
    */
   async createSeriesReport(userId: string, dto: CreateSeriesReportBodyDto) {
+    if (!OBJECT_ID_RE.test(dto.boardDecisionId)) throw Errors.DecisionNotFoundException
     // Bước 1: Kiểm tra Quyết định tồn tại
     const decision = await this.boardRepo.findDecisionById(dto.boardDecisionId)
     if (!decision) {
-      throw new Errors.DecisionNotFoundException()
+      throw Errors.DecisionNotFoundException
     }
 
     // Bước 2: Kiểm tra Phiên họp tổng tồn tại dựa trên id bóc từ bản ghi decision
     const session = await this.boardRepo.findSessionById(decision.boardSessionId)
     if (!session) {
-      throw new Errors.SessionNotFoundException(decision.boardSessionId)
+      throw Errors.SessionNotFoundException
     }
 
     // Bước 3: Kiểm tra trạng thái bế mạc
     if (session.status === 'CONCLUDED') {
-      throw new Errors.SessionClosedReportException()
+      throw Errors.SessionClosedReportException
     }
 
     // Bước 4: Kiểm tra phân quyền Editor có tên trong danh sách mời họp hay không
     const isInvited = session.allowedEditorIds.includes(userId)
     if (!isInvited) {
-      throw new Errors.EditorNotInvitedException()
+      throw Errors.EditorNotInvitedException
     }
 
     return this.boardRepo.createSeriesReport({ ...dto, preparedBy: userId })
@@ -298,16 +320,17 @@ export class BoardService {
    * 🛡️ RÀO CHẮN: Chặn đứng trường hợp client gửi bừa một configId sai lệch lên URL
    */
   async updateConfig(id: string, userId: string, dto: UpdateBoardConfigBodyDto) {
+    if (!OBJECT_ID_RE.test(id)) throw Errors.BoardConfigNotFoundException
     // Bước 1: Xác thực configId có thực sự tồn tại trong DB không
     const config = await this.boardRepo.findConfigById(id)
     if (!config) {
-      throw new Errors.BoardConfigNotFoundException()
+      throw Errors.BoardConfigNotFoundException
     }
 
     // Bước 2: Kiểm tra xem có phiên họp nào đang OPEN dở dang không
     const hasActiveSession = await this.boardRepo.findFirstOpenSession()
     if (hasActiveSession) {
-      throw new Errors.ConfigLockedException()
+      throw Errors.ConfigLockedException
     }
 
     return this.boardRepo.updateConfig(id, { ...dto, updatedBy: userId })

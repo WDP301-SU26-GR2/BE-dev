@@ -6,14 +6,17 @@ import {
   CreateReprintRequestBodyDto,
   MangakaReviewReprintBodyDto,
   BoardApproveReprintBodyDto,
-  SubmitChapterManuscriptBodyDto,
   EditorApproveChapterBodyDto,
+  SubmitChapterManuscriptBodyDto,
+  AssignReviserBodyDto,
   ReprintRequestResDto,
   ReprintChapterResDto
 } from './dto/reprint-request.dto'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
+import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
+import { ReprintRequestErrors } from './errors/reprint-request.error'
 
 @ApiTags('reprint-requests')
 @ApiBearerAuth()
@@ -35,6 +38,7 @@ export class ReprintRequestController {
   }
 
   @ApiOperation({ summary: 'Chi tiết yêu cầu tái bản' })
+  @ApiErrors(ReprintRequestErrors.NotFound())
   @Get(':id')
   @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.MANGAKA, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: ReprintRequestResDto })
@@ -43,6 +47,7 @@ export class ReprintRequestController {
   }
 
   @ApiOperation({ summary: 'Danh sách chapter trong yêu cầu tái bản' })
+  @ApiErrors(ReprintRequestErrors.NotFound())
   @Get(':id/chapters')
   @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.MANGAKA, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: [ReprintChapterResDto] })
@@ -51,6 +56,7 @@ export class ReprintRequestController {
   }
 
   @ApiOperation({ summary: 'Chi tiết chapter trong yêu cầu tái bản' })
+  @ApiErrors(ReprintRequestErrors.NotFound(), ReprintRequestErrors.ChapterNotFound())
   @Get(':id/chapters/:chapterId')
   @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.MANGAKA, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: ReprintChapterResDto })
@@ -59,30 +65,45 @@ export class ReprintRequestController {
   }
 
   @ApiOperation({ summary: 'Mangaka cập nhật manuscript cho chapter tái bản' })
+  @ApiErrors(
+    ReprintRequestErrors.NotFound(),
+    ReprintRequestErrors.ChapterNotFound(),
+    ReprintRequestErrors.InvalidReprintTransition()
+  )
   @Patch(':id/chapters/:chapterId/manuscript')
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: ReprintRequestResDto })
   updateChapterManuscript(
     @Param('id') id: string,
     @Param('chapterId') chapterId: string,
-    @Body() dto: SubmitChapterManuscriptBodyDto
+    @Body() dto: SubmitChapterManuscriptBodyDto,
+    @ActiveUser('userId') userId: string
   ) {
-    return this.reprintRequestService.updateChapterManuscript(id, chapterId, dto)
+    return this.reprintRequestService.updateChapterManuscript(id, chapterId, dto, userId)
   }
 
-  @ApiOperation({ summary: 'Editor duyệt chapter tái bản' })
+  @ApiOperation({
+    summary: 'Editor duyệt chapter tái bản; auto-publish toàn bộ request khi mọi chapter đạt APPROVED'
+  })
+  @ApiErrors(
+    ReprintRequestErrors.NotFound(),
+    ReprintRequestErrors.ChapterNotFound(),
+    ReprintRequestErrors.InvalidReprintTransition()
+  )
   @Patch(':id/chapters/:chapterId/approve')
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 200, type: ReprintRequestResDto })
   approveChapter(
     @Param('id') id: string,
     @Param('chapterId') chapterId: string,
-    @Body() dto: EditorApproveChapterBodyDto
+    @Body() dto: EditorApproveChapterBodyDto,
+    @ActiveUser('userId') userId: string
   ) {
-    return this.reprintRequestService.approveChapter(id, chapterId, dto)
+    return this.reprintRequestService.approveChapter(id, chapterId, dto, userId)
   }
 
   @ApiOperation({ summary: 'Editor tạo yêu cầu tái bản (B-RPT-01)' })
+  @ApiErrors(ReprintRequestErrors.ContractNotFound(), ReprintRequestErrors.OriginalChaptersNotFound())
   @Post()
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ReprintRequestResDto })
@@ -91,34 +112,52 @@ export class ReprintRequestController {
   }
 
   @ApiOperation({ summary: 'Mangaka chấp nhận/từ chối yêu cầu tái bản (B-RPT-02)' })
+  @ApiErrors(
+    ReprintRequestErrors.NotFound(),
+    ReprintRequestErrors.ActionNotAllowed(),
+    ReprintRequestErrors.InvalidReprintTransition()
+  )
   @Patch(':id/mangaka-review')
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: ReprintRequestResDto })
-  mangakaReview(@Param('id') id: string, @Body() dto: MangakaReviewReprintBodyDto) {
-    return this.reprintRequestService.mangakaReview(id, dto)
+  mangakaReview(
+    @Param('id') id: string,
+    @Body() dto: MangakaReviewReprintBodyDto,
+    @ActiveUser('userId') userId: string
+  ) {
+    return this.reprintRequestService.mangakaReview(id, dto, userId)
   }
 
   @ApiOperation({ summary: 'Board duyệt/từ chối yêu cầu tái bản (B-RPT-02)' })
+  @ApiErrors(
+    ReprintRequestErrors.NotFound(),
+    ReprintRequestErrors.ContractNotFound(),
+    ReprintRequestErrors.InvalidReprintTransition()
+  )
   @Patch(':id/board-approve')
   @Roles(RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: ReprintRequestResDto })
-  boardApprove(@Param('id') id: string, @Body() dto: BoardApproveReprintBodyDto) {
-    return this.reprintRequestService.boardApprove(id, dto)
+  boardApprove(@Param('id') id: string, @Body() dto: BoardApproveReprintBodyDto, @ActiveUser('userId') userId: string) {
+    return this.reprintRequestService.boardApprove(id, dto, userId)
   }
 
-  @ApiOperation({ summary: 'Mangaka nộp manuscript sửa đổi cho chapter (B-RPT-03)' })
-  @Patch(':id/chapters/manuscript')
-  @Roles(RoleName.MANGAKA)
+  @ApiOperation({ summary: 'Gán reviser cho chapter tái bản WITH_REVISION (FULL_BUYOUT) — PB-07' })
+  @ApiErrors(
+    ReprintRequestErrors.NotFound(),
+    ReprintRequestErrors.ChapterNotFound(),
+    ReprintRequestErrors.NotWithRevision(),
+    ReprintRequestErrors.ReviserOnlyForFullBuyout(),
+    ReprintRequestErrors.ReviserMangakaNotFound()
+  )
+  @Patch(':id/chapters/:chapterId/assign-reviser')
+  @Roles(RoleName.BOARD_MEMBER, RoleName.EDITOR)
   @ZodResponse({ status: 200, type: ReprintRequestResDto })
-  submitManuscript(@Param('id') id: string, @Body() dto: SubmitChapterManuscriptBodyDto) {
-    return this.reprintRequestService.submitChapterManuscript(id, dto)
-  }
-
-  @ApiOperation({ summary: 'Editor duyệt/yêu cầu sửa chapter tái bản (B-RPT-03/B-RPT-04)' })
-  @Patch(':id/chapters/approve')
-  @Roles(RoleName.EDITOR)
-  @ZodResponse({ status: 200, type: ReprintRequestResDto })
-  editorApproveChapter(@Param('id') id: string, @Body() dto: EditorApproveChapterBodyDto) {
-    return this.reprintRequestService.editorApproveChapter(id, dto)
+  assignReviser(
+    @Param('id') id: string,
+    @Param('chapterId') chapterId: string,
+    @Body() dto: AssignReviserBodyDto,
+    @ActiveUser('userId') userId: string
+  ) {
+    return this.reprintRequestService.assignReviser(id, chapterId, dto, userId)
   }
 }

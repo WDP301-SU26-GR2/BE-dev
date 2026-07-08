@@ -235,6 +235,11 @@ enum ReprintRevisionMode {
   WITH_REVISION
 }
 
+enum ReviserType {
+  INTERNAL_TEAM
+  OTHER_MANGAKA
+}
+
 enum TransferType {
   FULL_TRANSFER
   PARTIAL_TRANSFER
@@ -669,6 +674,7 @@ model Series {
   reviewStartedAt         DateTime?
   hiatusStartedAt         DateTime? // Spec 2: set when entering HIATUS, null when resumed — used to compute pausedMs
   endingChapterAllowance  Int? // Spec 2: N ending chapters Board grants on CANCELLATION (informational + audit)
+  completionProposal      CompletionProposal?
   statusHistory           SeriesStatusHistoryEntry[]
 
   proposal SeriesProposal?
@@ -693,6 +699,14 @@ type SeriesProposal {
   estimatedLength  Int?
   status           ProposalStatus @default(DRAFT)
   createdAt        DateTime       @default(now())
+}
+
+type CompletionProposal {
+  proposedByRole         String
+  proposedById          String   @db.ObjectId
+  reason                String
+  proposedEndingChapters Int?
+  proposedAt             DateTime
 }
 
 type SeriesStatusHistoryEntry {
@@ -1252,6 +1266,8 @@ type ReprintChapter {
   originalChapterId String?              @db.ObjectId
   manuscriptFile    String?
   status            ReprintChapterStatus @default(PENDING)
+  reviserId        String?              @db.ObjectId
+  reviserType      ReviserType?
 }
 
 model TransferRequest {
@@ -1542,4 +1558,16 @@ model Notification {
   createdAt     DateTime          @default(now())
 
   @@index([recipientId])
+}
+
+model TankobonSales {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  seriesId     String   @db.ObjectId
+  volumeNumber Int
+  unitsSold    Int
+  period       String
+  recordedBy   String   @db.ObjectId
+  createdAt    DateTime @default(now())
+
+  @@index([seriesId])
 }

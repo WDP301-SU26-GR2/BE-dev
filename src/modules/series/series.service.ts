@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common'
 import { SeriesCaller, SeriesQueryService } from './services/series-query.service'
-import { CreateProposalBodyType, ListSeriesQueryType, UpdateProposalBodyType } from './schemas/series-schemas'
+import {
+  CreateProposalBodyType,
+  ListSeriesQueryType,
+  ProposeCompletionBodyType,
+  UpdateProposalBodyType
+} from './schemas/series-schemas'
 import { toSeriesRes } from './series.mapper'
 import { SeriesLifecycleService } from './services/series-lifecycle.service'
 import { SeriesPitchService } from './services/series-pitch.service'
@@ -94,6 +99,18 @@ export class SeriesService {
 
   async finalizeEnding(editorId: string, seriesId: string) {
     const series = await this.lifecycleService.finalizeEnding(seriesId, editorId)
+    return toSeriesRes(series)
+  }
+
+  // PB-06: Mangaka/Editor proposes natural completion. Pass-through to lifecycle service.
+  async proposeCompletion(callerId: string, roleName: string, seriesId: string, body: ProposeCompletionBodyType) {
+    const series = await this.lifecycleService.proposeCompletion(seriesId, callerId, roleName, body)
+    return toSeriesRes(series)
+  }
+
+  // PB-06: Editor force-cancels a CANCELLING series without an ending.
+  async forceCancel(editorId: string, seriesId: string) {
+    const series = await this.lifecycleService.forceCancel(seriesId, editorId)
     return toSeriesRes(series)
   }
 }

@@ -5,6 +5,7 @@ import {
   BoardApproveReprintBodySchema,
   SubmitChapterManuscriptBodySchema,
   EditorApproveChapterBodySchema,
+  AssignReviserBodySchema,
   ReprintRequestResSchema,
   ReprintRequestListResSchema,
   ReprintChapterResSchema,
@@ -16,6 +17,7 @@ export class MangakaReviewReprintBodyDto extends createZodDto(MangakaReviewRepri
 export class BoardApproveReprintBodyDto extends createZodDto(BoardApproveReprintBodySchema) {}
 export class SubmitChapterManuscriptBodyDto extends createZodDto(SubmitChapterManuscriptBodySchema) {}
 export class EditorApproveChapterBodyDto extends createZodDto(EditorApproveChapterBodySchema) {}
+export class AssignReviserBodyDto extends createZodDto(AssignReviserBodySchema) {}
 export class ReprintRequestResDto extends createZodDto(ReprintRequestResSchema) {}
 export class ReprintRequestListResDto extends createZodDto(ReprintRequestListResSchema) {}
 export class ReprintChapterResDto extends createZodDto(ReprintChapterResSchema) {}

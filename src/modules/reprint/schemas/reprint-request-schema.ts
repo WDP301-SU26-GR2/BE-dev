@@ -132,3 +132,18 @@ export type MangakaReviewReprintBodyType = z.infer<typeof MangakaReviewReprintBo
 export type BoardApproveReprintBodyType = z.infer<typeof BoardApproveReprintBodySchema>
 export type SubmitChapterManuscriptBodyType = z.infer<typeof SubmitChapterManuscriptBodySchema>
 export type EditorApproveChapterBodyType = z.infer<typeof EditorApproveChapterBodySchema>
+
+// PB-07: Gán reviser cho chapter tái bản (chỉ áp dụng khi revisionMode=WITH_REVISION & contract=FULL_BUYOUT)
+export const AssignReviserBodySchema = extendApi(
+  z
+    .object({
+      reviserId: z.string().min(1, { message: 'reviserId là bắt buộc' }),
+      reviserType: z.nativeEnum($Enums.ReviserType)
+    })
+    .strict(),
+  {
+    title: 'AssignReviserBody',
+    description: 'Gán reviser cho chapter tái bản (INTERNAL_TEAM hoặc OTHER_MANGAKA)'
+  }
+)
+export type AssignReviserBodyType = z.infer<typeof AssignReviserBodySchema>

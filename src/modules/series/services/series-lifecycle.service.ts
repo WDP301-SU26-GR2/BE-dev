@@ -4,9 +4,16 @@ import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { SeriesMessages } from '../series.messages'
-import { SeriesNotFoundException, SeriesNotInEndingStateException } from '../errors/series.errors'
+import {
+  SeriesNotFoundException,
+  SeriesNotInCancellingStateException,
+  SeriesNotInEndingStateException,
+  SeriesNotProposableForCompletionException
+} from '../errors/series.errors'
 import { SeriesRepository } from '../series.repo'
 import { requireAssignedEditor } from './series-editor.guard'
+import { requireSeriesParticipant } from './series-participant.guard'
+import { ProposeCompletionBodyType } from '../schemas/series-schemas'
 import { SeriesStateService } from './series-state.service'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
@@ -143,5 +150,63 @@ export class SeriesLifecycleService {
       return series
     }
     throw SeriesNotInEndingStateException
+  }
+
+  // PB-06: Mangaka/Editor raises a soft "natural completion" proposal. Does NOT change series.status;
+  // it persists `completionProposal` so the counterparty (and downstream flows) can see the intent.
+  // The proposal becomes actionable only when escalated to the Board (out of scope for this method).
+  async proposeCompletion(seriesId: string, actorId: string, roleName: string, body: ProposeCompletionBodyType) {
+    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    const series = await this.seriesRepository.findById(seriesId)
+    if (!series) throw SeriesNotFoundException
+    requireSeriesParticipant(series, actorId)
+    if (series.status !== SeriesStatus.SERIALIZED && series.status !== SeriesStatus.HIATUS)
+      throw SeriesNotProposableForCompletionException
+
+    const updated = await this.seriesRepository.setCompletionProposal(seriesId, {
+      proposedByRole: roleName,
+      proposedById: actorId,
+      reason: body.reason,
+      proposedEndingChapters: body.proposedEndingChapters ?? null,
+      proposedAt: new Date()
+    })
+
+    // Notify the counterparty. Same call signature as `notifyOwners` but only one side, to keep
+    // the proposal intent between the two participants (Board not auto-notified).
+    if (roleName === 'MANGAKA' && series.editorId) {
+      await this.notificationService.notifySafe({
+        recipientId: series.editorId,
+        type: NotificationType.SYSTEM,
+        referenceId: seriesId,
+        referenceType: 'SERIES_COMPLETION_PROPOSED',
+        content: SeriesMessages.notification.completionProposedToEditor
+      })
+    } else if (roleName === 'EDITOR' && series.mangakaId) {
+      await this.notificationService.notifySafe({
+        recipientId: series.mangakaId,
+        type: NotificationType.SYSTEM,
+        referenceId: seriesId,
+        referenceType: 'SERIES_COMPLETION_PROPOSED',
+        content: SeriesMessages.notification.completionProposedToMangaka
+      })
+    }
+    return updated
+  }
+
+  // PB-06: Editor closes a CANCELLING series without an ending — mangaka could not deliver.
+  // Req 1.11c. The Board already authorized CANCELLATION; this just finalizes without ending chapters.
+  async forceCancel(seriesId: string, actorId: string) {
+    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    const series = await this.seriesRepository.findById(seriesId)
+    if (!series) throw SeriesNotFoundException
+    requireAssignedEditor(series, actorId)
+    if (series.status !== SeriesStatus.CANCELLING) throw SeriesNotInCancellingStateException
+    const updated = await this.seriesStateService.transition(seriesId, SeriesStatus.CANCELLED, {
+      changedBy: actorId,
+      reason: SeriesMessages.reason.forceCancelNoEnding
+    })
+    this.eventBus.emit(DomainEvent.SeriesCancelled, { seriesId })
+    await this.notifyOwners(updated, 'SERIES_CANCELLED', SeriesMessages.notification.seriesCancelled, seriesId)
+    return updated
   }
 }

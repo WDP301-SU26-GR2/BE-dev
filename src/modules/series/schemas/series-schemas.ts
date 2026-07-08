@@ -93,6 +93,17 @@ export const SeriesResSchema = extendApi(
       .string()
       .nullable()
       .describe('Mốc Editor bắt đầu review (set 1 lần ở action review đầu); có giá trị = khoá nhả series'),
+    // PB-06: completion proposal (Mangaka/Editor đề xuất kết thúc tự nhiên); null nếu chưa đề xuất.
+    completionProposal: z
+      .object({
+        proposedByRole: z.string().describe('Vai trò người đề xuất (MANGAKA|EDITOR)'),
+        proposedById: z.string().describe('UserId người đề xuất'),
+        reason: z.string().describe('Lý do đề xuất'),
+        proposedEndingChapters: z.number().int().nullable().describe('Số chương kết thúc dự kiến; null nếu không ghi'),
+        proposedAt: z.string().describe('ISO 8601')
+      })
+      .nullable()
+      .describe('Đề xuất kết thúc tự nhiên (PB-06); null nếu chưa đề xuất'),
     proposal: z
       .object({
         nameId: z.string().nullable().describe('Id Name chương mẫu gắn proposal'),
@@ -178,3 +189,17 @@ export const FranchiseConsentBodySchema = extendApi(z.object({ approve: z.boolea
 })
 
 export type FranchiseConsentBodyType = z.infer<typeof FranchiseConsentBodySchema>
+
+// PB-06: Mangaka/Editor proposes natural completion. `reason` mandatory (audited); `proposedEndingChapters`
+// is the soft hint for how many chapters the writer expects to deliver.
+export const ProposeCompletionBodySchema = extendApi(
+  z
+    .object({
+      reason: z.string().min(1).max(1000),
+      proposedEndingChapters: z.number().int().positive().nullish()
+    })
+    .strict(),
+  { title: 'ProposeCompletionBody', description: 'Mangaka/Editor đề xuất kết thúc series tự nhiên (PB-06)' }
+)
+
+export type ProposeCompletionBodyType = z.infer<typeof ProposeCompletionBodySchema>
