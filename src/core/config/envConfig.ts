@@ -55,6 +55,9 @@ const configSchema = z
     NAME_MAX_REVIEW_ROUNDS: z.coerce.number().default(8),
     ORPHAN_ASSET_TTL_HOURS: z.coerce.number().default(24),
     TRUST_PROXY_HOPS: z.coerce.number().default(1),
+    // Guest identity/ip HMAC pepper (B-VOT-03 / NFR §1). Set a strong random secret in production;
+    // empty default keeps dev/test booting but offers no leak-resistance — MUST override in prod.
+    IDENTITY_HASH_PEPPER: z.string().default(''),
     ////AI SERVICE (Spec 2 - optional: empty = AI disabled)
     AI_SERVICE_URL: z.string().default(''),
     AI_SERVICE_API_KEY: z.string().default(''),

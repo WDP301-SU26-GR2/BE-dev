@@ -491,6 +491,12 @@ enum ContractAmendmentStatus {
   VOIDED
 }
 
+enum AmendmentTrigger {
+  MANUAL
+  FORMAT_CHANGE
+  COMPLETION
+}
+
 // REVIEW: inferred
 enum PaymentConditionStatus {
   PENDING
@@ -1174,7 +1180,37 @@ model ContractAmendment {
   fullyExecutedAt DateTime?
   createdAt       DateTime                @default(now())
 
+  // Spec 4 — typed new-term (null = KHÔNG đổi field đó)
+  valuationAmount       Float?
+  publisherOwnershipPct Float?
+  mangakaOwnershipPct   Float?
+  terminationClause     String?
+  contractStart         DateTime?
+  contractEnd           DateTime?
+
+  // Spec 4 — signing progress
+  mangakaSignedAt DateTime?
+  boardSignedAt   DateTime?
+
+  // Spec 4 — audit
+  createdBy     String?          @db.ObjectId
+  triggerSource AmendmentTrigger @default(MANUAL)
+  voidReason    String?
+
+  signatures AmendmentSignature[]
+
   @@index([contractId])
+}
+
+model AmendmentSignature {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  amendmentId String            @db.ObjectId
+  amendment   ContractAmendment @relation(fields: [amendmentId], references: [id], onDelete: Cascade)
+  userId      String            @db.ObjectId
+  role        String
+  signedAt    DateTime          @default(now())
+
+  @@unique([amendmentId, userId])
 }
 
 model ReprintRequest {
