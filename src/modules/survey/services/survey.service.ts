@@ -318,7 +318,10 @@ export class SurveyService {
         content: 'Kết quả xếp hạng kỳ bình chọn đã được tính toán.'
       })
     }
-    this.domainEventBus.emit(DomainEvent.RankingFinalized, { surveyPeriodId })
+    this.domainEventBus.emit(DomainEvent.RankingFinalized, {
+      surveyPeriodId,
+      rankings: rankingItems.map((item, index) => ({ seriesId: item.seriesId, rank: index + 1 }))
+    })
     return { message: SurveyMessages.response.rankingFinalized }
   }
 

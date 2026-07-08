@@ -14,6 +14,14 @@ export class ChapterRepository {
   findNameById(nameId: string) {
     return this.prismaService.name.findUnique({ where: { id: nameId } })
   }
+  // A3 publish gate (BR-CONTRACT-05): series phải có Contract FULLY_EXECUTED trước khi publish.
+  // Cross-module read prisma.contract (tiền lệ: reprint/payment repo). Chỉ select id (nhẹ).
+  findExecutedContractBySeriesId(seriesId: string) {
+    return this.prismaService.contract.findFirst({
+      where: { seriesId, status: 'FULLY_EXECUTED' },
+      select: { id: true }
+    })
+  }
 
   // ----- chapter -----
   async createChapter(data: { seriesId: string; nameId: string; chapterNumber: number; title?: string | null }) {

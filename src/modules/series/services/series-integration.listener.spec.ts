@@ -4,7 +4,6 @@ const makeDeps = () => {
   const serialize = { serialize: jest.fn().mockResolvedValue(undefined) }
   const state = { transition: jest.fn().mockResolvedValue(undefined) }
   const repo = {
-    setExecutedContract: jest.fn().mockResolvedValue(undefined),
     findById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'm1', editorId: 'e1' })
   }
   const notify = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -138,11 +137,5 @@ describe('SeriesIntegrationListener.onBoardDecisionFinalized', () => {
         details: { endingChapterAllowance: 3 }
       })
     ).resolves.toBeUndefined() // listener MUST NOT throw
-  })
-
-  it('onContractExecuted sets executed contract flag', async () => {
-    const d = makeDeps()
-    await make(d).onContractExecuted({ contractId: 'k1', seriesId: 's1' })
-    expect(d.repo.setExecutedContract).toHaveBeenCalledWith('s1', 'k1')
   })
 })

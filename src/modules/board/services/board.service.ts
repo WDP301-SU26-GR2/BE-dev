@@ -196,6 +196,10 @@ export class BoardService {
     const quorumMin = config?.quorumMin ?? 1
     const majorityRatio = config?.approveMajorityRatio ?? 0.5
 
+    // Đọc trạng thái TRƯỚC update để chống re-emit: chỉ phát event khi flip non-terminal → terminal.
+    const before = await this.boardRepo.findDecisionById(decisionId)
+    const wasTerminal = before?.result === 'APPROVED' || before?.result === 'REJECTED'
+
     const approveCount = currentVotes.filter((v) => v.voteValue === 'APPROVE').length
     const rejectCount = currentVotes.filter((v) => v.voteValue === 'REJECT').length
     const totalVotes = currentVotes.length
@@ -224,23 +228,23 @@ export class BoardService {
       decidedAt
     })
 
-    // Spec 2 / Flow 5: emit BoardDecisionFinalized when result is final (best-effort).
-    // Series listener reacts to drive lifecycle transitions (CANCELLATION/COMPLETION/FORMAT_CHANGE/SERIALIZATION outcomes).
-    if (result === 'APPROVED' || result === 'REJECTED') {
-      const decision = await this.boardRepo.findDecisionById(decisionId)
-      if (decision) {
-        try {
-          const payload: DomainEventPayload[typeof DomainEvent.BoardDecisionFinalized] = {
-            decisionId: decision.id,
-            decisionType: (decision.decisionType as DomainEventPayload[typeof DomainEvent.BoardDecisionFinalized]['decisionType']) ?? '',
-            targetSeriesId: decision.targetSeriesId ?? null,
-            result: result as 'APPROVED' | 'REJECTED',
-            details: (decision.details as Record<string, unknown> | null) ?? null
-          }
-          this.eventBus.emit(DomainEvent.BoardDecisionFinalized, payload)
-        } catch (e) {
-          this.logger.warn(`Failed to emit BoardDecisionFinalized for ${decisionId}: ${(e as Error).message}`)
+    // Spec 2 / Flow 5: emit BoardDecisionFinalized khi kết quả LẦN ĐẦU đạt terminal (best-effort).
+    // Guard `!wasTerminal` chống re-emit khi có phiếu đến sau lúc đã chốt (Spec 1 §10). Series listener
+    // reacts to drive lifecycle transitions (CANCELLATION/COMPLETION/FORMAT_CHANGE/SERIALIZATION outcomes).
+    if ((result === 'APPROVED' || result === 'REJECTED') && !wasTerminal && before) {
+      try {
+        const payload: DomainEventPayload[typeof DomainEvent.BoardDecisionFinalized] = {
+          decisionId: before.id,
+          decisionType:
+            (before.decisionType as DomainEventPayload[typeof DomainEvent.BoardDecisionFinalized]['decisionType']) ??
+            '',
+          targetSeriesId: before.targetSeriesId ?? null,
+          result: result,
+          details: (before.details as Record<string, unknown> | null) ?? null
         }
+        this.eventBus.emit(DomainEvent.BoardDecisionFinalized, payload)
+      } catch (e) {
+        this.logger.warn(`Failed to emit BoardDecisionFinalized for ${decisionId}: ${(e as Error).message}`)
       }
     }
 
