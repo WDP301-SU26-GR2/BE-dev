@@ -201,3 +201,15 @@ export const ContractStatusProgressResSchema = extendApi(
 export type CreateContractBodyType = z.infer<typeof CreateContractBodySchema>
 export type EditorUpdateContractBodyType = z.infer<typeof EditorUpdateContractBodySchema>
 export type SignContractWithOtpBodyType = z.infer<typeof SignContractWithOtpBodySchema>
+
+// 4. Schema phục vụ API nhập doanh thu kỳ cho hợp đồng REVENUE_SHARE (B-CON-07, POST /contracts/:id/revenue)
+export const ReportRevenueBodySchema = z
+  .object({
+    revenue: z.number({ error: 'revenue phải là một số' }).positive({ message: 'revenue phải lớn hơn 0' }),
+    period: z
+      .string({ error: 'period phải là một chuỗi ký tự' })
+      .min(1, { message: 'period là bắt buộc không được để trống' })
+  })
+  .strict()
+
+export type ReportRevenueBodyType = z.infer<typeof ReportRevenueBodySchema>

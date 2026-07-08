@@ -61,6 +61,10 @@ export class SeriesService {
     return this.proposalService.withdraw(mangakaId, seriesId, reason)
   }
 
+  franchiseConsent(seriesId: string, callerId: string, approve: boolean) {
+    return this.proposalService.franchiseConsent(seriesId, callerId, approve)
+  }
+
   pitch(editorId: string, seriesId: string) {
     return this.pitchService.pitch(editorId, seriesId)
   }

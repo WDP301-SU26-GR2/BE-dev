@@ -12,7 +12,7 @@ export class PaymentListener {
     return this.paymentEngineService.handleChapterPublished(payload)
   }
 
-  @OnEvent('ranking.finalized')
+  @OnEvent(DomainEvent.RankingFinalized)
   handleRankingFinalized(payload: { surveyPeriodId: string; rankings?: Array<{ seriesId: string; rank: number }> }) {
     return this.paymentEngineService.handleRankingFinalized({
       surveyPeriodId: payload.surveyPeriodId,
@@ -25,7 +25,7 @@ export class PaymentListener {
     return this.paymentEngineService.handleSeriesCancelling(payload)
   }
 
-  @OnEvent('contract.revenue_reported')
+  @OnEvent(DomainEvent.RevenueReported)
   handleRevenueReported(payload: { contractId: string; revenue: number; period: string }) {
     return this.paymentEngineService.handleRevenueReported(payload)
   }

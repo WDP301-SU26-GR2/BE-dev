@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common'
-import { NameStatus } from '@prisma/client'
+import { NameStatus, SeriesStatus } from '@prisma/client'
 import {
   ChapterNotFoundException,
   DuplicateChapterNumberException,
   NameNotApprovedException,
   NameNotInSeriesException,
-  NotSeriesOwnerException
+  NotSeriesOwnerException,
+  SeriesNotSerializedException
 } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { CreateChapterBodyType } from '../schemas/chapter-schemas'
@@ -19,6 +20,8 @@ export class ChapterCreationService {
     const series = await this.chapterRepository.findSeriesById(body.seriesId)
     if (!series) throw ChapterNotFoundException
     if (series.mangakaId !== userId) throw NotSeriesOwnerException
+    // A2 (Spec 1): chỉ tạo chapter cho series đã được Board serial hoá.
+    if (series.status !== SeriesStatus.SERIALIZED) throw SeriesNotSerializedException
 
     const name = await this.chapterRepository.findNameById(body.nameId)
     if (!name || name.seriesId !== body.seriesId) throw NameNotInSeriesException

@@ -67,18 +67,8 @@ export class SeriesIntegrationListener {
     }
   }
 
-  // B1 (Contract) integration: B1 emit ContractExecuted → A2 đánh dấu contract đã executed.
-  // Gate cho chapter publish (A-CHP-05) sẽ tra cứu Contract.status, không phụ thuộc flag ở Series.
-  @OnEvent(DomainEvent.ContractExecuted)
-  async onContractExecuted(payload: DomainEventPayload[typeof DomainEvent.ContractExecuted]): Promise<void> {
-    try {
-      await Promise.resolve(this.seriesRepository.setExecutedContract(payload.seriesId, payload.contractId))
-    } catch (e) {
-      this.logger.warn(
-        `onContractExecuted failed for series ${payload.seriesId} / contract ${payload.contractId}: ${(e as Error).message}`
-      )
-    }
-  }
+  // A3 publish gate dùng LOOKUP (chapter-publish query Contract FULLY_EXECUTED lúc publish),
+  // KHÔNG dùng cờ executedContractId → không cần listen ContractExecuted ở đây.
 
   private readEndingAllowance(details: Record<string, unknown> | null): number | undefined {
     const v = details?.endingChapterAllowance

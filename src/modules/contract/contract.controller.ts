@@ -11,8 +11,10 @@ import {
   ContractVersionResDto,
   ContractHealthResDto,
   ContractSignResDto,
-  ContractStatusProgressResDto
+  ContractStatusProgressResDto,
+  ReportRevenueBodyDto
 } from './dto/contract.dto'
+import { MessageResDto } from 'src/core/http/dto/response.dto'
 import {
   CreatePaymentConditionBodyDto,
   UpdatePaymentConditionBodyDto,
@@ -93,7 +95,8 @@ export class ContractController {
     return this.contractService.getContractVersionById(id, versionId, userId, roleName)
   }
 
-  @ApiOperation({ summary: 'Editor tạo hợp đồng nháp cho series → DRAFT' })
+  @ApiOperation({ summary: 'Editor tạo hợp đồng nháp cho series đã SERIALIZED → DRAFT (B-CON-01)' })
+  @ApiErrors(ContractErrors.SeriesNotSerialized(), ContractErrors.NotFound())
   @Post()
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ContractResDto })
@@ -123,7 +126,7 @@ export class ContractController {
       return this.contractService.sendToMangaka(id, userId)
     }
     if (status === ContractStatus.MANGAKA_APPROVED) {
-      return this.contractService.mangakaApprove(id)
+      return this.contractService.mangakaApprove(id, userId)
     }
     throw ContractErrors.InvalidStatus()
   }
@@ -152,6 +155,22 @@ export class ContractController {
     @Body() body: SignContractWithOtpBodyDto
   ) {
     return this.contractService.signByBoardWithOtp(id, userId, userEmail, body.otpCode)
+  }
+
+  @ApiOperation({
+    summary: 'Board/Editor nhập doanh thu kỳ cho HĐ REVENUE_SHARE → chia theo ownership split (B-CON-07)'
+  })
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.RevenueNotApplicable(), ContractErrors.UnauthorizedEditor())
+  @Post(':id/revenue')
+  @Roles(RoleName.BOARD_MEMBER, RoleName.EDITOR)
+  @ZodResponse({ status: 201, type: MessageResDto })
+  reportRevenue(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string,
+    @Body() body: ReportRevenueBodyDto
+  ) {
+    return this.contractService.reportRevenue(id, userId, roleName, body)
   }
 
   @ApiOperation({ summary: 'Xem trạng thái hợp đồng và tiến độ ký' })

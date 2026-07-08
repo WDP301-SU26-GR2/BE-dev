@@ -18,7 +18,8 @@ export const DomainEvent = {
   RankingFinalized: 'ranking.finalized', // B4 → B-CON-05, B5
   SeriesCancelling: 'series.cancelling', // B5 → B-CON-09 (termination/compensation)
   SeriesCancelled: 'series.cancelled', // B5 → A/B (sau khi hết ending chapters)
-  BoardDecisionFinalized: 'board.decision.finalized' // B5 → A2 (Flow 5: CANCELLATION/COMPLETION/FORMAT_CHANGE/SERIALIZATION outcomes)
+  BoardDecisionFinalized: 'board.decision.finalized', // B5 → A2 (Flow 5: CANCELLATION/COMPLETION/FORMAT_CHANGE/SERIALIZATION outcomes)
+  RevenueReported: 'contract.revenue_reported' // B-CON-07: contract → payment (chia revenue-share)
 } as const
 
 export type DomainEventName = (typeof DomainEvent)[keyof typeof DomainEvent]
@@ -26,14 +27,15 @@ export type DomainEventName = (typeof DomainEvent)[keyof typeof DomainEvent]
 // Payload mỗi event. Khi đổi → cập nhật cả 2 phía emit/listen.
 export interface DomainEventPayload {
   [DomainEvent.SeriesSerialized]: { seriesId: string }
-  [DomainEvent.ChapterPublished]: { chapterId: string; seriesId: string; publishedAt: string }
+  [DomainEvent.ChapterPublished]: { chapterId: string; seriesId: string; chapterNumber: number; publishedAt: string }
   [DomainEvent.AssistantAvailabilityChanged]: { assistantId: string; availabilityStatus: string }
   [DomainEvent.SeriesHiatusStarted]: { seriesId: string }
   [DomainEvent.SeriesHiatusEnded]: { seriesId: string; pausedMs: number }
   [DomainEvent.ContractExecuted]: { contractId: string; seriesId: string }
-  [DomainEvent.RankingFinalized]: { surveyPeriodId: string }
+  [DomainEvent.RankingFinalized]: { surveyPeriodId: string; rankings: Array<{ seriesId: string; rank: number }> }
   [DomainEvent.SeriesCancelling]: { seriesId: string }
   [DomainEvent.SeriesCancelled]: { seriesId: string }
+  [DomainEvent.RevenueReported]: { contractId: string; revenue: number; period: string }
   [DomainEvent.BoardDecisionFinalized]: {
     decisionId: string
     decisionType: 'SERIALIZATION' | 'CANCELLATION' | 'COMPLETION' | 'FORMAT_CHANGE' | 'CONTINUE'

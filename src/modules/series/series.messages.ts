@@ -25,7 +25,10 @@ export const SeriesMessages = {
     seriesHiatusStarted: 'Series đã tạm ngưng (hiatus).',
     seriesResumed: 'Series đã hoạt động trở lại.',
     seriesCancelled: 'Series đã chính thức bị huỷ.',
-    seriesCompleted: 'Series đã chính thức hoàn thành.'
+    seriesCompleted: 'Series đã chính thức hoàn thành.',
+    franchiseConsentRequested: 'Có series phái sinh cần bạn đồng ý cho phép thực hiện.',
+    franchiseConsentApproved: 'Mangaka gốc đã đồng ý cho series phái sinh.',
+    franchiseConsentRejected: 'Mangaka gốc đã từ chối series phái sinh.'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/series.errors.ts.
   error: {
@@ -43,6 +46,9 @@ export const SeriesMessages = {
     reviewAlreadyStarted: 'Error.ReviewAlreadyStarted',
     notAssignedEditor: 'Error.NotAssignedEditor',
     proposalNotDeletable: 'Error.ProposalNotDeletable',
-    seriesNotInEndingState: 'Error.SeriesNotInEndingState'
+    seriesNotInEndingState: 'Error.SeriesNotInEndingState',
+    franchiseConsentRequired: 'Error.FranchiseConsentRequired',
+    notOriginalMangaka: 'Error.NotOriginalMangaka',
+    notFranchiseConsentTarget: 'Error.NotFranchiseConsentTarget'
   }
 } as const
