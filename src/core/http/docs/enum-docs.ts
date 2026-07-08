@@ -23,6 +23,7 @@ export const ENUM_DOCS = {
   SeriesStatus: 'Series state machine status',
   ProposalStatus: 'Series proposal review status',
   NameStatus: 'Name/chapter-name review status',
+  NameKind: 'Name storyboard kind: PROPOSAL (proposal chapter-sample) or CHAPTER (per-chapter storyboard)',
   ChapterStatus: 'Chapter production status',
   ManuscriptStatus: 'Manuscript production status',
   PageStatus: 'Page production status',
@@ -37,6 +38,7 @@ export const ENUM_DOCS = {
   WarningLevel: 'Deadline warning: NONE an toan, YELLOW nguy co, RED kho kip, CRITICAL qua han',
   DeadlineRequestStatus:
     'Deadline negotiation status: PROPOSED, COUNTER_PROPOSED, AGREED_BY_PARTIES, APPROVED, REJECTED, ESCALATED, BOARD_REVIEW',
+  ReadingDirection: 'Reading direction: RTL (right-to-left, manga gốc) | LTR (left-to-right, bản dịch phương Tây)',
   TaskStatus:
     'Task production status: ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED/REVISION_REQUESTED; ON_HOLD khi assistant nghỉ',
   RegionType: 'Loại vùng trên trang: PANEL, BACKGROUND, SPEECH_BUBBLE, SFX, CHARACTER',

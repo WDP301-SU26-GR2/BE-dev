@@ -10,11 +10,10 @@ export const CreateChapterBodySchema = extendApi(
     .object({
       seriesId: z.string().min(1),
       nameId: z.string().min(1),
-      chapterNumber: z.number().int().min(1),
       title: z.string().max(200).optional()
     })
     .strict(),
-  { title: 'CreateChapterBody', description: 'Tạo chapter từ Name APPROVED' }
+  { title: 'CreateChapterBody', description: 'Tạo chapter từ Name APPROVED (chapterNumber derive từ Name)' }
 )
 
 export const SetScheduleBodySchema = extendApi(

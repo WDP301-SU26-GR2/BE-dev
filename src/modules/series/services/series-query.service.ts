@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { Series, SeriesStatus } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
-import { NameNotFoundException, SeriesAccessDeniedException, SeriesNotFoundException } from '../errors/series.errors'
-import { toNameRes, toSeriesRes } from '../series.mapper'
+import { SeriesAccessDeniedException, SeriesNotFoundException } from '../errors/series.errors'
+import { toSeriesRes } from '../series.mapper'
 import { SeriesListScope, SeriesRepository } from '../series.repo'
 import { ListSeriesQueryType } from '../schemas/series-schemas'
 
@@ -37,20 +37,6 @@ export class SeriesQueryService {
   async getById(caller: SeriesCaller, seriesId: string) {
     const series = await this.requireVisibleSeries(caller, seriesId)
     return toSeriesRes(series)
-  }
-
-  async listNames(caller: SeriesCaller, seriesId: string) {
-    await this.requireVisibleSeries(caller, seriesId)
-    const names = await this.seriesRepository.findNamesBySeriesId(seriesId)
-    return { items: names.map(toNameRes) }
-  }
-
-  async getName(caller: SeriesCaller, seriesId: string, nameId: string) {
-    await this.requireVisibleSeries(caller, seriesId)
-    if (!OBJECT_ID_RE.test(nameId)) throw NameNotFoundException
-    const name = await this.seriesRepository.findNameById(nameId)
-    if (!name || name.seriesId !== seriesId) throw NameNotFoundException
-    return toNameRes(name)
   }
 
   private async requireVisibleSeries(caller: SeriesCaller, seriesId: string): Promise<Series> {

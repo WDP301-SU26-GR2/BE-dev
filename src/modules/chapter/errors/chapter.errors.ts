@@ -28,6 +28,9 @@ export const NameNotApprovedException = new UnprocessableEntityException([
 export const NameNotInSeriesException = new UnprocessableEntityException([
   { message: E.nameNotInSeries, path: 'nameId' }
 ])
+export const NameNotChapterKindException = new UnprocessableEntityException([
+  { message: E.nameNotChapterKind, path: 'nameId' }
+])
 
 // A2 (Spec 1): chặn tạo chapter khi series chưa SERIALIZED.
 export const SeriesNotSerializedException = new ConflictException(E.seriesNotSerialized)

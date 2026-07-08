@@ -148,7 +148,7 @@ export class DeadlineNegotiationService {
       by: userId,
       reason: body.reason
     })
-    // B5-INTEGRATION: BoardEscalationPort.escalate({ kind: 'DEADLINE_DISPUTE', ... }) when B5 is ready.
+    // Spec 7: A-DL-03 closes the dispute loop. Board can now resolve ESCALATED via POST /:id/board-resolve.
 
     await this.notify(this.getCounterpartyId(ctx.series, side), N.rejected, updated.id, 'DEADLINE_REJECTED')
     return toDeadlineRequestRes(updated)

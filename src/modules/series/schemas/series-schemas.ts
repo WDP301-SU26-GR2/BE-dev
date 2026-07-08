@@ -4,6 +4,7 @@ import {
   Demographic,
   FranchiseConsentStatus,
   Genre,
+  NameKind,
   NameStatus,
   ProposalStatus,
   PublicationType,
@@ -52,16 +53,6 @@ export const UpdateProposalBodySchema = extendApi(
 export const ReasonBodySchema = extendApi(z.object({ reason: z.string().min(1).max(1000) }).strict(), {
   title: 'ReasonBody',
   description: 'Lý do (revision/reject/withdraw)'
-})
-
-export const UpdateNamePagesBodySchema = extendApi(z.object({ pages: z.array(NamePageSchema) }).strict(), {
-  title: 'UpdateNamePagesBody',
-  description: 'Cập nhật trang Name'
-})
-
-export const AddNamePageBodySchema = extendApi(NamePageSchema.strict(), {
-  title: 'AddNamePageBody',
-  description: 'Thêm 1 trang vào Name'
 })
 
 export const SeriesResSchema = extendApi(
@@ -125,6 +116,9 @@ export const NameResSchema = extendApi(
     id: z.string(),
     seriesId: z.string(),
     chapterNumber: z.number().nullable().describe('null cho Name chương mẫu của proposal'),
+    // Spec 8: kind field exposed so FE can distinguish PROPOSAL vs CHAPTER on the bundled
+    // CreateProposalRes payload (and anywhere else series module returns a Name).
+    kind: zEnum(NameKind, 'NameKind'),
     status: zEnum(NameStatus, 'NameStatus'),
     version: z.number().describe('Tăng mỗi lần resubmit'),
     submittedAt: z.string().nullable().describe('ISO 8601; null khi chưa submit'),
@@ -141,8 +135,6 @@ export const CreateProposalResSchema = extendApi(z.object({ series: SeriesResSch
 export type CreateProposalBodyType = z.infer<typeof CreateProposalBodySchema>
 export type UpdateProposalBodyType = z.infer<typeof UpdateProposalBodySchema>
 export type ReasonBodyType = z.infer<typeof ReasonBodySchema>
-export type UpdateNamePagesBodyType = z.infer<typeof UpdateNamePagesBodySchema>
-export type AddNamePageBodyType = z.infer<typeof AddNamePageBodySchema>
 export type ListSeriesQueryType = z.infer<typeof ListSeriesQuerySchema>
 
 export const ListSeriesQuerySchema = extendApi(
@@ -165,11 +157,6 @@ export const SeriesListResSchema = extendApi(
   }),
   { title: 'SeriesListRes', description: 'Danh sách series phân trang' }
 )
-
-export const NameListResSchema = extendApi(z.object({ items: z.array(NameResSchema) }), {
-  title: 'NameListRes',
-  description: 'Danh sách Name của series'
-})
 
 // Spec 2 / Flow 5: Editor gửi series vào HIATUS. reason bắt buộc; expectedReturnDate optional (ISO 8601).
 export const HiatusBodySchema = extendApi(
