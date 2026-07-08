@@ -3,6 +3,7 @@ import {
   CreateTransferRequestSchema,
   BoardDecisionTransferSchema,
   CreateTransferContractSchema,
+  AssignFullBuyoutSchema,
   SignTransferContractSchema,
   CoOwnerRejectChapterSchema,
   // Thêm các Response Schemas mới import từ file schema của bạn
@@ -19,6 +20,8 @@ import {
 export class CreateTransferRequestBodyDto extends createZodDto(CreateTransferRequestSchema) {}
 
 export class BoardDecisionTransferBodyDto extends createZodDto(BoardDecisionTransferSchema) {}
+
+export class AssignFullBuyoutBodyDto extends createZodDto(AssignFullBuyoutSchema) {}
 
 export class CreateTransferContractBodyDto extends createZodDto(CreateTransferContractSchema) {}
 

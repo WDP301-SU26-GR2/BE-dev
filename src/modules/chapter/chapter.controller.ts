@@ -36,7 +36,10 @@ import {
   NotSeriesOwnerException,
   PageNotFoundException,
   PagesNotAllCompletedException,
-  SeriesNotSerializedException
+  SeriesNotSerializedException,
+  NotCoOwnerException,
+  CoOwnerApprovalNotPendingException,
+  CoOwnerApprovalNotFoundException
 } from './errors/chapter.errors'
 import { ChapterService } from './chapter.service'
 
@@ -239,5 +242,37 @@ export class ChapterController {
   @ZodResponse({ status: 201, type: ChapterResDto })
   publish(@Param('id') id: string, @ActiveUser('userId') userId: string) {
     return this.chapterService.publish(userId, id)
+  }
+
+  @Post('chapters/:id/co-owner-approve')
+  @ApiOperation({
+    summary: 'A-CHP-06: Co-owner (PARTIAL_TRANSFER) duyệt chapter đang AWAITING_CO_OWNER_APPROVAL → PUBLISHED'
+  })
+  @ApiErrors(
+    NotCoOwnerException,
+    CoOwnerApprovalNotPendingException,
+    CoOwnerApprovalNotFoundException,
+    ChapterNotFoundException,
+    InvalidManuscriptTransitionException
+  )
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 201, type: ChapterResDto })
+  coOwnerApprove(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.chapterService.coOwnerApprove(userId, id)
+  }
+
+  @Post('chapters/:id/co-owner-reject')
+  @ApiOperation({ summary: 'A-CHP-06: Co-owner từ chối → Manuscript về EDITOR_REVISION' })
+  @ApiErrors(
+    NotCoOwnerException,
+    CoOwnerApprovalNotPendingException,
+    CoOwnerApprovalNotFoundException,
+    ChapterNotFoundException,
+    InvalidManuscriptTransitionException
+  )
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 201, type: ChapterResDto })
+  coOwnerReject(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body() body: ReasonBodyDto) {
+    return this.chapterService.coOwnerReject(userId, id, body.reason ?? '')
   }
 }
