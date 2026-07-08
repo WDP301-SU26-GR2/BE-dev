@@ -28,6 +28,7 @@ import { TransferModule } from './modules/transfer/transfer.module'
 import { PaymentModule } from './modules/payment/payment.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { AppConfigModule } from './modules/app-config/app-config.module'
+import { PublicationModule } from './modules/publication/publication.module'
 
 @Module({
   imports: [
@@ -54,7 +55,8 @@ import { AppConfigModule } from './modules/app-config/app-config.module'
     TransferModule,
     PaymentModule,
     AuditModule,
-    AppConfigModule
+    AppConfigModule,
+    PublicationModule
   ],
   controllers: [],
   providers: [

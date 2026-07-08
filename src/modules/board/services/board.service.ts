@@ -28,8 +28,14 @@ export class BoardService {
 
   /**
    * 1. Tạo Session
+   * Spec 7 / B-BRD-05: sĩ số đại biểu bắt buộc lẻ (loại trừ hòa phiếu).
    */
   async createSession(creatorId: string, dto: CreateBoardSessionBodyDto) {
+    // B-BRD-05: validate odd-size roster up-front (defense in depth — BoardConfig PATCH đã enforce qua zod superRefine,
+    // nhưng createSession là entry khác nên check ở đây để khóa cứng).
+    if (dto.allowedEditorIds.length === 0 || dto.allowedEditorIds.length % 2 === 0) {
+      throw new Errors.InvalidBoardMembersException()
+    }
     const isSessionExist = await this.boardRepo.findActiveSessionByTitle(dto.title)
     if (isSessionExist) {
       throw new Errors.SessionAlreadyExistsException(dto.title)
@@ -81,6 +87,10 @@ export class BoardService {
     const session = await this.boardRepo.findSessionById(dto.boardSessionId)
     if (!session) {
       throw new Errors.SessionNotFoundException(dto.boardSessionId)
+    }
+    // B-BRD-05 (defense-in-depth): chặn decision gắn vào session có roster chẵn (session có thể tạo/sửa bằng đường khác).
+    if (session.allowedEditorIds.length % 2 === 0) {
+      throw new Errors.InvalidBoardMembersException()
     }
     const decision = await this.boardRepo.createDecision(dto)
 
