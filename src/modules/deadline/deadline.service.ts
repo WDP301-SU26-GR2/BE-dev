@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import {
+  BoardResolveBodyType,
   CounterDeadlineBodyType,
   CreateDeadlineRequestBodyType,
   DeadlineReasonBodyType,
@@ -39,6 +40,10 @@ export class DeadlineService {
 
   finalizeRequest(userId: string, id: string) {
     return this.finalizeService.finalize(userId, id)
+  }
+
+  boardResolve(userId: string, id: string, body: BoardResolveBodyType) {
+    return this.finalizeService.boardResolve(userId, id, body)
   }
 
   list(userId: string, roleName: string, query: ListDeadlineRequestQueryType) {

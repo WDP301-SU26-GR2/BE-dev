@@ -54,13 +54,15 @@ function make(seriesOverride: Record<string, unknown> = {}) {
       .fn()
       .mockImplementation((id, status) => Promise.resolve({ ...series, proposal: { ...series.proposal, status } })),
     updateProposalContent: jest.fn().mockResolvedValue(series),
-    updateNameStatus: jest.fn().mockResolvedValue({ ...baseName, status: 'SUBMITTED', submittedAt: new Date() }),
     deleteSeriesWithNames: jest.fn().mockResolvedValue(undefined),
     markReviewStarted: jest.fn().mockResolvedValue(undefined),
     findExecutedContractType: jest.fn().mockResolvedValue(null),
     setFranchiseConsentStatus: jest
       .fn()
       .mockImplementation((id, status) => Promise.resolve({ ...series, franchiseConsentStatus: status }))
+  }
+  const nameRepo = {
+    updateNameStatus: jest.fn().mockResolvedValue({ ...baseName, status: 'SUBMITTED', submittedAt: new Date() })
   }
   const seriesStateService = {
     transition: jest.fn().mockImplementation((id, toStatus) => Promise.resolve({ ...series, status: toStatus })),
@@ -69,10 +71,11 @@ function make(seriesOverride: Record<string, unknown> = {}) {
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const service = new SeriesProposalService(
     seriesRepository as never,
+    nameRepo as never,
     seriesStateService as never,
     notificationService as never
   )
-  return { service, seriesRepository, seriesStateService, notificationService }
+  return { service, seriesRepository, nameRepo, seriesStateService, notificationService }
 }
 
 describe('SeriesProposalService', () => {
@@ -89,13 +92,10 @@ describe('SeriesProposalService', () => {
   })
 
   it('submit: proposal->PROPOSAL_REVIEW, name->SUBMITTED, series DRAFT->IN_REVIEW via state service', async () => {
-    const { service, seriesRepository, seriesStateService } = make()
+    const { service, seriesRepository, nameRepo, seriesStateService } = make()
     const res = await service.submit('m1', 's1')
     expect(seriesRepository.updateProposalStatus).toHaveBeenCalledWith('s1', ProposalStatus.PROPOSAL_REVIEW)
-    expect(seriesRepository.updateNameStatus).toHaveBeenCalledWith(
-      'n1',
-      expect.objectContaining({ status: 'SUBMITTED' })
-    )
+    expect(nameRepo.updateNameStatus).toHaveBeenCalledWith('n1', expect.objectContaining({ status: 'SUBMITTED' }))
     expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.IN_REVIEW, { changedBy: 'm1' })
     expect(res.series.status).toBe(SeriesStatus.IN_REVIEW)
     expect(res.name.status).toBe('SUBMITTED')

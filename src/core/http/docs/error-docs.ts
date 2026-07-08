@@ -33,6 +33,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.DeadlineRequestNotFound': 'deadline request, chapter, or schedule does not exist',
   'Error.DownloadForbidden': 'current user cannot download this asset',
   'Error.DuplicateChapterNumber': 'chapter number already exists in this series',
+  'Error.DuplicateChapterName': 'chapter-Name already exists for this chapter number (kind=CHAPTER)',
   'Error.DuplicateActiveCollaboration': 'an active collaboration or pending invite already exists for this pair',
   'Error.EmailAlreadyExists': 'email is already used',
   'Error.EmailAlreadyVerified': 'email is already verified',
@@ -49,11 +50,14 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.InvalidOTP': 'OTP code is invalid',
   'Error.InvalidPageTransition': 'page state transition is not allowed',
   'Error.InvalidDeadlineRequestTransition': 'deadline request state transition is not allowed',
+  'Error.DeadlineNotAwaitingBoard':
+    'deadline request is not awaiting Board decision (must be BOARD_REVIEW or ESCALATED)',
   'Error.InvalidHirePeriod': 'hire period is invalid (start must be before end, end in the future)',
   'Error.InvalidPassword': 'password is invalid',
   'Error.InvalidProposalState': 'proposal state does not allow this action',
   'Error.InvalidSeriesTransition': 'series state transition is not allowed',
   'Error.NameNotApproved': 'name must be approved before this action',
+  'Error.NameNotChapterKind': 'name must be of kind CHAPTER to create a chapter (proposal-Name cannot be used)',
   'Error.InviteNotFound': 'collaboration invite does not exist',
   'Error.InviteNotPending': 'invite is not in PENDING state',
   'Error.NotInviteOwner': 'current user is not the invite owner',
@@ -117,6 +121,8 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.OwnershipMismatch': 'ownership split must total 100; FULL_BUYOUT stays 100/0',
   // Spec 5 — voting/ranking completion
   'Error.TooManySeriesSelected': 'số series vượt maxSeriesPerVote (VotingConfig); trần cứng 3 theo Requiment §1.15',
+  'Error.PublicationVersionNotFound': 'publication version does not exist',
+  'Error.InvalidVersionType': 'versionType must be one of ORIGINAL, DIGITAL, FLIPPED',
   'Error.RankingAccessDenied':
     'MANGAKA chỉ xem được series mình sở hữu; EDITOR chỉ xem được series mình phụ trách; BOARD/SUPER_ADMIN xem mọi series'
 }

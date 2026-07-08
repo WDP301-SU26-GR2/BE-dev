@@ -30,6 +30,7 @@ export const ChapterMessages = {
     pageNotFound: 'Error.PageNotFound',
     nameNotApproved: 'Error.NameNotApproved',
     nameNotInSeries: 'Error.NameNotInSeries',
+    nameNotChapterKind: 'Error.NameNotChapterKind',
     seriesNotSerialized: 'Error.SeriesNotSerialized',
     contractNotExecuted: 'Error.ContractNotExecuted',
     chapterAccessDenied: 'Error.ChapterAccessDenied',
