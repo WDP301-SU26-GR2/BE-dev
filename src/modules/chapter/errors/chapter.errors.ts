@@ -8,6 +8,11 @@ export const NotSeriesOwnerException = new ForbiddenException(E.notSeriesOwner)
 export const NotSeriesEditorException = new ForbiddenException(E.notSeriesEditor)
 export const InvalidManuscriptTransitionException = new ConflictException(E.invalidManuscriptTransition)
 export const InvalidPageTransitionException = new ConflictException(E.invalidPageTransition)
+export const NotCoOwnerException = new ForbiddenException(E.notCoOwner)
+export const CoOwnerApprovalNotPendingException = new ConflictException([
+  { message: E.coOwnerApprovalNotPending, path: 'status' }
+])
+export const CoOwnerApprovalNotFoundException = new NotFoundException(E.coOwnerApprovalNotFound)
 export const PagesNotAllCompletedException = new ConflictException(E.pagesNotAllCompleted)
 export const DuplicateChapterNumberException = new ConflictException(E.duplicateChapterNumber)
 export const PageNotFoundException = new NotFoundException(E.pageNotFound)

@@ -12,6 +12,7 @@ import {
 import { ChapterRepository } from '../chapter.repo'
 import { ManuscriptStateService } from './manuscript-state.service'
 import { ChapterMessages } from '../chapter.messages'
+import { AppConfigService } from 'src/modules/app-config/app-config.service'
 
 @Injectable()
 export class ChapterPublishService {
@@ -19,7 +20,8 @@ export class ChapterPublishService {
     private readonly chapterRepository: ChapterRepository,
     private readonly manuscriptStateService: ManuscriptStateService,
     private readonly eventBus: DomainEventBus,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly appConfigService: AppConfigService
   ) {}
 
   // A-CHP-05/06. Transition map đảm bảo chỉ publish được từ READY_FOR_PRINT (else InvalidManuscriptTransition 409).
@@ -37,11 +39,15 @@ export class ChapterPublishService {
     if (!executedContract) throw ContractNotExecutedException
 
     // A-CHP-06 branch: co-owner (PARTIAL_TRANSFER) cần duyệt trước khi publish.
-    // coOwnerId chỉ được set bởi B3 (chưa làm) → hiện luôn null → publish thẳng.
+    // coOwnerId do B3 (transfer PARTIAL_TRANSFER) set. Tạo record ChapterCoOwnerApproval + notify.
+    // Duyệt/từ chối qua ChapterCoOwnerService; escalate quá hạn qua CoOwnerEscalationCron.
     if (series.coOwnerId) {
       const res = await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.AWAITING_CO_OWNER_APPROVAL, {
         changedBy: userId
       })
+      const appConfig = await this.appConfigService.get()
+      const deadline = new Date(Date.now() + appConfig.coOwnerApprovalGraceDays * 86400_000)
+      await this.chapterRepository.createCoOwnerApproval({ chapterId, coOwnerId: series.coOwnerId, deadline })
       await this.notificationService.notifySafe({
         recipientId: series.coOwnerId,
         type: NotificationType.REVIEW,
@@ -49,7 +55,6 @@ export class ChapterPublishService {
         referenceType: 'MANUSCRIPT_AWAITING_CO_OWNER',
         content: ChapterMessages.notification.awaitingCoOwnerApproval
       })
-      // B3-INTEGRATION: endpoint co-owner approve/reject + B5-INTEGRATION escalate quá hạn (defer).
       return res
     }
 

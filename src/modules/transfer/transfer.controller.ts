@@ -11,7 +11,7 @@ import {
   BoardDecisionTransferBodyDto,
   CreateTransferContractBodyDto,
   SignTransferContractBodyDto,
-  CoOwnerRejectChapterBodyDto,
+  AssignFullBuyoutBodyDto,
   TransferRequestResDto,
   TransferRequestListResDto,
   TransferContractResDto,
@@ -29,8 +29,8 @@ import {
   UserOrEmailNotFoundException,
   UserHasAlreadySignedContractException,
   TransferContractNotFoundAfterUpdateException,
-  NotTheCoOwnerForChapterException,
-  ChapterApprovalIsNotPendingException
+  InvalidTransferStateException,
+  ValuationRequiredException
 } from './errors/transfer.error'
 import { TransferService } from './services/transfer.service'
 
@@ -110,10 +110,15 @@ export class TransferController {
   @Post('requests/:id/assign-full-buyout')
   @ApiOperation({ summary: 'Board chọn Full Buyout → bàn giao series cho Mangaka B' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(TransferRequestNotFoundException, OnlyAppliesToFullBuyoutException, OriginalContractIdNotFoundException)
+  @ApiErrors(
+    TransferRequestNotFoundException,
+    OnlyAppliesToFullBuyoutException,
+    OriginalContractIdNotFoundException,
+    ValuationRequiredException
+  )
   @Roles(RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 201, type: MessageResDto })
-  boardAssignFullBuyout(@Param('id') id: string, @Body() body: BoardDecisionTransferBodyDto): Promise<MessageResDto> {
+  boardAssignFullBuyout(@Param('id') id: string, @Body() body: AssignFullBuyoutBodyDto): Promise<MessageResDto> {
     return this.transferService.boardAssignFullBuyout(id, body)
   }
 
@@ -146,9 +151,9 @@ export class TransferController {
   }
 
   @Post('contracts')
-  @ApiOperation({ summary: 'Editor tạo hợp đồng chuyển nhượng 3 bên → DRAFT' })
+  @ApiOperation({ summary: 'Editor tạo hợp đồng chuyển nhượng 3 bên → DRAFT (chỉ khi request UNDER_REVIEW)' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(TransferRequestNotFoundException)
+  @ApiErrors(TransferRequestNotFoundException, InvalidTransferStateException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: TransferContractResDto })
   createTransferContract(
@@ -186,38 +191,6 @@ export class TransferController {
     return this.transferService.getSignatures(id)
   }
 
-  // ---- Co-Owner Chapter Approval (B-TRF-05) ----
-  @Post('chapters/:chapterId/co-owner-approve')
-  @ApiOperation({ summary: 'Co-owner duyệt chapter mới → APPROVED' })
-  @ApiErrors(NotTheCoOwnerForChapterException, ChapterApprovalIsNotPendingException)
-  @Roles(RoleName.MANGAKA)
-  @ZodResponse({ status: 201, type: MessageResDto })
-  coOwnerApproveChapter(
-    @Param('chapterId') chapterId: string,
-    @ActiveUser('userId') userId: string
-  ): Promise<MessageResDto> {
-    return this.transferService.coOwnerApproveChapter(chapterId, userId)
-  }
-
-  @Post('chapters/:chapterId/co-owner-reject')
-  @ApiOperation({ summary: 'Co-owner từ chối chapter mới → REJECTED' })
-  @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(NotTheCoOwnerForChapterException, ChapterApprovalIsNotPendingException)
-  @Roles(RoleName.MANGAKA)
-  @ZodResponse({ status: 201, type: MessageResDto })
-  coOwnerRejectChapter(
-    @Param('chapterId') chapterId: string,
-    @Body() body: CoOwnerRejectChapterBodyDto,
-    @ActiveUser('userId') userId: string
-  ): Promise<MessageResDto> {
-    return this.transferService.coOwnerRejectChapter(chapterId, userId, body)
-  }
-
-  @Post('chapters/:chapterId/escalate')
-  @ApiOperation({ summary: 'Editor/Board escalate duyệt chapter lên Hội đồng' })
-  @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER)
-  @ZodResponse({ status: 201, type: MessageResDto })
-  escalateChapterApproval(@Param('chapterId') chapterId: string): Promise<MessageResDto> {
-    return this.transferService.escalateChapterApproval(chapterId)
-  }
+  // Co-owner chapter approval (A-CHP-06 / B-TRF-05) đã CHUYỂN sang chapter module (BE-A) —
+  // POST /chapters/:id/co-owner-approve | /co-owner-reject (single-writer Manuscript ở chapter). Spec 6.
 }

@@ -40,7 +40,10 @@ export const ENUM_DOCS = {
   TaskStatus:
     'Task production status: ASSIGNED → IN_PROGRESS → SUBMITTED → UNDER_REVIEW → APPROVED/REVISION_REQUESTED; ON_HOLD khi assistant nghỉ',
   RegionType: 'Loại vùng trên trang: PANEL, BACKGROUND, SPEECH_BUBBLE, SFX, CHARACTER',
-  TaskVersionReviewStatus: 'Trạng thái review của 1 bản nộp task: PENDING, APPROVED, REVISION_REQUESTED'
+  TaskVersionReviewStatus: 'Trạng thái review của 1 bản nộp task: PENDING, APPROVED, REVISION_REQUESTED',
+  // Spec 5 — at-risk tiering (B-VOT-05 / PB-02)
+  RiskLevel:
+    'Mức nguy cơ của series theo kết quả ranking kỳ: NONE bình thường, LOW at-risk kỳ này, MEDIUM 3+ kỳ liên tiếp, SEVERE 5+ kỳ liên tiếp (feed Board)'
 } as const
 
 type EnumDocKey = keyof typeof ENUM_DOCS

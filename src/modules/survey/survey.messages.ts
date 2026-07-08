@@ -9,6 +9,11 @@ export const SurveyMessages = {
     rankingFinalized: 'Xếp hạng kỳ bình chọn đã được tính toán.',
     votingConfigUpdated: 'Cấu hình bình chọn đã được lưu.'
   },
+  notification: {
+    rankingAtRisk: 'Series của bạn đang ở vùng nguy cơ theo kết quả bình chọn kỳ này.',
+    rankingSevereDigest: (n: number) => `Có ${n} series ở mức nguy cơ nghiêm trọng (SEVERE) cần Hội đồng xem xét.`,
+    rankingFinalized: 'Kết quả xếp hạng kỳ bình chọn đã được tính toán.'
+  },
   error: {
     surveyPeriodNotFound: 'Error.SurveyPeriodNotFound',
     surveyPeriodNotOpen: 'Error.SurveyPeriodNotOpen',
@@ -18,6 +23,9 @@ export const SurveyMessages = {
     voteOtpRateLimit: 'Error.VoteOtpRateLimit',
     surveyDataImportNotAllowed: 'Error.SurveyDataImportNotAllowed',
     rankingFinalizeNotAllowed: 'Error.RankingFinalizeNotAllowed',
-    votingConfigNotFound: 'Error.VotingConfigNotFound'
+    votingConfigNotFound: 'Error.VotingConfigNotFound',
+    tooManySeriesSelected: 'Error.TooManySeriesSelected',
+    rankingAccessDenied: 'Error.RankingAccessDenied',
+    seriesNotFoundForRanking: 'Error.SeriesNotFound'
   }
 } as const

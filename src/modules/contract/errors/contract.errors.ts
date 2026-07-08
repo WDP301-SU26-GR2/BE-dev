@@ -5,6 +5,9 @@ import {
   NotFoundException,
   UnprocessableEntityException
 } from '@nestjs/common'
+import { ContractMessages } from '../contract.messages'
+
+const E = ContractMessages.error
 
 export const ContractErrors = {
   // Lỗi khi tìm kiếm một hợp đồng không tồn tại trong DB
@@ -21,6 +24,12 @@ export const ContractErrors = {
 
   // Lỗi khi trạng thái hợp đồng không hợp lệ cho hành động hiện tại (ví dụ: đang DRAFT mà đòi ký)
   InvalidStatus: () => new BadRequestException('INVALID_CONTRACT_STATUS_FOR_THIS_ACTION'),
+
+  // B-CON-02: chuyển trạng thái không hợp lệ theo CONTRACT_TRANSITIONS (Requiment Flow 6)
+  InvalidContractTransition: () => new ConflictException([{ message: E.invalidContractTransition, path: 'status' }]),
+
+  // B-CON-02: chưa BOARD_APPROVED thì chưa được ký
+  NotSignableYet: () => new ConflictException([{ message: E.contractNotSignableYet, path: 'status' }]),
 
   AlreadySigned: () => new BadRequestException('CONTRACT_ALREADY_SIGNED_BY_THIS_PARTY'),
 

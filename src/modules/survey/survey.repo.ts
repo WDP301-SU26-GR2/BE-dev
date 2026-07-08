@@ -82,6 +82,8 @@ export class SurveyRepository {
     previousRank?: number | null
     rankChange?: number | null
     isAtRisk: boolean
+    riskLevel: 'NONE' | 'LOW' | 'MEDIUM' | 'SEVERE'
+    consecutiveAtRiskCount: number
     isReliable: boolean
   }) {
     return this.prisma.rankingRecord.create({
@@ -93,6 +95,8 @@ export class SurveyRepository {
         previousRank: data.previousRank ?? null,
         rankChange: data.rankChange ?? null,
         isAtRisk: data.isAtRisk,
+        riskLevel: data.riskLevel,
+        consecutiveAtRiskCount: data.consecutiveAtRiskCount,
         isReliable: data.isReliable
       }
     })
@@ -110,6 +114,61 @@ export class SurveyRepository {
     return this.prisma.rankingRecord.findMany({ where: { surveyPeriodId }, orderBy: { rankPosition: 'asc' } })
   }
 
+  // PB-04 trend: N record gần nhất của 1 series (mới→cũ).
+  getRankingRecordsBySeries(seriesId: string, take: number) {
+    return this.prisma.rankingRecord.findMany({
+      where: { seriesId },
+      orderBy: { recordedAt: 'desc' },
+      take
+    })
+  }
+
+  // B-VOT-05: đếm chapter PUBLISHED theo từng series → Map<seriesId, count>.
+  // Series < ngưỡng → loại khỏi at-risk.
+  async countPublishedChaptersBySeriesIds(seriesIds: string[]): Promise<Map<string, number>> {
+    if (seriesIds.length === 0) return new Map()
+    const grouped = await this.prisma.chapter.groupBy({
+      by: ['seriesId'],
+      where: { seriesId: { in: seriesIds }, status: 'PUBLISHED' },
+      _count: { _all: true }
+    })
+    return new Map(grouped.map((g) => [g.seriesId, g._count._all]))
+  }
+
+  // B-VOT-07: series có chapter đang hold lâu hơn thresholdDate. Composite filter chưa verify ở Mongo →
+  // fetch chapter có hold rồi lọc in-memory (Spec 5 §4).
+  async findHeldChapterSeriesIds(seriesIds: string[], thresholdDate: Date): Promise<Set<string>> {
+    if (seriesIds.length === 0) return new Set()
+    const chapters = await this.prisma.chapter.findMany({
+      where: { seriesId: { in: seriesIds } },
+      select: { seriesId: true, hold: true }
+    })
+    const result = new Set<string>()
+    for (const ch of chapters) {
+      if (ch.hold && ch.hold.heldAt && ch.hold.heldAt < thresholdDate) result.add(ch.seriesId)
+    }
+    return result
+  }
+
+  findSeriesOwnershipByIds(seriesIds: string[]) {
+    if (seriesIds.length === 0) return Promise.resolve([])
+    return this.prisma.series.findMany({
+      where: { id: { in: seriesIds } },
+      select: { id: true, status: true, mangakaId: true, editorId: true }
+    })
+  }
+
+  // Board recipients: resolve roleId TRƯỚC (Mongo tránh relation-filter — bám users.repo.ts pattern).
+  async findBoardMemberIds(): Promise<string[]> {
+    const role = await this.prisma.role.findFirst({ where: { code: 'BOARD_MEMBER' }, select: { id: true } })
+    if (!role) return []
+    const users = await this.prisma.user.findMany({
+      where: { roleId: role.id, deletedAt: { isSet: false } },
+      select: { id: true }
+    })
+    return users.map((u) => u.id)
+  }
+
   findPreviousSurveyPeriod(currentSurveyPeriodId: string) {
     return this.prisma.surveyPeriod.findFirst({
       where: { id: { not: currentSurveyPeriodId }, status: 'REFLECTED' },
@@ -119,6 +178,22 @@ export class SurveyRepository {
 
   getVotingConfig() {
     return this.prisma.votingConfig.findFirst()
+  }
+
+  // B-VOT-06: create row with Requiment §1.15 defaults (lazy-seed by SurveyConfigService).
+  // Same defaults as the schema @default() in prisma/schema.prisma.
+  createDefaultVotingConfig() {
+    return this.prisma.votingConfig.create({
+      data: {
+        authMode: 'OTP',
+        maxSeriesPerVote: 3,
+        otpExpirySeconds: 300,
+        otpMaxAttempts: 3,
+        ipRateLimit: 10,
+        phoneRateLimit: 3,
+        captchaThreshold: 0.3
+      }
+    })
   }
 
   async updateVotingConfig(data: {
@@ -149,12 +224,12 @@ export class SurveyRepository {
     return this.prisma.votingConfig.create({
       data: {
         authMode: data.authMode ?? 'OTP',
-        maxSeriesPerVote: data.maxSeriesPerVote ?? 1,
+        maxSeriesPerVote: data.maxSeriesPerVote ?? 3,
         otpExpirySeconds: data.otpExpirySeconds ?? 300,
         otpMaxAttempts: data.otpMaxAttempts ?? 3,
         ipRateLimit: data.ipRateLimit ?? 10,
-        phoneRateLimit: data.phoneRateLimit ?? 5,
-        captchaThreshold: data.captchaThreshold ?? 0.5
+        phoneRateLimit: data.phoneRateLimit ?? 3,
+        captchaThreshold: data.captchaThreshold ?? 0.3
       }
     })
   }

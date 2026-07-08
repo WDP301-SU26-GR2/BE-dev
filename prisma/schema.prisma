@@ -526,6 +526,14 @@ enum SurveyStatus {
   REFLECTED
 }
 
+// Spec 5 — at-risk tiering (B-VOT-05 / PB-02)
+enum RiskLevel {
+  NONE
+  LOW
+  MEDIUM
+  SEVERE
+}
+
 // REVIEW: inferred
 enum DecisionType {
   CONTINUE
@@ -1375,13 +1383,15 @@ model RankingRecord {
   surveyPeriodId String       @db.ObjectId
   surveyPeriod   SurveyPeriod @relation(fields: [surveyPeriodId], references: [id])
 
-  rankPosition Int?
-  voteCount    Float    @default(0)
-  previousRank Int?
-  rankChange   Int?
-  isAtRisk     Boolean  @default(false)
-  isReliable   Boolean  @default(true)
-  recordedAt   DateTime @default(now())
+  rankPosition           Int?
+  voteCount              Float     @default(0)
+  previousRank           Int?
+  rankChange             Int?
+  isAtRisk               Boolean   @default(false)
+  riskLevel              RiskLevel @default(NONE)
+  consecutiveAtRiskCount Int       @default(0)
+  isReliable             Boolean   @default(true)
+  recordedAt             DateTime  @default(now())
 
   @@index([seriesId])
   @@index([surveyPeriodId])
@@ -1457,12 +1467,12 @@ model VotingConfig {
   updatedBy String? @db.ObjectId
 
   authMode         VotingAuthMode @default(OTP)
-  maxSeriesPerVote Int            @default(1)
+  maxSeriesPerVote Int            @default(3)
   otpExpirySeconds Int            @default(300)
   otpMaxAttempts   Int            @default(3)
   ipRateLimit      Int            @default(10)
-  phoneRateLimit   Int            @default(5)
-  captchaThreshold Float          @default(0.5)
+  phoneRateLimit   Int            @default(3)
+  captchaThreshold Float          @default(0.3)
   updatedAt        DateTime       @updatedAt
 
   @@index([updatedBy])
