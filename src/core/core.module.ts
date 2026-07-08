@@ -3,6 +3,8 @@ import { APP_GUARD } from '@nestjs/core'
 import { JwtModule } from '@nestjs/jwt'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
+import { IdentityHashService, IDENTITY_HASH_PEPPER } from 'src/infrastructure/crypto/identity-hash.service'
+import envConfig from './config/envConfig'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { TokenService } from 'src/infrastructure/token/token.service'
 import { AccessTokenGuard } from './security/guards/access-token.guard'
@@ -19,6 +21,7 @@ import { RateLimitService } from './security/services/rate-limit.service'
 const infrastructureServices = [
   PrismaService,
   HashingService,
+  IdentityHashService,
   TokenService,
   EmailService,
   DomainEventBus,
@@ -30,6 +33,7 @@ const infrastructureServices = [
   exports: [...infrastructureServices, RedisModule, QueueModule, RateLimitService],
   providers: [
     ...infrastructureServices,
+    { provide: IDENTITY_HASH_PEPPER, useValue: envConfig.IDENTITY_HASH_PEPPER },
     RateLimitService,
     AccessTokenGuard,
     {
