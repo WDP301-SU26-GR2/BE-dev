@@ -6,6 +6,7 @@ import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import {
+  BoardResolveBodyDto,
   CounterDeadlineBodyDto,
   CreateDeadlineRequestBodyDto,
   DeadlineReasonBodyDto,
@@ -15,6 +16,7 @@ import {
 } from './dto/deadline.dto'
 import { DeadlineService } from './deadline.service'
 import {
+  DeadlineNotAwaitingBoardException,
   DeadlineRequestAccessDeniedException,
   DeadlineRequestNotAllowedException,
   DeadlineRequestNotFoundException,
@@ -111,6 +113,17 @@ export class DeadlineController {
   @ZodResponse({ status: 201, type: DeadlineRequestResDto })
   finalize(@Param('id') id: string, @ActiveUser('userId') userId: string) {
     return this.deadlineService.finalizeRequest(userId, id)
+  }
+
+  @Post(':id/board-resolve')
+  @ApiOperation({
+    summary: 'A-DL-03: Board chốt request BOARD_REVIEW/ESCALATED → APPROVED (cập nhật Schedule) | REJECTED'
+  })
+  @ApiErrors(DeadlineRequestNotFoundException, DeadlineNotAwaitingBoardException)
+  @Roles(RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 201, type: DeadlineRequestResDto })
+  boardResolve(@Param('id') id: string, @Body() body: BoardResolveBodyDto, @ActiveUser('userId') userId: string) {
+    return this.deadlineService.boardResolve(userId, id, body)
   }
 
   @Get()

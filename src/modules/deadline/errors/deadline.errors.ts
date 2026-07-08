@@ -9,3 +9,6 @@ export const NotCounterpartyException = new ForbiddenException(E.notCounterparty
 export const OpenDeadlineRequestExistsException = new ConflictException(E.openExists)
 export const DeadlineRequestNotAllowedException = new ConflictException(E.notAllowed)
 export const InvalidDeadlineRequestTransitionException = new ConflictException(E.invalidTransition)
+export const DeadlineNotAwaitingBoardException = new ConflictException([
+  { message: E.deadlineNotAwaitingBoard, path: 'status' }
+])

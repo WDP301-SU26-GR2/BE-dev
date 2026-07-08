@@ -49,6 +49,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.InvalidOTP': 'OTP code is invalid',
   'Error.InvalidPageTransition': 'page state transition is not allowed',
   'Error.InvalidDeadlineRequestTransition': 'deadline request state transition is not allowed',
+  'Error.DeadlineNotAwaitingBoard': 'deadline request is not awaiting Board decision (must be BOARD_REVIEW or ESCALATED)',
   'Error.InvalidHirePeriod': 'hire period is invalid (start must be before end, end in the future)',
   'Error.InvalidPassword': 'password is invalid',
   'Error.InvalidProposalState': 'proposal state does not allow this action',
@@ -117,6 +118,8 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.OwnershipMismatch': 'ownership split must total 100; FULL_BUYOUT stays 100/0',
   // Spec 5 — voting/ranking completion
   'Error.TooManySeriesSelected': 'số series vượt maxSeriesPerVote (VotingConfig); trần cứng 3 theo Requiment §1.15',
+  'Error.PublicationVersionNotFound': 'publication version does not exist',
+  'Error.InvalidVersionType': 'versionType must be one of ORIGINAL, DIGITAL, FLIPPED',
   'Error.RankingAccessDenied':
     'MANGAKA chỉ xem được series mình sở hữu; EDITOR chỉ xem được series mình phụ trách; BOARD/SUPER_ADMIN xem mọi series'
 }

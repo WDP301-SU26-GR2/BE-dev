@@ -36,6 +36,19 @@ export const DeadlineReasonBodySchema = extendApi(z.object({ reason: z.string().
   description: 'Lý do reject/escalate deadline'
 })
 
+export const BoardResolveBodySchema = extendApi(
+  z
+    .object({
+      decision: z.enum(['APPROVE', 'REJECT']).describe('Board quyết định: APPROVE → cập nhật Schedule; REJECT → giữ nguyên'),
+      note: z.string().max(1000).nullish()
+    })
+    .strict(),
+  {
+    title: 'BoardResolveBody',
+    description: 'A-DL-03: Board chốt DeadlineRequest BOARD_REVIEW/ESCALATED'
+  }
+)
+
 export const ListDeadlineRequestQuerySchema = extendApi(
   z
     .object({
@@ -74,5 +87,6 @@ export const DeadlineRequestListResSchema = extendApi(z.object({ items: z.array(
 export type CreateDeadlineRequestBodyType = z.infer<typeof CreateDeadlineRequestBodySchema>
 export type CounterDeadlineBodyType = z.infer<typeof CounterDeadlineBodySchema>
 export type DeadlineReasonBodyType = z.infer<typeof DeadlineReasonBodySchema>
+export type BoardResolveBodyType = z.infer<typeof BoardResolveBodySchema>
 export type ListDeadlineRequestQueryType = z.infer<typeof ListDeadlineRequestQuerySchema>
 export type DeadlineRequestResType = z.infer<typeof DeadlineRequestResSchema>

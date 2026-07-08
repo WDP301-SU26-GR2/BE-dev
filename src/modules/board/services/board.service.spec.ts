@@ -1,5 +1,6 @@
 import { BoardService } from './board.service'
 import { DomainEvent } from 'src/core/events/domain-events'
+import { InvalidBoardMembersException } from '../errors/board.errors'
 
 describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', () => {
   const activeSession = { id: 's', status: 'ACTIVE', allowedEditorIds: ['b1', 'b2', 'b3', 'b4'] }
@@ -64,20 +65,21 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
 })
 
 describe('BoardService notifications', () => {
-  it('sends notifications when a board session is created', async () => {
+  it('sends notifications when a board session is created (odd allowedEditorIds)', async () => {
     const boardRepo = {
       findActiveSessionByTitle: jest.fn().mockResolvedValue(null),
       createSession: jest.fn().mockResolvedValue({ id: 'session-1' })
     }
     const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+    const eventBus = { emit: jest.fn() }
 
-    const service = new BoardService(boardRepo as never, boardGateway as never, notificationService as never)
+    const service = new BoardService(boardRepo as never, boardGateway as never, notificationService as never, eventBus as never)
 
     await service.createSession('editor-1', {
       title: 'Board meeting',
       description: 'desc',
-      allowedEditorIds: ['board-1', 'board-2'],
+      allowedEditorIds: ['board-1', 'board-2', 'board-3'],
       startTime: new Date('2030-01-01T00:00:00.000Z')
     })
 
@@ -95,5 +97,88 @@ describe('BoardService notifications', () => {
         referenceType: 'BOARD_SESSION_CREATED'
       })
     )
+  })
+})
+
+describe('BoardService odd-size enforcement (B-BRD-05)', () => {
+  function makeSessionService() {
+    const boardRepo = {
+      findActiveSessionByTitle: jest.fn().mockResolvedValue(null),
+      createSession: jest.fn().mockResolvedValue({ id: 'session-1' })
+    }
+    const boardGateway = { broadcastVoteProgress: jest.fn() }
+    const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+    const eventBus = { emit: jest.fn() }
+    const service = new BoardService(
+      boardRepo as never,
+      boardGateway as never,
+      notificationService as never,
+      eventBus as never
+    )
+    return { service, boardRepo }
+  }
+
+  function makeDecisionService(sessionOverride: { id: string; creatorId: string; allowedEditorIds: string[] } | null) {
+    const boardRepo = {
+      findSessionById: jest.fn().mockResolvedValue(sessionOverride),
+      createDecision: jest.fn().mockResolvedValue({ id: 'decision-1' })
+    }
+    const boardGateway = { broadcastVoteProgress: jest.fn() }
+    const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+    const eventBus = { emit: jest.fn() }
+    const service = new BoardService(
+      boardRepo as never,
+      boardGateway as never,
+      notificationService as never,
+      eventBus as never
+    )
+    return { service, boardRepo }
+  }
+
+  it('createSession: even allowedEditorIds → InvalidBoardMembersException (400)', async () => {
+    // 4 items: passes schema .min(3), but hits service guard (4%2===0 → InvalidBoardMembersException).
+    const { service, boardRepo } = makeSessionService()
+    await expect(
+      service.createSession('creator', {
+        title: 'Smoke Spec7 Even 1',
+        allowedEditorIds: ['board-1', 'board-2', 'editor-1', 'editor-2']
+      } as never)
+    ).rejects.toBeInstanceOf(InvalidBoardMembersException)
+    expect(boardRepo.createSession).not.toHaveBeenCalled()
+  })
+
+  it('createSession: empty allowedEditorIds → InvalidBoardMembersException', async () => {
+    const { service, boardRepo } = makeSessionService()
+    await expect(
+      service.createSession('creator', {
+        title: 'S',
+        allowedEditorIds: []
+      } as never)
+    ).rejects.toBeInstanceOf(InvalidBoardMembersException)
+    expect(boardRepo.createSession).not.toHaveBeenCalled()
+  })
+
+  it('createSession: odd allowedEditorIds → OK', async () => {
+    const { service, boardRepo } = makeSessionService()
+    await service.createSession('creator', {
+      title: 'Smoke Spec7 Odd 1',
+      allowedEditorIds: ['board-1', 'board-2', 'board-3']
+    } as never)
+    expect(boardRepo.createSession).toHaveBeenCalled()
+  })
+
+  it('createDecision: session roster even → InvalidBoardMembersException', async () => {
+    // 4 items: passes schema .min(3), but hits service guard (4%2===0 → InvalidBoardMembersException).
+    const { service, boardRepo } = makeDecisionService({ id: 's', creatorId: 'c', allowedEditorIds: ['a', 'b', 'c', 'd'] })
+    await expect(
+      service.createDecision({ boardSessionId: 's', decisionType: 'SERIALIZATION', targetSeriesId: '507f1f77bcf86cd799439011' } as never)
+    ).rejects.toBeInstanceOf(InvalidBoardMembersException)
+    expect(boardRepo.createDecision).not.toHaveBeenCalled()
+  })
+
+  it('createDecision: session roster odd → OK', async () => {
+    const { service, boardRepo } = makeDecisionService({ id: 's', creatorId: 'c', allowedEditorIds: ['a', 'b', 'c'] })
+    await service.createDecision({ boardSessionId: 's', decisionType: 'SERIALIZATION', targetSeriesId: '507f1f77bcf86cd799439011' } as never)
+    expect(boardRepo.createDecision).toHaveBeenCalled()
   })
 })
