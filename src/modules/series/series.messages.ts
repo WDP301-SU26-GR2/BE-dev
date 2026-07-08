@@ -5,6 +5,11 @@ export const SeriesMessages = {
   response: {
     proposalDeleted: 'Proposal deleted'
   },
+  // Internal reasons stored on Series.statusHistory (audit trail). Keep English so logs/audits are
+  // scannable; user-facing copy lives in `notification` / `response`.
+  reason: {
+    forceCancelNoEnding: 'Cancelled without ending — mangaka could not deliver'
+  },
   // In-app notification content (notification layer).
   notification: {
     proposalRevision: (reason: string) => `Proposal needs revision: ${reason}`,
@@ -25,7 +30,13 @@ export const SeriesMessages = {
     seriesCompleted: 'Series đã chính thức hoàn thành.',
     franchiseConsentRequested: 'Có series phái sinh cần bạn đồng ý cho phép thực hiện.',
     franchiseConsentApproved: 'Mangaka gốc đã đồng ý cho series phái sinh.',
-    franchiseConsentRejected: 'Mangaka gốc đã từ chối series phái sinh.'
+    franchiseConsentRejected: 'Mangaka gốc đã từ chối series phái sinh.',
+    // PB-06: Mangaka/Editor proposes natural completion (Series stays SERIALIZED/HIATUS, but
+    // `completionProposal` set). Counterparty gets a heads-up so they can raise the question to Board.
+    completionProposedToEditor: 'Mangaka đề xuất kết thúc series — cần bạn xem xét mở phiên Hội đồng.',
+    completionProposedToMangaka: 'Editor đã ghi nhận đề xuất kết thúc series.',
+    // PB-06: Series has been HIATUS for > AppConfig.hiatusTooLongDays days — flag for Board triage.
+    hiatusTooLong: 'Series đang HIATUS quá lâu — cần Hội đồng bàn hướng xử lý.'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/series.errors.ts.
   // Name-related error codes moved to name module (errors/name.errors.ts).
@@ -43,6 +54,8 @@ export const SeriesMessages = {
     notAssignedEditor: 'Error.NotAssignedEditor',
     proposalNotDeletable: 'Error.ProposalNotDeletable',
     seriesNotInEndingState: 'Error.SeriesNotInEndingState',
+    seriesNotProposableForCompletion: 'Error.SeriesNotProposableForCompletion',
+    seriesNotInCancellingState: 'Error.SeriesNotInCancellingState',
     franchiseConsentRequired: 'Error.FranchiseConsentRequired',
     notOriginalMangaka: 'Error.NotOriginalMangaka',
     notFranchiseConsentTarget: 'Error.NotFranchiseConsentTarget'

@@ -11,6 +11,7 @@ import { SeriesLifecycleService } from './services/series-lifecycle.service'
 import { SeriesSerializeService } from './services/series-serialize.service'
 import { SeriesIntegrationListener } from './services/series-integration.listener'
 import { NameApprovedListener } from './services/name-approved.listener'
+import { HiatusTooLongCron } from './services/hiatus-too-long.cron'
 import { NameModule } from 'src/modules/name/name.module'
 
 // Spec 8 §6: NameApprovedListener lắng NameApproved event (emit bởi name module SAU commit) →
@@ -32,7 +33,8 @@ import { NameModule } from 'src/modules/name/name.module'
     SeriesLifecycleService,
     SeriesSerializeService,
     SeriesIntegrationListener,
-    NameApprovedListener
+    NameApprovedListener,
+    HiatusTooLongCron
   ]
 })
 export class SeriesModule {}

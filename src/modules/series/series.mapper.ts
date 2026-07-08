@@ -20,6 +20,16 @@ export function toSeriesRes(series: Series) {
     franchiseConsentStatus: series.franchiseConsentStatus,
     createdAt: series.createdAt.toISOString(),
     reviewStartedAt: series.reviewStartedAt ? series.reviewStartedAt.toISOString() : null,
+    // PB-06: surface the completion proposal so the caller can read back what they just set.
+    completionProposal: series.completionProposal
+      ? {
+          proposedByRole: series.completionProposal.proposedByRole,
+          proposedById: series.completionProposal.proposedById,
+          reason: series.completionProposal.reason,
+          proposedEndingChapters: series.completionProposal.proposedEndingChapters ?? null,
+          proposedAt: series.completionProposal.proposedAt.toISOString()
+        }
+      : null,
     proposal: series.proposal
       ? {
           nameId: series.proposal.nameId,

@@ -25,12 +25,21 @@ export class ReprintRequestRepo {
     })
   }
 
-  // Spec 3 §4.4: MANGAKA chỉ thấy reprint của series mình (series.mangakaId===userId); Board/Editor/Admin → all.
+  // Spec 3 §4.4 + Spec 9 Part 4: MANGAKA chỉ thấy reprint của series mình (series.mangakaId===userId);
+  // EDITOR chỉ thấy reprint của series mình phụ trách (series.editorId===userId).
+  // Board/SuperAdmin → all.
   async findManyScoped(params: { userId: string; roleName: string; status?: string; seriesId?: string }) {
     const where: any = {}
     if (params.status) where.status = params.status
     if (params.seriesId) where.seriesId = params.seriesId
-    if (params.roleName === 'MANGAKA') {
+    // EDITOR scoping applies first — an editor who is also a co-owner on a series must still be
+    // constrained to their owned set (defense-in-depth; mirrors series.findManyByViewer pattern).
+    if (params.roleName === 'EDITOR') {
+      const owned = await this.prisma.series.findMany({ where: { editorId: params.userId }, select: { id: true } })
+      const ids = owned.map((s) => s.id)
+      if (ids.length === 0) return []
+      where.seriesId = params.seriesId && ids.includes(params.seriesId) ? params.seriesId : { in: ids }
+    } else if (params.roleName === 'MANGAKA') {
       const owned = await this.prisma.series.findMany({ where: { mangakaId: params.userId }, select: { id: true } })
       const ids = owned.map((s) => s.id)
       if (ids.length === 0) return []
@@ -67,5 +76,10 @@ export class ReprintRequestRepo {
         chapterNumber: 'asc'
       }
     })
+  }
+
+  // PB-07: Tra user + role để xác minh reviser khi reviserType=OTHER_MANGAKA phải là role MANGAKA
+  async findUserRole(userId: string) {
+    return this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } })
   }
 }

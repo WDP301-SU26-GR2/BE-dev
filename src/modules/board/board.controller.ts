@@ -18,6 +18,22 @@ import { RoleName } from 'src/core/security/constants/role.constant'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
+import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
+import {
+  SessionAlreadyExistsException,
+  SessionNotFoundException,
+  BoardConfigNotFoundException,
+  DecisionNotFoundException,
+  SessionNotOpenException,
+  InvalidBoardMembersException,
+  VoterNotAllowedException,
+  VoterAlreadyVotedException,
+  ConfigLockedException,
+  ReportNotFoundException,
+  SessionClosedReportException,
+  EditorNotInvitedException,
+  InvalidBoardSessionTransitionException
+} from './errors/board.errors'
 
 @ApiTags('board')
 @ApiBearerAuth()
@@ -26,6 +42,7 @@ export class BoardController {
   constructor(private readonly boardService: BoardService) {}
 
   @ApiOperation({ summary: 'Editor tạo phiên họp Hội đồng → SCHEDULED' })
+  @ApiErrors(SessionAlreadyExistsException, InvalidBoardMembersException)
   @Post('sessions')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 201, type: BoardSessionResDto })
@@ -42,6 +59,7 @@ export class BoardController {
   }
 
   @ApiOperation({ summary: 'Chi tiết phiên họp Hội đồng' })
+  @ApiErrors(SessionNotFoundException)
   @Get('sessions/:id')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: BoardSessionResDto })
@@ -50,6 +68,7 @@ export class BoardController {
   }
 
   @ApiOperation({ summary: 'Kích hoạt phiên họp Hội đồng → ACTIVE' })
+  @ApiErrors(SessionNotFoundException, SessionNotOpenException, InvalidBoardSessionTransitionException)
   @Patch('sessions/:id/start')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: BoardSessionResDto })
@@ -66,6 +85,7 @@ export class BoardController {
   }
 
   @ApiOperation({ summary: 'Editor tạo quyết định Hội đồng nháp → PENDING' })
+  @ApiErrors(SessionNotFoundException, InvalidBoardMembersException)
   @Post('decisions')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 201, type: BoardDecisionResDto })
@@ -82,6 +102,7 @@ export class BoardController {
   }
 
   @ApiOperation({ summary: 'Chi tiết quyết định Hội đồng' })
+  @ApiErrors(DecisionNotFoundException)
   @Get('decisions/:id')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: BoardDecisionResDto })
@@ -90,6 +111,7 @@ export class BoardController {
   }
 
   @ApiOperation({ summary: 'Danh sách phiếu biểu quyết của quyết định' })
+  @ApiErrors(DecisionNotFoundException)
   @Get('decisions/:id/votes')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: [BoardVoteResDto] })
@@ -98,6 +120,13 @@ export class BoardController {
   }
 
   @ApiOperation({ summary: 'Board/Editor bỏ phiếu cho quyết định → cập nhật kết quả' })
+  @ApiErrors(
+    DecisionNotFoundException,
+    SessionNotFoundException,
+    SessionNotOpenException,
+    VoterNotAllowedException,
+    VoterAlreadyVotedException
+  )
   @Post('decisions/:id/vote')
   @Roles(RoleName.BOARD_MEMBER, RoleName.EDITOR)
   @ZodResponse({ status: 201, type: MessageResDto })
@@ -114,6 +143,7 @@ export class BoardController {
   }
 
   @ApiOperation({ summary: 'Chi tiết báo cáo Hội đồng' })
+  @ApiErrors(ReportNotFoundException)
   @Get('reports/:id')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: SeriesReportResDto })
@@ -122,6 +152,12 @@ export class BoardController {
   }
 
   @ApiOperation({ summary: 'Editor tạo báo cáo phân tích series cho Hội đồng' })
+  @ApiErrors(
+    DecisionNotFoundException,
+    SessionNotFoundException,
+    SessionClosedReportException,
+    EditorNotInvitedException
+  )
   @Post('reports')
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: SeriesReportResDto })
@@ -130,6 +166,7 @@ export class BoardController {
   }
 
   @ApiOperation({ summary: 'Super Admin cập nhật cấu hình biểu quyết Hội đồng' })
+  @ApiErrors(BoardConfigNotFoundException, ConfigLockedException)
   @Patch('config/:id')
   @Roles(RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: BoardConfigResDto })
