@@ -15,18 +15,20 @@ import {
   UserOrEmailNotFoundException,
   UserHasAlreadySignedContractException,
   TransferContractNotFoundAfterUpdateException,
-  NotTheCoOwnerForChapterException,
-  ChapterApprovalIsNotPendingException
+  InvalidTransferStateException,
+  ValuationRequiredException
 } from '../errors/transfer.error'
 import {
   CreateTransferRequestBodyDto,
   BoardDecisionTransferBodyDto,
+  AssignFullBuyoutBodyDto,
   CreateTransferContractBodyDto,
-  SignTransferContractBodyDto,
-  CoOwnerRejectChapterBodyDto
+  SignTransferContractBodyDto
 } from '../dto/transfer.dto'
-import { TRANSFER_REQUEST_STATUS, CO_OWNER_APPROVAL_STATUS } from '../transfer.constant'
+import { TRANSFER_REQUEST_STATUS } from '../transfer.constant'
 import { TransferContractSignature, $Enums } from '@prisma/client'
+
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class TransferService {
@@ -60,6 +62,8 @@ export class TransferService {
   }
 
   async getTransferRequestById(id: string) {
+    // OBJECT_ID guard: id rác → 404 sạch thay vì P2023 → 500 (AGENTS §10). Central cho mọi route dùng hàm này.
+    if (!OBJECT_ID_RE.test(id)) throw TransferRequestNotFoundException
     const request = await this.transferRepo.findTransferRequestById(id)
     if (!request) {
       throw TransferRequestNotFoundException
@@ -93,13 +97,13 @@ export class TransferService {
     }
 
     return this.transferRepo.updateTransferRequest(id, {
-      status: TRANSFER_REQUEST_STATUS.REJECTED_BY_BOARD as any,
+      status: TRANSFER_REQUEST_STATUS.REJECTED_BY_BOARD,
       boardDecisionId: dto.boardSessionId
     })
   }
 
-  // B-TRF-02: Nhánh FULL_BUYOUT (Mô hình A) - Quyết định bàn giao tác phẩm cho Mangaka B
-  async boardAssignFullBuyout(id: string, dto: BoardDecisionTransferBodyDto) {
+  // B-TRF-02: Nhánh FULL_BUYOUT (Mô hình A) - Board định giá lại + đặt điều kiện cho HĐ mới của B.
+  async boardAssignFullBuyout(id: string, dto: AssignFullBuyoutBodyDto) {
     const request = await this.getTransferRequestById(id)
 
     if (request.originalContractType !== 'FULL_BUYOUT') {
@@ -109,15 +113,20 @@ export class TransferService {
     if (!request.originalContractId) {
       throw OriginalContractIdNotFoundException
     }
+    if (!dto.valuationAmount || dto.valuationAmount <= 0) {
+      throw ValuationRequiredException
+    }
 
     await this.transferRepo.terminateOldContract(request.originalContractId)
 
+    // BR-TRANSFER-05: điều kiện của B đếm theo đóng góp MỚI (Board nhập), không cộng dồn công của A.
     const newContract = await this.transferRepo.createNewContractFromTransfer({
       seriesId: request.seriesId,
       mangakaId: request.requestingMangakaId,
       sourceTransferRequestId: request.id,
       contractType: $Enums.ContractType.FULL_BUYOUT,
-      conditions: [{ description: 'Mangaka B đóng góp thêm N chương mới độc lập', type: 'RECURRING', value: 10 }]
+      valuationAmount: dto.valuationAmount,
+      conditions: dto.conditions
     })
 
     await this.transferRepo.updateSeriesOwnership(request.seriesId, {
@@ -143,7 +152,7 @@ export class TransferService {
     }
 
     return this.transferRepo.updateTransferRequest(id, {
-      status: TRANSFER_REQUEST_STATUS.NEGOTIATING as any
+      status: TRANSFER_REQUEST_STATUS.NEGOTIATING
     })
   }
 
@@ -167,13 +176,17 @@ export class TransferService {
     }
 
     return this.transferRepo.updateTransferRequest(id, {
-      status: TRANSFER_REQUEST_STATUS.REJECTED_BY_ORIGINAL_MANGAKA as any
+      status: TRANSFER_REQUEST_STATUS.REJECTED_BY_ORIGINAL_MANGAKA
     })
   }
 
-  // B-TRF-03: Editor lập hợp đồng thỏa thuận chuyển nhượng bản thảo 3 bên
+  // B-TRF-03: Editor lập hợp đồng thỏa thuận chuyển nhượng bản thảo 3 bên.
+  // Guard: chỉ khi request đã UNDER_REVIEW (Mangaka A đã accept) — tránh lập HĐ khi chưa deal xong.
   async createTransferContract(dto: CreateTransferContractBodyDto) {
     const request = await this.getTransferRequestById(dto.transferRequestId)
+    if (request.status !== TRANSFER_REQUEST_STATUS.UNDER_REVIEW) {
+      throw InvalidTransferStateException
+    }
 
     return this.transferRepo.createTransferContract({
       transferRequestId: request.id,
@@ -194,6 +207,7 @@ export class TransferService {
     role: 'MANGAKA_A' | 'MANGAKA_B' | 'BOARD',
     dto: SignTransferContractBodyDto
   ) {
+    if (!OBJECT_ID_RE.test(id)) throw TransferContractNotFoundException
     const contract = await this.transferRepo.findTransferContractById(id)
     if (!contract) {
       throw TransferContractNotFoundException
@@ -228,7 +242,7 @@ export class TransferService {
     }
 
     const freshSignatures: TransferContractSignature[] = updatedContract.signatures ?? []
-    const uniqueRolesSigned = new Set<string>(freshSignatures.map((s: TransferContractSignature) => s.role as string))
+    const uniqueRolesSigned = new Set<string>(freshSignatures.map((s: TransferContractSignature) => s.role))
 
     if (uniqueRolesSigned.has('MANGAKA_A') && uniqueRolesSigned.has('MANGAKA_B') && uniqueRolesSigned.has('BOARD')) {
       await this.transferRepo.updateTransferContractStatus(id, $Enums.TransferContractStatus.FULLY_EXECUTED)
@@ -256,6 +270,7 @@ export class TransferService {
   }
 
   async getSignatures(id: string) {
+    if (!OBJECT_ID_RE.test(id)) throw TransferContractNotFoundException
     const contract = await this.transferRepo.findTransferContractById(id)
     if (!contract) {
       throw TransferContractNotFoundException
@@ -273,61 +288,6 @@ export class TransferService {
     return { signatures: formattedSignatures }
   }
 
-  // B-TRF-05: Hook kiểm duyệt - Cho phép Co-owner (Mangaka A) duyệt chương mới nộp lên
-  async coOwnerApproveChapter(chapterId: string, coOwnerId: string): Promise<{ message: string }> {
-    const approvalRecord = await this.transferRepo.findCoOwnerApprovalByChapterId(chapterId)
-    if (!approvalRecord || approvalRecord.coOwnerId !== coOwnerId) {
-      throw NotTheCoOwnerForChapterException
-    }
-
-    if (approvalRecord.status !== CO_OWNER_APPROVAL_STATUS.PENDING) {
-      throw ChapterApprovalIsNotPendingException
-    }
-
-    await this.transferRepo.updateCoOwnerApproval(approvalRecord.id, {
-      status: CO_OWNER_APPROVAL_STATUS.APPROVED,
-      decisionAt: new Date()
-    })
-
-    return { message: TransferMessages.response.chapterApproved }
-  }
-
-  // B-TRF-05: Hook kiểm duyệt - Co-owner từ chối duyệt chương truyện kèm lý do cụ thể
-  async coOwnerRejectChapter(
-    chapterId: string,
-    coOwnerId: string,
-    dto: CoOwnerRejectChapterBodyDto
-  ): Promise<{ message: string }> {
-    const approvalRecord = await this.transferRepo.findCoOwnerApprovalByChapterId(chapterId)
-    if (!approvalRecord || approvalRecord.coOwnerId !== coOwnerId) {
-      throw NotTheCoOwnerForChapterException
-    }
-
-    if (approvalRecord.status !== CO_OWNER_APPROVAL_STATUS.PENDING) {
-      throw ChapterApprovalIsNotPendingException
-    }
-
-    await this.transferRepo.updateCoOwnerApproval(approvalRecord.id, {
-      status: CO_OWNER_APPROVAL_STATUS.REJECTED,
-      decisionAt: new Date(),
-      rejectReason: dto.rejectReason
-    })
-
-    return { message: TransferMessages.response.chapterRejected }
-  }
-
-  // B-TRF-05: Cơ chế kích hoạt tự động khi chương truyện bị quá hạn phản hồi của Co-owner
-  async escalateChapterApproval(chapterId: string): Promise<{ message: string }> {
-    const approvalRecord = await this.transferRepo.findCoOwnerApprovalByChapterId(chapterId)
-    if (!approvalRecord || approvalRecord.status !== CO_OWNER_APPROVAL_STATUS.PENDING) {
-      return { message: TransferMessages.response.noEscalationRequired }
-    }
-
-    await this.transferRepo.updateCoOwnerApproval(approvalRecord.id, {
-      status: CO_OWNER_APPROVAL_STATUS.ESCALATED,
-      escalatedAt: new Date()
-    })
-
-    return { message: TransferMessages.response.chapterEscalated }
-  }
+  // Co-owner chapter approval (B-TRF-05) đã chuyển sang chapter module (BE-A, ChapterCoOwnerService) —
+  // vì transition Manuscript là single-writer ở chapter. Xem Spec 6 / A-CHP-06.
 }

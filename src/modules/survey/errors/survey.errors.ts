@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException
+} from '@nestjs/common'
 import { SurveyMessages } from '../survey.messages'
 
 const E = SurveyMessages.error
@@ -12,3 +18,8 @@ export const VoteOtpRateLimitException = new BadRequestException(E.voteOtpRateLi
 export const SurveyDataImportNotAllowedException = new BadRequestException(E.surveyDataImportNotAllowed)
 export const RankingFinalizeNotAllowedException = new BadRequestException(E.rankingFinalizeNotAllowed)
 export const VotingConfigNotFoundException = new NotFoundException(E.votingConfigNotFound)
+export const TooManySeriesSelectedException = new UnprocessableEntityException([
+  { message: E.tooManySeriesSelected, path: 'seriesIds' }
+])
+export const RankingAccessDeniedException = new ForbiddenException(E.rankingAccessDenied)
+export const SeriesNotFoundForRankingException = new NotFoundException(E.seriesNotFoundForRanking)

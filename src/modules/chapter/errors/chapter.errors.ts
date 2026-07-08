@@ -8,6 +8,11 @@ export const NotSeriesOwnerException = new ForbiddenException(E.notSeriesOwner)
 export const NotSeriesEditorException = new ForbiddenException(E.notSeriesEditor)
 export const InvalidManuscriptTransitionException = new ConflictException(E.invalidManuscriptTransition)
 export const InvalidPageTransitionException = new ConflictException(E.invalidPageTransition)
+export const NotCoOwnerException = new ForbiddenException(E.notCoOwner)
+export const CoOwnerApprovalNotPendingException = new ConflictException([
+  { message: E.coOwnerApprovalNotPending, path: 'status' }
+])
+export const CoOwnerApprovalNotFoundException = new NotFoundException(E.coOwnerApprovalNotFound)
 export const PagesNotAllCompletedException = new ConflictException(E.pagesNotAllCompleted)
 export const DuplicateChapterNumberException = new ConflictException(E.duplicateChapterNumber)
 export const PageNotFoundException = new NotFoundException(E.pageNotFound)
@@ -23,6 +28,12 @@ export const NameNotApprovedException = new UnprocessableEntityException([
 export const NameNotInSeriesException = new UnprocessableEntityException([
   { message: E.nameNotInSeries, path: 'nameId' }
 ])
+export const NameNotChapterKindException = new UnprocessableEntityException([
+  { message: E.nameNotChapterKind, path: 'nameId' }
+])
 
-// ĐỊNH NGHĨA SẴN — defer B1, CHƯA throw (// B1-INTEGRATION: bật khi B1 xong).
+// A2 (Spec 1): chặn tạo chapter khi series chưa SERIALIZED.
+export const SeriesNotSerializedException = new ConflictException(E.seriesNotSerialized)
+
+// A3 (Spec 1): chặn publish khi series chưa có Contract FULLY_EXECUTED (BR-CONTRACT-05).
 export const ContractNotExecutedException = new ConflictException(E.contractNotExecuted)

@@ -19,8 +19,13 @@ export class ReprintRequestService {
     private readonly notificationService: NotificationService
   ) {}
 
-  async findAll(requestedBy: string, filters: { status?: string; seriesId?: string }) {
-    return this.reprintRequestRepo.findMany({ requestedBy, ...filters })
+  async findAll(userId: string, roleName: string, filters: { status?: string; seriesId?: string }) {
+    return this.reprintRequestRepo.findManyScoped({
+      userId,
+      roleName,
+      status: filters.status,
+      seriesId: filters.seriesId
+    })
   }
 
   async findById(id: string) {
@@ -319,10 +324,8 @@ export class ReprintRequestService {
     if (allChaptersPublished) {
       const contract = await this.reprintRequestRepo.findActiveContractBySeriesId(request.seriesId)
 
-      // AC2: REVENUE_SHARE -> Thực hiện chia doanh thu tại đây (B-CON-07)
-      if (contract && contract.contractType === 'REVENUE_SHARE') {
-        // Tích hợp logic xử lý chia sẻ doanh thu tương ứng với cấu trúc DB
-      }
+      // B-RPT-04: doanh thu tái bản KHÔNG chia lúc publish (chưa có doanh số).
+      // Editor/Board nhập revenue sau qua POST /contracts/:id/revenue (B-CON-07) → engine chia.
 
       const updated = await this.reprintRequestRepo.update(id, {
         chapters,

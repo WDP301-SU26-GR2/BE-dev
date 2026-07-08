@@ -1,9 +1,4 @@
-import {
-  AddNamePageBodySchema,
-  CreateProposalBodySchema,
-  SeriesResSchema,
-  UpdateProposalBodySchema
-} from './series-schemas'
+import { CreateProposalBodySchema, SeriesResSchema, UpdateProposalBodySchema } from './series-schemas'
 
 describe('Genre/Demographic enums', () => {
   it('CreateProposalBody chấp nhận genres enum hợp lệ + demographic', () => {
@@ -42,14 +37,43 @@ describe('Genre/Demographic enums', () => {
       genres: ['ACTION'],
       demographic: null,
       publicationType: null,
+      magazine: null,
+      startIssueNumber: null,
       status: 'DRAFT',
       statusReason: null,
       relationshipType: null,
+      franchiseConsentStatus: null,
       createdAt: '2026-06-29T00:00:00.000Z',
       reviewStartedAt: null,
       proposal: null
     })
     expect(ok.genres).toEqual(['ACTION'])
+  })
+
+  it('SeriesRes preserves serialization slot (magazine + startIssueNumber)', () => {
+    const ok = SeriesResSchema.parse({
+      id: 'a',
+      mangakaId: 'm',
+      editorId: null,
+      coOwnerId: null,
+      parentSeriesId: null,
+      title: 'T',
+      coverImage: null,
+      genres: [],
+      demographic: null,
+      publicationType: 'WEEKLY',
+      magazine: 'Weekly Shonen',
+      startIssueNumber: 5,
+      status: 'SERIALIZED',
+      statusReason: null,
+      relationshipType: null,
+      franchiseConsentStatus: null,
+      createdAt: '2026-06-29T00:00:00.000Z',
+      reviewStartedAt: null,
+      proposal: null
+    })
+    expect(ok.magazine).toBe('Weekly Shonen')
+    expect(ok.startIssueNumber).toBe(5)
   })
 })
 
@@ -78,14 +102,6 @@ describe('series schemas — coverImage', () => {
     expect(parsed.genres).toBeNull()
   })
 
-  it('AddNamePageBody parses a valid page', () => {
-    expect(AddNamePageBodySchema.parse({ pageNumber: 1, fileUrl: 'k' })).toEqual({ pageNumber: 1, fileUrl: 'k' })
-  })
-
-  it('AddNamePageBody rejects missing fileUrl', () => {
-    expect(AddNamePageBodySchema.safeParse({ pageNumber: 1 }).success).toBe(false)
-  })
-
   it('SeriesRes keeps coverImage', () => {
     const parsed = SeriesResSchema.parse({
       id: 's1',
@@ -98,9 +114,12 @@ describe('series schemas — coverImage', () => {
       genres: [],
       demographic: null,
       publicationType: null,
+      magazine: null,
+      startIssueNumber: null,
       status: 'DRAFT',
       statusReason: null,
       relationshipType: null,
+      franchiseConsentStatus: null,
       createdAt: '2026-06-23T00:00:00.000Z',
       reviewStartedAt: null,
       proposal: null

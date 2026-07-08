@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { PAYMENT_CONDITION_STATUS } from './transfer.constant'
-import { $Enums, ChapterCoOwnerApproval, TransferContractSignature } from '@prisma/client'
+import { $Enums, TransferContractSignature } from '@prisma/client'
 
 @Injectable()
 export class TransferRepo {
@@ -107,7 +107,11 @@ export class TransferRepo {
     })
   }
 
-  // B-TRF-02: Tạo hợp đồng mới độc lập hoàn toàn cho Mangaka B (Không cộng dồn công sức người cũ)
+  // B-TRF-02: Tạo hợp đồng mới độc lập hoàn toàn cho Mangaka B (Không cộng dồn công sức người cũ).
+  // Map input {description, type, value} → PaymentCondition schema thật:
+  //   conditionType (Prisma ConditionType) — type | fallback 'ONE_TIME'
+  //   payoutAmount — value (số tiền payout mỗi lần trigger)
+  //   thresholdConfig — { description } (lưu mô tả dạng JSON theo schema)
   async createNewContractFromTransfer(data: {
     seriesId: string
     mangakaId: string
@@ -123,10 +127,10 @@ export class TransferRepo {
         status: 'DRAFT',
         conditions: {
           create: conditions.map((cond) => ({
-            conditionType: cond.type as any,
-            targetValue: cond.value,
-            rewardAmount: 0, // Cấu hình bổ sung tùy nghiệp vụ tài chính của bạn
-            status: PAYMENT_CONDITION_STATUS.PENDING as any
+            conditionType: (cond.type as unknown as $Enums.ConditionType) ?? 'TIME_BOUND',
+            payoutAmount: cond.value,
+            thresholdConfig: { description: cond.description },
+            status: PAYMENT_CONDITION_STATUS.PENDING
           }))
         }
       }
@@ -202,42 +206,7 @@ export class TransferRepo {
     })
   }
 
-  // B-TRF-05: Tìm kiếm bản ghi phê duyệt chương truyện của Co-owner
-  async findCoOwnerApprovalByChapterId(chapterId: string): Promise<ChapterCoOwnerApproval | null> {
-    const approvals = await this.prisma.chapterCoOwnerApproval.findMany({
-      where: { chapterId }
-    })
-
-    return approvals[0] ?? null
-  }
-
-  // B-TRF-05: Khởi tạo tiến trình hook kiểm duyệt cho Co-owner khi có chương mới nộp lên
-  createCoOwnerChapterApproval(data: { chapterId: string; coOwnerId: string; deadline: Date }): Promise<ChapterCoOwnerApproval> {
-    return this.prisma.chapterCoOwnerApproval.create({
-      data: {
-        chapterId: data.chapterId,
-        coOwnerId: data.coOwnerId,
-        deadline: data.deadline,
-        status: 'PENDING'
-      }
-    })
-  }
-
-  // B-TRF-05: Cập nhật quyết định duyệt hoặc kích hoạt cơ chế leo thang (Escalate) do quá hạn
-  async updateCoOwnerApproval(
-    id: string,
-    data: {
-      status: $Enums.CoOwnerApprovalStatus
-      decisionAt?: Date
-      rejectReason?: string
-      escalatedAt?: Date
-      escalatedToId?: string
-    }
-  ): Promise<ChapterCoOwnerApproval> {
-    const result = await this.prisma.chapterCoOwnerApproval.update({
-      where: { id },
-      data
-    })
-    return result as ChapterCoOwnerApproval // Ép kiểu an toàn trước khi trả về
-  }
+  // Co-owner chapter approval (A-CHP-06 / B-TRF-05) đã CHUYỂN sang chapter module (BE-A) —
+  // xem src/modules/chapter/chapter.repo.ts (createCoOwnerApproval / findCoOwnerApprovalByChapterId / ...).
+  // Spec 6 / Task 6 — code cũ (findCoOwnerApprovalByChapterId / createCoOwnerChapterApproval / updateCoOwnerApproval) gỡ bỏ.
 }

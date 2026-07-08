@@ -1,4 +1,4 @@
-import { Injectable, NotImplementedException } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { PaymentRecordRepo } from '../payment.repo'
 import { PaymentConditionRepo } from '../payment-condition.repo'
@@ -24,10 +24,7 @@ import {
 import { CreatePaymentConditionBodyType, UpdatePaymentConditionBodyType } from '../schemas/payment-condition-schema'
 import { PaymentRecordStatus, PaymentConditionStatus, Prisma } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
-import {
-  parseThresholdConfig,
-  assertRecurringChapterIsRecurring
-} from '../validation/payment-condition.validation'
+import { parseThresholdConfig, assertRecurringChapterIsRecurring } from '../validation/payment-condition.validation'
 import { PAYMENT_CONDITION_STATUS } from '../payment.constant'
 
 @Injectable()
@@ -209,32 +206,8 @@ export class PaymentService {
     this.assertConditionEditable(condition.status)
 
     return this.paymentConditionRepo.update(conditionId, {
-      status: PAYMENT_CONDITION_STATUS.DISABLED as PaymentConditionStatus
+      status: PAYMENT_CONDITION_STATUS.DISABLED
     })
-  }
-
-  // ============================================================================
-  // Placeholder methods for future payment engine (not exposed as REST)
-  // ============================================================================
-
-  createTriggeredPayment(_params: Record<string, unknown>): never {
-    throw new NotImplementedException()
-  }
-
-  createRevenueSharePayment(_params: Record<string, unknown>): never {
-    throw new NotImplementedException()
-  }
-
-  createCompensationPayment(_params: Record<string, unknown>): never {
-    throw new NotImplementedException()
-  }
-
-  markConditionAchieved(_conditionId: string): never {
-    throw new NotImplementedException()
-  }
-
-  checkConditionsAfterChapterPublished(_contractId: string, _chapterNumber: number): never {
-    throw new NotImplementedException()
   }
 
   private async assertEditorOwnsContract(contractId: string, editorId: string) {
@@ -248,11 +221,7 @@ export class PaymentService {
     return contract
   }
 
-  private async assertContractViewable(
-    contractId: string,
-    userId: string,
-    roleName: string
-  ) {
+  private async assertContractViewable(contractId: string, userId: string, roleName: string) {
     const contract = await this.paymentConditionRepo.findContractById(contractId)
     if (!contract) {
       throw new ContractNotFoundForPaymentException()

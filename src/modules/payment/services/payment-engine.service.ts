@@ -102,6 +102,9 @@ export class PaymentEngineService {
         await this.generateCompensationPayment(contract, compensationAmount)
       }
     }
+
+    // B-CON-09: terminate all FULLY_EXECUTED contracts of the series after compensation is generated.
+    await this.paymentRepo.terminateContractsBySeries(payload.seriesId)
   }
 
   async handleRevenueReported(payload: RevenueReportedPayload): Promise<void> {
@@ -111,6 +114,20 @@ export class PaymentEngineService {
     if (!contract) return
 
     await this.generateRevenueSharePayments(contract, payload.revenue, payload.period)
+  }
+
+  // B-CON-10: pause — flip TIME_BOUND PENDING -> DISABLED so cron markMissed stops counting.
+  async handleSeriesHiatusStarted(payload: { seriesId: string }): Promise<void> {
+    await this.paymentRepo.pauseTimeBoundConditions(payload.seriesId)
+  }
+
+  // B-CON-10: resume — re-activate paused TIME_BOUND conditions and shift deadline forward by pausedMs.
+  async handleSeriesHiatusEnded(payload: { seriesId: string; pausedMs: number }): Promise<void> {
+    const conditions = await this.paymentRepo.findDisabledTimeBoundConditions(payload.seriesId)
+    for (const condition of conditions) {
+      const shifted = this.shiftDeadline(condition.thresholdConfig, payload.pausedMs)
+      await this.paymentRepo.resumeTimeBoundCondition(condition.id, shifted)
+    }
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
@@ -150,7 +167,8 @@ export class PaymentEngineService {
 
   async generateRevenueSharePayments(contract: ContractWithSeries, revenue: number, period: string) {
     const receivers = await this.resolveRevenueShareReceivers(contract)
-    const publisherPct = contract.publisherOwnershipPct ?? Math.max(0, 100 - receivers.reduce((sum, r) => sum + r.pct, 0))
+    const publisherPct =
+      contract.publisherOwnershipPct ?? Math.max(0, 100 - receivers.reduce((sum, r) => sum + r.pct, 0))
     const publisherAmount = (revenue * publisherPct) / 100
     this.logger.debug(`Publisher revenue share retained for contract ${contract.id}: ${publisherAmount}`)
 
@@ -294,6 +312,20 @@ export class PaymentEngineService {
     return Number.isNaN(date.getTime()) ? null : date
   }
 
+  // B-CON-10: shift a date-only 'YYYY-MM-DD' deadline forward by pausedMs while preserving other keys.
+  // Uses T00:00:00.000Z anchor so adding ms stays in UTC and slices cleanly back to a date string.
+  private shiftDeadline(config: unknown, pausedMs: number): Record<string, unknown> {
+    const base = config && typeof config === 'object' ? { ...(config as Record<string, unknown>) } : {}
+    const deadline = base.deadline
+    if (typeof deadline === 'string') {
+      const shifted = new Date(new Date(`${deadline}T00:00:00.000Z`).getTime() + pausedMs)
+      if (!Number.isNaN(shifted.getTime())) {
+        base.deadline = shifted.toISOString().slice(0, 10)
+      }
+    }
+    return base
+  }
+
   private extractCompensationAmount(contract: ContractWithSeries): number {
     if (!contract.terminationClause) return 0
 
@@ -314,7 +346,9 @@ export class PaymentEngineService {
     return 0
   }
 
-  private async resolveRevenueShareReceivers(contract: ContractWithSeries): Promise<Array<{ receiverId: string; pct: number }>> {
+  private async resolveRevenueShareReceivers(
+    contract: ContractWithSeries
+  ): Promise<Array<{ receiverId: string; pct: number }>> {
     const series = contract.series
     const mangakaPct = contract.mangakaOwnershipPct ?? 0
     if (!series?.coOwnerId) return [{ receiverId: contract.mangakaId, pct: mangakaPct }]

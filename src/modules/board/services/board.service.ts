@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { BoardRepository } from '../board.repo'
 import * as Errors from '../errors/board.errors'
 import {
@@ -12,19 +12,30 @@ import { BoardGateway } from '../board.gateway'
 import { $Enums, NotificationType } from '@prisma/client'
 import { BoardDecisionDataType } from '../schemas/board.model'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { DomainEvent, DomainEventPayload } from 'src/core/events/domain-events'
+import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 
 @Injectable()
 export class BoardService {
+  private readonly logger = new Logger(BoardService.name)
+
   constructor(
     private readonly boardRepo: BoardRepository,
     private readonly boardGateway: BoardGateway,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly eventBus: DomainEventBus
   ) {}
 
   /**
    * 1. Tạo Session
+   * Spec 7 / B-BRD-05: sĩ số đại biểu bắt buộc lẻ (loại trừ hòa phiếu).
    */
   async createSession(creatorId: string, dto: CreateBoardSessionBodyDto) {
+    // B-BRD-05: validate odd-size roster up-front (defense in depth — BoardConfig PATCH đã enforce qua zod superRefine,
+    // nhưng createSession là entry khác nên check ở đây để khóa cứng).
+    if (dto.allowedEditorIds.length === 0 || dto.allowedEditorIds.length % 2 === 0) {
+      throw new Errors.InvalidBoardMembersException()
+    }
     const isSessionExist = await this.boardRepo.findActiveSessionByTitle(dto.title)
     if (isSessionExist) {
       throw new Errors.SessionAlreadyExistsException(dto.title)
@@ -76,6 +87,10 @@ export class BoardService {
     const session = await this.boardRepo.findSessionById(dto.boardSessionId)
     if (!session) {
       throw new Errors.SessionNotFoundException(dto.boardSessionId)
+    }
+    // B-BRD-05 (defense-in-depth): chặn decision gắn vào session có roster chẵn (session có thể tạo/sửa bằng đường khác).
+    if (session.allowedEditorIds.length % 2 === 0) {
+      throw new Errors.InvalidBoardMembersException()
     }
     const decision = await this.boardRepo.createDecision(dto)
 
@@ -191,6 +206,10 @@ export class BoardService {
     const quorumMin = config?.quorumMin ?? 1
     const majorityRatio = config?.approveMajorityRatio ?? 0.5
 
+    // Đọc trạng thái TRƯỚC update để chống re-emit: chỉ phát event khi flip non-terminal → terminal.
+    const before = await this.boardRepo.findDecisionById(decisionId)
+    const wasTerminal = before?.result === 'APPROVED' || before?.result === 'REJECTED'
+
     const approveCount = currentVotes.filter((v) => v.voteValue === 'APPROVE').length
     const rejectCount = currentVotes.filter((v) => v.voteValue === 'REJECT').length
     const totalVotes = currentVotes.length
@@ -218,6 +237,26 @@ export class BoardService {
       result,
       decidedAt
     })
+
+    // Spec 2 / Flow 5: emit BoardDecisionFinalized khi kết quả LẦN ĐẦU đạt terminal (best-effort).
+    // Guard `!wasTerminal` chống re-emit khi có phiếu đến sau lúc đã chốt (Spec 1 §10). Series listener
+    // reacts to drive lifecycle transitions (CANCELLATION/COMPLETION/FORMAT_CHANGE/SERIALIZATION outcomes).
+    if ((result === 'APPROVED' || result === 'REJECTED') && !wasTerminal && before) {
+      try {
+        const payload: DomainEventPayload[typeof DomainEvent.BoardDecisionFinalized] = {
+          decisionId: before.id,
+          decisionType:
+            (before.decisionType as DomainEventPayload[typeof DomainEvent.BoardDecisionFinalized]['decisionType']) ??
+            '',
+          targetSeriesId: before.targetSeriesId ?? null,
+          result: result,
+          details: (before.details as Record<string, unknown> | null) ?? null
+        }
+        this.eventBus.emit(DomainEvent.BoardDecisionFinalized, payload)
+      } catch (e) {
+        this.logger.warn(`Failed to emit BoardDecisionFinalized for ${decisionId}: ${(e as Error).message}`)
+      }
+    }
 
     // 🌟 ÉP KIỂU ĐẦU RA AN TOÀN: Triệt tiêu hoàn toàn lỗi ESLint no-unsafe-return
     return updatedDecision

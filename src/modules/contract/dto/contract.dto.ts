@@ -3,6 +3,7 @@ import {
   CreateContractBodySchema,
   EditorUpdateContractBodySchema,
   SignContractWithOtpBodySchema,
+  ReportRevenueBodySchema,
   ContractResSchema,
   ContractVersionResSchema,
   ContractHealthResSchema,
@@ -13,6 +14,7 @@ import {
 export class CreateContractBodyDto extends createZodDto(CreateContractBodySchema) {}
 export class EditorUpdateContractBodyDto extends createZodDto(EditorUpdateContractBodySchema) {}
 export class SignContractWithOtpBodyDto extends createZodDto(SignContractWithOtpBodySchema) {}
+export class ReportRevenueBodyDto extends createZodDto(ReportRevenueBodySchema) {}
 export class ContractResDto extends createZodDto(ContractResSchema) {}
 export class ContractVersionResDto extends createZodDto(ContractVersionResSchema) {}
 export class ContractHealthResDto extends createZodDto(ContractHealthResSchema) {}

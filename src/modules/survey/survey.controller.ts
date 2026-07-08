@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common'
+import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common'
 import type { Request } from 'express'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
@@ -8,7 +8,9 @@ import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import {
+  BoardRankingListResDto,
   CreateSurveyPeriodBodyDto,
+  GetSeriesTrendQueryDto,
   ImportSurveyDataBodyDto,
   ReaderVoteBodyDto,
   ReaderVoteResDto,
@@ -24,10 +26,13 @@ import { SurveyService } from './services/survey.service'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
 import {
   ReaderAlreadyVotedException,
+  RankingAccessDeniedException,
+  SeriesNotFoundForRankingException,
   SurveyDataImportNotAllowedException,
   SurveyPeriodNotFoundException,
   SurveyPeriodNotOpenException,
   SurveyPeriodAlreadyFinalizedException,
+  TooManySeriesSelectedException,
   VoteOtpNotFoundException,
   VoteOtpRateLimitException,
   VotingConfigNotFoundException
@@ -55,7 +60,8 @@ export class SurveyController {
     ReaderAlreadyVotedException,
     SurveyPeriodNotFoundException,
     SurveyPeriodNotOpenException,
-    VoteOtpNotFoundException
+    VoteOtpNotFoundException,
+    TooManySeriesSelectedException
   )
   @ZodResponse({ status: 200, type: MessageResDto })
   submitVote(@Body() body: ReaderVoteBodyDto, @Req() req: Request) {
@@ -139,6 +145,30 @@ export class SurveyController {
   @ZodResponse({ status: 200, type: RankingRecordListResDto })
   getRankingRecords(@Param('id') id: string) {
     return this.surveyService.getRankingRecords(id)
+  }
+
+  // PB-04: bảng xếp hạng toàn tạp chí 1 kỳ — full cho mọi role nội bộ (không scope owner).
+  @Get('rankings/board')
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ApiOperation({ summary: 'PB-04: bảng xếp hạng toàn tạp chí 1 kỳ (full, mọi role nội bộ)' })
+  @ApiErrors(SurveyPeriodNotFoundException)
+  @ZodResponse({ status: 200, type: BoardRankingListResDto })
+  getBoardRanking(@Query('surveyPeriodId') surveyPeriodId: string) {
+    return this.surveyService.getBoardRanking(surveyPeriodId)
+  }
+
+  // PB-04: trend 1 series — scoping theo owner.
+  @Get('rankings')
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ApiOperation({ summary: 'PB-04: trend xếp hạng 1 series (scoped theo owner)' })
+  @ApiErrors(RankingAccessDeniedException, SeriesNotFoundForRankingException)
+  @ZodResponse({ status: 200, type: BoardRankingListResDto })
+  getSeriesTrend(
+    @Query() q: GetSeriesTrendQueryDto,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.surveyService.getSeriesTrend(q.seriesId, q.periods, { userId, roleName })
   }
 
   @Get('voting-config')

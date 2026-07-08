@@ -148,6 +148,14 @@ enum RelationshipType {
   REBOOT
 }
 
+// Spec 3 / A-SER-06: gate đồng ý franchise. null = không gate; PENDING khi parent REVENUE_SHARE
+// (FULLY_EXECUTED) & khác mangaka; APPROVED/REJECTED do Mangaka gốc quyết.
+enum FranchiseConsentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum Genre {
   ACTION
   ADVENTURE
@@ -294,6 +302,11 @@ enum NameStatus {
   IN_REVIEW
   REVISION
   APPROVED
+}
+
+enum NameKind {
+  PROPOSAL
+  CHAPTER
 }
 
 // REVIEW: inferred
@@ -483,6 +496,12 @@ enum ContractAmendmentStatus {
   VOIDED
 }
 
+enum AmendmentTrigger {
+  MANUAL
+  FORMAT_CHANGE
+  COMPLETION
+}
+
 // REVIEW: inferred
 enum PaymentConditionStatus {
   PENDING
@@ -510,6 +529,14 @@ enum SurveyStatus {
   OPEN
   CLOSED
   REFLECTED
+}
+
+// Spec 5 — at-risk tiering (B-VOT-05 / PB-02)
+enum RiskLevel {
+  NONE
+  LOW
+  MEDIUM
+  SEVERE
 }
 
 // REVIEW: inferred
@@ -633,8 +660,15 @@ model Series {
   status                  SeriesStatus               @default(DRAFT)
   statusReason            String?
   relationshipType        RelationshipType?
+  // Spec 3 / A-SER-06: gate đồng ý franchise. null = không gate; PENDING khi parent REVENUE_SHARE
+  // (FULLY_EXECUTED) & khác mangaka; APPROVED/REJECTED do Mangaka gốc quyết.
+  franchiseConsentStatus FranchiseConsentStatus?
+  magazine                String? // Flow 1 slot: tạp chí Board chọn khi serial hoá (null tới khi SERIALIZED — set bởi A1)
+  startIssueNumber        Int? // Flow 1 slot: số kỳ (issue) series bắt đầu đăng (null tới khi SERIALIZED — set bởi A1)
   coOwnerApprovalRequired Boolean                    @default(false)
   reviewStartedAt         DateTime?
+  hiatusStartedAt         DateTime? // Spec 2: set when entering HIATUS, null when resumed — used to compute pausedMs
+  endingChapterAllowance  Int? // Spec 2: N ending chapters Board grants on CANCELLATION (informational + audit)
   statusHistory           SeriesStatusHistoryEntry[]
 
   proposal SeriesProposal?
@@ -664,7 +698,7 @@ type SeriesProposal {
 type SeriesStatusHistoryEntry {
   fromStatus String
   toStatus   String
-  changedBy  String   @db.ObjectId
+  changedBy  String?  @db.ObjectId
   reason     String?
   at         DateTime
 }
@@ -676,6 +710,7 @@ model Name {
 
   chapterNumber Int?
   status        NameStatus @default(DRAFT)
+  kind          NameKind   @default(PROPOSAL)
   version       Int        @default(1)
   submittedAt   DateTime?
 
@@ -1159,7 +1194,37 @@ model ContractAmendment {
   fullyExecutedAt DateTime?
   createdAt       DateTime                @default(now())
 
+  // Spec 4 — typed new-term (null = KHÔNG đổi field đó)
+  valuationAmount       Float?
+  publisherOwnershipPct Float?
+  mangakaOwnershipPct   Float?
+  terminationClause     String?
+  contractStart         DateTime?
+  contractEnd           DateTime?
+
+  // Spec 4 — signing progress
+  mangakaSignedAt DateTime?
+  boardSignedAt   DateTime?
+
+  // Spec 4 — audit
+  createdBy     String?          @db.ObjectId
+  triggerSource AmendmentTrigger @default(MANUAL)
+  voidReason    String?
+
+  signatures AmendmentSignature[]
+
   @@index([contractId])
+}
+
+model AmendmentSignature {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  amendmentId String            @db.ObjectId
+  amendment   ContractAmendment @relation(fields: [amendmentId], references: [id], onDelete: Cascade)
+  userId      String            @db.ObjectId
+  role        String
+  signedAt    DateTime          @default(now())
+
+  @@unique([amendmentId, userId])
 }
 
 model ReprintRequest {
@@ -1324,13 +1389,15 @@ model RankingRecord {
   surveyPeriodId String       @db.ObjectId
   surveyPeriod   SurveyPeriod @relation(fields: [surveyPeriodId], references: [id])
 
-  rankPosition Int?
-  voteCount    Float    @default(0)
-  previousRank Int?
-  rankChange   Int?
-  isAtRisk     Boolean  @default(false)
-  isReliable   Boolean  @default(true)
-  recordedAt   DateTime @default(now())
+  rankPosition           Int?
+  voteCount              Float     @default(0)
+  previousRank           Int?
+  rankChange             Int?
+  isAtRisk               Boolean   @default(false)
+  riskLevel              RiskLevel @default(NONE)
+  consecutiveAtRiskCount Int       @default(0)
+  isReliable             Boolean   @default(true)
+  recordedAt             DateTime  @default(now())
 
   @@index([seriesId])
   @@index([surveyPeriodId])
@@ -1406,12 +1473,12 @@ model VotingConfig {
   updatedBy String? @db.ObjectId
 
   authMode         VotingAuthMode @default(OTP)
-  maxSeriesPerVote Int            @default(1)
+  maxSeriesPerVote Int            @default(3)
   otpExpirySeconds Int            @default(300)
   otpMaxAttempts   Int            @default(3)
   ipRateLimit      Int            @default(10)
-  phoneRateLimit   Int            @default(5)
-  captchaThreshold Float          @default(0.5)
+  phoneRateLimit   Int            @default(3)
+  captchaThreshold Float          @default(0.3)
   updatedAt        DateTime       @updatedAt
 
   @@index([updatedBy])

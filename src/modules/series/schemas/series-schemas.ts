@@ -2,7 +2,9 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import {
   Demographic,
+  FranchiseConsentStatus,
   Genre,
+  NameKind,
   NameStatus,
   ProposalStatus,
   PublicationType,
@@ -53,16 +55,6 @@ export const ReasonBodySchema = extendApi(z.object({ reason: z.string().min(1).m
   description: 'Lý do (revision/reject/withdraw)'
 })
 
-export const UpdateNamePagesBodySchema = extendApi(z.object({ pages: z.array(NamePageSchema) }).strict(), {
-  title: 'UpdateNamePagesBody',
-  description: 'Cập nhật trang Name'
-})
-
-export const AddNamePageBodySchema = extendApi(NamePageSchema.strict(), {
-  title: 'AddNamePageBody',
-  description: 'Thêm 1 trang vào Name'
-})
-
 export const SeriesResSchema = extendApi(
   z.object({
     id: z.string(),
@@ -78,12 +70,24 @@ export const SeriesResSchema = extendApi(
     genres: z.array(zEnum(Genre, 'Genre')),
     demographic: zEnum(Demographic, 'Demographic').nullable(),
     publicationType: zEnum(PublicationType, 'PublicationType').nullable(),
+    magazine: z
+      .string()
+      .nullable()
+      .describe('Tạp chí Board chọn khi serial hoá (Flow 1 slot); null tới khi series SERIALIZED'),
+    startIssueNumber: z
+      .number()
+      .int()
+      .nullable()
+      .describe('Số kỳ (issue) series bắt đầu đăng (Flow 1 slot); null tới khi series SERIALIZED'),
     status: zEnum(SeriesStatus, 'SeriesStatus'),
     statusReason: z
       .string()
       .nullable()
       .describe('Lý do của lần đổi status gần nhất (reject/withdraw/cancel...); null nếu không có'),
     relationshipType: zEnum(RelationshipType, 'RelationshipType').nullable(),
+    franchiseConsentStatus: zEnum(FranchiseConsentStatus, 'FranchiseConsentStatus')
+      .nullable()
+      .describe('Gate đồng ý franchise: null=không gate; PENDING chờ Mangaka gốc; APPROVED/REJECTED đã quyết'),
     createdAt: z.string().describe('ISO 8601'),
     reviewStartedAt: z
       .string()
@@ -112,6 +116,9 @@ export const NameResSchema = extendApi(
     id: z.string(),
     seriesId: z.string(),
     chapterNumber: z.number().nullable().describe('null cho Name chương mẫu của proposal'),
+    // Spec 8: kind field exposed so FE can distinguish PROPOSAL vs CHAPTER on the bundled
+    // CreateProposalRes payload (and anywhere else series module returns a Name).
+    kind: zEnum(NameKind, 'NameKind'),
     status: zEnum(NameStatus, 'NameStatus'),
     version: z.number().describe('Tăng mỗi lần resubmit'),
     submittedAt: z.string().nullable().describe('ISO 8601; null khi chưa submit'),
@@ -128,8 +135,6 @@ export const CreateProposalResSchema = extendApi(z.object({ series: SeriesResSch
 export type CreateProposalBodyType = z.infer<typeof CreateProposalBodySchema>
 export type UpdateProposalBodyType = z.infer<typeof UpdateProposalBodySchema>
 export type ReasonBodyType = z.infer<typeof ReasonBodySchema>
-export type UpdateNamePagesBodyType = z.infer<typeof UpdateNamePagesBodySchema>
-export type AddNamePageBodyType = z.infer<typeof AddNamePageBodySchema>
 export type ListSeriesQueryType = z.infer<typeof ListSeriesQuerySchema>
 
 export const ListSeriesQuerySchema = extendApi(
@@ -153,7 +158,23 @@ export const SeriesListResSchema = extendApi(
   { title: 'SeriesListRes', description: 'Danh sách series phân trang' }
 )
 
-export const NameListResSchema = extendApi(z.object({ items: z.array(NameResSchema) }), {
-  title: 'NameListRes',
-  description: 'Danh sách Name của series'
+// Spec 2 / Flow 5: Editor gửi series vào HIATUS. reason bắt buộc; expectedReturnDate optional (ISO 8601).
+export const HiatusBodySchema = extendApi(
+  z
+    .object({
+      reason: z.string().min(1).max(1000),
+      expectedReturnDate: z.string().datetime({ message: 'expectedReturnDate phải là ISO 8601' }).optional()
+    })
+    .strict(),
+  { title: 'HiatusBody', description: 'Lý do Editor cho series tạm ngưng (Spec 2 Flow 5)' }
+)
+
+export type HiatusBodyType = z.infer<typeof HiatusBodySchema>
+
+// Spec 3 / A-SER-06: Mangaka gốc đồng ý/từ chối series phái sinh (franchise gate).
+export const FranchiseConsentBodySchema = extendApi(z.object({ approve: z.boolean() }).strict(), {
+  title: 'FranchiseConsentBody',
+  description: 'Mangaka gốc đồng ý (true)/từ chối (false) series phái sinh'
 })
+
+export type FranchiseConsentBodyType = z.infer<typeof FranchiseConsentBodySchema>

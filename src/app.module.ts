@@ -15,6 +15,7 @@ import { NotificationModule } from './modules/notification/notification.module'
 import { AnnotationModule } from './modules/annotation/annotation.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { SeriesModule } from './modules/series/series.module'
+import { NameModule } from './modules/name/name.module'
 import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 import { BoardModule } from './modules/board/board.module'
@@ -28,6 +29,7 @@ import { TransferModule } from './modules/transfer/transfer.module'
 import { PaymentModule } from './modules/payment/payment.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { AppConfigModule } from './modules/app-config/app-config.module'
+import { PublicationModule } from './modules/publication/publication.module'
 
 @Module({
   imports: [
@@ -41,6 +43,7 @@ import { AppConfigModule } from './modules/app-config/app-config.module'
     NotificationModule,
     ReviewsModule,
     SeriesModule,
+    NameModule,
     StorageModule,
     ChapterModule,
     AnnotationModule,
@@ -54,7 +57,8 @@ import { AppConfigModule } from './modules/app-config/app-config.module'
     TransferModule,
     PaymentModule,
     AuditModule,
-    AppConfigModule
+    AppConfigModule,
+    PublicationModule
   ],
   controllers: [],
   providers: [

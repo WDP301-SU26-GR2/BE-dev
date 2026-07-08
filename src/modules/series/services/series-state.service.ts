@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
-import { AuditEntityType, NameStatus, ProposalStatus, SeriesStatus } from '@prisma/client'
+import { AuditEntityType, ProposalStatus, SeriesStatus } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
+import { NameRepo } from 'src/modules/name/name.repo'
 import { SERIES_TRANSITIONS } from '../series.constant'
 import { InvalidSeriesTransitionException, SeriesNotFoundException } from '../errors/series.errors'
 import { SeriesRepository } from '../series.repo'
@@ -9,10 +10,11 @@ import { SeriesRepository } from '../series.repo'
 export class SeriesStateService {
   constructor(
     private readonly seriesRepository: SeriesRepository,
+    private readonly nameRepo: NameRepo,
     private readonly auditService: AuditService
   ) {}
 
-  async transition(seriesId: string, toStatus: SeriesStatus, opts: { changedBy: string; reason?: string }) {
+  async transition(seriesId: string, toStatus: SeriesStatus, opts: { changedBy: string | null; reason?: string }) {
     const series = await this.seriesRepository.findById(seriesId)
     if (!series) throw SeriesNotFoundException
     const from = series.status
@@ -43,8 +45,10 @@ export class SeriesStateService {
     if (series.proposal?.status !== ProposalStatus.PROPOSAL_APPROVED) return series
     const nameId = series.proposal?.nameId
     if (!nameId) return series
-    const name = await this.seriesRepository.findNameById(nameId)
-    if (!name || name.status !== NameStatus.APPROVED) return series
+    // Spec 8: Name data access belongs to NameRepo (module name). SeriesStateService reads Name
+    // status qua NameRepo (name module exposes NameRepo via exports).
+    const name = await this.nameRepo.findNameById(nameId)
+    if (!name || name.status !== 'APPROVED') return series
     return await this.transition(seriesId, SeriesStatus.READY_TO_PITCH, { changedBy })
   }
 }

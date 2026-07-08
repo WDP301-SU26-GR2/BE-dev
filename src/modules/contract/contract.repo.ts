@@ -9,6 +9,12 @@ import { RoleName } from 'src/core/security/constants/role.constant'
 export class ContractRepo {
   constructor(private readonly prisma: PrismaService) {}
 
+  // B-CON-01: đọc trạng thái series để gate tạo hợp đồng (cross-module read prisma.series).
+  async findSeriesStatus(seriesId: string): Promise<string | null> {
+    const series = await this.prisma.series.findUnique({ where: { id: seriesId }, select: { status: true } })
+    return series?.status ?? null
+  }
+
   // 1. Tạo hợp đồng nháp mới
   createDraft(editorId: string, dto: CreateContractBodyType): Promise<Contract> {
     return this.prisma.contract.create({
@@ -30,11 +36,7 @@ export class ContractRepo {
 
   findManyByViewer(userId: string, roleName: string): Promise<Contract[]> {
     const where =
-      roleName === RoleName.EDITOR
-        ? { editorId: userId }
-        : roleName === RoleName.MANGAKA
-          ? { mangakaId: userId }
-          : {}
+      roleName === RoleName.EDITOR ? { editorId: userId } : roleName === RoleName.MANGAKA ? { mangakaId: userId } : {}
 
     return this.prisma.contract.findMany({
       where,

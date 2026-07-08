@@ -3,6 +3,8 @@ export const TransferMessages = {
     noActiveContractFound: 'NO_ACTIVE_CONTRACT_FOUND_FOR_THIS_SERIES',
     transferRequestNotFound: 'TRANSFER_REQUEST_NOT_FOUND',
     invalidStatusForScreening: 'INVALID_STATUS_FOR_SCREENING',
+    invalidTransferState: 'Error.InvalidTransferState',
+    valuationRequired: 'Error.ValuationRequired',
     onlyAppliesToFullBuyout: 'THIS_ACTION_ONLY_APPLIES_TO_FULL_BUYOUT_CONTRACTS',
     originalContractIdNotFound: 'ORIGINAL_CONTRACT_ID_NOT_FOUND',
     onlyAppliesToRevenueShare: 'THIS_ACTION_ONLY_APPLIES_TO_REVENUE_SHARE_CONTRACTS',

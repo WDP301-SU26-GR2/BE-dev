@@ -1,8 +1,14 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { TransferMessages } from './transfer.message'
 
 const E = TransferMessages.error
 
+export const InvalidTransferStateException = new ConflictException([
+  { message: E.invalidTransferState, path: 'status' }
+])
+export const ValuationRequiredException = new BadRequestException([
+  { message: E.valuationRequired, path: 'valuationAmount' }
+])
 export const NoActiveContractFoundException = new BadRequestException(E.noActiveContractFound)
 export const TransferRequestNotFoundException = new NotFoundException(E.transferRequestNotFound)
 export const InvalidStatusForScreeningException = new BadRequestException(E.invalidStatusForScreening)

@@ -3,10 +3,16 @@ import { ManuscriptStatus, NotificationType } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
-import { ChapterNotFoundException, ChapterOnHoldException, NotSeriesEditorException } from '../errors/chapter.errors'
+import {
+  ChapterNotFoundException,
+  ChapterOnHoldException,
+  ContractNotExecutedException,
+  NotSeriesEditorException
+} from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { ManuscriptStateService } from './manuscript-state.service'
 import { ChapterMessages } from '../chapter.messages'
+import { AppConfigService } from 'src/modules/app-config/app-config.service'
 
 @Injectable()
 export class ChapterPublishService {
@@ -14,7 +20,8 @@ export class ChapterPublishService {
     private readonly chapterRepository: ChapterRepository,
     private readonly manuscriptStateService: ManuscriptStateService,
     private readonly eventBus: DomainEventBus,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly appConfigService: AppConfigService
   ) {}
 
   // A-CHP-05/06. Transition map đảm bảo chỉ publish được từ READY_FOR_PRINT (else InvalidManuscriptTransition 409).
@@ -26,15 +33,21 @@ export class ChapterPublishService {
     // PA-04: hold check SAU editor check — người ngoài cuộc nhận 403, không lộ trạng thái hold
     if (chapter.hold) throw ChapterOnHoldException
 
-    // B1-INTEGRATION: chặn publish nếu series chưa có Contract FULLY_EXECUTED (BR-CONTRACT-05).
-    // Defer — khi B1 xong: if (!contractExecuted) throw ContractNotExecutedException
+    // A3 (BR-CONTRACT-05): chặn publish nếu series chưa có Contract FULLY_EXECUTED.
+    // Lookup lúc publish (không dùng cờ executedContractId) → luôn đọc trạng thái thật, không staleness.
+    const executedContract = await this.chapterRepository.findExecutedContractBySeriesId(series.id)
+    if (!executedContract) throw ContractNotExecutedException
 
     // A-CHP-06 branch: co-owner (PARTIAL_TRANSFER) cần duyệt trước khi publish.
-    // coOwnerId chỉ được set bởi B3 (chưa làm) → hiện luôn null → publish thẳng.
+    // coOwnerId do B3 (transfer PARTIAL_TRANSFER) set. Tạo record ChapterCoOwnerApproval + notify.
+    // Duyệt/từ chối qua ChapterCoOwnerService; escalate quá hạn qua CoOwnerEscalationCron.
     if (series.coOwnerId) {
       const res = await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.AWAITING_CO_OWNER_APPROVAL, {
         changedBy: userId
       })
+      const appConfig = await this.appConfigService.get()
+      const deadline = new Date(Date.now() + appConfig.coOwnerApprovalGraceDays * 86400_000)
+      await this.chapterRepository.createCoOwnerApproval({ chapterId, coOwnerId: series.coOwnerId, deadline })
       await this.notificationService.notifySafe({
         recipientId: series.coOwnerId,
         type: NotificationType.REVIEW,
@@ -42,7 +55,6 @@ export class ChapterPublishService {
         referenceType: 'MANUSCRIPT_AWAITING_CO_OWNER',
         content: ChapterMessages.notification.awaitingCoOwnerApproval
       })
-      // B3-INTEGRATION: endpoint co-owner approve/reject + B5-INTEGRATION escalate quá hạn (defer).
       return res
     }
 
@@ -51,7 +63,12 @@ export class ChapterPublishService {
     })
     // Emit SAU khi DB cập nhật (spec §6.1). publishedAt lấy từ chapter sau transition.
     const publishedAt = res?.publishedAt ? res.publishedAt.toISOString() : new Date().toISOString()
-    this.eventBus.emit(DomainEvent.ChapterPublished, { chapterId, seriesId: series.id, publishedAt })
+    this.eventBus.emit(DomainEvent.ChapterPublished, {
+      chapterId,
+      seriesId: series.id,
+      chapterNumber: chapter.chapterNumber,
+      publishedAt
+    })
     return res
   }
 }

@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common'
-import { NameStatus, Prisma, ProposalStatus, SeriesStatus } from '@prisma/client'
+import {
+  FranchiseConsentStatus,
+  NameKind,
+  NameStatus,
+  Prisma,
+  ProposalStatus,
+  PublicationType,
+  SeriesStatus
+} from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { SeriesNotFoundException } from './errors/series.errors'
 import { CreateProposalBodyType, UpdateProposalBodyType } from './schemas/series-schemas'
@@ -19,7 +27,11 @@ export type SeriesListFilter = {
 export class SeriesRepository {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async createProposalSeries(mangakaId: string, body: CreateProposalBodyType) {
+  async createProposalSeries(
+    mangakaId: string,
+    body: CreateProposalBodyType,
+    franchiseConsentStatus?: FranchiseConsentStatus
+  ) {
     const series = await this.prismaService.series.create({
       data: {
         mangakaId,
@@ -30,6 +42,7 @@ export class SeriesRepository {
         publicationType: body.publicationType ?? null,
         parentSeriesId: body.parentSeriesId ?? null,
         relationshipType: body.relationshipType ?? null,
+        franchiseConsentStatus: franchiseConsentStatus ?? null,
         status: SeriesStatus.DRAFT,
         proposal: {
           synopsis: body.synopsis ?? null,
@@ -44,6 +57,8 @@ export class SeriesRepository {
       data: {
         seriesId: series.id,
         chapterNumber: null,
+        // kind=PROPOSAL set explicitly: this is the only Name write outside NameRepo (atomic with proposal creation).
+        kind: NameKind.PROPOSAL,
         status: NameStatus.DRAFT,
         version: 1,
         pages: body.namePages.map((p) => ({ pageNumber: p.pageNumber, fileUrl: p.fileUrl }))
@@ -62,10 +77,6 @@ export class SeriesRepository {
 
   async findById(seriesId: string) {
     return await this.prismaService.series.findUnique({ where: { id: seriesId } })
-  }
-
-  async findNameById(nameId: string) {
-    return await this.prismaService.name.findUnique({ where: { id: nameId } })
   }
 
   async updateProposalContent(seriesId: string, body: UpdateProposalBodyType) {
@@ -135,23 +146,11 @@ export class SeriesRepository {
     })
   }
 
-  async updateNameStatus(nameId: string, data: { status: NameStatus; version?: number; submittedAt?: Date }) {
-    return await this.prismaService.name.update({ where: { id: nameId }, data })
-  }
-
-  async updateNamePages(nameId: string, pages: { pageNumber: number; fileUrl: string }[]) {
-    return await this.prismaService.name.update({ where: { id: nameId }, data: { pages: { set: pages } } })
-  }
-
-  async appendNamePage(nameId: string, page: { pageNumber: number; fileUrl: string }) {
-    return await this.prismaService.name.update({ where: { id: nameId }, data: { pages: { push: page } } })
-  }
-
   // Single-writer cho Series.status: chỉ method này (gọi từ SeriesStateService) ghi status + audit.
   // KHÔNG đụng `proposal` (composite) nên không bị wipe; chỉ set scalar `status`/`statusReason` + push history.
   async updateStatusWithHistory(
     seriesId: string,
-    entry: { fromStatus: SeriesStatus; toStatus: SeriesStatus; changedBy: string; reason?: string }
+    entry: { fromStatus: SeriesStatus; toStatus: SeriesStatus; changedBy: string | null; reason?: string }
   ) {
     return await this.prismaService.series.update({
       where: { id: seriesId },
@@ -206,10 +205,60 @@ export class SeriesRepository {
     return await this.prismaService.series.count({ where })
   }
 
-  async findNamesBySeriesId(seriesId: string) {
-    return await this.prismaService.name.findMany({
-      where: { seriesId },
-      orderBy: { version: 'asc' }
+  // Spec 2: HIATUS timestamp — set when entering hiatus, null when resumed.
+  async setHiatusStartedAt(seriesId: string, date: Date | null) {
+    await this.prismaService.series.update({
+      where: { id: seriesId },
+      data: { hiatusStartedAt: date }
+    })
+  }
+
+  // Spec 2: N ending chapters Board grants on CANCELLATION (informational).
+  async setEndingChapterAllowance(seriesId: string, allowance: number | null) {
+    await this.prismaService.series.update({
+      where: { id: seriesId },
+      data: { endingChapterAllowance: allowance }
+    })
+  }
+
+  // Spec 2: change publicationType (FORMAT_CHANGE) — partial, NOT touching magazine/startIssueNumber (avoid clobber).
+  async updatePublicationType(seriesId: string, publicationType: PublicationType) {
+    await this.prismaService.series.update({
+      where: { id: seriesId },
+      data: { publicationType }
+    })
+  }
+
+  // Spec 2: write Flow 1 serialization slot (magazine + startIssueNumber + publicationType) before
+  // transitioning PITCHED -> SERIALIZED. Magazine/startIssueNumber are still null until this runs,
+  // so this is a safe `set` (no prior value to clobber).
+  async updateSerializationSlot(
+    seriesId: string,
+    slot: { magazine: string; startIssueNumber: number; publicationType: string }
+  ) {
+    await this.prismaService.series.update({
+      where: { id: seriesId },
+      data: {
+        magazine: slot.magazine,
+        startIssueNumber: slot.startIssueNumber,
+        publicationType: slot.publicationType as PublicationType
+      }
+    })
+  }
+
+  // Spec 3 §4.5: contractType của Contract FULLY_EXECUTED (gate franchise). null nếu chưa có.
+  async findExecutedContractType(seriesId: string): Promise<'FULL_BUYOUT' | 'REVENUE_SHARE' | null> {
+    const contract = await this.prismaService.contract.findFirst({
+      where: { seriesId, status: 'FULLY_EXECUTED' },
+      select: { contractType: true }
+    })
+    return contract?.contractType ?? null
+  }
+
+  async setFranchiseConsentStatus(seriesId: string, status: FranchiseConsentStatus) {
+    return await this.prismaService.series.update({
+      where: { id: seriesId },
+      data: { franchiseConsentStatus: status }
     })
   }
 }

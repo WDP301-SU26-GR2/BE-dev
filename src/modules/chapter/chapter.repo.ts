@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common'
-import { ChapterHoldAction, ChapterStatus, ManuscriptStatus, NameStatus, PageStatus, TaskStatus } from '@prisma/client'
+import {
+  ChapterHoldAction,
+  ChapterStatus,
+  CoOwnerApprovalStatus,
+  ManuscriptStatus,
+  NameStatus,
+  PageStatus,
+  TaskStatus
+} from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { deriveChapterStatus } from './chapter.constant'
 
@@ -13,6 +21,14 @@ export class ChapterRepository {
   }
   findNameById(nameId: string) {
     return this.prismaService.name.findUnique({ where: { id: nameId } })
+  }
+  // A3 publish gate (BR-CONTRACT-05): series phải có Contract FULLY_EXECUTED trước khi publish.
+  // Cross-module read prisma.contract (tiền lệ: reprint/payment repo). Chỉ select id (nhẹ).
+  findExecutedContractBySeriesId(seriesId: string) {
+    return this.prismaService.contract.findFirst({
+      where: { seriesId, status: 'FULLY_EXECUTED' },
+      select: { id: true }
+    })
   }
 
   // ----- chapter -----
@@ -267,5 +283,53 @@ export class ChapterRepository {
   }
   countIncompletePages(chapterId: string) {
     return this.prismaService.page.count({ where: { chapterId, status: { not: PageStatus.COMPLETED } } })
+  }
+
+  // ----- co-owner approval (A-CHP-06 / B-TRF-05) -----
+  createCoOwnerApproval(data: { chapterId: string; coOwnerId: string; deadline: Date }) {
+    return this.prismaService.chapterCoOwnerApproval.create({
+      data: {
+        chapterId: data.chapterId,
+        coOwnerId: data.coOwnerId,
+        deadline: data.deadline,
+        status: CoOwnerApprovalStatus.PENDING
+      }
+    })
+  }
+  async findCoOwnerApprovalByChapterId(chapterId: string) {
+    // Lấy record mở gần nhất (an toàn nếu nhiều lần re-publish).
+    const rows = await this.prismaService.chapterCoOwnerApproval.findMany({
+      where: { chapterId },
+      orderBy: { createdAt: 'desc' },
+      take: 1
+    })
+    return rows[0] ?? null
+  }
+  updateCoOwnerApproval(
+    id: string,
+    data: {
+      status: CoOwnerApprovalStatus
+      decisionAt?: Date
+      rejectReason?: string
+      escalatedAt?: Date
+    }
+  ) {
+    return this.prismaService.chapterCoOwnerApproval.update({ where: { id }, data })
+  }
+  // Escalate cron: record PENDING quá hạn, chưa escalate.
+  findOverdueCoOwnerApprovals(now: Date) {
+    return this.prismaService.chapterCoOwnerApproval.findMany({
+      where: { status: CoOwnerApprovalStatus.PENDING, deadline: { lt: now }, escalatedAt: { isSet: false } }
+    })
+  }
+  // Board recipients cho escalate — resolve roleId trước (Mongo tránh relation-filter, bám users.repo).
+  async findBoardMemberIds(): Promise<string[]> {
+    const role = await this.prismaService.role.findFirst({ where: { code: 'BOARD_MEMBER' }, select: { id: true } })
+    if (!role) return []
+    const users = await this.prismaService.user.findMany({
+      where: { roleId: role.id, deletedAt: { isSet: false } },
+      select: { id: true }
+    })
+    return users.map((u) => u.id)
   }
 }
