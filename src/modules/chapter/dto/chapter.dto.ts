@@ -12,6 +12,7 @@ import {
   ReasonBodySchema,
   SetScheduleBodySchema,
   StudioOverviewResSchema,
+  UpdateChapterBodySchema,
   UpdatePageBodySchema
 } from '../schemas/chapter-schemas'
 
@@ -21,6 +22,7 @@ export class ExtendDeadlineBodyDto extends createZodDto(ExtendDeadlineBodySchema
 export class HoldChapterBodyDto extends createZodDto(HoldChapterBodySchema) {}
 export class CreatePageBodyDto extends createZodDto(CreatePageBodySchema) {}
 export class UpdatePageBodyDto extends createZodDto(UpdatePageBodySchema) {}
+export class UpdateChapterBodyDto extends createZodDto(UpdateChapterBodySchema) {}
 export class ReasonBodyDto extends createZodDto(ReasonBodySchema) {}
 export class ChapterResDto extends createZodDto(ChapterResSchema) {}
 export class ChapterListResDto extends createZodDto(ChapterListResSchema) {}

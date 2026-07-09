@@ -7,9 +7,11 @@ import {
   ExtendDeadlineBodyType,
   HoldChapterBodyType,
   SetScheduleBodyType,
+  UpdateChapterBodyType,
   UpdatePageBodyType
 } from './schemas/chapter-schemas'
 import { ChapterCreationService } from './services/chapter-creation.service'
+import { ChapterCrudService } from './services/chapter-crud.service'
 import { ChapterHoldService } from './services/chapter-hold.service'
 import { ChapterPublishService } from './services/chapter-publish.service'
 import { ChapterCoOwnerService } from './services/chapter-coowner.service'
@@ -23,6 +25,7 @@ import { ChapterNotFoundException } from './errors/chapter.errors'
 export class ChapterService {
   constructor(
     private readonly creationService: ChapterCreationService,
+    private readonly crudService: ChapterCrudService,
     private readonly scheduleService: ScheduleService,
     private readonly holdService: ChapterHoldService,
     private readonly pageService: PageService,
@@ -36,6 +39,15 @@ export class ChapterService {
   async create(userId: string, body: CreateChapterBodyType) {
     const chapter = await this.creationService.create(userId, body)
     return toChapterRes(chapter!)
+  }
+
+  async updateChapter(userId: string, chapterId: string, body: UpdateChapterBodyType) {
+    const chapter = await this.crudService.updateChapter(userId, chapterId, body)
+    return toChapterRes(chapter!)
+  }
+
+  deleteChapter(userId: string, id: string) {
+    return this.crudService.deleteChapter(userId, id)
   }
 
   async getOne(chapterId: string) {

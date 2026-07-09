@@ -5,15 +5,10 @@ import { zEnum } from 'src/core/http/docs/enum-docs'
 
 export const NamePageSchema = z.object({ pageNumber: z.number().int().min(1), fileUrl: z.string().min(1) }).strict()
 
-export const CreateChapterNameBodySchema = extendApi(
-  z
-    .object({
-      chapterNumber: z.number().int().positive(),
-      namePages: z.array(NamePageSchema).min(1)
-    })
-    .strict(),
-  { title: 'CreateChapterNameBody', description: 'Tạo chapter-Name (chapterNumber + namePages)' }
-)
+export const CreateChapterNameBodySchema = extendApi(z.object({ namePages: z.array(NamePageSchema).min(1) }).strict(), {
+  title: 'CreateChapterNameBody',
+  description: 'Tạo chapter-Name (namePages; chapterNumber derive từ chapter)'
+})
 
 export const ListNamesQuerySchema = extendApi(
   z
