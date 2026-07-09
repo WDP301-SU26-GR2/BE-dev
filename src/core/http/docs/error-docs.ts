@@ -13,7 +13,8 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.AssetNotFound': 'asset does not exist',
   'Error.CannotReviewSelf': 'reviewer and target user must be different',
   'Error.CannotModifyAdminUser': 'super admin users cannot be modified by admin moderation routes',
-  'Error.ChapterNotFound': 'chapter or series does not exist',
+  'Error.ChapterNotFound':
+    'chapter does not exist (or id is not a valid ObjectId) — used by POST /chapters/:id/names (Spec 10)',
   'Error.ChapterAccessDenied': 'caller is outside the chapter scope (owner mangaka / assigned editor / board / admin)',
   'Error.ChapterNotHoldable': 'manuscript must be IN_PRODUCTION..READY_FOR_PRINT to hold',
   'Error.ChapterAlreadyOnHold': 'chapter is already on hold',
@@ -124,5 +125,41 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.PublicationVersionNotFound': 'publication version does not exist',
   'Error.InvalidVersionType': 'versionType must be one of ORIGINAL, DIGITAL, FLIPPED',
   'Error.RankingAccessDenied':
-    'MANGAKA chỉ xem được series mình sở hữu; EDITOR chỉ xem được series mình phụ trách; BOARD/SUPER_ADMIN xem mọi series'
+    'MANGAKA chỉ xem được series mình sở hữu; EDITOR chỉ xem được series mình phụ trách; BOARD/SUPER_ADMIN xem mọi series',
+  // Spec 9 — Part 4: Reprint convention (B2 dedup + Error.* + state-service)
+  'Error.ReprintRequestNotFound': 'reprint request does not exist (or id is not a valid ObjectId)',
+  'Error.ActiveContractNotFound': 'series has no FULLY_EXECUTED contract; cannot create/manipulate reprint request',
+  'Error.OriginalChaptersNotFound': 'no PUBLISHED original chapter exists in the requested chapter range',
+  'Error.ReprintChapterNotFound':
+    'embedded chapter is not part of this reprint request (or originalChapterId mismatch)',
+  'Error.InvalidReprintTransition': 'reprint request state transition is not allowed by REPRINT_REQUEST_TRANSITIONS',
+  'Error.ReprintActionNotAllowed': 'mangaka review is only valid for REVENUE_SHARE contracts (Ownership Principle)',
+  'Error.ReprintNotWithRevision': 'reviser can only be assigned when revisionMode = WITH_REVISION',
+  'Error.ReviserOnlyForFullBuyout': 'reviser can only be assigned when the active contract is FULL_BUYOUT',
+  'Error.ReviserMangakaNotFound': 'reviserType=OTHER_MANGAKA requires the target user to have role MANGAKA',
+  // Spec 9 — Part 5: Board convention (Error.* + guards + audit + session-state-service + messages)
+  'Error.BoardSessionAlreadyExists': 'a board session with this title is already UPCOMING or ACTIVE',
+  'Error.BoardSessionNotFound': 'board session does not exist (or id is not a valid ObjectId)',
+  'Error.BoardConfigNotFound': 'system has no active BoardConfig row',
+  'Error.BoardDecisionNotFound': 'board decision does not exist (or id is not a valid ObjectId)',
+  'Error.BoardSessionNotOpen': 'board session is not ACTIVE; voting/config update not allowed',
+  'Error.InvalidBoardMembers': 'board member count must be odd to prevent tie votes',
+  'Error.InvalidQuorum': 'quorumMin must not exceed total board members',
+  'Error.VoterNotAllowed': 'caller is not in session.allowedEditorIds',
+  'Error.VoterAlreadyVoted': 'voter has already cast a vote on this decision',
+  'Error.BoardConfigLocked': 'cannot update BoardConfig while a session is ACTIVE/UPCOMING',
+  'Error.BoardSessionClosedReport': 'cannot submit a series report for a CONCLUDED session',
+  'Error.BoardReportNotFound': 'series report does not exist (or id is not a valid ObjectId)',
+  'Error.EditorNotInvited': 'caller is not in session.allowedEditorIds for report submission',
+  'Error.InvalidBoardSessionTransition': 'board session status transition is not allowed by BOARD_SESSION_TRANSITIONS',
+  // Spec 10 — Chapter-first flow (Task 2)
+  'Error.ChapterNotDraftForName': 'chapter must be in DRAFT status to create a Name',
+  'Error.ChapterNameAlreadyExists': 'this chapter already has a Name assigned',
+  // Spec 10 — Chapter-first flow (Task 3): Page upload gate
+  'Error.ChapterNameNotApproved': 'Name must be APPROVED before uploading pages; create/approve the Name first',
+  // Spec 10 — Chapter-first flow (Task 4): Update chapter
+  'Error.ChapterNotEditable': 'chapter title cannot be changed after PUBLISHED',
+  'Error.ChapterNumberLocked': 'chapterNumber can only be changed while the chapter is in DRAFT status',
+  // Spec 10 — Chapter-first flow (Task 5): Delete chapter
+  'Error.ChapterNotDeletable': 'chapter can only be deleted while in DRAFT status'
 }

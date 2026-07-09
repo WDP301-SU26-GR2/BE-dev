@@ -261,4 +261,49 @@ export class SeriesRepository {
       data: { franchiseConsentStatus: status }
     })
   }
+
+  // PB-06: Mangaka/Editor proposes natural completion. `completionProposal` is a composite optional,
+  // so we must `set` the whole object (Prisma does not support partial composite updates).
+  setCompletionProposal(
+    seriesId: string,
+    proposal: {
+      proposedByRole: string
+      proposedById: string
+      reason: string
+      proposedEndingChapters?: number | null
+      proposedAt: Date
+    }
+  ) {
+    return this.prismaService.series.update({
+      where: { id: seriesId },
+      data: {
+        completionProposal: {
+          set: { ...proposal, proposedEndingChapters: proposal.proposedEndingChapters ?? null }
+        }
+      }
+    })
+  }
+
+  // PB-06 (cron): HIATUS series whose hiatusStartedAt is older than `cutoff`.
+  findHiatusStartedBefore(cutoff: Date) {
+    return this.prismaService.series.findMany({
+      where: { status: SeriesStatus.HIATUS, hiatusStartedAt: { lt: cutoff } }
+    })
+  }
+
+  // PB-06 (cron): recipients list = every active Board Member. Used to escalate overlong hiatus.
+  // Mongo gotcha: filter on `role.code` (relation field) is unreliable — resolve roleId first,
+  // then filter `User.roleId`. Same pattern as chapter.repo.findBoardMemberIds.
+  async findBoardMemberIds(): Promise<string[]> {
+    const role = await this.prismaService.role.findFirst({
+      where: { code: 'BOARD_MEMBER' },
+      select: { id: true }
+    })
+    if (!role) return []
+    const users = await this.prismaService.user.findMany({
+      where: { roleId: role.id, deletedAt: { isSet: false } },
+      select: { id: true }
+    })
+    return users.map((u) => u.id)
+  }
 }

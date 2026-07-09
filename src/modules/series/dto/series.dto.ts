@@ -6,6 +6,7 @@ import {
   HiatusBodySchema,
   ListSeriesQuerySchema,
   NameResSchema,
+  ProposeCompletionBodySchema,
   ReasonBodySchema,
   SeriesListResSchema,
   SeriesResSchema,
@@ -22,3 +23,4 @@ export class ListSeriesQueryDto extends createZodDto(ListSeriesQuerySchema) {}
 export class SeriesListResDto extends createZodDto(SeriesListResSchema) {}
 export class HiatusBodyDto extends createZodDto(HiatusBodySchema) {}
 export class FranchiseConsentBodyDto extends createZodDto(FranchiseConsentBodySchema) {}
+export class ProposeCompletionBodyDto extends createZodDto(ProposeCompletionBodySchema) {}

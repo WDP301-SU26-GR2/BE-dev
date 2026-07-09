@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
-import { ManuscriptStatus } from '@prisma/client'
+import { ManuscriptStatus, NameStatus } from '@prisma/client'
 import {
+  ChapterNameNotApprovedException,
   ChapterNotFoundException,
   ChapterOnHoldException,
   NotSeriesOwnerException,
@@ -29,8 +30,12 @@ export class PageService {
   }
 
   // A-CHP-03: tạo Page. Page đầu tiên (Manuscript=DRAFT) → DRAFT→IN_PRODUCTION (Mangaka bắt đầu vẽ).
+  // Gate (Task 3, Spec 10): Name phải APPROVED mới được upload page.
   async createPage(userId: string, chapterId: string, body: CreatePageBodyType) {
-    await this.requireOwner(userId, chapterId)
+    const chapter = await this.requireOwner(userId, chapterId)
+    if (!chapter.nameId) throw ChapterNameNotApprovedException
+    const nameStatus = await this.chapterRepository.findNameStatus(chapter.nameId)
+    if (nameStatus !== NameStatus.APPROVED) throw ChapterNameNotApprovedException
     const page = await this.chapterRepository.createPage(chapterId, {
       pageNumber: body.pageNumber,
       originalFile: body.originalFile

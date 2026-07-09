@@ -1,16 +1,20 @@
 import { BoardService } from './board.service'
 import { DomainEvent } from 'src/core/events/domain-events'
-import { InvalidBoardMembersException } from '../errors/board.errors'
+
+const auditService = { record: jest.fn().mockResolvedValue(undefined) }
+const boardSessionStateService = {
+  transition: jest.fn().mockImplementation((id: string, status: string) => Promise.resolve({ id, status }))
+}
 
 describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', () => {
-  const activeSession = { id: 's', status: 'ACTIVE', allowedEditorIds: ['b1', 'b2', 'b3', 'b4'] }
+  const activeSession = { id: '012345678901234567890123', status: 'ACTIVE', allowedEditorIds: ['b1', 'b2', 'b3', 'b4'] }
 
   // preVotes = state BEFORE this vote (used for double-vote check + `before.result`);
   // pushedVotes = state AFTER pushVote (used to recompute counters).
   function makeService(preResult: string, preVotes: any[], pushedVotes: any[]) {
     const preDecision = {
-      id: 'd1',
-      boardSessionId: 's',
+      id: '012345678901234567890124',
+      boardSessionId: '012345678901234567890123',
       decisionType: 'SERIALIZATION',
       targetSeriesId: 'ser1',
       details: { magazine: 'WJ' },
@@ -22,7 +26,7 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
       findSessionById: jest.fn().mockResolvedValue(activeSession),
       pushVoteToDecision: jest.fn().mockResolvedValue({ votes: pushedVotes }),
       getActiveConfig: jest.fn().mockResolvedValue({ quorumMin: 1, approveMajorityRatio: 0.5 }),
-      updateDecisionCounters: jest.fn().mockResolvedValue({ id: 'd1' })
+      updateDecisionCounters: jest.fn().mockResolvedValue({ id: '012345678901234567890124' })
     }
     const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -31,19 +35,21 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
       boardRepo as never,
       boardGateway as never,
       notificationService as never,
-      eventBus as never
+      eventBus as never,
+      auditService as never,
+      boardSessionStateService as never
     )
-    return { service, eventBus }
+    return { service, eventBus, auditService: { record: auditService.record } }
   }
 
   it('emits once when result flips PENDING_QUORUM → APPROVED', async () => {
     const { service, eventBus } = makeService('PENDING_QUORUM', [], [{ voterId: 'b1', voteValue: 'APPROVE' }])
-    await service.castVote('d1', 'b1', { voteValue: 'APPROVE' } as never)
+    await service.castVote('012345678901234567890124', 'b1', { voteValue: 'APPROVE' } as never)
     expect(eventBus.emit).toHaveBeenCalledTimes(1)
     expect(eventBus.emit).toHaveBeenCalledWith(
       DomainEvent.BoardDecisionFinalized,
       expect.objectContaining({
-        decisionId: 'd1',
+        decisionId: '012345678901234567890124',
         decisionType: 'SERIALIZATION',
         targetSeriesId: 'ser1',
         result: 'APPROVED'
@@ -59,7 +65,7 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
     ]
     const pushedVotes = [...preVotes, { voterId: 'b4', voteValue: 'APPROVE' }]
     const { service, eventBus } = makeService('APPROVED', preVotes, pushedVotes)
-    await service.castVote('d1', 'b4', { voteValue: 'APPROVE' } as never)
+    await service.castVote('012345678901234567890124', 'b4', { voteValue: 'APPROVE' } as never)
     expect(eventBus.emit).not.toHaveBeenCalled()
   })
 })
@@ -78,7 +84,9 @@ describe('BoardService notifications', () => {
       boardRepo as never,
       boardGateway as never,
       notificationService as never,
-      eventBus as never
+      eventBus as never,
+      auditService as never,
+      boardSessionStateService as never
     )
 
     await service.createSession('editor-1', {
@@ -118,7 +126,9 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
       boardRepo as never,
       boardGateway as never,
       notificationService as never,
-      eventBus as never
+      eventBus as never,
+      auditService as never,
+      boardSessionStateService as never
     )
     return { service, boardRepo }
   }
@@ -135,12 +145,14 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
       boardRepo as never,
       boardGateway as never,
       notificationService as never,
-      eventBus as never
+      eventBus as never,
+      auditService as never,
+      boardSessionStateService as never
     )
     return { service, boardRepo }
   }
 
-  it('createSession: even allowedEditorIds → InvalidBoardMembersException (400)', async () => {
+  it('createSession: even allowedEditorIds → InvalidBoardMembersException (422)', async () => {
     // 4 items: passes schema .min(3), but hits service guard (4%2===0 → InvalidBoardMembersException).
     const { service, boardRepo } = makeSessionService()
     await expect(
@@ -148,7 +160,7 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
         title: 'Smoke Spec7 Even 1',
         allowedEditorIds: ['board-1', 'board-2', 'editor-1', 'editor-2']
       } as never)
-    ).rejects.toBeInstanceOf(InvalidBoardMembersException)
+    ).rejects.toMatchObject({ status: 422 })
     expect(boardRepo.createSession).not.toHaveBeenCalled()
   })
 
@@ -159,7 +171,7 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
         title: 'S',
         allowedEditorIds: []
       } as never)
-    ).rejects.toBeInstanceOf(InvalidBoardMembersException)
+    ).rejects.toMatchObject({ status: 422 })
     expect(boardRepo.createSession).not.toHaveBeenCalled()
   })
 
@@ -185,7 +197,7 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
         decisionType: 'SERIALIZATION',
         targetSeriesId: '507f1f77bcf86cd799439011'
       } as never)
-    ).rejects.toBeInstanceOf(InvalidBoardMembersException)
+    ).rejects.toMatchObject({ status: 422 })
     expect(boardRepo.createDecision).not.toHaveBeenCalled()
   })
 
@@ -197,5 +209,81 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
       targetSeriesId: '507f1f77bcf86cd799439011'
     } as never)
     expect(boardRepo.createDecision).toHaveBeenCalled()
+  })
+})
+
+describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () => {
+  const activeSession = { id: '012345678901234567890123', status: 'ACTIVE', allowedEditorIds: ['b1', 'b2', 'b3'] }
+
+  function makeService(preResult: string, preVotes: any[], pushedVotes: any[]) {
+    const preDecision = {
+      id: '012345678901234567890124',
+      boardSessionId: '012345678901234567890123',
+      decisionType: 'SERIALIZATION',
+      targetSeriesId: 'ser1',
+      details: { magazine: 'WJ' },
+      result: preResult,
+      votes: preVotes
+    }
+    const boardRepo = {
+      findDecisionById: jest.fn().mockResolvedValue(preDecision),
+      findSessionById: jest.fn().mockResolvedValue(activeSession),
+      pushVoteToDecision: jest.fn().mockResolvedValue({ votes: pushedVotes }),
+      getActiveConfig: jest.fn().mockResolvedValue({ quorumMin: 1, approveMajorityRatio: 0.5 }),
+      updateDecisionCounters: jest.fn().mockResolvedValue({ id: '012345678901234567890124' })
+    }
+    const boardGateway = { broadcastVoteProgress: jest.fn() }
+    const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+    const eventBus = { emit: jest.fn() }
+    const audit = { record: jest.fn().mockResolvedValue(undefined) }
+    const state = {
+      transition: jest.fn().mockImplementation((id: string, status: string) => Promise.resolve({ id, status }))
+    }
+    const service = new BoardService(
+      boardRepo as never,
+      boardGateway as never,
+      notificationService as never,
+      eventBus as never,
+      audit as never,
+      state as never
+    )
+    return { service, boardRepo, audit, state }
+  }
+
+  it('castVote: malformed decisionId → 404 (no repo call, no 500)', async () => {
+    const boardRepo = {
+      findDecisionById: jest.fn(),
+      findSessionById: jest.fn()
+    }
+    const boardGateway = { broadcastVoteProgress: jest.fn() }
+    const notificationService = { notifySafe: jest.fn() }
+    const eventBus = { emit: jest.fn() }
+    const audit = { record: jest.fn() }
+    const state = { transition: jest.fn() }
+    const service = new BoardService(
+      boardRepo as never,
+      boardGateway as never,
+      notificationService as never,
+      eventBus as never,
+      audit as never,
+      state as never
+    )
+    await expect(service.castVote('garbage', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toMatchObject({
+      status: 404
+    })
+    expect(boardRepo.findDecisionById).not.toHaveBeenCalled()
+  })
+
+  it('castVote: flip PENDING_QUORUM → APPROVED records audit DECISION_FINALIZED', async () => {
+    const { service, audit } = makeService('PENDING_QUORUM', [], [{ voterId: 'b1', voteValue: 'APPROVE' }])
+    await service.castVote('012345678901234567890124', 'b1', { voteValue: 'APPROVE' } as never)
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'DECISION_FINALIZED',
+        fromState: 'PENDING_QUORUM',
+        toState: 'APPROVED',
+        entityId: '012345678901234567890124'
+      })
+    )
   })
 })

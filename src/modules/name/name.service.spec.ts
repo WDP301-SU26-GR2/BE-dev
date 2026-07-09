@@ -1,14 +1,10 @@
 import { NameKind, NameStatus, NotificationType, SeriesStatus } from '@prisma/client'
 import { NameService } from './name.service'
 import { DomainEvent } from 'src/core/events/domain-events'
-import {
-  DuplicateChapterNameException,
-  NotSeriesOwnerException,
-  SeriesNotSerializedException
-} from './errors/name.errors'
 
 const SERIES_ID = '507f1f77bcf86cd799439011'
 const NAME_ID = '507f1f77bcf86cd799439012'
+const CHAPTER_ID = '507f1f77bcf86cd799439013'
 
 function make(
   nameOverride: Record<string, unknown> = {},
@@ -169,47 +165,116 @@ describe('NameService — lifecycle (MOVE từ series)', () => {
   })
 })
 
-describe('NameService.createChapterName (Flow 2, MỚI — Spec 8 §4)', () => {
-  it('creates chapter-Name when series SERIALIZED', async () => {
-    const { service, nameRepo } = make({}, {}, SeriesStatus.SERIALIZED)
-    await service.createChapterName('m1', SERIES_ID, {
-      chapterNumber: 2,
-      namePages: [{ pageNumber: 1, fileUrl: 'k' }]
+describe('NameService.createChapterName (chapter-first)', () => {
+  function makeRepo() {
+    return {
+      findChapterForNameGuard: jest.fn(),
+      createChapterNameForChapter: jest.fn().mockResolvedValue({
+        id: 'n1',
+        kind: NameKind.CHAPTER,
+        status: NameStatus.SUBMITTED,
+        chapterId: CHAPTER_ID,
+        chapterNumber: 5,
+        pages: []
+      })
+    }
+  }
+  const makeSvc = (repo: any) =>
+    new NameService(
+      repo as never,
+      { emit: jest.fn() } as never,
+      { notifySafe: jest.fn() } as never,
+      { get: jest.fn() } as never
+    )
+
+  it('malformed chapterId → 404', async () => {
+    const repo = makeRepo()
+    await expect(
+      makeSvc(repo).createChapterName('m', 'garbage', { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('chapter not found → 404', async () => {
+    const repo = makeRepo()
+    repo.findChapterForNameGuard.mockResolvedValue(null)
+    await expect(
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('not owner → 403', async () => {
+    const repo = makeRepo()
+    repo.findChapterForNameGuard.mockResolvedValue({
+      id: CHAPTER_ID,
+      seriesId: SERIES_ID,
+      chapterNumber: 5,
+      status: 'DRAFT',
+      nameId: null,
+      series: { mangakaId: 'other', status: SeriesStatus.SERIALIZED }
     })
-    expect(nameRepo.createChapterName).toHaveBeenCalledWith(SERIES_ID, {
-      chapterNumber: 2,
-      namePages: [{ pageNumber: 1, fileUrl: 'k' }]
+    await expect(
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+    ).rejects.toMatchObject({ status: 403 })
+  })
+
+  it('chapter not DRAFT → 409', async () => {
+    const repo = makeRepo()
+    repo.findChapterForNameGuard.mockResolvedValue({
+      id: CHAPTER_ID,
+      seriesId: SERIES_ID,
+      chapterNumber: 5,
+      status: 'IN_PRODUCTION',
+      nameId: null,
+      series: { mangakaId: 'm', status: SeriesStatus.SERIALIZED }
     })
+    await expect(
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+    ).rejects.toMatchObject({ status: 409 })
   })
 
-  it('throws SeriesNotSerializedException when series status is not SERIALIZED', async () => {
-    const { service } = make({}, {}, SeriesStatus.PITCHED)
+  it('series not SERIALIZED → 409', async () => {
+    const repo = makeRepo()
+    repo.findChapterForNameGuard.mockResolvedValue({
+      id: CHAPTER_ID,
+      seriesId: SERIES_ID,
+      chapterNumber: 5,
+      status: 'DRAFT',
+      nameId: null,
+      series: { mangakaId: 'm', status: SeriesStatus.IN_REVIEW }
+    })
     await expect(
-      service.createChapterName('m1', SERIES_ID, {
-        chapterNumber: 2,
-        namePages: [{ pageNumber: 1, fileUrl: 'k' }]
-      })
-    ).rejects.toBe(SeriesNotSerializedException)
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+    ).rejects.toMatchObject({ status: 409 })
   })
 
-  it('throws NotSeriesOwnerException when caller is not the owner', async () => {
-    const { service } = make({}, {}, SeriesStatus.SERIALIZED)
+  it('chapter already has Name → 409', async () => {
+    const repo = makeRepo()
+    repo.findChapterForNameGuard.mockResolvedValue({
+      id: CHAPTER_ID,
+      seriesId: SERIES_ID,
+      chapterNumber: 5,
+      status: 'DRAFT',
+      nameId: 'existing',
+      series: { mangakaId: 'm', status: SeriesStatus.SERIALIZED }
+    })
     await expect(
-      service.createChapterName('intruder', SERIES_ID, {
-        chapterNumber: 2,
-        namePages: [{ pageNumber: 1, fileUrl: 'k' }]
-      })
-    ).rejects.toBe(NotSeriesOwnerException)
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+    ).rejects.toMatchObject({ status: 409 })
   })
 
-  it('throws DuplicateChapterNameException when chapterNumber already exists', async () => {
-    const { service, nameRepo } = make({}, {}, SeriesStatus.SERIALIZED)
-    nameRepo.countChapterNameByNumber.mockResolvedValueOnce(1)
-    await expect(
-      service.createChapterName('m1', SERIES_ID, {
-        chapterNumber: 2,
-        namePages: [{ pageNumber: 1, fileUrl: 'k' }]
-      })
-    ).rejects.toBe(DuplicateChapterNameException)
+  it('valid → creates chapter-Name (derive chapterNumber, set chapterId)', async () => {
+    const repo = makeRepo()
+    repo.findChapterForNameGuard.mockResolvedValue({
+      id: CHAPTER_ID,
+      seriesId: SERIES_ID,
+      chapterNumber: 5,
+      status: 'DRAFT',
+      nameId: null,
+      series: { mangakaId: 'm', status: SeriesStatus.SERIALIZED }
+    })
+    await makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] })
+    expect(repo.createChapterNameForChapter).toHaveBeenCalledWith(
+      expect.objectContaining({ chapterId: CHAPTER_ID, seriesId: SERIES_ID, chapterNumber: 5 })
+    )
   })
 })

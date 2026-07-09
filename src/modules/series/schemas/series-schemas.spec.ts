@@ -45,6 +45,7 @@ describe('Genre/Demographic enums', () => {
       franchiseConsentStatus: null,
       createdAt: '2026-06-29T00:00:00.000Z',
       reviewStartedAt: null,
+      completionProposal: null,
       proposal: null
     })
     expect(ok.genres).toEqual(['ACTION'])
@@ -70,6 +71,7 @@ describe('Genre/Demographic enums', () => {
       franchiseConsentStatus: null,
       createdAt: '2026-06-29T00:00:00.000Z',
       reviewStartedAt: null,
+      completionProposal: null,
       proposal: null
     })
     expect(ok.magazine).toBe('Weekly Shonen')
@@ -122,6 +124,7 @@ describe('series schemas — coverImage', () => {
       franchiseConsentStatus: null,
       createdAt: '2026-06-23T00:00:00.000Z',
       reviewStartedAt: null,
+      completionProposal: null,
       proposal: null
     })
     expect(parsed.coverImage).toBe('uploads/m1/cover.png')

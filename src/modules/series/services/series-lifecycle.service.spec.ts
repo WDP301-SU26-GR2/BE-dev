@@ -14,7 +14,11 @@ const makeDeps = () => {
       .mockResolvedValue({ id: 's1', mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.SERIALIZED }),
     setEndingChapterAllowance: jest.fn().mockResolvedValue(undefined),
     setHiatusStartedAt: jest.fn().mockResolvedValue(undefined),
-    updatePublicationType: jest.fn().mockResolvedValue(undefined)
+    updatePublicationType: jest.fn().mockResolvedValue(undefined),
+    // PB-06
+    setCompletionProposal: jest.fn().mockResolvedValue(undefined),
+    findHiatusStartedBefore: jest.fn().mockResolvedValue([]),
+    findBoardMemberIds: jest.fn().mockResolvedValue([])
   }
   const bus = { emit: jest.fn() }
   const notify = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -233,5 +237,154 @@ describe('SeriesLifecycleService.finalizeEnding', () => {
     })
     await expect(make(d).finalizeEnding('0123456789abcdef01234567', 'e1')).rejects.toThrow()
     expect(d.state.transition).not.toHaveBeenCalled()
+  })
+})
+
+describe('SeriesLifecycleService.proposeCompletion (PB-06)', () => {
+  const S = '0123456789abcdef01234567'
+  it('malformed id → 404', async () => {
+    const d = makeDeps()
+    await expect(make(d).proposeCompletion('garbage', 'm1', 'MANGAKA', { reason: 'done' })).rejects.toMatchObject({
+      status: 404
+    })
+  })
+  it('non-participant → 403', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.SERIALIZED,
+      mangakaId: 'm1',
+      editorId: 'e1'
+    })
+    await expect(make(d).proposeCompletion(S, 'xX', 'MANGAKA', { reason: 'done' })).rejects.toMatchObject({
+      status: 403
+    })
+    expect(d.repo.setCompletionProposal).not.toHaveBeenCalled()
+  })
+  it('status not SERIALIZED/HIATUS → 409', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.PITCHED,
+      mangakaId: 'm1',
+      editorId: 'e1'
+    })
+    await expect(make(d).proposeCompletion(S, 'm1', 'MANGAKA', { reason: 'done' })).rejects.toMatchObject({
+      status: 409
+    })
+    expect(d.repo.setCompletionProposal).not.toHaveBeenCalled()
+  })
+  it('HIATUS status is proposable', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.HIATUS,
+      mangakaId: 'm1',
+      editorId: 'e1'
+    })
+    d.repo.setCompletionProposal.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.HIATUS,
+      mangakaId: 'm1',
+      editorId: 'e1'
+    })
+    await make(d).proposeCompletion(S, 'm1', 'MANGAKA', { reason: 'done' })
+    expect(d.repo.setCompletionProposal).toHaveBeenCalledWith(
+      S,
+      expect.objectContaining({ proposedByRole: 'MANGAKA', proposedById: 'm1', reason: 'done' })
+    )
+  })
+  it('mangaka proposes on SERIALIZED → upsert proposal + notify editor', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.SERIALIZED,
+      mangakaId: 'm1',
+      editorId: 'e1'
+    })
+    d.repo.setCompletionProposal.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.SERIALIZED,
+      mangakaId: 'm1',
+      editorId: 'e1',
+      completionProposal: { reason: 'done' }
+    })
+    await make(d).proposeCompletion(S, 'm1', 'MANGAKA', { reason: 'done' })
+    expect(d.repo.setCompletionProposal).toHaveBeenCalled()
+    expect(d.notify.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'e1', referenceType: 'SERIES_COMPLETION_PROPOSED' })
+    )
+  })
+  it('editor proposes → notify mangaka', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.SERIALIZED,
+      mangakaId: 'm1',
+      editorId: 'e1'
+    })
+    d.repo.setCompletionProposal.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.SERIALIZED,
+      mangakaId: 'm1',
+      editorId: 'e1'
+    })
+    await make(d).proposeCompletion(S, 'e1', 'EDITOR', { reason: 'done' })
+    expect(d.notify.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'm1', referenceType: 'SERIES_COMPLETION_PROPOSED' })
+    )
+  })
+})
+
+describe('SeriesLifecycleService.forceCancel (PB-06)', () => {
+  const S = '0123456789abcdef01234567'
+  it('malformed id → 404', async () => {
+    const d = makeDeps()
+    await expect(make(d).forceCancel('garbage', 'e1')).rejects.toMatchObject({ status: 404 })
+  })
+  it('non-CANCELLING status → 409', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.SERIALIZED,
+      editorId: 'e1',
+      mangakaId: 'm1'
+    })
+    await expect(make(d).forceCancel(S, 'e1')).rejects.toMatchObject({ status: 409 })
+    expect(d.state.transition).not.toHaveBeenCalled()
+  })
+  it('non-assigned editor → 403', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.CANCELLING,
+      editorId: 'e1',
+      mangakaId: 'm1'
+    })
+    await expect(make(d).forceCancel(S, 'eX')).rejects.toMatchObject({ status: 403 })
+    expect(d.state.transition).not.toHaveBeenCalled()
+  })
+  it('CANCELLING + assigned editor → transition CANCELLED with reason + emit + notify', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.CANCELLING,
+      editorId: 'e1',
+      mangakaId: 'm1'
+    })
+    d.state.transition.mockResolvedValue({
+      id: S,
+      status: SeriesStatus.CANCELLED,
+      editorId: 'e1',
+      mangakaId: 'm1'
+    })
+    await make(d).forceCancel(S, 'e1')
+    expect(d.state.transition).toHaveBeenCalledWith(
+      S,
+      SeriesStatus.CANCELLED,
+      expect.objectContaining({ changedBy: 'e1', reason: expect.stringContaining('without ending') })
+    )
+    expect(d.bus.emit).toHaveBeenCalledWith(DomainEvent.SeriesCancelled, { seriesId: S })
+    expect(d.notify.notifySafe).toHaveBeenCalledWith(expect.objectContaining({ referenceType: 'SERIES_CANCELLED' }))
   })
 })

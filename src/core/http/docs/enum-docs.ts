@@ -45,7 +45,18 @@ export const ENUM_DOCS = {
   TaskVersionReviewStatus: 'Trạng thái review của 1 bản nộp task: PENDING, APPROVED, REVISION_REQUESTED',
   // Spec 5 — at-risk tiering (B-VOT-05 / PB-02)
   RiskLevel:
-    'Mức nguy cơ của series theo kết quả ranking kỳ: NONE bình thường, LOW at-risk kỳ này, MEDIUM 3+ kỳ liên tiếp, SEVERE 5+ kỳ liên tiếp (feed Board)'
+    'Mức nguy cơ của series theo kết quả ranking kỳ: NONE bình thường, LOW at-risk kỳ này, MEDIUM 3+ kỳ liên tiếp, SEVERE 5+ kỳ liên tiếp (feed Board)',
+  // Spec 9 — PB-07: Loại reviser được gán cho chapter tái bản
+  ReviserType: 'Loại reviser: INTERNAL_TEAM (team nội bộ) hoặc OTHER_MANGAKA (mangaka khác)',
+  // Spec 9 — Part 4: Reprint lifecycle + embedded chapter status + revision mode (B-RPT-* / PB-07)
+  ReprintRequestStatus:
+    'Reprint request lifecycle: PENDING, PROPOSED, MANGAKA_REVIEW, MANGAKA_APPROVED, BOARD_APPROVED, APPROVED, PUBLISHED, REJECTED, REJECTED_BY_MANGAKA',
+  ReprintChapterStatus: 'Reprint chapter status: PENDING, READY, IN_REVISION, APPROVED, REJECTED',
+  ReprintRevisionMode: 'Reprint revision mode: AS_IS (giữ nguyên) hoặc WITH_REVISION (được sửa)',
+  // Spec 9 — Part 5: Board convention (DecisionType + BoardSessionStatus)
+  DecisionType:
+    'Board decision type: CONTINUE, CANCEL, HIATUS, ENDING_ALLOWANCE, SERIES_CONTRACT_APPROVAL, SERIALIZATION, CANCELLATION, FORMAT_CHANGE, COMPLETION, REPRINT, TRANSFER, CONTRACT, OTHER',
+  BoardSessionStatus: 'Board session status: UPCOMING (chờ tới giờ), ACTIVE (đang họp/vote), CONCLUDED (đã bế mạc)'
 } as const
 
 type EnumDocKey = keyof typeof ENUM_DOCS

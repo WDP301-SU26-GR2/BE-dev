@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { NameKind, NameStatus, NotificationType } from '@prisma/client'
+import { NameKind, NameStatus, NotificationType, SeriesStatus } from '@prisma/client'
 import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { DomainEvent } from 'src/core/events/domain-events'
@@ -11,7 +11,9 @@ import { toNameRes } from './name.mapper'
 import { requireAssignedEditor } from './name-editor.guard'
 import { AddNamePageBodyType, CreateChapterNameBodyType, UpdateNamePagesBodyType } from './schemas/name-schemas'
 import {
-  DuplicateChapterNameException,
+  ChapterNameAlreadyExistsException,
+  ChapterNotDraftForNameException,
+  ChapterNotFoundException,
   InvalidNameStateException,
   NameNotFoundException,
   NotSeriesOwnerException,
@@ -38,15 +40,20 @@ export class NameService {
   ) {}
 
   // ── Chapter-Name create (Flow 2, MỚI) ──────────────────────────────────────
-  async createChapterName(mangakaId: string, seriesId: string, body: CreateChapterNameBodyType) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
-    const series = await this.nameRepo.findSeriesForGuard(seriesId)
-    if (!series) throw SeriesNotFoundException
-    if (series.mangakaId !== mangakaId) throw NotSeriesOwnerException
-    if (series.status !== 'SERIALIZED') throw SeriesNotSerializedException
-    const dup = await this.nameRepo.countChapterNameByNumber(seriesId, body.chapterNumber)
-    if (dup > 0) throw DuplicateChapterNameException
-    const created = await this.nameRepo.createChapterName(seriesId, body)
+  async createChapterName(mangakaId: string, chapterId: string, body: CreateChapterNameBodyType) {
+    if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
+    const chapter = await this.nameRepo.findChapterForNameGuard(chapterId)
+    if (!chapter) throw ChapterNotFoundException
+    if (chapter.series?.mangakaId !== mangakaId) throw NotSeriesOwnerException
+    if (chapter.status !== 'DRAFT') throw ChapterNotDraftForNameException
+    if (chapter.series?.status !== SeriesStatus.SERIALIZED) throw SeriesNotSerializedException
+    if (chapter.nameId) throw ChapterNameAlreadyExistsException
+    const created = await this.nameRepo.createChapterNameForChapter({
+      chapterId,
+      seriesId: chapter.seriesId,
+      chapterNumber: chapter.chapterNumber,
+      namePages: body.namePages
+    })
     return toNameRes(created)
   }
 

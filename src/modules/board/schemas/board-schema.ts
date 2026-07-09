@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
-import { BoardDecisionSchema, BoardConfigSchema, SeriesReportSchema, BoardSessionStatusSchema } from './board.model'
+import { BoardDecisionSchema, BoardConfigSchema, SeriesReportSchema } from './board.model'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 
 export const CreateBoardSessionBodySchema = extendApi(
   z.object({
@@ -44,9 +45,7 @@ export const CreateBoardDecisionBodySchema = extendApi(
     boardSessionId: z
       .string({ error: 'boardSessionId phải là chuỗi ký tự' })
       .min(1, { message: 'boardSessionId là bắt buộc không được để trống' }),
-    decisionType: z.nativeEnum($Enums.DecisionType, {
-      error: 'decisionType phải là một giá trị hợp lệ trong Hệ thống Enum'
-    })
+    decisionType: zEnum($Enums.DecisionType, 'DecisionType')
   }),
   { title: 'CreateBoardDecisionBody', description: 'Tạo quyết định Hội đồng nháp' }
 )
@@ -111,7 +110,7 @@ export const UpdateBoardConfigBodySchema = extendApi(
 export const BoardVoteResSchema = extendApi(
   z.object({
     voterId: z.string().nullable().optional(),
-    voteValue: z.string().nullable().optional(),
+    voteValue: z.enum(['APPROVE', 'REJECT', 'ABSTAIN']).nullable().optional(),
     note: z.string().nullable().optional(),
     votedAt: z.any()
   }),
@@ -124,7 +123,7 @@ export const BoardSessionResSchema = extendApi(
     title: z.string(),
     description: z.string().nullable(),
     creatorId: z.string(),
-    status: BoardSessionStatusSchema,
+    status: zEnum($Enums.BoardSessionStatus, 'BoardSessionStatus'),
     allowedEditorIds: z.array(z.string()),
     startTime: z.any(),
     createdAt: z.any(),
@@ -138,8 +137,8 @@ export const BoardDecisionResSchema = extendApi(
     id: z.string(),
     targetSeriesId: z.string().nullable().optional(),
     boardSessionId: z.string(),
-    decisionType: z.nativeEnum($Enums.DecisionType).nullable().optional(),
-    result: z.string().nullable().optional(),
+    decisionType: zEnum($Enums.DecisionType, 'DecisionType').nullable().optional(),
+    result: z.enum(['PENDING', 'PENDING_QUORUM', 'APPROVED', 'REJECTED']).nullable().optional(),
     totalVotes: z.number(),
     approveCount: z.number(),
     rejectCount: z.number(),

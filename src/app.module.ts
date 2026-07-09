@@ -22,6 +22,7 @@ import { BoardModule } from './modules/board/board.module'
 import { StudioModule } from './modules/studio/studio.module'
 import { SurveyModule } from './modules/survey/survey.module'
 import { TaskModule } from './modules/task/task.module'
+import { TankobonModule } from './modules/tankobon/tankobon.module'
 import { DeadlineModule } from './modules/deadline/deadline.module'
 import { AiModule } from './modules/ai/ai.module'
 import { ReprintRequestModule } from './modules/reprint/reprint-request.module'
@@ -51,6 +52,7 @@ import { PublicationModule } from './modules/publication/publication.module'
     SurveyModule,
     StudioModule,
     TaskModule,
+    TankobonModule,
     DeadlineModule,
     AiModule,
     ReprintRequestModule,

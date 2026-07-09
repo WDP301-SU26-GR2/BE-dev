@@ -8,6 +8,12 @@ export const NotSeriesOwnerException = new ForbiddenException(E.notSeriesOwner)
 export const ProposalNotEditableException = new ConflictException(E.proposalNotEditable)
 export const InvalidSeriesTransitionException = new ConflictException(E.invalidSeriesTransition)
 export const SeriesNotInEndingStateException = new ConflictException(E.seriesNotInEndingState)
+export const SeriesNotProposableForCompletionException = new ConflictException([
+  { message: E.seriesNotProposableForCompletion, path: 'status' }
+])
+export const SeriesNotInCancellingStateException = new ConflictException([
+  { message: E.seriesNotInCancellingState, path: 'status' }
+])
 export const InvalidProposalStateException = new ConflictException(E.invalidProposalState)
 export const SeriesNotReadyToPitchException = new ConflictException(E.seriesNotReadyToPitch)
 export const SeriesAccessDeniedException = new ForbiddenException(E.seriesAccessDenied)

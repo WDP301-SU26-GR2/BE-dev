@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
@@ -17,10 +17,16 @@ import {
   PageResDto,
   ReasonBodyDto,
   SetScheduleBodyDto,
+  UpdateChapterBodyDto,
   UpdatePageBodyDto
 } from './dto/chapter.dto'
+import { MessageResDto } from 'src/core/http/dto/response.dto'
 import {
+  ChapterNameNotApprovedException,
   ChapterNotFoundException,
+  ChapterNotEditableException,
+  ChapterNumberLockedException,
+  ChapterNotDeletableException,
   ChapterAccessDeniedException,
   ChapterAlreadyOnHoldException,
   ChapterNotHoldableException,
@@ -30,9 +36,6 @@ import {
   DuplicateChapterNumberException,
   InvalidManuscriptTransitionException,
   InvalidPageTransitionException,
-  NameNotApprovedException,
-  NameNotChapterKindException,
-  NameNotInSeriesException,
   NotSeriesEditorException,
   NotSeriesOwnerException,
   PageNotFoundException,
@@ -53,21 +56,42 @@ export class ChapterController {
   @Post('chapters')
   @ApiOperation({
     summary:
-      'Mangaka tạo Chapter từ Name APPROVED (kind=CHAPTER) → Chapter + Manuscript(DRAFT) + Schedule. chapterNumber derive từ Name.'
+      'Mangaka tạo Chapter (chapter-first): chapterNumber + title → Chapter(DRAFT) + Manuscript(DRAFT) + Schedule. Name tạo sau.'
   })
   @ApiErrors(
     NotSeriesOwnerException,
     ChapterNotFoundException,
     DuplicateChapterNumberException,
-    NameNotInSeriesException,
-    NameNotApprovedException,
-    NameNotChapterKindException,
     SeriesNotSerializedException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
   create(@Body() body: CreateChapterBodyDto, @ActiveUser('userId') userId: string) {
     return this.chapterService.create(userId, body)
+  }
+
+  @Patch('chapters/:id')
+  @ApiOperation({ summary: 'Mangaka sửa title (pre-PUBLISHED) / chapterNumber (chỉ khi DRAFT) — chapter-first' })
+  @ApiErrors(
+    ChapterNotFoundException,
+    NotSeriesOwnerException,
+    ChapterNotEditableException,
+    ChapterNumberLockedException,
+    DuplicateChapterNumberException
+  )
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 200, type: ChapterResDto })
+  update(@Param('id') id: string, @Body() body: UpdateChapterBodyDto, @ActiveUser('userId') userId: string) {
+    return this.chapterService.updateChapter(userId, id, body)
+  }
+
+  @Delete('chapters/:id')
+  @ApiOperation({ summary: 'Mangaka xóa chapter DRAFT (cascade Name/Manuscript/Schedule/Pages) — chapter-first' })
+  @ApiErrors(ChapterNotFoundException, NotSeriesOwnerException, ChapterNotDeletableException)
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 200, type: MessageResDto })
+  remove(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.chapterService.deleteChapter(userId, id)
   }
 
   @Get('chapters')
@@ -137,7 +161,7 @@ export class ChapterController {
 
   @Post('chapters/:id/pages')
   @ApiOperation({ summary: 'Mangaka upload trang (pencil/ink) → tạo Page (NOT_STARTED)' })
-  @ApiErrors(NotSeriesOwnerException, ChapterNotFoundException, ChapterOnHoldException)
+  @ApiErrors(NotSeriesOwnerException, ChapterNotFoundException, ChapterOnHoldException, ChapterNameNotApprovedException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: PageResDto })
   createPage(@Param('id') id: string, @Body() body: CreatePageBodyDto, @ActiveUser('userId') userId: string) {
