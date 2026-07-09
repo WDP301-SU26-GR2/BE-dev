@@ -3,6 +3,7 @@ import { ChapterController } from './chapter.controller'
 import { ChapterRepository } from './chapter.repo'
 import { ChapterService } from './chapter.service'
 import { ChapterCreationService } from './services/chapter-creation.service'
+import { ChapterCrudService } from './services/chapter-crud.service'
 import { ChapterHoldService } from './services/chapter-hold.service'
 import { ChapterProgressService } from './services/chapter-progress.service'
 import { ChapterPublishService } from './services/chapter-publish.service'
@@ -25,6 +26,7 @@ import { StudioOverviewController } from './studio-overview.controller'
     ManuscriptStateService,
     PageStateService,
     ChapterCreationService,
+    ChapterCrudService,
     ChapterHoldService,
     ChapterProgressService,
     ScheduleService,

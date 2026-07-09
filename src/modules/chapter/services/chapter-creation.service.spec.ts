@@ -1,110 +1,58 @@
-import { NameKind, NameStatus, SeriesStatus } from '@prisma/client'
+import { SeriesStatus } from '@prisma/client'
 import { ChapterCreationService } from './chapter-creation.service'
-import { NameNotChapterKindException } from '../errors/chapter.errors'
 
-const body = { seriesId: 's1', nameId: 'n1', title: 'Ch1' }
-
-function makeRepo(over: Record<string, unknown> = {}) {
+function makeRepo() {
   return {
-    findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1', status: SeriesStatus.SERIALIZED }),
-    findNameById: jest.fn().mockResolvedValue({
-      id: 'n1',
-      seriesId: 's1',
-      kind: NameKind.CHAPTER,
-      chapterNumber: 1,
-      status: NameStatus.APPROVED
-    }),
-    findChapterByNumber: jest.fn().mockResolvedValue(null),
-    createChapter: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1', chapterNumber: 1 }),
-    ...over
+    findSeriesById: jest.fn(),
+    findChapterByNumber: jest.fn(),
+    createChapter: jest
+      .fn()
+      .mockImplementation((d: any) => Promise.resolve({ id: 'ch1', status: 'DRAFT', nameId: null, ...d }))
   }
 }
+const make = (repo: any) => new ChapterCreationService(repo)
+const S = '012345678901234567890123'
 
-describe('ChapterCreationService.create', () => {
-  it('creates chapter from approved name', async () => {
+describe('ChapterCreationService.create (chapter-first)', () => {
+  it('malformed seriesId → 404', async () => {
     const repo = makeRepo()
-    const svc = new ChapterCreationService(repo as never)
-    const res = await svc.create('u1', body)
-    expect(repo.createChapter).toHaveBeenCalledWith({ seriesId: 's1', nameId: 'n1', chapterNumber: 1, title: 'Ch1' })
-    expect(res).toMatchObject({ id: 'c1' })
-  })
-
-  it('rejects when series is not SERIALIZED (409)', async () => {
-    const repo = makeRepo({
-      findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1', status: SeriesStatus.PITCHED })
+    await expect(make(repo).create('u', { seriesId: 'garbage', chapterNumber: 1 } as any)).rejects.toMatchObject({
+      status: 404
     })
-    const svc = new ChapterCreationService(repo as never)
-    await expect(svc.create('u1', body)).rejects.toBeDefined()
-    expect(repo.createChapter).not.toHaveBeenCalled()
+    expect(repo.findSeriesById).not.toHaveBeenCalled()
   })
 
-  it('rejects when caller is not the series owner (403)', async () => {
-    const repo = makeRepo({ findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'someone' }) })
-    const svc = new ChapterCreationService(repo as never)
-    await expect(svc.create('u1', body)).rejects.toBeDefined()
-  })
-
-  it('rejects when name not approved (422)', async () => {
-    const repo = makeRepo({
-      findNameById: jest.fn().mockResolvedValue({
-        id: 'n1',
-        seriesId: 's1',
-        kind: NameKind.CHAPTER,
-        chapterNumber: 1,
-        status: NameStatus.IN_REVIEW
-      })
+  it('not owner → 403', async () => {
+    const repo = makeRepo()
+    repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'other', status: SeriesStatus.SERIALIZED })
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 1 } as any)).rejects.toMatchObject({
+      status: 403
     })
-    const svc = new ChapterCreationService(repo as never)
-    await expect(svc.create('u1', body)).rejects.toBeDefined()
   })
 
-  it('rejects when name not in series (422)', async () => {
-    const repo = makeRepo({
-      findNameById: jest.fn().mockResolvedValue({
-        id: 'n1',
-        seriesId: 'other',
-        kind: NameKind.CHAPTER,
-        chapterNumber: 1,
-        status: NameStatus.APPROVED
-      })
+  it('series not SERIALIZED → 409', async () => {
+    const repo = makeRepo()
+    repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'u', status: SeriesStatus.PITCHED })
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 1 } as any)).rejects.toMatchObject({
+      status: 409
     })
-    const svc = new ChapterCreationService(repo as never)
-    await expect(svc.create('u1', body)).rejects.toBeDefined()
   })
 
-  it('rejects duplicate chapter number (409)', async () => {
-    const repo = makeRepo({ findChapterByNumber: jest.fn().mockResolvedValue({ id: 'cX' }) })
-    const svc = new ChapterCreationService(repo as never)
-    await expect(svc.create('u1', body)).rejects.toBeDefined()
-  })
-
-  it('rejects proposal-kind Name (422)', async () => {
-    const repo = makeRepo({
-      findNameById: jest.fn().mockResolvedValue({
-        id: 'n1',
-        seriesId: 's1',
-        kind: NameKind.PROPOSAL,
-        chapterNumber: null,
-        status: NameStatus.APPROVED
-      })
+  it('duplicate chapterNumber → 409', async () => {
+    const repo = makeRepo()
+    repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'u', status: SeriesStatus.SERIALIZED })
+    repo.findChapterByNumber.mockResolvedValue({ id: 'dup' })
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 5 } as any)).rejects.toMatchObject({
+      status: 409
     })
-    const svc = new ChapterCreationService(repo as never)
-    await expect(svc.create('u1', body)).rejects.toBe(NameNotChapterKindException)
-    expect(repo.createChapter).not.toHaveBeenCalled()
   })
 
-  it('derives chapterNumber from Name', async () => {
-    const repo = makeRepo({
-      findNameById: jest.fn().mockResolvedValue({
-        id: 'n1',
-        seriesId: 's1',
-        kind: NameKind.CHAPTER,
-        chapterNumber: 5,
-        status: NameStatus.APPROVED
-      })
-    })
-    const svc = new ChapterCreationService(repo as never)
-    await svc.create('u1', body)
-    expect(repo.createChapter).toHaveBeenCalledWith(expect.objectContaining({ chapterNumber: 5 }))
+  it('valid → creates DRAFT chapter (nameId null)', async () => {
+    const repo = makeRepo()
+    repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'u', status: SeriesStatus.SERIALIZED })
+    repo.findChapterByNumber.mockResolvedValue(null)
+    const out = await make(repo).create('u', { seriesId: S, chapterNumber: 5, title: 'X' })
+    expect(repo.createChapter).toHaveBeenCalledWith({ seriesId: S, chapterNumber: 5, title: 'X' })
+    expect(out.status).toBe('DRAFT')
   })
 })

@@ -57,4 +57,40 @@ export class NameRepo {
       select: { id: true, mangakaId: true, editorId: true, status: true }
     })
   }
+
+  findChapterForNameGuard(chapterId: string) {
+    return this.prisma.chapter.findFirst({
+      where: { id: chapterId },
+      select: {
+        id: true,
+        seriesId: true,
+        chapterNumber: true,
+        status: true,
+        nameId: true,
+        series: { select: { mangakaId: true, status: true } }
+      }
+    })
+  }
+
+  async createChapterNameForChapter(data: {
+    chapterId: string
+    seriesId: string
+    chapterNumber: number
+    namePages: { pageNumber: number; fileUrl: string }[]
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const name = await tx.name.create({
+        data: {
+          seriesId: data.seriesId,
+          chapterId: data.chapterId,
+          kind: NameKind.CHAPTER,
+          chapterNumber: data.chapterNumber,
+          status: NameStatus.SUBMITTED,
+          pages: data.namePages
+        }
+      })
+      await tx.chapter.update({ where: { id: data.chapterId }, data: { nameId: name.id } })
+      return name
+    })
+  }
 }

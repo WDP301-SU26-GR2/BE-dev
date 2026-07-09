@@ -32,11 +32,16 @@ export class ChapterRepository {
   }
 
   // ----- chapter -----
-  async createChapter(data: { seriesId: string; nameId: string; chapterNumber: number; title?: string | null }) {
+  async createChapter(data: {
+    seriesId: string
+    chapterNumber: number
+    title?: string | null
+    nameId?: string | null
+  }) {
     const chapter = await this.prismaService.chapter.create({
       data: {
         seriesId: data.seriesId,
-        nameId: data.nameId,
+        nameId: data.nameId ?? null,
         chapterNumber: data.chapterNumber,
         title: data.title ?? null,
         status: ChapterStatus.DRAFT
@@ -55,6 +60,25 @@ export class ChapterRepository {
       where: { id },
       include: { manuscript: true, schedule: true }
     })
+  }
+  findChapterWithSeries(id: string) {
+    return this.prismaService.chapter.findFirst({
+      where: { id },
+      select: {
+        id: true,
+        seriesId: true,
+        chapterNumber: true,
+        status: true,
+        nameId: true,
+        series: { select: { mangakaId: true } }
+      }
+    })
+  }
+  updateChapter(id: string, data: { title?: string; chapterNumber?: number }) {
+    return this.prismaService.chapter.update({ where: { id }, data })
+  }
+  updateNameChapterNumber(nameId: string, chapterNumber: number) {
+    return this.prismaService.name.update({ where: { id: nameId }, data: { chapterNumber } })
   }
   findChaptersBySeriesId(seriesId: string) {
     return this.prismaService.chapter.findMany({
@@ -198,6 +222,19 @@ export class ChapterRepository {
       const page = byPage.get(task.pageId)
       if (!page || page.chapter.hold) return []
       return [{ taskId: task.id, assistantId: task.assistantId, mangakaId: page.chapter.series.mangakaId }]
+    })
+  }
+
+  // Task 5 (Spec 10): cascade delete chapter + related Name/Manuscript/Schedule/Pages.
+  async deleteChapterCascade(chapterId: string) {
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.name.deleteMany({ where: { chapterId } })
+      await tx.manuscript.deleteMany({ where: { chapterId } })
+      await tx.schedule.deleteMany({ where: { chapterId } })
+      await tx.page.deleteMany({ where: { chapterId } })
+      await tx.chapterCoOwnerApproval.deleteMany({ where: { chapterId } })
+      await tx.deadlineRequest.deleteMany({ where: { chapterId } })
+      await tx.chapter.delete({ where: { id: chapterId } })
     })
   }
 

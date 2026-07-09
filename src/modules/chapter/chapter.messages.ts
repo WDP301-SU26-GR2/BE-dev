@@ -40,6 +40,13 @@ export const ChapterMessages = {
     chapterOnHold: 'Error.ChapterOnHold',
     notCoOwner: 'Error.NotCoOwner',
     coOwnerApprovalNotPending: 'Error.CoOwnerApprovalNotPending',
-    coOwnerApprovalNotFound: 'Error.CoOwnerApprovalNotFound'
+    coOwnerApprovalNotFound: 'Error.CoOwnerApprovalNotFound',
+    chapterNameNotApproved: 'Error.ChapterNameNotApproved',
+    chapterNotEditable: 'Error.ChapterNotEditable',
+    chapterNumberLocked: 'Error.ChapterNumberLocked',
+    chapterNotDeletable: 'Error.ChapterNotDeletable'
+  },
+  response: {
+    chapterDeleted: 'Chapter deleted'
   }
 } as const

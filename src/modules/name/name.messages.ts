@@ -18,6 +18,9 @@ export const NameMessages = {
     seriesNotFound: 'Error.SeriesNotFound',
     seriesNotSerialized: 'Error.SeriesNotSerialized',
     duplicateChapterName: 'Error.DuplicateChapterName',
-    seriesAccessDenied: 'Error.SeriesAccessDenied'
+    seriesAccessDenied: 'Error.SeriesAccessDenied',
+    chapterNotFound: 'Error.ChapterNotFound',
+    chapterNotDraftForName: 'Error.ChapterNotDraftForName',
+    chapterNameAlreadyExists: 'Error.ChapterNameAlreadyExists'
   }
 } as const

@@ -722,6 +722,9 @@ model Name {
   seriesId String @db.ObjectId
   series   Series @relation(fields: [seriesId], references: [id])
 
+  chapterId String?  @db.ObjectId
+  chapter   Chapter? @relation(fields: [chapterId], references: [id])
+
   chapterNumber Int?
   status        NameStatus @default(DRAFT)
   kind          NameKind   @default(PROPOSAL)
@@ -731,6 +734,7 @@ model Name {
   pages NamePage[]
 
   @@index([seriesId])
+  @@index([chapterId])
 }
 
 type NamePage {
@@ -772,6 +776,8 @@ model Chapter {
   pages           Page[]
   boardDecision   BoardDecision? @relation(fields: [boardDecisionId], references: [id])
   boardDecisionId String?        @db.ObjectId
+
+  names Name[]
 
   @@index([seriesId])
   @@index([nameId])
