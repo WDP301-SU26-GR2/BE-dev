@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common'
+import { Body, Controller, Get, Param, Put, Post, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
@@ -8,7 +8,6 @@ import { RoleName } from 'src/core/security/constants/role.constant'
 import { NameService } from './name.service'
 import {
   AddNamePageBodyDto,
-  CreateChapterNameBodyDto,
   ListNamesQueryDto,
   NameListResDto,
   NameResDto,
@@ -16,14 +15,12 @@ import {
   UpdateNamePagesBodyDto
 } from './dto/name.dto'
 import {
-  DuplicateChapterNameException,
   InvalidNameStateException,
   NameNotFoundException,
   NotAssignedEditorException,
   NotSeriesOwnerException,
   SeriesAccessDeniedException,
-  SeriesNotFoundException,
-  SeriesNotSerializedException
+  SeriesNotFoundException
 } from './errors/name.errors'
 
 // Spec 8 §4: base path 'series/:id/names'. Toàn bộ route Name (lifecycle + reads + chapter-Name create)
@@ -33,27 +30,6 @@ import {
 @Controller('series/:id/names')
 export class NameController {
   constructor(private readonly nameService: NameService) {}
-
-  // ── Chapter-Name create (Flow 2, MỚI — Spec 8 §4) ─────────────────────────
-  @Post()
-  @ApiOperation({
-    summary: 'Chapter-Name: Mangaka tạo storyboard cho 1 chương (series SERIALIZED) → SUBMITTED (Flow 2)'
-  })
-  @ApiErrors(
-    SeriesNotFoundException,
-    NotSeriesOwnerException,
-    SeriesNotSerializedException,
-    DuplicateChapterNameException
-  )
-  @Roles(RoleName.MANGAKA)
-  @ZodResponse({ status: 201, type: NameResDto })
-  createChapterName(
-    @Param('id') id: string,
-    @Body() body: CreateChapterNameBodyDto,
-    @ActiveUser('userId') userId: string
-  ) {
-    return this.nameService.createChapterName(userId, id, body)
-  }
 
   // ── Reads (cả 2 kind) ────────────────────────────────────────────────────
   @Get()

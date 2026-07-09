@@ -1,15 +1,16 @@
-import { ManuscriptStatus, PageStatus } from '@prisma/client'
+import { ManuscriptStatus, NameStatus, PageStatus } from '@prisma/client'
 import { PageService } from './page.service'
 
 function makeDeps(over: Record<string, unknown> = {}) {
   const repo = {
-    findChapterById: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1' }),
+    findChapterById: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1', nameId: 'n1' }),
     findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' }),
     findManuscriptByChapterId: jest.fn().mockResolvedValue({ id: 'm1', status: ManuscriptStatus.DRAFT }),
     createPage: jest.fn().mockResolvedValue({ id: 'p1', chapterId: 'c1', status: PageStatus.NOT_STARTED }),
     findPageById: jest.fn().mockResolvedValue({ id: 'p1', chapterId: 'c1', status: PageStatus.NOT_STARTED }),
     findPagesByChapterId: jest.fn().mockResolvedValue([]),
     updatePage: jest.fn().mockResolvedValue({ id: 'p1' }),
+    findNameStatus: jest.fn().mockResolvedValue(NameStatus.APPROVED),
     ...over
   }
   const manuscriptState = { transition: jest.fn().mockResolvedValue({}) }
@@ -49,5 +50,41 @@ describe('PageService.createPage', () => {
     await svc.updatePage('u1', 'p1', { compositeFile: 'k2', status: PageStatus.IN_PROGRESS })
     expect(repo.updatePage).toHaveBeenCalledWith('p1', { compositeFile: 'k2' })
     expect(pageState.transition).toHaveBeenCalledWith('p1', PageStatus.IN_PROGRESS, 'u1')
+  })
+})
+
+describe('PageService.createPage gate (Name APPROVED)', () => {
+  const CH = '012345678901234567890123'
+
+  it('chapter has no Name → 409 ChapterNameNotApproved', async () => {
+    const { repo, manuscriptState, pageState } = makeDeps({
+      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', nameId: null }),
+      findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' })
+    })
+    const svc = new PageService(repo as never, manuscriptState as never, pageState as never)
+    await expect(svc.createPage('u1', CH, { pageNumber: 1, originalFile: 'f.png' })).rejects.toThrow()
+  })
+
+  it('Name not APPROVED → 409', async () => {
+    const { repo, manuscriptState, pageState } = makeDeps({
+      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', nameId: 'n1' }),
+      findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' }),
+      findNameStatus: jest.fn().mockResolvedValue(NameStatus.IN_REVIEW)
+    })
+    const svc = new PageService(repo as never, manuscriptState as never, pageState as never)
+    await expect(svc.createPage('u1', CH, { pageNumber: 1, originalFile: 'f.png' })).rejects.toThrow()
+  })
+
+  it('Name APPROVED → creates page + Manuscript IN_PRODUCTION', async () => {
+    const { repo, manuscriptState, pageState } = makeDeps({
+      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', nameId: 'n1' }),
+      findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' }),
+      findManuscriptByChapterId: jest.fn().mockResolvedValue({ id: 'm1', status: ManuscriptStatus.DRAFT }),
+      findNameStatus: jest.fn().mockResolvedValue(NameStatus.APPROVED)
+    })
+    const svc = new PageService(repo as never, manuscriptState as never, pageState as never)
+    await svc.createPage('u1', CH, { pageNumber: 1, originalFile: 'uploads/u1/p1.png' })
+    expect(repo.createPage).toHaveBeenCalledWith(CH, { pageNumber: 1, originalFile: 'uploads/u1/p1.png' })
+    expect(manuscriptState.transition).toHaveBeenCalledWith(CH, ManuscriptStatus.IN_PRODUCTION, { changedBy: 'u1' })
   })
 })

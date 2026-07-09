@@ -9,11 +9,14 @@ export const CreateChapterBodySchema = extendApi(
   z
     .object({
       seriesId: z.string().min(1),
-      nameId: z.string().min(1),
+      chapterNumber: z.number().int().positive(),
       title: z.string().max(200).optional()
     })
     .strict(),
-  { title: 'CreateChapterBody', description: 'Tạo chapter từ Name APPROVED (chapterNumber derive từ Name)' }
+  {
+    title: 'CreateChapterBody',
+    description: 'Tạo chapter (chapter-first): chapterNumber + title; Name tạo sau qua POST /chapters/:id/names'
+  }
 )
 
 export const SetScheduleBodySchema = extendApi(
@@ -51,6 +54,16 @@ export const ReasonBodySchema = extendApi(z.object({ reason: z.string().max(1000
 export const HoldChapterBodySchema = extendApi(
   z.object({ reason: z.string().min(1), expectedReturnDate: z.string().datetime().optional() }).strict(),
   { title: 'HoldChapterBody', description: 'Editor temporarily pauses chapter production' }
+)
+
+export const UpdateChapterBodySchema = extendApi(
+  z
+    .object({
+      title: z.string().max(200).nullish(),
+      chapterNumber: z.number().int().positive().nullish()
+    })
+    .strict(),
+  { title: 'UpdateChapterBody', description: 'Sửa title (pre-PUBLISHED) + chapterNumber (chỉ khi DRAFT)' }
 )
 
 // ---- Responses ----
@@ -174,3 +187,4 @@ export type CreatePageBodyType = z.infer<typeof CreatePageBodySchema>
 export type UpdatePageBodyType = z.infer<typeof UpdatePageBodySchema>
 export type ReasonBodyType = z.infer<typeof ReasonBodySchema>
 export type HoldChapterBodyType = z.infer<typeof HoldChapterBodySchema>
+export type UpdateChapterBodyType = z.infer<typeof UpdateChapterBodySchema>
