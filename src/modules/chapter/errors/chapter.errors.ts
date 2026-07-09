@@ -37,3 +37,19 @@ export const SeriesNotSerializedException = new ConflictException(E.seriesNotSer
 
 // A3 (Spec 1): chặn publish khi series chưa có Contract FULLY_EXECUTED (BR-CONTRACT-05).
 export const ContractNotExecutedException = new ConflictException(E.contractNotExecuted)
+
+// Task 3 (Spec 10): chặn upload page khi Name chưa APPROVED.
+export const ChapterNameNotApprovedException = new ConflictException([
+  { message: E.chapterNameNotApproved, path: 'nameId' }
+])
+
+// Task 4 (Spec 10): chặn sửa title khi PUBLISHED.
+export const ChapterNotEditableException = new ConflictException([{ message: E.chapterNotEditable, path: 'status' }])
+
+// Task 4 (Spec 10): chặn đổi chapterNumber khi không phải DRAFT.
+export const ChapterNumberLockedException = new ConflictException([
+  { message: E.chapterNumberLocked, path: 'chapterNumber' }
+])
+
+// Task 5 (Spec 10): chặn xóa chapter không phải DRAFT.
+export const ChapterNotDeletableException = new ConflictException([{ message: E.chapterNotDeletable, path: 'status' }])

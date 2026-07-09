@@ -13,3 +13,10 @@ export const DuplicateChapterNameException = new ConflictException([
   { message: E.duplicateChapterName, path: 'chapterNumber' }
 ])
 export const SeriesAccessDeniedException = new ForbiddenException(E.seriesAccessDenied)
+export const ChapterNotFoundException = new NotFoundException([{ message: E.chapterNotFound, path: 'id' }])
+export const ChapterNotDraftForNameException = new ConflictException([
+  { message: E.chapterNotDraftForName, path: 'status' }
+])
+export const ChapterNameAlreadyExistsException = new ConflictException([
+  { message: E.chapterNameAlreadyExists, path: 'id' }
+])

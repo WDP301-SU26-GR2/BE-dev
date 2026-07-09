@@ -38,7 +38,9 @@ describe('buildApiErrorSpecs', () => {
   it('appends hint from ERROR_HINTS when present', () => {
     const specs = buildApiErrorSpecs([new NotFoundException('Error.ChapterNotFound')])
 
-    expect(specs[0].description).toBe('Error.ChapterNotFound - chapter or series does not exist')
+    expect(specs[0].description).toBe(
+      'Error.ChapterNotFound - chapter does not exist (or id is not a valid ObjectId) — used by POST /chapters/:id/names (Spec 10)'
+    )
   })
 
   it('creates one spec for each distinct status', () => {

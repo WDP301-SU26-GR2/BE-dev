@@ -13,7 +13,8 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.AssetNotFound': 'asset does not exist',
   'Error.CannotReviewSelf': 'reviewer and target user must be different',
   'Error.CannotModifyAdminUser': 'super admin users cannot be modified by admin moderation routes',
-  'Error.ChapterNotFound': 'chapter or series does not exist',
+  'Error.ChapterNotFound':
+    'chapter does not exist (or id is not a valid ObjectId) — used by POST /chapters/:id/names (Spec 10)',
   'Error.ChapterAccessDenied': 'caller is outside the chapter scope (owner mangaka / assigned editor / board / admin)',
   'Error.ChapterNotHoldable': 'manuscript must be IN_PRODUCTION..READY_FOR_PRINT to hold',
   'Error.ChapterAlreadyOnHold': 'chapter is already on hold',
@@ -150,5 +151,15 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.BoardSessionClosedReport': 'cannot submit a series report for a CONCLUDED session',
   'Error.BoardReportNotFound': 'series report does not exist (or id is not a valid ObjectId)',
   'Error.EditorNotInvited': 'caller is not in session.allowedEditorIds for report submission',
-  'Error.InvalidBoardSessionTransition': 'board session status transition is not allowed by BOARD_SESSION_TRANSITIONS'
+  'Error.InvalidBoardSessionTransition': 'board session status transition is not allowed by BOARD_SESSION_TRANSITIONS',
+  // Spec 10 — Chapter-first flow (Task 2)
+  'Error.ChapterNotDraftForName': 'chapter must be in DRAFT status to create a Name',
+  'Error.ChapterNameAlreadyExists': 'this chapter already has a Name assigned',
+  // Spec 10 — Chapter-first flow (Task 3): Page upload gate
+  'Error.ChapterNameNotApproved': 'Name must be APPROVED before uploading pages; create/approve the Name first',
+  // Spec 10 — Chapter-first flow (Task 4): Update chapter
+  'Error.ChapterNotEditable': 'chapter title cannot be changed after PUBLISHED',
+  'Error.ChapterNumberLocked': 'chapterNumber can only be changed while the chapter is in DRAFT status',
+  // Spec 10 — Chapter-first flow (Task 5): Delete chapter
+  'Error.ChapterNotDeletable': 'chapter can only be deleted while in DRAFT status'
 }

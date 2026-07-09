@@ -1,44 +1,31 @@
 import { Injectable } from '@nestjs/common'
-import { NameKind, NameStatus, SeriesStatus } from '@prisma/client'
+import { SeriesStatus } from '@prisma/client'
 import {
   ChapterNotFoundException,
   DuplicateChapterNumberException,
-  NameNotApprovedException,
-  NameNotChapterKindException,
-  NameNotInSeriesException,
   NotSeriesOwnerException,
   SeriesNotSerializedException
 } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { CreateChapterBodyType } from '../schemas/chapter-schemas'
 
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
+
 @Injectable()
 export class ChapterCreationService {
   constructor(private readonly chapterRepository: ChapterRepository) {}
 
-  // A-CHP-01: tạo Chapter từ Name APPROVED. Manuscript khởi tạo DRAFT (DRAFT→IN_PRODUCTION khi upload page đầu — A-CHP-03).
   async create(userId: string, body: CreateChapterBodyType) {
+    if (!OBJECT_ID_RE.test(body.seriesId)) throw ChapterNotFoundException
     const series = await this.chapterRepository.findSeriesById(body.seriesId)
     if (!series) throw ChapterNotFoundException
     if (series.mangakaId !== userId) throw NotSeriesOwnerException
-    // A2 (Spec 1): chỉ tạo chapter cho series đã được Board serial hoá.
     if (series.status !== SeriesStatus.SERIALIZED) throw SeriesNotSerializedException
-
-    const name = await this.chapterRepository.findNameById(body.nameId)
-    if (!name || name.seriesId !== body.seriesId) throw NameNotInSeriesException
-    if (name.status !== NameStatus.APPROVED) throw NameNotApprovedException
-    // Spec 8 §7: chỉ chapter-Name (kind=CHAPTER) mới tạo chapter được; proposal-Name → 422 NameNotChapterKind.
-    if (name.kind !== NameKind.CHAPTER) throw NameNotChapterKindException
-    const chapterNumber = name.chapterNumber
-    if (chapterNumber == null) throw NameNotChapterKindException
-
-    const dup = await this.chapterRepository.findChapterByNumber(body.seriesId, chapterNumber)
+    const dup = await this.chapterRepository.findChapterByNumber(body.seriesId, body.chapterNumber)
     if (dup) throw DuplicateChapterNumberException
-
     return this.chapterRepository.createChapter({
       seriesId: body.seriesId,
-      nameId: body.nameId,
-      chapterNumber,
+      chapterNumber: body.chapterNumber,
       title: body.title ?? null
     })
   }
