@@ -592,7 +592,9 @@ export class SurveyService {
     if (period.status !== 'REFLECTED') throw SurveyPeriodNotFinalizedException
     const records = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
     const titles = await this.surveyRepository.findSeriesTitlesByIds(records.map((r) => r.seriesId))
-    const titleById = new Map(titles.map((t) => [t.id, t.title]))
+    const titleById = new Map<string, string>(
+      titles.map((t: { id: string; title: string }) => [t.id, t.title] as [string, string])
+    )
     return {
       surveyPeriodId,
       issueNumber: period.issueNumber ?? null,
