@@ -519,9 +519,9 @@ describe('SurveyService.getVoteContext (Fix-1 G-2)', () => {
       endDate: new Date('2026-07-15T00:00:00.000Z'),
       status: 'OPEN'
     })
-    m.surveyRepository.findManySerializedSeriesPublic = jest.fn().mockResolvedValue([
-      { id: 'ser1', title: 'One', coverImage: null, genres: ['ACTION'], demographic: 'SHONEN' }
-    ])
+    m.surveyRepository.findManySerializedSeriesPublic = jest
+      .fn()
+      .mockResolvedValue([{ id: 'ser1', title: 'One', coverImage: null, genres: ['ACTION'], demographic: 'SHONEN' }])
     const out = await makeService(m).getVoteContext()
     expect(out.period).toMatchObject({
       id: P,

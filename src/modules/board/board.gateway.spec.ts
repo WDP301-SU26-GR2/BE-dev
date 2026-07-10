@@ -14,6 +14,7 @@ function makeGateway(d: ReturnType<typeof makeDeps>) {
   return new BoardGateway(d.redis, d.tokenService, d.boardRepo)
 }
 function makeSocket(token?: string) {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return {
     id: 'sock1',
     handshake: { auth: token ? { token } : {}, headers: {} },

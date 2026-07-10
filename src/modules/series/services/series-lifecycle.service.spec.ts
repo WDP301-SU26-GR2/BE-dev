@@ -60,16 +60,17 @@ describe('SeriesLifecycleService.cancel', () => {
   it('snapshot count được đọc TRƯỚC transition (Fix-1 G-1)', async () => {
     const d = makeDeps()
     const callOrder: string[] = []
-    d.repo.countChaptersBySeriesId.mockImplementation(async () => {
+    d.repo.countChaptersBySeriesId.mockImplementation(() => {
       callOrder.push('count')
-      return 7
+      return Promise.resolve(7)
     })
-    d.state.transition.mockImplementation(async () => {
+    d.state.transition.mockImplementation(() => {
       callOrder.push('transition')
-      return { id: 's1', mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.CANCELLING }
+      return Promise.resolve({ id: 's1', mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.CANCELLING })
     })
-    d.repo.setEndingChapterAllowance.mockImplementation(async () => {
+    d.repo.setEndingChapterAllowance.mockImplementation(() => {
       callOrder.push('set')
+      return Promise.resolve(undefined)
     })
     await make(d).cancel('s1', 3)
     expect(callOrder).toEqual(['count', 'transition', 'set'])

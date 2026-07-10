@@ -171,10 +171,7 @@ describe('ChapterPublishService.publish — ending phase (Fix-1 G-1)', () => {
   })
 
   it('series CANCELLING + coOwnerId → vẫn route AWAITING_CO_OWNER_APPROVAL (bypass không ảnh hưởng co-owner gate)', async () => {
-    const { repo, manuscriptState, eventBus, notification, appConfig } = makeEndingDeps(
-      SeriesStatus.CANCELLING,
-      'a1'
-    )
+    const { repo, manuscriptState, eventBus, notification, appConfig } = makeEndingDeps(SeriesStatus.CANCELLING, 'a1')
     const svc = new ChapterPublishService(
       repo as never,
       manuscriptState as never,
