@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { ManuscriptStatus, NotificationType } from '@prisma/client'
+import { ManuscriptStatus, NotificationType, SeriesStatus } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
@@ -33,10 +33,14 @@ export class ChapterPublishService {
     // PA-04: hold check SAU editor check — người ngoài cuộc nhận 403, không lộ trạng thái hold
     if (chapter.hold) throw ChapterOnHoldException
 
-    // A3 (BR-CONTRACT-05): chặn publish nếu series chưa có Contract FULLY_EXECUTED.
-    // Lookup lúc publish (không dùng cờ executedContractId) → luôn đọc trạng thái thật, không staleness.
-    const executedContract = await this.chapterRepository.findExecutedContractBySeriesId(series.id)
-    if (!executedContract) throw ContractNotExecutedException
+    // A3 (BR-CONTRACT-05): gate chỉ áp khi CHƯA vào ending phase (Fix-1 G-1).
+    // CANCELLING/COMPLETING: contract đã bị B-CON-09 terminate ngay lúc cancel — ending chapters
+    // vẫn phải publish được (Requiment Flow 5: Mangaka vẽ 3-5 chương kết thúc; tiền đã tất toán).
+    const ENDING_STATUSES: SeriesStatus[] = [SeriesStatus.CANCELLING, SeriesStatus.COMPLETING]
+    if (!ENDING_STATUSES.includes(series.status)) {
+      const executedContract = await this.chapterRepository.findExecutedContractBySeriesId(series.id)
+      if (!executedContract) throw ContractNotExecutedException
+    }
 
     // A-CHP-06 branch: co-owner (PARTIAL_TRANSFER) cần duyệt trước khi publish.
     // coOwnerId do B3 (transfer PARTIAL_TRANSFER) set. Tạo record ChapterCoOwnerApproval + notify.
