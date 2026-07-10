@@ -18,6 +18,7 @@ export const SurveyMessages = {
     surveyPeriodNotFound: 'Error.SurveyPeriodNotFound',
     surveyPeriodNotOpen: 'Error.SurveyPeriodNotOpen',
     surveyPeriodAlreadyFinalized: 'Error.SurveyPeriodAlreadyFinalized',
+    surveyPeriodNotFinalized: 'Error.SurveyPeriodNotFinalized',
     readerAlreadyVoted: 'Error.ReaderAlreadyVoted',
     voteOtpNotFound: 'Error.VoteOtpNotFound',
     voteOtpRateLimit: 'Error.VoteOtpRateLimit',

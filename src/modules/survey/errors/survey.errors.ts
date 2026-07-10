@@ -12,6 +12,7 @@ const E = SurveyMessages.error
 export const SurveyPeriodNotFoundException = new NotFoundException(E.surveyPeriodNotFound)
 export const SurveyPeriodNotOpenException = new BadRequestException(E.surveyPeriodNotOpen)
 export const SurveyPeriodAlreadyFinalizedException = new BadRequestException(E.surveyPeriodAlreadyFinalized)
+export const SurveyPeriodNotFinalizedException = new ConflictException(E.surveyPeriodNotFinalized)
 export const ReaderAlreadyVotedException = new ConflictException(E.readerAlreadyVoted)
 export const VoteOtpNotFoundException = new BadRequestException(E.voteOtpNotFound)
 export const VoteOtpRateLimitException = new BadRequestException(E.voteOtpRateLimit)
