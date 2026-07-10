@@ -213,7 +213,7 @@ export class SeriesRepository {
     })
   }
 
-  // Spec 2: N ending chapters Board grants on CANCELLATION (informational).
+  // Spec 2 + Fix-1: N ending chapters Board grants on CANCELLATION — ENFORCED bởi chapter-creation guard.
   async setEndingChapterAllowance(seriesId: string, allowance: number | null, chapterCountAtCancelling?: number) {
     await this.prismaService.series.update({
       where: { id: seriesId },
