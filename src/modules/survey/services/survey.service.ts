@@ -6,6 +6,7 @@ import {
   SurveyPeriodNotFoundException,
   SurveyPeriodNotOpenException,
   SurveyPeriodAlreadyFinalizedException,
+  SurveyPeriodNotFinalizedException,
   ReaderAlreadyVotedException,
   VoteOtpNotFoundException,
   VoteOtpRateLimitException,
@@ -556,6 +557,53 @@ export class SurveyService {
     })
     this.surveyConfigService.invalidate()
     return this.mapVotingConfig(config)
+  }
+
+  // Fix-1 G-2 (Req 2.5#1): dữ liệu public dựng trang bình chọn — KHÔNG cần auth, KHÔNG lộ field nội bộ.
+  async getVoteContext() {
+    const config = await this.surveyConfigService.get()
+    const period = await this.surveyRepository.findLatestOpenSurveyPeriod()
+    if (!period) return { period: null, series: [], maxSeriesPerVote: config.maxSeriesPerVote }
+    const series = await this.surveyRepository.findManySerializedSeriesPublic()
+    return {
+      period: {
+        id: period.id,
+        issueNumber: period.issueNumber ?? null,
+        reflectedIssueNumber: period.reflectedIssueNumber ?? null,
+        startDate: period.startDate ? period.startDate.toISOString() : null,
+        endDate: period.endDate ? period.endDate.toISOString() : null
+      },
+      series: series.map((s) => ({
+        id: s.id,
+        title: s.title,
+        coverImage: s.coverImage ?? null,
+        genres: s.genres,
+        demographic: s.demographic ?? null
+      })),
+      maxSeriesPerVote: config.maxSeriesPerVote
+    }
+  }
+
+  // Fix-1 G-2 (Req 2.5#3): kết quả public — chỉ sau khi kỳ REFLECTED; ẩn tín hiệu biên tập nội bộ.
+  async getVoteResults(surveyPeriodId: string) {
+    if (!OBJECT_ID_RE.test(surveyPeriodId)) throw SurveyPeriodNotFoundException
+    const period = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
+    if (!period) throw SurveyPeriodNotFoundException
+    if (period.status !== 'REFLECTED') throw SurveyPeriodNotFinalizedException
+    const records = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
+    const titles = await this.surveyRepository.findSeriesTitlesByIds(records.map((r) => r.seriesId))
+    const titleById = new Map(titles.map((t) => [t.id, t.title]))
+    return {
+      surveyPeriodId,
+      issueNumber: period.issueNumber ?? null,
+      results: records.map((r) => ({
+        rankPosition: r.rankPosition ?? null,
+        seriesId: r.seriesId,
+        seriesTitle: titleById.get(r.seriesId) ?? null,
+        voteCount: r.voteCount,
+        rankChange: r.rankChange ?? null
+      }))
+    }
   }
 }
 

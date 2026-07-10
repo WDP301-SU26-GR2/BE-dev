@@ -32,7 +32,11 @@ function makeMocks(): Mocks {
       countPublishedChaptersBySeriesIds: jest.fn().mockResolvedValue(new Map()),
       findHeldChapterSeriesIds: jest.fn().mockResolvedValue(new Set<string>()),
       findSeriesOwnershipByIds: jest.fn().mockResolvedValue([]),
-      findBoardMemberIds: jest.fn().mockResolvedValue([])
+      findBoardMemberIds: jest.fn().mockResolvedValue([]),
+      // Fix-1 G-2
+      findLatestOpenSurveyPeriod: jest.fn().mockResolvedValue(null),
+      findManySerializedSeriesPublic: jest.fn().mockResolvedValue([]),
+      findSeriesTitlesByIds: jest.fn().mockResolvedValue([])
     },
     authOtpService: { sendOTPService: jest.fn(), validateOtpCode: jest.fn(), burnOtp: jest.fn() },
     identityHashService: identityHash,
@@ -499,5 +503,107 @@ describe('SurveyService.getSeriesTrend — PB-04 scoping', () => {
     await expect(
       makeService(m).getSeriesTrend('not-an-objectid', 12, { userId: 'admin', roleName: 'SUPER_ADMIN' })
     ).rejects.toBeDefined()
+  })
+})
+
+describe('SurveyService.getVoteContext (Fix-1 G-2)', () => {
+  const P = '507f1f77bcf86cd799439011'
+
+  it('returns latest OPEN period + serialized series + maxSeriesPerVote', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findLatestOpenSurveyPeriod = jest.fn().mockResolvedValue({
+      id: P,
+      issueNumber: 12,
+      reflectedIssueNumber: 10,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-15T00:00:00.000Z'),
+      status: 'OPEN'
+    })
+    m.surveyRepository.findManySerializedSeriesPublic = jest.fn().mockResolvedValue([
+      { id: 'ser1', title: 'One', coverImage: null, genres: ['ACTION'], demographic: 'SHONEN' }
+    ])
+    const out = await makeService(m).getVoteContext()
+    expect(out.period).toMatchObject({
+      id: P,
+      issueNumber: 12,
+      reflectedIssueNumber: 10,
+      startDate: '2026-07-01T00:00:00.000Z',
+      endDate: '2026-07-15T00:00:00.000Z'
+    })
+    expect(out.series).toEqual([
+      { id: 'ser1', title: 'One', coverImage: null, genres: ['ACTION'], demographic: 'SHONEN' }
+    ])
+    expect(out.maxSeriesPerVote).toBe(3)
+  })
+
+  it('no OPEN period → period null + series rỗng, vẫn 200-shape, KHÔNG gọi series query', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findLatestOpenSurveyPeriod = jest.fn().mockResolvedValue(null)
+    m.surveyRepository.findManySerializedSeriesPublic = jest.fn()
+    const out = await makeService(m).getVoteContext()
+    expect(out).toEqual({ period: null, series: [], maxSeriesPerVote: 3 })
+    expect(m.surveyRepository.findManySerializedSeriesPublic).not.toHaveBeenCalled()
+  })
+})
+
+describe('SurveyService.getVoteResults (Fix-1 G-2)', () => {
+  const P = '507f1f77bcf86cd799439011'
+  const S1 = '507f1f77bcf86cd799439021'
+  const S2 = '507f1f77bcf86cd799439022'
+
+  it('id rác → 404 (OBJECT_ID_RE guard)', async () => {
+    const m = makeMocks()
+    await expect(makeService(m).getVoteResults('garbage')).rejects.toMatchObject({ status: 404 })
+    expect(m.surveyRepository.findSurveyPeriodById).not.toHaveBeenCalled()
+  })
+
+  it('period không tồn tại → 404', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue(null)
+    await expect(makeService(m).getVoteResults(P)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('period còn OPEN → 409 SurveyPeriodNotFinalized', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue({ id: P, status: 'OPEN', issueNumber: 12 })
+    await expect(makeService(m).getVoteResults(P)).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('period REFLECTED → ranked results với title, KHÔNG lộ field nội bộ', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue({ id: P, status: 'REFLECTED', issueNumber: 12 })
+    m.surveyRepository.getRankingRecordsByPeriod = jest.fn().mockResolvedValue([
+      {
+        seriesId: S1,
+        rankPosition: 1,
+        voteCount: 10.5,
+        rankChange: 2,
+        isAtRisk: true,
+        riskLevel: 'SEVERE',
+        isReliable: false
+      },
+      {
+        seriesId: S2,
+        rankPosition: 2,
+        voteCount: 3,
+        rankChange: null,
+        isAtRisk: false,
+        riskLevel: 'NONE',
+        isReliable: true
+      }
+    ])
+    m.surveyRepository.findSeriesTitlesByIds = jest.fn().mockResolvedValue([{ id: S1, title: 'One' }])
+    const out = await makeService(m).getVoteResults(P)
+    expect(out.surveyPeriodId).toBe(P)
+    expect(out.issueNumber).toBe(12)
+    expect(out.results).toEqual([
+      { rankPosition: 1, seriesId: S1, seriesTitle: 'One', voteCount: 10.5, rankChange: 2 },
+      { rankPosition: 2, seriesId: S2, seriesTitle: null, voteCount: 3, rankChange: null }
+    ])
+    const serialized = JSON.stringify(out)
+    expect(serialized).not.toContain('riskLevel')
+    expect(serialized).not.toContain('isAtRisk')
+    expect(serialized).not.toContain('isReliable')
+    expect(serialized).not.toContain('SEVERE')
   })
 })
