@@ -55,8 +55,10 @@ export class SeriesLifecycleService {
   // Called by listener (system, changedBy=null) when Board APPROVED CANCELLATION.
   async cancel(seriesId: string, endingChapterAllowance?: number) {
     const allowance = endingChapterAllowance ?? null
+    // Fix-1 G-1: snapshot TRƯỚC transition — chapter tạo lọt khe giữa count↔transition làm trần chặt hơn 1 slot (chấp nhận, xem spec §1.7).
+    const chapterCount = await this.seriesRepository.countChaptersBySeriesId(seriesId)
     const series = await this.seriesStateService.transition(seriesId, SeriesStatus.CANCELLING, { changedBy: null })
-    await this.seriesRepository.setEndingChapterAllowance(seriesId, allowance)
+    await this.seriesRepository.setEndingChapterAllowance(seriesId, allowance, chapterCount)
     this.eventBus.emit(DomainEvent.SeriesCancelling, { seriesId })
     await this.notifyOwners(
       series,

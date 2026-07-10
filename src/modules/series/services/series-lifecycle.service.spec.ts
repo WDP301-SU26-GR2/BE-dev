@@ -13,6 +13,7 @@ const makeDeps = () => {
       .fn()
       .mockResolvedValue({ id: 's1', mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.SERIALIZED }),
     setEndingChapterAllowance: jest.fn().mockResolvedValue(undefined),
+    countChaptersBySeriesId: jest.fn().mockResolvedValue(0),
     setHiatusStartedAt: jest.fn().mockResolvedValue(undefined),
     updatePublicationType: jest.fn().mockResolvedValue(undefined),
     // PB-06
@@ -31,13 +32,15 @@ const make = (d: ReturnType<typeof makeDeps>) =>
 describe('SeriesLifecycleService.cancel', () => {
   it('transitions to CANCELLING, sets allowance, emits SeriesCancelling, notifies', async () => {
     const d = makeDeps()
+    d.repo.countChaptersBySeriesId.mockResolvedValue(0)
     await make(d).cancel('s1', 3)
     expect(d.state.transition).toHaveBeenCalledWith(
       's1',
       SeriesStatus.CANCELLING,
       expect.objectContaining({ changedBy: null })
     )
-    expect(d.repo.setEndingChapterAllowance).toHaveBeenCalledWith('s1', 3)
+    expect(d.repo.countChaptersBySeriesId).toHaveBeenCalledWith('s1')
+    expect(d.repo.setEndingChapterAllowance).toHaveBeenCalledWith('s1', 3, 0)
     expect(d.bus.emit).toHaveBeenCalledWith(DomainEvent.SeriesCancelling, { seriesId: 's1' })
     expect(d.notify.notifySafe).toHaveBeenCalledTimes(2)
     expect(d.notify.notifySafe.mock.calls[0][0]).toMatchObject({
@@ -46,10 +49,30 @@ describe('SeriesLifecycleService.cancel', () => {
     })
   })
 
-  it('handles null allowance', async () => {
+  it('handles null allowance (snapshot vẫn lưu)', async () => {
     const d = makeDeps()
+    d.repo.countChaptersBySeriesId.mockResolvedValue(2)
     await make(d).cancel('s1')
-    expect(d.repo.setEndingChapterAllowance).toHaveBeenCalledWith('s1', null)
+    expect(d.repo.countChaptersBySeriesId).toHaveBeenCalledWith('s1')
+    expect(d.repo.setEndingChapterAllowance).toHaveBeenCalledWith('s1', null, 2)
+  })
+
+  it('snapshot count được đọc TRƯỚC transition (Fix-1 G-1)', async () => {
+    const d = makeDeps()
+    const callOrder: string[] = []
+    d.repo.countChaptersBySeriesId.mockImplementation(async () => {
+      callOrder.push('count')
+      return 7
+    })
+    d.state.transition.mockImplementation(async () => {
+      callOrder.push('transition')
+      return { id: 's1', mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.CANCELLING }
+    })
+    d.repo.setEndingChapterAllowance.mockImplementation(async () => {
+      callOrder.push('set')
+    })
+    await make(d).cancel('s1', 3)
+    expect(callOrder).toEqual(['count', 'transition', 'set'])
   })
 })
 
