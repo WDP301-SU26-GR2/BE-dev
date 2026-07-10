@@ -22,10 +22,11 @@ const makeDeps = () => {
   }
   const bus = { emit: jest.fn() }
   const notify = { notifySafe: jest.fn().mockResolvedValue(undefined) }
-  return { state, repo, bus, notify }
+  const audit = { record: jest.fn().mockResolvedValue(undefined) }
+  return { state, repo, bus, notify, audit }
 }
 const make = (d: ReturnType<typeof makeDeps>) =>
-  new SeriesLifecycleService(d.state as never, d.repo as never, d.bus as never, d.notify as never)
+  new SeriesLifecycleService(d.state as never, d.repo as never, d.bus as never, d.notify as never, d.audit as never)
 
 describe('SeriesLifecycleService.cancel', () => {
   it('transitions to CANCELLING, sets allowance, emits SeriesCancelling, notifies', async () => {
@@ -313,6 +314,21 @@ describe('SeriesLifecycleService.proposeCompletion (PB-06)', () => {
     expect(d.repo.setCompletionProposal).toHaveBeenCalled()
     expect(d.notify.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'e1', referenceType: 'SERIES_COMPLETION_PROPOSED' })
+    )
+  })
+  it('records audit COMPLETION_PROPOSED (Spec 9 §2.1 — proposal không đi qua state service nên phải audit riêng)', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({ id: S, status: SeriesStatus.SERIALIZED, mangakaId: 'm1', editorId: 'e1' })
+    d.repo.setCompletionProposal.mockResolvedValue({ id: S, status: SeriesStatus.SERIALIZED, mangakaId: 'm1' })
+    await make(d).proposeCompletion(S, 'm1', 'MANGAKA', { reason: 'story finished' })
+    expect(d.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'm1',
+        entityType: 'SERIES',
+        entityId: S,
+        action: 'COMPLETION_PROPOSED',
+        reason: 'story finished'
+      })
     )
   })
   it('editor proposes → notify mangaka', async () => {

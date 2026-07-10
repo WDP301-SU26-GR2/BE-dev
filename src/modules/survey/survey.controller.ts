@@ -33,6 +33,8 @@ import {
   SurveyPeriodNotOpenException,
   SurveyPeriodAlreadyFinalizedException,
   TooManySeriesSelectedException,
+  DuplicateSeriesInVoteException,
+  SeriesNotVotableException,
   VoteOtpNotFoundException,
   VoteOtpRateLimitException,
   VotingConfigNotFoundException
@@ -61,7 +63,9 @@ export class SurveyController {
     SurveyPeriodNotFoundException,
     SurveyPeriodNotOpenException,
     VoteOtpNotFoundException,
-    TooManySeriesSelectedException
+    TooManySeriesSelectedException,
+    DuplicateSeriesInVoteException,
+    SeriesNotVotableException
   )
   @ZodResponse({ status: 200, type: MessageResDto })
   submitVote(@Body() body: ReaderVoteBodyDto, @Req() req: Request) {

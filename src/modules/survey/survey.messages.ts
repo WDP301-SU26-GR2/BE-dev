@@ -25,6 +25,8 @@ export const SurveyMessages = {
     rankingFinalizeNotAllowed: 'Error.RankingFinalizeNotAllowed',
     votingConfigNotFound: 'Error.VotingConfigNotFound',
     tooManySeriesSelected: 'Error.TooManySeriesSelected',
+    duplicateSeriesInVote: 'Error.DuplicateSeriesInVote',
+    seriesNotVotable: 'Error.SeriesNotVotable',
     rankingAccessDenied: 'Error.RankingAccessDenied',
     seriesNotFoundForRanking: 'Error.SeriesNotFound'
   }

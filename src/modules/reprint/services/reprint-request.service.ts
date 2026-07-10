@@ -272,12 +272,13 @@ export class ReprintRequestService {
       return updated
     }
 
-    this.stateService.assertTransition(request.status, REPRINT_REQUEST_STATUS.REJECTED)
-    const updated = await this.reprintRequestRepo.update(id, { status: REPRINT_REQUEST_STATUS.REJECTED })
+    // B-RPT-02 AC2: Mangaka từ chối → REJECTED_BY_MANGAKA (phân biệt với Board reject → REJECTED).
+    this.stateService.assertTransition(request.status, REPRINT_REQUEST_STATUS.REJECTED_BY_MANGAKA)
+    const updated = await this.reprintRequestRepo.update(id, { status: REPRINT_REQUEST_STATUS.REJECTED_BY_MANGAKA })
     await this.stateService.audit(
       id,
       request.status,
-      REPRINT_REQUEST_STATUS.REJECTED,
+      REPRINT_REQUEST_STATUS.REJECTED_BY_MANGAKA,
       actorId,
       'mangaka review rejected'
     )

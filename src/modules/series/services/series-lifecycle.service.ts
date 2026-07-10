@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { NotificationType, PublicationType, SeriesStatus } from '@prisma/client'
+import { AuditEntityType, NotificationType, PublicationType, SeriesStatus } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
+import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { SeriesMessages } from '../series.messages'
 import {
@@ -26,7 +27,8 @@ export class SeriesLifecycleService {
     private readonly seriesStateService: SeriesStateService,
     private readonly seriesRepository: SeriesRepository,
     private readonly eventBus: DomainEventBus,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly auditService: AuditService
   ) {}
 
   private async notifyOwners(
@@ -169,6 +171,16 @@ export class SeriesLifecycleService {
       reason: body.reason,
       proposedEndingChapters: body.proposedEndingChapters ?? null,
       proposedAt: new Date()
+    })
+
+    // Spec 9 §2.1: proposal không đi qua SeriesStateService (không đổi status) nên phải ghi
+    // audit riêng — best-effort, AuditService tự nuốt lỗi.
+    await this.auditService.record({
+      actorId,
+      entityType: AuditEntityType.SERIES,
+      entityId: seriesId,
+      action: 'COMPLETION_PROPOSED',
+      reason: body.reason
     })
 
     // Notify the counterparty. Same call signature as `notifyOwners` but only one side, to keep

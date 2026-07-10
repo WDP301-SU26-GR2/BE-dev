@@ -21,5 +21,12 @@ export const VotingConfigNotFoundException = new NotFoundException(E.votingConfi
 export const TooManySeriesSelectedException = new UnprocessableEntityException([
   { message: E.tooManySeriesSelected, path: 'seriesIds' }
 ])
+// PB-03 (6): seriesIds không trùng + mọi series phải đang SERIALIZED trong kỳ (validate app-layer — không FK cứng).
+export const DuplicateSeriesInVoteException = new UnprocessableEntityException([
+  { message: E.duplicateSeriesInVote, path: 'seriesIds' }
+])
+export const SeriesNotVotableException = new UnprocessableEntityException([
+  { message: E.seriesNotVotable, path: 'seriesIds' }
+])
 export const RankingAccessDeniedException = new ForbiddenException(E.rankingAccessDenied)
 export const SeriesNotFoundForRankingException = new NotFoundException(E.seriesNotFoundForRanking)
