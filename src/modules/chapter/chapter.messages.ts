@@ -44,7 +44,8 @@ export const ChapterMessages = {
     chapterNameNotApproved: 'Error.ChapterNameNotApproved',
     chapterNotEditable: 'Error.ChapterNotEditable',
     chapterNumberLocked: 'Error.ChapterNumberLocked',
-    chapterNotDeletable: 'Error.ChapterNotDeletable'
+    chapterNotDeletable: 'Error.ChapterNotDeletable',
+    endingAllowanceExceeded: 'Error.EndingAllowanceExceeded'
   },
   response: {
     chapterDeleted: 'Chapter deleted'
