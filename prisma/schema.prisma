@@ -673,7 +673,8 @@ model Series {
   coOwnerApprovalRequired Boolean                    @default(false)
   reviewStartedAt         DateTime?
   hiatusStartedAt         DateTime? // Spec 2: set when entering HIATUS, null when resumed — used to compute pausedMs
-  endingChapterAllowance  Int? // Spec 2: N ending chapters Board grants on CANCELLATION (informational + audit)
+  endingChapterAllowance  Int? // Spec 2 + Fix-1: N ending chapters Board grants on CANCELLATION — ENFORCED bởi chapter-creation guard
+  chapterCountAtCancelling Int? // Fix-1 G-1: snapshot số chapter tại thời điểm vào CANCELLING — guard ending allowance
   completionProposal      CompletionProposal?
   statusHistory           SeriesStatusHistoryEntry[]
 
