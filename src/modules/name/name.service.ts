@@ -54,7 +54,10 @@ export class NameService {
     if (!chapter) throw ChapterNotFoundException
     if (chapter.series?.mangakaId !== mangakaId) throw NotSeriesOwnerException
     if (chapter.status !== 'DRAFT') throw ChapterNotDraftForNameException
-    if (chapter.series?.status !== SeriesStatus.SERIALIZED && !CHAPTER_CREATABLE_STATUSES.includes(chapter.series.status))
+    if (
+      chapter.series?.status !== SeriesStatus.SERIALIZED &&
+      !CHAPTER_CREATABLE_STATUSES.includes(chapter.series.status)
+    )
       throw SeriesNotSerializedException
     if (chapter.nameId) throw ChapterNameAlreadyExistsException
     const created = await this.nameRepo.createChapterNameForChapter({

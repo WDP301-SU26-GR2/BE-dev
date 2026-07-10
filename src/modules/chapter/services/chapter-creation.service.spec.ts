@@ -69,7 +69,7 @@ describe('ChapterCreationService.create — ending phase (Fix-1 G-1)', () => {
       chapterCountAtCancelling: 3
     })
     repo.findChapterByNumber.mockResolvedValue(null)
-    await make(repo).create('u', { seriesId: S, chapterNumber: 4 } as any)
+    await make(repo).create('u', { seriesId: S, chapterNumber: 4 })
     expect(repo.countChaptersBySeriesId).not.toHaveBeenCalled()
     expect(repo.createChapter).toHaveBeenCalled()
   })
@@ -127,7 +127,7 @@ describe('ChapterCreationService.create — ending phase (Fix-1 G-1)', () => {
       status: SeriesStatus.COMPLETING
     })
     repo.findChapterByNumber.mockResolvedValue(null)
-    await make(repo).create('u', { seriesId: S, chapterNumber: 9 } as any)
+    await make(repo).create('u', { seriesId: S, chapterNumber: 9 })
     expect(repo.countChaptersBySeriesId).not.toHaveBeenCalled()
     expect(repo.createChapter).toHaveBeenCalled()
   })
