@@ -134,17 +134,22 @@ describe('SurveyService.finalizeRanking — RankingFinalized event payload (B-VO
 
 describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03) + config consume (B-VOT-06)', () => {
   const OPEN_PERIOD = { id: '507f1f77bcf86cd799439011', status: 'OPEN' }
+  const SERIES_A = '507f1f77bcf86cd799439021'
+  const SERIES_B = '507f1f77bcf86cd799439022'
   const VOTE_BODY = {
     surveyPeriodId: '507f1f77bcf86cd799439011',
-    seriesIds: ['sA'],
+    seriesIds: [SERIES_A],
     phoneNumber: '+84900000000',
     otpCode: '123456'
   }
   const IP = '203.0.113.9'
+  const serializedOwnership = (ids: string[]) =>
+    ids.map((id) => ({ id, status: 'SERIALIZED', mangakaId: 'm', editorId: null }))
 
   it('uses HMAC identityHash for BOTH the dedup lookup and the stored vote (so "1 phone = 1 vote/period" holds)', async () => {
     const m = makeMocks()
     m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
+    m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue(serializedOwnership([SERIES_A]))
     m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue(null)
 
     await makeService(m).submitVote(VOTE_BODY, IP)
@@ -166,6 +171,7 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
   it('rejects a second vote from the same phone in the same period (dedup hit)', async () => {
     const m = makeMocks()
     m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
+    m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue(serializedOwnership([SERIES_A]))
     m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue({ id: 'existing' })
 
     await expect(makeService(m).submitVote(VOTE_BODY as never, IP)).rejects.toBeDefined()
@@ -194,6 +200,43 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
         '1.1.1.1'
       )
     ).rejects.toBeDefined()
+    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+  })
+
+  // PB-03 (6): seriesIds không trùng + mọi series phải SERIALIZED — validate TRƯỚC khi đụng OTP.
+  it('rejects duplicate seriesIds in one ballot (422, OTP untouched)', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
+    await expect(
+      makeService(m).submitVote({ ...VOTE_BODY, seriesIds: [SERIES_A, SERIES_A] }, IP)
+    ).rejects.toMatchObject({ status: 422 })
+    expect(m.surveyRepository.findSeriesOwnershipByIds).not.toHaveBeenCalled()
+    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
+    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed (non-24-hex) seriesId with 422 — never reaches Prisma (no P2023/500)', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
+    await expect(makeService(m).submitVote({ ...VOTE_BODY, seriesIds: ['garbage'] }, IP)).rejects.toMatchObject({
+      status: 422
+    })
+    expect(m.surveyRepository.findSeriesOwnershipByIds).not.toHaveBeenCalled()
+    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
+  })
+
+  it('rejects vote for a series that is not SERIALIZED (422, OTP not burned)', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
+    m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue([
+      { id: SERIES_A, status: 'SERIALIZED', mangakaId: 'm', editorId: null },
+      { id: SERIES_B, status: 'DRAFT', mangakaId: 'm', editorId: null }
+    ])
+    await expect(
+      makeService(m).submitVote({ ...VOTE_BODY, seriesIds: [SERIES_A, SERIES_B] }, IP)
+    ).rejects.toMatchObject({ status: 422 })
+    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
+    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
     expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
   })
 })

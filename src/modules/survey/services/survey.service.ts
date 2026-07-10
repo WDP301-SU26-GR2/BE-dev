@@ -12,6 +12,8 @@ import {
   SurveyDataImportNotAllowedException,
   RankingFinalizeNotAllowedException,
   TooManySeriesSelectedException,
+  DuplicateSeriesInVoteException,
+  SeriesNotVotableException,
   RankingAccessDeniedException,
   SeriesNotFoundForRankingException
 } from '../errors/survey.errors'
@@ -175,6 +177,18 @@ export class SurveyService {
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(body.surveyPeriodId)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     if (surveyPeriod.status !== 'OPEN') throw SurveyPeriodNotOpenException
+
+    // PB-03 (6): seriesIds không trùng + mọi series phải đang SERIALIZED (validate app-layer —
+    // seriesIds là N-N không FK cứng; id rác đưa thẳng vào Prisma `in` sẽ P2023 → 500).
+    // Validate TRƯỚC bước OTP để phiếu không hợp lệ không đốt OTP của độc giả,
+    // và series rác không lọt vào ranking lúc finalize.
+    if (new Set(body.seriesIds).size !== body.seriesIds.length) throw DuplicateSeriesInVoteException
+    if (body.seriesIds.some((id) => !OBJECT_ID_RE.test(id))) throw SeriesNotVotableException
+    const votableSeries = await this.surveyRepository.findSeriesOwnershipByIds(body.seriesIds)
+    const votableStatusById = new Map<string, string>(
+      votableSeries.map((s): [string, string] => [String(s.id), String(s.status)])
+    )
+    if (body.seriesIds.some((id) => votableStatusById.get(id) !== 'SERIALIZED')) throw SeriesNotVotableException
 
     // Deterministic HMAC (NOT bcrypt) so the (surveyPeriodId, identityHash) dedup + unique
     // constraint actually catch repeat votes — see B-VOT-03 fix / IdentityHashService.

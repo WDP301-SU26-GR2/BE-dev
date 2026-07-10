@@ -122,6 +122,8 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.OwnershipMismatch': 'ownership split must total 100; FULL_BUYOUT stays 100/0',
   // Spec 5 — voting/ranking completion
   'Error.TooManySeriesSelected': 'số series vượt maxSeriesPerVote (VotingConfig); trần cứng 3 theo Requiment §1.15',
+  'Error.DuplicateSeriesInVote': 'seriesIds chứa id trùng nhau trong cùng một phiếu (PB-03)',
+  'Error.SeriesNotVotable': 'seriesIds chứa id rác/không tồn tại hoặc series không ở trạng thái SERIALIZED (PB-03)',
   'Error.PublicationVersionNotFound': 'publication version does not exist',
   'Error.InvalidVersionType': 'versionType must be one of ORIGINAL, DIGITAL, FLIPPED',
   'Error.RankingAccessDenied':
