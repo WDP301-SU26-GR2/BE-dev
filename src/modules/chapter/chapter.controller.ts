@@ -34,6 +34,7 @@ import {
   ChapterOnHoldException,
   ContractNotExecutedException,
   DuplicateChapterNumberException,
+  EndingAllowanceExceededException,
   InvalidManuscriptTransitionException,
   InvalidPageTransitionException,
   NotSeriesEditorException,
@@ -62,7 +63,8 @@ export class ChapterController {
     NotSeriesOwnerException,
     ChapterNotFoundException,
     DuplicateChapterNumberException,
-    SeriesNotSerializedException
+    SeriesNotSerializedException,
+    EndingAllowanceExceededException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
