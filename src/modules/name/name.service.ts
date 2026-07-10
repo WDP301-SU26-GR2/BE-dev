@@ -54,10 +54,9 @@ export class NameService {
     if (!chapter) throw ChapterNotFoundException
     if (chapter.series?.mangakaId !== mangakaId) throw NotSeriesOwnerException
     if (chapter.status !== 'DRAFT') throw ChapterNotDraftForNameException
-    if (
-      chapter.series?.status !== SeriesStatus.SERIALIZED &&
-      !CHAPTER_CREATABLE_STATUSES.includes(chapter.series.status)
-    )
+    // Fix-1 G-1 (Requiment Flow 5): ending phase vẫn tạo được chapter-Name.
+    // LẶP const cục bộ (không import chéo module chapter — vertical slice); 2 danh sách phải giống hệt.
+    if (!chapter.series?.status || !CHAPTER_CREATABLE_STATUSES.includes(chapter.series.status))
       throw SeriesNotSerializedException
     if (chapter.nameId) throw ChapterNameAlreadyExistsException
     const created = await this.nameRepo.createChapterNameForChapter({
