@@ -21,6 +21,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.ChapterNotOnHold': 'chapter is not on hold; nothing to resume',
   'Error.SeriesNotSerialized': 'Series phải ở SERIALIZED (hoặc CANCELLING/COMPLETING cho chương kết thúc) mới tạo được chapter',
   'Error.EndingAllowanceExceeded': 'Series CANCELLING đã tạo đủ số chương kết thúc Board cấp (endingChapterAllowance)',
+  'Error.SurveyPeriodNotFinalized': 'Kỳ bình chọn chưa REFLECTED (chưa finalize) — kết quả public chỉ xem được sau khi chốt',
   'Error.ContractNotExecuted': 'series has no FULLY_EXECUTED contract; cannot publish (BR-CONTRACT-05)',
   'Error.InvalidContractTransition': 'contract status transition not allowed by CONTRACT_TRANSITIONS (Flow 6)',
   'Error.ContractNotSignableYet': 'contract must reach BOARD_APPROVED before it can be signed (B-CON-02)',

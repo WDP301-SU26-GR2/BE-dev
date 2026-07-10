@@ -1,5 +1,5 @@
 import { extendApi } from '@anatine/zod-openapi'
-import { RiskLevel } from '@prisma/client'
+import { Demographic, Genre, RiskLevel } from '@prisma/client'
 import z from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 
@@ -239,3 +239,69 @@ export const SurveyDataListResSchema = extendApi(
     .strict(),
   { title: 'SurveyDataListRes', description: 'Danh sách dữ liệu vote offline' }
 )
+
+// Fix-1 G-2: Public vote context (Guest) — kỳ OPEN + danh sách series SERIALIZED (field public-safe).
+export const VoteContextResSchema = extendApi(
+  z
+    .object({
+      period: z
+        .object({
+          id: z.string(),
+          issueNumber: z.number().int().nullable(),
+          reflectedIssueNumber: z.number().int().nullable(),
+          startDate: z.string().nullable().describe('ISO 8601 UTC'),
+          endDate: z.string().nullable().describe('ISO 8601 UTC')
+        })
+        .nullable()
+        .describe('null = hiện không có kỳ bình chọn OPEN'),
+      series: z.array(
+        z
+          .object({
+            id: z.string(),
+            title: z.string(),
+            coverImage: z.string().nullable().describe('Object key R2 — Guest chưa xem được ảnh (public sign chưa có)'),
+            genres: z.array(zEnum(Genre, 'Genre')),
+            demographic: zEnum(Demographic, 'Demographic').nullable()
+          })
+          .strict()
+      ),
+      maxSeriesPerVote: z.number().int()
+    })
+    .strict(),
+  {
+    title: 'VoteContextRes',
+    description: 'Dữ liệu public dựng trang bình chọn Guest (Req 2.5#1) — Fix-1 G-2'
+  }
+)
+
+// Fix-1 G-2: Public vote results (chỉ sau khi kỳ REFLECTED). ẨN tín hiệu biên tập nội bộ.
+export const VoteResultsResSchema = extendApi(
+  z
+    .object({
+      surveyPeriodId: z.string(),
+      issueNumber: z.number().int().nullable(),
+      results: z.array(
+        z
+          .object({
+            rankPosition: z.number().int().nullable(),
+            seriesId: z.string(),
+            seriesTitle: z.string().nullable().describe('null nếu series đã bị xóa'),
+            voteCount: z.number(),
+            rankChange: z.number().int().nullable()
+          })
+          .strict()
+      )
+    })
+    .strict(),
+  {
+    title: 'VoteResultsRes',
+    description:
+      'Bảng xếp hạng public sau khi kỳ REFLECTED (Req 2.5#3) — Fix-1 G-2. KHÔNG chứa tín hiệu nội bộ (isAtRisk/riskLevel/isReliable)'
+  }
+)
+
+export const VoteResultsQuerySchema = z
+  .object({
+    surveyPeriodId: z.string().min(1, { message: 'surveyPeriodId là bắt buộc.' })
+  })
+  .strict()

@@ -114,6 +114,32 @@ export class SurveyRepository {
     return this.prisma.rankingRecord.findMany({ where: { surveyPeriodId }, orderBy: { rankPosition: 'asc' } })
   }
 
+  // Fix-1 G-2: kỳ OPEN mới nhất cho trang vote public.
+  findLatestOpenSurveyPeriod() {
+    return this.prisma.surveyPeriod.findFirst({
+      where: { status: 'OPEN' },
+      orderBy: { startDate: 'desc' }
+    })
+  }
+
+  // Fix-1 G-2: danh sách series đang phát hành — CHỈ field public-safe, TUYỆT ĐỐI không thêm select.
+  findManySerializedSeriesPublic() {
+    return this.prisma.series.findMany({
+      where: { status: 'SERIALIZED' },
+      select: { id: true, title: true, coverImage: true, genres: true, demographic: true },
+      orderBy: { title: 'asc' }
+    })
+  }
+
+  // Fix-1 G-2: map title cho bảng kết quả public.
+  findSeriesTitlesByIds(seriesIds: string[]) {
+    if (seriesIds.length === 0) return Promise.resolve([])
+    return this.prisma.series.findMany({
+      where: { id: { in: seriesIds } },
+      select: { id: true, title: true }
+    })
+  }
+
   // PB-04 trend: N record gần nhất của 1 series (mới→cũ).
   getRankingRecordsBySeries(seriesId: string, take: number) {
     return this.prisma.rankingRecord.findMany({
