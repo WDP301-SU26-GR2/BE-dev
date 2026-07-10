@@ -28,6 +28,14 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 const N = NameMessages.notification
 
+// Fix-1 G-1: đồng bộ với chapter-creation — ending phase vẫn tạo được chapter-Name.
+// LẶP const cục bộ (không import chéo module chapter — vertical slice); 2 danh sách phải giống hệt.
+const CHAPTER_CREATABLE_STATUSES: SeriesStatus[] = [
+  SeriesStatus.SERIALIZED,
+  SeriesStatus.CANCELLING,
+  SeriesStatus.COMPLETING
+]
+
 export type NameCaller = { userId: string; roleName: string }
 
 @Injectable()
@@ -46,7 +54,8 @@ export class NameService {
     if (!chapter) throw ChapterNotFoundException
     if (chapter.series?.mangakaId !== mangakaId) throw NotSeriesOwnerException
     if (chapter.status !== 'DRAFT') throw ChapterNotDraftForNameException
-    if (chapter.series?.status !== SeriesStatus.SERIALIZED) throw SeriesNotSerializedException
+    if (chapter.series?.status !== SeriesStatus.SERIALIZED && !CHAPTER_CREATABLE_STATUSES.includes(chapter.series.status))
+      throw SeriesNotSerializedException
     if (chapter.nameId) throw ChapterNameAlreadyExistsException
     const created = await this.nameRepo.createChapterNameForChapter({
       chapterId,

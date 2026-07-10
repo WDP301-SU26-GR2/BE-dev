@@ -278,3 +278,59 @@ describe('NameService.createChapterName (chapter-first)', () => {
     )
   })
 })
+
+describe('NameService.createChapterName — ending phase (Fix-1 G-1)', () => {
+  function makeRepo() {
+    return {
+      findChapterForNameGuard: jest.fn(),
+      createChapterNameForChapter: jest.fn().mockResolvedValue({
+        id: 'n1',
+        kind: NameKind.CHAPTER,
+        status: NameStatus.SUBMITTED,
+        chapterId: CHAPTER_ID,
+        chapterNumber: 8,
+        pages: []
+      })
+    }
+  }
+  const makeSvc = (repo: any) =>
+    new NameService(
+      repo as never,
+      { emit: jest.fn() } as never,
+      { notifySafe: jest.fn() } as never,
+      { get: jest.fn() } as never
+    )
+
+  it.each([SeriesStatus.CANCELLING, SeriesStatus.COMPLETING])(
+    'series %s → chapter-Name vẫn creatable (ending phase, Fix-1)',
+    async (status) => {
+      const repo = makeRepo()
+      repo.findChapterForNameGuard.mockResolvedValue({
+        id: CHAPTER_ID,
+        seriesId: SERIES_ID,
+        chapterNumber: 8,
+        status: 'DRAFT',
+        nameId: null,
+        series: { mangakaId: 'm', status }
+      })
+      await expect(
+        makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+      ).resolves.toBeDefined()
+    }
+  )
+
+  it('series HIATUS → 409 SeriesNotSerialized', async () => {
+    const repo = makeRepo()
+    repo.findChapterForNameGuard.mockResolvedValue({
+      id: CHAPTER_ID,
+      seriesId: SERIES_ID,
+      chapterNumber: 8,
+      status: 'DRAFT',
+      nameId: null,
+      series: { mangakaId: 'm', status: SeriesStatus.HIATUS }
+    })
+    await expect(
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+    ).rejects.toMatchObject({ status: 409 })
+  })
+})
