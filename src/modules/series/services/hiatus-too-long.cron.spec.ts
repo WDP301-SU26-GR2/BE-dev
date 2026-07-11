@@ -68,3 +68,11 @@ describe('HiatusTooLongCron', () => {
     expect(cutoff.getTime()).toBeLessThanOrEqual(after + 1000)
   })
 })
+
+describe('HiatusTooLongCron — cron hardening (audit 2026-07-11)', () => {
+  it('repo/config failure is swallowed (no unhandled rejection)', async () => {
+    const d = make()
+    d.seriesRepository.findHiatusStartedBefore.mockRejectedValue(new Error('mongo down'))
+    await expect(d.cron.run()).resolves.toBeUndefined()
+  })
+})

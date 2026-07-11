@@ -56,7 +56,34 @@ export const ENUM_DOCS = {
   // Spec 9 — Part 5: Board convention (DecisionType + BoardSessionStatus)
   DecisionType:
     'Board decision type: CONTINUE, CANCEL, HIATUS, ENDING_ALLOWANCE, SERIES_CONTRACT_APPROVAL, SERIALIZATION, CANCELLATION, FORMAT_CHANGE, COMPLETION, REPRINT, TRANSFER, CONTRACT, OTHER',
-  BoardSessionStatus: 'Board session status: UPCOMING (chờ tới giờ), ACTIVE (đang họp/vote), CONCLUDED (đã bế mạc)'
+  BoardSessionStatus: 'Board session status: UPCOMING (chờ tới giờ), ACTIVE (đang họp/vote), CONCLUDED (đã bế mạc)',
+  ContractType:
+    'Loại hợp đồng: FULL_BUYOUT (NXB mua đứt 100%, toàn quyền) | REVENUE_SHARE (ăn chia %, quyết định lớn cần Mangaka đồng ý) — BR-CONTRACT-03',
+  ContractStatus:
+    'Vòng đời hợp đồng: DRAFT → MANGAKA_REVIEW → MANGAKA_APPROVED → BOARD_APPROVED → NEGOTIATION → MANGAKA_SIGNED → FULLY_EXECUTED (khoá); kết thúc: FULFILLED | TERMINATED | TERMINATED_BY_BREACH | EXPIRED | VOIDED',
+  ContractAmendmentStatus:
+    'Vòng đời phụ lục hợp đồng: DRAFT → PENDING_SIGNATURES → FULLY_EXECUTED | VOIDED (reject → về DRAFT)',
+  AmendmentTrigger:
+    'Nguồn phát sinh phụ lục: MANUAL (Editor tự tạo) | FORMAT_CHANGE | COMPLETION (từ quyết định Flow 5 — BR-CONTRACT-06)',
+  PaymentType:
+    'Loại khoản chi cho Mangaka: CONDITION_PAYOUT (đạt điều kiện) | REVENUE_SHARE (chia lợi nhuận định kỳ) | COMPENSATION (đền bù khi huỷ series) | CHAPTER_MILESTONE | RECURRING_CHAPTER | RANKING_MILESTONE | TIME_BOUND (các payout theo điều kiện) | TRANSFER (liên quan chuyển nhượng)',
+  PaymentSource:
+    'Nguồn phát sinh khoản chi: CONTRACT (hợp đồng gốc) | REPRINT (tái bản) | TRANSFER (chuyển nhượng) | TERMINATION (huỷ/kết thúc hợp đồng) | MANUAL (tạo thủ công)',
+  PaymentConditionStatus:
+    'Trạng thái điều kiện giải ngân: PENDING (chờ đạt) | ACHIEVED (đã đạt) | PAID (đã chi) | CANCELLED (đã huỷ) | MISSED (hết hạn không đạt) | DISABLED (tạm dừng khi series HIATUS — BR-CONTRACT-07)',
+  PaymentRecordStatus:
+    'Trạng thái khoản chi: TRIGGERED (điều kiện đạt) | PENDING (chờ xử lý) → APPROVED (Board duyệt) → PAID (đã trả); MISSED/FAILED/CANCELLED = không chi trả',
+  TransferType:
+    'Kiểu chuyển nhượng (chỉ có nghĩa khi HĐ gốc REVENUE_SHARE): FULL_TRANSFER (B mua trọn phần của A, A ra đi) | PARTIAL_TRANSFER (A giữ lại một phần → A thành co-owner, duyệt mỗi chapter mới — BR-TRANSFER-03)',
+  TransferRequestStatus:
+    'Vòng đời yêu cầu chuyển nhượng: SUBMITTED → UNDER_REVIEW → NEGOTIATING/PROPOSED → ACCEPTED; nhánh từ chối/hủy: REJECTED_BY_BOARD | REJECTED_BY_ORIGINAL_MANGAKA | REJECTED | CANCELLED',
+  TransferContractStatus:
+    'Vòng đời hợp đồng chuyển nhượng 3 bên: DRAFT → A_SIGNED → B_SIGNED → BOARD_SIGNED → FULLY_EXECUTED | VOIDED',
+  SurveyStatus:
+    'Vòng đời kỳ bình chọn: DRAFT → OPEN (đang nhận phiếu) → CLOSED → REFLECTED (đã chốt ranking, công khai được)',
+  BoardDecisionResult:
+    'Kết quả quyết định Hội đồng: PENDING (đang bỏ phiếu), PENDING_QUORUM (chưa đủ quorum), APPROVED (thông qua), REJECTED (bác bỏ), EXPIRED (phiên đóng khi chưa chốt → cần mở phiên mới)',
+  VoteValue: 'Giá trị phiếu bầu của thành viên Hội đồng: APPROVE, REJECT, ABSTAIN'
 } as const
 
 type EnumDocKey = keyof typeof ENUM_DOCS

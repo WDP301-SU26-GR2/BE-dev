@@ -17,7 +17,11 @@ export class OtpCleanupCron {
     const locked = await this.redisService.setNxEx('cron:otp-cleanup', 600)
     if (!locked) return
 
-    const { count } = await this.authRepository.deleteExpiredOtpRequests(new Date())
-    this.logger.log(`OTP cleanup cron: removed ${count} expired otp requests`)
+    try {
+      const { count } = await this.authRepository.deleteExpiredOtpRequests(new Date())
+      this.logger.log(`OTP cleanup cron: removed ${count} expired otp requests`)
+    } catch (error) {
+      this.logger.error(`OTP cleanup cron failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 }

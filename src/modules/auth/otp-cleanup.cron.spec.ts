@@ -37,6 +37,21 @@ describe('OtpCleanupCron (Fix-2 G-11)', () => {
     expect(d.authRepository.deleteExpiredOtpRequests).not.toHaveBeenCalled()
     expect(logSpy).not.toHaveBeenCalled()
   })
+
+  it('repo lỗi → cron KHÔNG reject, chỉ log error', async () => {
+    const redisService = { setNxEx: jest.fn().mockResolvedValue(true) }
+    const authRepository = {
+      deleteExpiredOtpRequests: jest.fn().mockRejectedValue(new Error('mongo down'))
+    }
+    const cron = new OtpCleanupCron(redisService as never, authRepository as never)
+    const errSpy = jest
+      .spyOn((cron as never as { logger: { error: jest.Mock } }).logger, 'error')
+      .mockImplementation(() => undefined)
+
+    await expect(cron.run()).resolves.toBeUndefined()
+
+    expect(errSpy).toHaveBeenCalled()
+  })
 })
 
 describe('AuthRepository.deleteExpiredOtpRequests', () => {

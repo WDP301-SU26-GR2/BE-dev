@@ -4,6 +4,7 @@ import { NotificationType } from '@prisma/client'
 import { DomainEvent, DomainEventPayload } from 'src/core/events/domain-events'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { ContractAmendmentRepo } from '../contract-amendment.repo'
+import { ContractMessages } from '../contract.messages'
 
 // Spec 4 / Flow 5: series (BE-A) emit ContractAmendmentRequested khi CHANGE_FORMAT/COMPLETE →
 // contract module tạo DRAFT amendment stub cho HĐ FULLY_EXECUTED + nhắc Editor. Best-effort.
@@ -44,7 +45,7 @@ export class ContractAmendmentListener {
         type: NotificationType.CONTRACT,
         referenceId: payload.seriesId,
         referenceType: 'CONTRACT_AMENDMENT_NEEDED',
-        content: 'Series cần phụ lục hợp đồng — vui lòng nhập điều khoản và trình ký.'
+        content: ContractMessages.notification.amendmentNeeded
       })
     } catch (err) {
       this.logger.error(`amendment-requested handler failed: ${String(err)}`)

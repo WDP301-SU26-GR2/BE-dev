@@ -26,7 +26,8 @@ import {
   SignTransferContractBodyDto
 } from '../dto/transfer.dto'
 import { TRANSFER_REQUEST_STATUS } from '../transfer.constant'
-import { TransferContractSignature, $Enums } from '@prisma/client'
+import { TransferContractSignature, $Enums, AuditEntityType } from '@prisma/client'
+import { AuditService } from 'src/modules/audit/audit.service'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -34,7 +35,8 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 export class TransferService {
   constructor(
     private readonly transferRepo: TransferRepo,
-    private readonly authOtpService: AuthOtpService
+    private readonly authOtpService: AuthOtpService,
+    private readonly auditService: AuditService
   ) {}
 
   // B-TRF-01: Mangaka B nộp hồ sơ yêu cầu nhận chuyển nhượng tác phẩm
@@ -83,10 +85,19 @@ export class TransferService {
       throw InvalidStatusForScreeningException
     }
 
-    return this.transferRepo.updateTransferRequest(id, {
+    const updated = await this.transferRepo.updateTransferRequest(id, {
       status: TRANSFER_REQUEST_STATUS.UNDER_REVIEW,
       boardDecisionId: dto.boardSessionId
     })
+    await this.auditService.record({
+      actorId: null,
+      entityType: AuditEntityType.TRANSFER_REQUEST,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: request.status,
+      toState: TRANSFER_REQUEST_STATUS.UNDER_REVIEW
+    })
+    return updated
   }
 
   // B-TRF-01: Board từ chối hồ sơ năng lực ở vòng sàng lọc ban đầu
@@ -96,10 +107,19 @@ export class TransferService {
       throw InvalidStatusForScreeningException
     }
 
-    return this.transferRepo.updateTransferRequest(id, {
+    const updated = await this.transferRepo.updateTransferRequest(id, {
       status: TRANSFER_REQUEST_STATUS.REJECTED_BY_BOARD,
       boardDecisionId: dto.boardSessionId
     })
+    await this.auditService.record({
+      actorId: null,
+      entityType: AuditEntityType.TRANSFER_REQUEST,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: request.status,
+      toState: TRANSFER_REQUEST_STATUS.REJECTED_BY_BOARD
+    })
+    return updated
   }
 
   // B-TRF-02: Nhánh FULL_BUYOUT (Mô hình A) - Board định giá lại + đặt điều kiện cho HĐ mới của B.
@@ -137,6 +157,14 @@ export class TransferService {
       status: TRANSFER_REQUEST_STATUS.ACCEPTED,
       boardDecisionId: dto.boardSessionId
     })
+    await this.auditService.record({
+      actorId: null,
+      entityType: AuditEntityType.TRANSFER_REQUEST,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: request.status,
+      toState: TRANSFER_REQUEST_STATUS.ACCEPTED
+    })
 
     return {
       message: TransferMessages.response.fullBuyoutProcessed,
@@ -151,9 +179,18 @@ export class TransferService {
       throw OnlyAppliesToRevenueShareException
     }
 
-    return this.transferRepo.updateTransferRequest(id, {
+    const updated = await this.transferRepo.updateTransferRequest(id, {
       status: TRANSFER_REQUEST_STATUS.NEGOTIATING
     })
+    await this.auditService.record({
+      actorId: null,
+      entityType: AuditEntityType.TRANSFER_REQUEST,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: request.status,
+      toState: TRANSFER_REQUEST_STATUS.NEGOTIATING
+    })
+    return updated
   }
 
   // B-TRF-03: Mangaka A đồng ý chuyển nhượng tác phẩm
@@ -163,9 +200,18 @@ export class TransferService {
       throw RequestNotInNegotiatingStageException
     }
 
-    return this.transferRepo.updateTransferRequest(id, {
+    const updated = await this.transferRepo.updateTransferRequest(id, {
       status: TRANSFER_REQUEST_STATUS.UNDER_REVIEW
     })
+    await this.auditService.record({
+      actorId: null,
+      entityType: AuditEntityType.TRANSFER_REQUEST,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: request.status,
+      toState: TRANSFER_REQUEST_STATUS.UNDER_REVIEW
+    })
+    return updated
   }
 
   // B-TRF-03: Mangaka A từ chối chuyển nhượng tác phẩm -> Bẻ luồng về REJECTED
@@ -175,9 +221,18 @@ export class TransferService {
       throw RequestNotInNegotiatingStageException
     }
 
-    return this.transferRepo.updateTransferRequest(id, {
+    const updated = await this.transferRepo.updateTransferRequest(id, {
       status: TRANSFER_REQUEST_STATUS.REJECTED_BY_ORIGINAL_MANGAKA
     })
+    await this.auditService.record({
+      actorId: null,
+      entityType: AuditEntityType.TRANSFER_REQUEST,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: request.status,
+      toState: TRANSFER_REQUEST_STATUS.REJECTED_BY_ORIGINAL_MANGAKA
+    })
+    return updated
   }
 
   // B-TRF-03: Editor lập hợp đồng thỏa thuận chuyển nhượng bản thảo 3 bên.

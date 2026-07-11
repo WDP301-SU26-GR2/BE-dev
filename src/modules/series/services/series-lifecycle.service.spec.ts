@@ -1,5 +1,6 @@
 import { NotificationType, SeriesStatus } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
+import { SeriesMessages } from '../series.messages'
 import { SeriesLifecycleService } from './series-lifecycle.service'
 
 const makeDeps = () => {
@@ -114,6 +115,32 @@ describe('SeriesLifecycleService.changeFormat', () => {
     const d = makeDeps()
     await make(d).changeFormat('s1', undefined)
     expect(d.repo.updatePublicationType).not.toHaveBeenCalled()
+  })
+  it('changeFormat: notify owners bằng message mới + KHÔNG đụng Schedule (G-6)', async () => {
+    const d = makeDeps()
+    d.repo.findById = jest.fn().mockResolvedValue({
+      id: '507f1f77bcf86cd799439011',
+      mangakaId: '507f1f77bcf86cd799439012',
+      editorId: '507f1f77bcf86cd799439013'
+    })
+    d.repo.updatePublicationType = jest.fn().mockResolvedValue(undefined)
+    const service = make(d)
+
+    await service.changeFormat('507f1f77bcf86cd799439011', 'MONTHLY')
+
+    // notify tới CẢ mangaka + editor, dùng text từ catalog
+    expect(d.notify.notifySafe).toHaveBeenCalledTimes(2)
+    expect(d.notify.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceType: 'SERIES_FORMAT_CHANGED',
+        content: SeriesMessages.notification.seriesFormatChanged
+      })
+    )
+    // message mới PHẢI nhắc Editor về deadline
+    expect(SeriesMessages.notification.seriesFormatChanged).toContain('deadline')
+
+    // KHÔNG đụng Schedule
+    expect(d.repo.updateSchedule).toBeUndefined()
   })
 })
 

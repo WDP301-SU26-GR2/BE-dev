@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { NotificationType } from '@prisma/client'
+import { NotificationType, AuditEntityType } from '@prisma/client'
 import { SurveyRepository } from '../survey.repo'
 import { SurveyMessages } from '../survey.messages'
 import {
@@ -38,6 +38,7 @@ import { NotificationService } from 'src/modules/notification/notification.servi
 import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { SurveyConfigService } from './survey-config.service'
 import { bottomThirdCount, computeRiskLevel, nextConsecutiveCount } from './ranking-finalize.helpers'
+import { AuditService } from 'src/modules/audit/audit.service'
 
 // B-VOT-07 / Spec 5: per-period reliability threshold uses AppConfig.lowVoteReliabilityThreshold
 // (read at finalize time, not a static constant) — this constant is the SEED default for AppConfig
@@ -58,7 +59,8 @@ export class SurveyService {
     private readonly domainEventBus: DomainEventBus,
     private readonly notificationService: NotificationService,
     private readonly surveyConfigService: SurveyConfigService,
-    private readonly appConfigService: AppConfigService
+    private readonly appConfigService: AppConfigService,
+    private readonly auditService: AuditService
   ) {}
 
   private mapSurveyPeriod(surveyPeriod: {
@@ -181,6 +183,10 @@ export class SurveyService {
       throw TooManySeriesSelectedException
     }
 
+    // Spec 11 §1.1: guard body.surveyPeriodId TRƯỚC khi đụng Prisma/OTP — id rác sẽ throw P2023 (500)
+    // nếu lọt tới repo, và không được đốt OTP của độc giả.
+    if (!OBJECT_ID_RE.test(body.surveyPeriodId)) throw SurveyPeriodNotFoundException
+
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(body.surveyPeriodId)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     if (surveyPeriod.status !== 'OPEN') throw SurveyPeriodNotOpenException
@@ -278,7 +284,7 @@ export class SurveyService {
         type: NotificationType.SURVEY,
         referenceId: surveyPeriod.id,
         referenceType: 'SURVEY_PERIOD_CREATED',
-        content: 'Kỳ bình chọn mới đã được tạo thành công.'
+        content: SurveyMessages.notification.surveyPeriodCreated
       })
     }
     return this.mapSurveyPeriod(surveyPeriod)
@@ -289,19 +295,30 @@ export class SurveyService {
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     const updated = await this.surveyRepository.updateSurveyPeriodStatus(id, body.status)
+    await this.auditService.record({
+      actorId: userId ?? null,
+      entityType: AuditEntityType.SURVEY_PERIOD,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: surveyPeriod.status,
+      toState: body.status
+    })
     if (userId) {
       await this.notificationService.notifySafe({
         recipientId: userId,
         type: NotificationType.SURVEY,
         referenceId: updated.id,
         referenceType: 'SURVEY_PERIOD_STATUS_UPDATED',
-        content: 'Trạng thái kỳ bình chọn đã được cập nhật.'
+        content: SurveyMessages.notification.surveyPeriodStatusUpdated
       })
     }
     return this.mapSurveyPeriod(updated)
   }
 
   async importSurveyData(body: ImportSurveyDataBodyDto, userId: string) {
+    // Spec 11 §1.1: guard body.surveyPeriodId TRƯỚC khi đụng Prisma — id rác sẽ throw P2023 (500).
+    if (!OBJECT_ID_RE.test(body.surveyPeriodId)) throw SurveyPeriodNotFoundException
+
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(body.surveyPeriodId)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     if (surveyPeriod.status !== 'CLOSED') throw SurveyDataImportNotAllowedException
@@ -311,7 +328,7 @@ export class SurveyService {
       type: NotificationType.SURVEY,
       referenceId: surveyPeriod.id,
       referenceType: 'SURVEY_DATA_IMPORTED',
-      content: 'Dữ liệu bình chọn offline đã được nhập thành công.'
+      content: SurveyMessages.notification.surveyDataImported
     })
     return { message: SurveyMessages.response.surveyDataImported }
   }
@@ -430,6 +447,12 @@ export class SurveyService {
     }
 
     await this.surveyRepository.updateSurveyPeriodStatus(surveyPeriodId, 'REFLECTED')
+    await this.auditService.record({
+      actorId: userId ?? null,
+      entityType: AuditEntityType.SURVEY_PERIOD,
+      entityId: surveyPeriodId,
+      action: 'RANKING_FINALIZED'
+    })
     if (userId) {
       await this.notificationService.notifySafe({
         recipientId: userId,

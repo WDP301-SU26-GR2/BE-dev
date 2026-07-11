@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { ContractStatus, NotificationType } from '@prisma/client'
+import { AuditEntityType, ContractStatus, NotificationType } from '@prisma/client'
 import { ContractRepo } from '../contract.repo'
 import { ContractErrors } from '../errors/contract.errors'
 import { CreateContractBodyDto, EditorUpdateContractBodyDto, ReportRevenueBodyDto } from '../dto/contract.dto'
@@ -9,6 +9,8 @@ import { RoleName } from 'src/core/security/constants/role.constant'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { canTransitionContract, CONTRACT_EDITABLE_STATUSES, CONTRACT_SIGNABLE_STATUSES } from '../contract.constant'
+import { AuditService } from 'src/modules/audit/audit.service'
+import { ContractMessages } from '../contract.messages'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -18,7 +20,8 @@ export class ContractService {
     private readonly contractRepo: ContractRepo,
     private readonly authOtpService: AuthOtpService,
     private readonly notificationService: NotificationService,
-    private readonly domainEventBus: DomainEventBus
+    private readonly domainEventBus: DomainEventBus,
+    private readonly auditService: AuditService
   ) {}
 
   // Hàm kiểm tra trạng thái hoạt động của module
@@ -31,6 +34,7 @@ export class ContractService {
   }
 
   async getContractById(contractId: string, userId: string, roleName: string) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
     if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
@@ -39,6 +43,7 @@ export class ContractService {
   }
 
   async getContractVersions(contractId: string, userId: string, roleName: string) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
     if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
@@ -47,6 +52,7 @@ export class ContractService {
   }
 
   async getContractVersionById(contractId: string, versionId: string, userId: string, roleName: string) {
+    if (!OBJECT_ID_RE.test(contractId) || !OBJECT_ID_RE.test(versionId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
     if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
@@ -60,6 +66,31 @@ export class ContractService {
   // B-CON-02: guard chuyển trạng thái hợp lệ theo CONTRACT_TRANSITIONS.
   private assertTransition(from: ContractStatus, to: ContractStatus) {
     if (!canTransitionContract(from, to)) throw ContractErrors.InvalidContractTransition()
+  }
+
+  // Audit best-effort: gọi SAU khi DB write commit, NGOÀI transaction. AuditService.record
+  // đã tự nuốt lỗi trong try/catch (audit.service.ts) nhưng vẫn bọc thêm ở đây để an toàn
+  // nếu ngày mai ai đó thay đổi AuditService. KHÔNG BAO GIỜ throw ra ngoài (AGENTS §8).
+  private async auditTransition(
+    contractId: string,
+    from: ContractStatus,
+    to: ContractStatus,
+    actorId: string | null,
+    reason?: string
+  ) {
+    try {
+      await this.auditService.record({
+        actorId,
+        entityType: AuditEntityType.CONTRACT,
+        entityId: contractId,
+        action: 'TRANSITION',
+        fromState: from,
+        toState: to,
+        reason
+      })
+    } catch {
+      // intentionally swallowed — audit is best-effort
+    }
   }
 
   private canViewContract(contract: { editorId: string | null; mangakaId: string }, userId: string, roleName: string) {
@@ -83,14 +114,14 @@ export class ContractService {
         type: NotificationType.CONTRACT,
         referenceId: contract.id,
         referenceType: 'CONTRACT_DRAFT_CREATED',
-        content: 'Bản hợp đồng nháp đã được tạo thành công.'
+        content: ContractMessages.notification.contractDraftCreatedEditor
       }),
       this.notificationService.notifySafe({
         recipientId: dto.mangakaId,
         type: NotificationType.CONTRACT,
         referenceId: contract.id,
         referenceType: 'CONTRACT_DRAFT_CREATED',
-        content: 'Một hợp đồng mới đã được tạo cho bạn và đang chờ xem xét.'
+        content: ContractMessages.notification.contractDraftCreatedMangaka
       })
     ])
 
@@ -111,14 +142,17 @@ export class ContractService {
       type: NotificationType.CONTRACT,
       referenceId: updated.id,
       referenceType: 'CONTRACT_SENT_TO_MANGAKA',
-      content: 'Hợp đồng đã được gửi cho bạn để xem xét và ký kết.'
+      content: ContractMessages.notification.contractSentToMangaka
     })
+
+    await this.auditTransition(updated.id, contract.status, ContractStatus.MANGAKA_REVIEW, editorId)
 
     return updated
   }
 
   // Editor cập nhật lại điều khoản thương lượng và tự động tăng số hiệu phiên bản (versionNumber)
   async editorUpdateContract(contractId: string, editorId: string, dto: EditorUpdateContractBodyDto, note?: string) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
     if (contract.editorId !== editorId) throw ContractErrors.UnauthorizedEditor()
@@ -147,7 +181,7 @@ export class ContractService {
       type: NotificationType.CONTRACT,
       referenceId: updated.id,
       referenceType: 'CONTRACT_UPDATED',
-      content: 'Hợp đồng đã được editor cập nhật và cần bạn xem xét lại.'
+      content: ContractMessages.notification.contractUpdated
     })
 
     return updated
@@ -163,12 +197,14 @@ export class ContractService {
 
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.MANGAKA_APPROVED)
 
+    await this.auditTransition(contractId, contract.status, ContractStatus.MANGAKA_APPROVED, userId)
+
     await this.notificationService.notifySafe({
       recipientId: contract.editorId ?? '',
       type: NotificationType.CONTRACT,
       referenceId: updated.id,
       referenceType: 'CONTRACT_MANGAKA_APPROVED',
-      content: 'Mangaka đã đồng ý các điều khoản hợp đồng.'
+      content: ContractMessages.notification.contractMangakaApproved
     })
 
     return updated
@@ -183,12 +219,13 @@ export class ContractService {
     this.assertTransition(contract.status, ContractStatus.NEGOTIATION)
 
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.NEGOTIATION)
+    await this.auditTransition(contractId, contract.status, ContractStatus.NEGOTIATION, userId)
     await this.notificationService.notifySafe({
       recipientId: contract.editorId ?? '',
       type: NotificationType.CONTRACT,
       referenceId: updated.id,
       referenceType: 'CONTRACT_MANGAKA_REQUESTED_CHANGES',
-      content: 'Mangaka yêu cầu chỉnh sửa điều khoản hợp đồng.'
+      content: ContractMessages.notification.mangakaRequestedChanges
     })
     return updated
   }
@@ -201,20 +238,21 @@ export class ContractService {
     this.assertTransition(contract.status, ContractStatus.BOARD_APPROVED)
 
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.BOARD_APPROVED)
+    await this.auditTransition(contractId, contract.status, ContractStatus.BOARD_APPROVED, null)
     await Promise.all([
       this.notificationService.notifySafe({
         recipientId: contract.mangakaId,
         type: NotificationType.CONTRACT,
         referenceId: updated.id,
         referenceType: 'CONTRACT_BOARD_APPROVED',
-        content: 'Hội đồng đã duyệt điều khoản — sẵn sàng ký.'
+        content: ContractMessages.notification.boardApproved
       }),
       this.notificationService.notifySafe({
         recipientId: contract.editorId ?? '',
         type: NotificationType.CONTRACT,
         referenceId: updated.id,
         referenceType: 'CONTRACT_BOARD_APPROVED',
-        content: 'Hội đồng đã duyệt điều khoản — sẵn sàng ký.'
+        content: ContractMessages.notification.boardApproved
       })
     ])
     return updated
@@ -231,18 +269,20 @@ export class ContractService {
       mangakaSignedAt: null,
       boardSignedAt: null
     })
+    await this.auditTransition(contractId, contract.status, ContractStatus.NEGOTIATION, null)
     await this.notificationService.notifySafe({
       recipientId: contract.editorId ?? '',
       type: NotificationType.CONTRACT,
       referenceId: updated.id,
       referenceType: 'CONTRACT_BOARD_REQUESTED_CHANGES',
-      content: 'Hội đồng yêu cầu chỉnh sửa điều khoản — cần gửi lại Mangaka duyệt.'
+      content: ContractMessages.notification.boardRequestedChanges
     })
     return updated
   }
 
   // Tiến trình ký kết từ phía Mangaka
   async signByMangakaWithOtp(contractId: string, loggedInUserId: string, loggedInUserEmail: string, otpCode: string) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
     if (contract.mangakaSignedAt) throw ContractErrors.AlreadySigned()
@@ -271,6 +311,8 @@ export class ContractService {
 
     const result = await this.contractRepo.updateStatus(contractId, nextStatus, updatedData)
 
+    await this.auditTransition(contractId, contract.status, nextStatus, loggedInUserId)
+
     if (nextStatus === ContractStatus.FULLY_EXECUTED) {
       this.domainEventBus.emit(DomainEvent.ContractExecuted, { contractId: result.id, seriesId: result.seriesId })
     }
@@ -279,6 +321,7 @@ export class ContractService {
 
   // Tiến trình ký kết đồng thuận từ phía Ban Giám Đốc (Board) - Quan hệ 1-N tối ưu
   async signByBoardWithOtp(contractId: string, loggedInUserId: string, loggedInUserEmail: string, otpCode: string) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     // 1. Gọi Repo lấy hợp đồng và thông tin Quyết định (đã lược bỏ khuyết allowedEditors)
     const contract = await this.contractRepo.findWithBoardDecision(contractId)
 
@@ -325,6 +368,8 @@ export class ContractService {
       // Gọi Repo thực thi lưu chữ ký cuối cùng và cập nhật trạng thái hợp đồng chính
       result = await this.contractRepo.executeBoardSignature(contractId, loggedInUserId, true, nextStatus, updatedData)
 
+      await this.auditTransition(contractId, contract.status, nextStatus, loggedInUserId)
+
       if (nextStatus === ContractStatus.FULLY_EXECUTED && result) {
         this.domainEventBus.emit(DomainEvent.ContractExecuted, { contractId: result.id, seriesId: result.seriesId })
       }
@@ -336,14 +381,14 @@ export class ContractService {
             type: NotificationType.CONTRACT,
             referenceId: result.id,
             referenceType: 'CONTRACT_FULLY_EXECUTED',
-            content: 'Hợp đồng đã được ký kết hoàn tất.'
+            content: ContractMessages.notification.contractFullyExecutedMangaka
           }),
           this.notificationService.notifySafe({
             recipientId: contract.editorId ?? '',
             type: NotificationType.CONTRACT,
             referenceId: result.id,
             referenceType: 'CONTRACT_FULLY_EXECUTED',
-            content: 'Hợp đồng đã được ký kết hoàn tất.'
+            content: ContractMessages.notification.contractFullyExecutedEditor
           })
         ])
       }
@@ -366,6 +411,7 @@ export class ContractService {
   }
 
   async checkContractStatus(contractId: string, currentUserId: string, currentUserRole: string) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.getContractSignaturesProgress(contractId)
     if (!contract) {
       throw ContractErrors.NotFound()
@@ -445,6 +491,13 @@ export class ContractService {
       contractId,
       revenue: body.revenue,
       period: body.period
+    })
+    await this.auditService.record({
+      actorId: userId,
+      entityType: AuditEntityType.CONTRACT,
+      entityId: contractId,
+      action: 'REVENUE_REPORTED',
+      reason: `revenue=${body.revenue} period=${body.period}`
     })
     return { message: 'Đã ghi nhận doanh thu, hệ thống đang chia theo hợp đồng.' }
   }

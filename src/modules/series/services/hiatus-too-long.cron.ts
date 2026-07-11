@@ -21,36 +21,42 @@ export class HiatusTooLongCron {
     private readonly notificationQueue: NotificationQueue
   ) {}
 
+  // Cron hardening (audit 2026-07-11): outer try/catch — DB/AppConfig blip không thành unhandled rejection.
+  // NotificationQueue.enqueue tự nuốt lỗi (fallback notifySafe) nên vòng lặp không cần per-item.
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async run(): Promise<void> {
     const locked = await this.redisService.setNxEx('cron:hiatus-too-long', 300)
     if (!locked) return
 
-    const config = await this.appConfigService.get()
-    const cutoff = new Date(Date.now() - config.hiatusTooLongDays * 86_400_000)
-    const overdue = await this.seriesRepository.findHiatusStartedBefore(cutoff)
-    if (overdue.length === 0) return
+    try {
+      const config = await this.appConfigService.get()
+      const cutoff = new Date(Date.now() - config.hiatusTooLongDays * 86_400_000)
+      const overdue = await this.seriesRepository.findHiatusStartedBefore(cutoff)
+      if (overdue.length === 0) return
 
-    const boardIds = await this.seriesRepository.findBoardMemberIds()
-    // Append the day to the referenceType so the same (recipient, series) pair can be re-notified
-    // the next day without being deduped by NotificationService.findDuplicate (which keys on
-    // recipient+type+referenceId+referenceType).
-    const day = new Date().toISOString().slice(0, 10)
+      const boardIds = await this.seriesRepository.findBoardMemberIds()
+      // Append the day to the referenceType so the same (recipient, series) pair can be re-notified
+      // the next day without being deduped by NotificationService.findDuplicate (which keys on
+      // recipient+type+referenceId+referenceType).
+      const day = new Date().toISOString().slice(0, 10)
 
-    for (const series of overdue) {
-      const recipients = new Set<string>(boardIds)
-      if (series.editorId) recipients.add(series.editorId)
-      for (const recipientId of recipients) {
-        await this.notificationQueue.enqueue({
-          recipientId,
-          type: NotificationType.SYSTEM,
-          referenceId: series.id,
-          referenceType: `SERIES_HIATUS_TOO_LONG:${day}`,
-          content: SeriesMessages.notification.hiatusTooLong
-        })
+      for (const series of overdue) {
+        const recipients = new Set<string>(boardIds)
+        if (series.editorId) recipients.add(series.editorId)
+        for (const recipientId of recipients) {
+          await this.notificationQueue.enqueue({
+            recipientId,
+            type: NotificationType.SYSTEM,
+            referenceId: series.id,
+            referenceType: `SERIES_HIATUS_TOO_LONG:${day}`,
+            content: SeriesMessages.notification.hiatusTooLong
+          })
+        }
       }
-    }
 
-    this.logger.log(`Hiatus-too-long cron: flagged ${overdue.length} series`)
+      this.logger.log(`Hiatus-too-long cron: flagged ${overdue.length} series`)
+    } catch (error) {
+      this.logger.error(`Hiatus-too-long cron failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 }

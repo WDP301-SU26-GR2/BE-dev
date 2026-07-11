@@ -9,6 +9,7 @@ import {
   PaymentSource,
   PaymentType
 } from '@prisma/client'
+import { RedisService } from 'src/infrastructure/redis/redis.service'
 import { PaymentRecordRepo } from '../payment.repo'
 
 type ChapterPublishedPayload = {
@@ -46,7 +47,8 @@ export class PaymentEngineService {
 
   constructor(
     private readonly paymentRepo: PaymentRecordRepo,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventEmitter: EventEmitter2,
+    private readonly redisService: RedisService
   ) {}
 
   async handleChapterPublished(payload: ChapterPublishedPayload): Promise<void> {
@@ -130,16 +132,31 @@ export class PaymentEngineService {
     }
   }
 
+  // Cron hardening (audit 2026-07-11): Redis lock chống chạy trùng đa-instance (pattern chung mọi cron)
+  // + try/catch outer (DB blip không thành unhandled rejection) + per-item (1 condition lỗi không giết cả vòng lặp).
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async markMissedTimeBoundConditions(): Promise<void> {
-    const now = new Date()
-    const conditions = await this.paymentRepo.findPendingTimeBoundConditions()
+    const locked = await this.redisService.setNxEx('cron:payment-timebound-missed', 300)
+    if (!locked) return
 
-    for (const condition of conditions) {
-      const deadline = this.readDeadline(condition.thresholdConfig)
-      if (deadline && deadline < now) {
-        await this.paymentRepo.markConditionMissed(condition.id)
+    try {
+      const now = new Date()
+      const conditions = await this.paymentRepo.findPendingTimeBoundConditions()
+
+      for (const condition of conditions) {
+        try {
+          const deadline = this.readDeadline(condition.thresholdConfig)
+          if (deadline && deadline < now) {
+            await this.paymentRepo.markConditionMissed(condition.id)
+          }
+        } catch (error) {
+          this.logger.error(
+            `TIME_BOUND missed cron: skip condition ${condition.id} — ${error instanceof Error ? error.message : String(error)}`
+          )
+        }
       }
+    } catch (error) {
+      this.logger.error(`TIME_BOUND missed cron failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 

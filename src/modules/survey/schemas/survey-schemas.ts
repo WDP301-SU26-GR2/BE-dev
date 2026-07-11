@@ -1,7 +1,19 @@
 import { extendApi } from '@anatine/zod-openapi'
-import { Demographic, Genre, RiskLevel } from '@prisma/client'
+import { Demographic, Genre, RiskLevel, SurveyStatus } from '@prisma/client'
 import z from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+
+const SurveyCreateStatusSchema = zEnum(SurveyStatus, 'SurveyStatus').refine(
+  (status): status is typeof SurveyStatus.DRAFT | typeof SurveyStatus.OPEN | typeof SurveyStatus.CLOSED =>
+    status !== SurveyStatus.REFLECTED,
+  { message: 'status chỉ được là DRAFT, OPEN hoặc CLOSED khi tạo kỳ bình chọn.' }
+)
+
+const SurveyUpdateStatusSchema = zEnum(SurveyStatus, 'SurveyStatus').refine(
+  (status): status is typeof SurveyStatus.OPEN | typeof SurveyStatus.CLOSED | typeof SurveyStatus.REFLECTED =>
+    status !== SurveyStatus.DRAFT,
+  { message: 'status chỉ được là OPEN, CLOSED hoặc REFLECTED khi cập nhật kỳ bình chọn.' }
+)
 
 export const VoteOtpRequestBodySchema = extendApi(
   z
@@ -36,7 +48,7 @@ export const CreateSurveyPeriodBodySchema = extendApi(
       reflectedIssueNumber: z.number().int().positive().optional(),
       startDate: z.string().datetime({ message: 'startDate phải là chuỗi ISO 8601.' }),
       endDate: z.string().datetime({ message: 'endDate phải là chuỗi ISO 8601.' }),
-      status: z.enum(['DRAFT', 'OPEN', 'CLOSED']).optional()
+      status: SurveyCreateStatusSchema.optional()
     })
     .strict(),
   { title: 'CreateSurveyPeriodBody', description: 'Editor tạo kỳ bình chọn mới' }
@@ -45,7 +57,7 @@ export const CreateSurveyPeriodBodySchema = extendApi(
 export const UpdateSurveyPeriodStatusBodySchema = extendApi(
   z
     .object({
-      status: z.enum(['OPEN', 'CLOSED', 'REFLECTED'])
+      status: SurveyUpdateStatusSchema
     })
     .strict(),
   { title: 'UpdateSurveyPeriodStatusBody', description: 'Editor cập nhật trạng thái kỳ bình chọn' }
@@ -98,7 +110,7 @@ export const SurveyPeriodResSchema = extendApi(
       reflectedIssueNumber: z.number().int().optional(),
       startDate: z.string().datetime(),
       endDate: z.string().datetime(),
-      status: z.enum(['DRAFT', 'OPEN', 'CLOSED', 'REFLECTED'])
+      status: zEnum(SurveyStatus, 'SurveyStatus')
     })
     .strict(),
   { title: 'SurveyPeriodRes', description: 'Chi tiết kỳ bình chọn' }

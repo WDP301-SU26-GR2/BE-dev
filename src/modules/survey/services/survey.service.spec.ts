@@ -1,7 +1,9 @@
 import { SurveyService } from './survey.service'
+import { SurveyMessages } from '../survey.messages'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { IdentityHashService } from 'src/infrastructure/crypto/identity-hash.service'
 import { ReaderVoteBodySchema, VoteOtpRequestBodySchema } from '../schemas/survey-schemas'
+import { AuditEntityType } from '@prisma/client'
 
 // Real (not mocked) so identity/ip hashing determinism is exercised end-to-end in submitVote tests.
 const identityHash = new IdentityHashService('test-pepper')
@@ -15,6 +17,7 @@ type Mocks = {
   notificationService: any
   surveyConfigService: any
   appConfigService: any
+  auditService: any
 }
 
 function makeMocks(): Mocks {
@@ -60,7 +63,8 @@ function makeMocks(): Mocks {
         lowVoteReliabilityThreshold: 10,
         hiatusTooLongDays: 30
       })
-    }
+    },
+    auditService: { record: jest.fn().mockResolvedValue(undefined) }
   }
 }
 
@@ -73,7 +77,8 @@ function makeService(m: Mocks) {
     m.domainEventBus as never,
     m.notificationService as never,
     m.surveyConfigService as never,
-    m.appConfigService as never
+    m.appConfigService as never,
+    m.auditService as never
   )
 }
 
@@ -711,6 +716,36 @@ describe('Fix-2 G-4a - OTP cooldown', () => {
   })
 })
 
+describe('SurveyService — ObjectId guard cho id lấy từ BODY (Spec 11 §1.1)', () => {
+  it('submitVote: surveyPeriodId rác → 404, KHÔNG chạm repo', async () => {
+    const m = makeMocks()
+    await expect(
+      makeService(m).submitVote(
+        {
+          surveyPeriodId: 'not-an-objectid',
+          seriesIds: ['507f1f77bcf86cd799439021'],
+          identity: 'a@b.com',
+          otpCode: '123456'
+        },
+        '203.0.113.9'
+      )
+    ).rejects.toMatchObject({ status: 404 })
+
+    expect(m.surveyRepository.findSurveyPeriodById).not.toHaveBeenCalled()
+    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
+    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
+  })
+
+  it('importSurveyData: surveyPeriodId rác → 404, KHÔNG chạm repo', async () => {
+    const m = makeMocks()
+    await expect(
+      makeService(m).importSurveyData({ surveyPeriodId: 'xxx', entries: [] }, '507f1f77bcf86cd799439011')
+    ).rejects.toMatchObject({ status: 404 })
+
+    expect(m.surveyRepository.findSurveyPeriodById).not.toHaveBeenCalled()
+  })
+})
+
 describe('Fix-2 G-4b - IP vote limit per period', () => {
   const PERIOD_ID = '507f1f77bcf86cd799439011'
   const SERIES_ID = '507f1f77bcf86cd799439021'
@@ -756,5 +791,53 @@ describe('Fix-2 G-4b - IP vote limit per period', () => {
     })
     expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
     expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+  })
+})
+
+describe('SurveyService — Spec 11 §1.3 notification catalog (regression guard)', () => {
+  it('createSurveyPeriod: notify content lấy từ SurveyMessages.notification (không hard-code)', async () => {
+    const m = makeMocks()
+    m.surveyRepository.createSurveyPeriod = jest.fn().mockResolvedValue({
+      id: '507f1f77bcf86cd799439011',
+      issueNumber: 1,
+      reflectedIssueNumber: null,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-15T00:00:00.000Z'),
+      status: 'OPEN'
+    })
+
+    await makeService(m).createSurveyPeriod({ issueNumber: 1 } as never, '507f1f77bcf86cd799439012')
+
+    expect(m.notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ content: SurveyMessages.notification.surveyPeriodCreated })
+    )
+  })
+})
+
+describe('SurveyService — AuditService wiring (Spec 11 / Task 13)', () => {
+  const PERIOD_ID = '507f1f77bcf86cd799439011'
+
+  it('updateSurveyPeriodStatus records TRANSITION with fromState=current status, toState=requested status', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue({ id: PERIOD_ID, status: 'DRAFT', issueNumber: 1 })
+    m.surveyRepository.updateSurveyPeriodStatus.mockResolvedValue({
+      id: PERIOD_ID,
+      issueNumber: 1,
+      reflectedIssueNumber: null,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-15T00:00:00.000Z'),
+      status: 'OPEN'
+    })
+
+    await makeService(m).updateSurveyPeriodStatus(PERIOD_ID, { status: 'OPEN' }, 'admin-1')
+
+    expect(m.auditService.record).toHaveBeenCalledWith({
+      actorId: 'admin-1',
+      entityType: AuditEntityType.SURVEY_PERIOD,
+      entityId: PERIOD_ID,
+      action: 'TRANSITION',
+      fromState: 'DRAFT',
+      toState: 'OPEN'
+    })
   })
 })

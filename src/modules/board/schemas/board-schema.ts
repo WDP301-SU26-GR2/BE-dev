@@ -67,9 +67,7 @@ export const CastVoteBodySchema = extendApi(
   z
     .object({
       // voterId: z.string().min(1, { message: 'voterId định danh người bỏ phiếu là bắt buộc' }),
-      voteValue: z.enum(['APPROVE', 'REJECT', 'ABSTAIN'], {
-        error: 'voteValue bắt buộc phải thuộc nhóm: APPROVE, REJECT, ABSTAIN'
-      }),
+      voteValue: zEnum($Enums.VoteValue, 'VoteValue'),
       note: z.string().max(300, { message: 'Ghi chú lý do biểu quyết không được quá 300 ký tự' }).optional()
     })
     .strict(),
@@ -122,7 +120,7 @@ export const UpdateBoardConfigBodySchema = extendApi(
 export const BoardVoteResSchema = extendApi(
   z.object({
     voterId: z.string().nullable().optional(),
-    voteValue: z.enum(['APPROVE', 'REJECT', 'ABSTAIN']).nullable().optional(),
+    voteValue: zEnum($Enums.VoteValue, 'VoteValue').nullable().optional(),
     note: z.string().nullable().optional(),
     votedAt: z.any()
   }),
@@ -151,7 +149,7 @@ export const BoardDecisionResSchema = extendApi(
     targetSeriesId: z.string().nullable().optional(),
     boardSessionId: z.string(),
     decisionType: zEnum($Enums.DecisionType, 'DecisionType').nullable().optional(),
-    result: z.enum(['PENDING', 'PENDING_QUORUM', 'APPROVED', 'REJECTED', 'EXPIRED']).nullable().optional(),
+    result: zEnum($Enums.BoardDecisionResult, 'BoardDecisionResult').nullable().optional(),
     totalVotes: z.number(),
     approveCount: z.number(),
     rejectCount: z.number(),

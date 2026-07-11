@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { ConditionType, PaymentConditionStatus } from '@prisma/client'
+import { ConditionType, $Enums } from '@prisma/client'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 
 export const PaymentConditionModelSchema = extendApi(
   z.object({
@@ -11,7 +12,7 @@ export const PaymentConditionModelSchema = extendApi(
     payoutAmount: z.number().nullable(),
     payoutPct: z.number().nullable(),
     isRecurring: z.boolean(),
-    status: z.nativeEnum(PaymentConditionStatus),
+    status: zEnum($Enums.PaymentConditionStatus, 'PaymentConditionStatus'),
     lastTriggeredValue: z.number().nullable(),
     achievedAt: z.any().nullable()
   }),

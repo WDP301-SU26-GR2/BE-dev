@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { PaymentRecordStatus, PaymentType, PaymentSource } from '@prisma/client'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 import { PaymentRecordModelSchema } from './payment.model'
 
 // ============================================================================
@@ -10,12 +11,12 @@ import { PaymentRecordModelSchema } from './payment.model'
 export const GetPaymentsQuerySchema = extendApi(
   z
     .object({
-      status: z.nativeEnum(PaymentRecordStatus).optional(),
+      status: zEnum(PaymentRecordStatus, 'PaymentRecordStatus').optional(),
       receiverId: z.string().optional(),
       seriesId: z.string().optional(),
       contractId: z.string().optional(),
-      paymentType: z.nativeEnum(PaymentType).optional(),
-      paymentSource: z.nativeEnum(PaymentSource).optional()
+      paymentType: zEnum(PaymentType, 'PaymentType').optional(),
+      paymentSource: zEnum(PaymentSource, 'PaymentSource').optional()
     })
     .strict(),
   {
@@ -67,8 +68,8 @@ export const CreatePaymentInternalSchema = extendApi(
     .object({
       receiverId: z.string().min(1),
       amount: z.number().positive({ message: 'amount phải lớn hơn 0' }),
-      paymentType: z.nativeEnum(PaymentType),
-      paymentSource: z.nativeEnum(PaymentSource).default(PaymentSource.CONTRACT),
+      paymentType: zEnum(PaymentType, 'PaymentType'),
+      paymentSource: zEnum(PaymentSource, 'PaymentSource').default(PaymentSource.CONTRACT),
       contractId: z.string().min(1),
       conditionId: z.string().optional(),
       seriesId: z.string().optional(),

@@ -22,17 +22,21 @@ import {
   CancelPaymentBodyDto
 } from '../dto/payment.dto'
 import { CreatePaymentConditionBodyType, UpdatePaymentConditionBodyType } from '../schemas/payment-condition-schema'
-import { PaymentRecordStatus, PaymentConditionStatus, Prisma } from '@prisma/client'
+import { PaymentRecordStatus, PaymentConditionStatus, Prisma, AuditEntityType } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { parseThresholdConfig, assertRecurringChapterIsRecurring } from '../validation/payment-condition.validation'
 import { PAYMENT_CONDITION_STATUS } from '../payment.constant'
+import { AuditService } from 'src/modules/audit/audit.service'
+
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class PaymentService {
   constructor(
     private readonly paymentRepo: PaymentRecordRepo,
     private readonly paymentConditionRepo: PaymentConditionRepo,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventEmitter: EventEmitter2,
+    private readonly auditService: AuditService
   ) {}
 
   // 3. Internal service (Không lộ ra REST API công khai)
@@ -58,6 +62,7 @@ export class PaymentService {
   }
 
   async getPaymentById(id: string) {
+    if (!OBJECT_ID_RE.test(id)) throw new PaymentRecordNotFoundException()
     const existing = await this.paymentRepo.findById(id)
     if (!existing) {
       throw new PaymentRecordNotFoundException()
@@ -75,6 +80,15 @@ export class PaymentService {
       status: PaymentRecordStatus.APPROVED,
       approvedBy: dto.approvedBy,
       approvedAt: new Date()
+    })
+
+    await this.auditService.record({
+      actorId: dto.approvedBy ?? null,
+      entityType: AuditEntityType.PAYMENT_RECORD,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: existing.status,
+      toState: PaymentRecordStatus.APPROVED
     })
 
     this.eventEmitter.emit('payment.approved', {
@@ -101,6 +115,15 @@ export class PaymentService {
       note: dto.note
     })
 
+    await this.auditService.record({
+      actorId: null,
+      entityType: AuditEntityType.PAYMENT_RECORD,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: existing.status,
+      toState: PaymentRecordStatus.PAID
+    })
+
     this.eventEmitter.emit('payment.paid', {
       paymentId: payment.id,
       contractId: payment.contractId,
@@ -117,24 +140,39 @@ export class PaymentService {
       throw new PaymentAlreadyPaidException()
     }
 
-    return this.paymentRepo.update(id, {
+    const cancelled = await this.paymentRepo.update(id, {
       status: PaymentRecordStatus.CANCELLED,
       cancelledAt: new Date(),
       cancelReason: dto.cancelReason
     })
+
+    await this.auditService.record({
+      actorId: null,
+      entityType: AuditEntityType.PAYMENT_RECORD,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: existing.status,
+      toState: PaymentRecordStatus.CANCELLED,
+      reason: dto.cancelReason
+    })
+
+    return cancelled
   }
 
   async getPaymentsByContract(contractId: string) {
+    if (!OBJECT_ID_RE.test(contractId)) return { data: [] }
     const records = await this.paymentRepo.findMany({ contractId })
     return { data: records }
   }
 
   async getPaymentsBySeries(seriesId: string) {
+    if (!OBJECT_ID_RE.test(seriesId)) return { data: [] }
     const records = await this.paymentRepo.findMany({ seriesId })
     return { data: records }
   }
 
   async getPaymentsByUserId(receiverId: string) {
+    if (!OBJECT_ID_RE.test(receiverId)) return { data: [] }
     const records = await this.paymentRepo.findMany({ receiverId })
     return { data: records }
   }

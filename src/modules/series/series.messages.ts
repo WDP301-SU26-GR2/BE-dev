@@ -21,7 +21,8 @@ export const SeriesMessages = {
         ? `Hội đồng đã quyết định huỷ series. Bạn được cấp ${allowance} chương để kết thúc.`
         : 'Hội đồng đã quyết định huỷ series.',
     seriesCompleting: 'Hội đồng đã duyệt kết thúc series.',
-    seriesFormatChanged: 'Hội đồng đã đổi hình thức xuất bản của series.',
+    seriesFormatChanged:
+      'Hội đồng đã đổi hình thức xuất bản của series. Deadline các chapter đang sản xuất giữ nguyên — hãy đặt deadline cho chapter kế tiếp theo nhịp mới.',
     seriesContinued: 'Hội đồng quyết định giữ series tiếp tục.',
     seriesRejected: 'Hội đồng đã từ chối serial hoá series.',
     seriesHiatusStarted: 'Series đã tạm ngưng (hiatus).',

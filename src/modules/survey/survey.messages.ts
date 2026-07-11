@@ -12,7 +12,11 @@ export const SurveyMessages = {
   notification: {
     rankingAtRisk: 'Series của bạn đang ở vùng nguy cơ theo kết quả bình chọn kỳ này.',
     rankingSevereDigest: (n: number) => `Có ${n} series ở mức nguy cơ nghiêm trọng (SEVERE) cần Hội đồng xem xét.`,
-    rankingFinalized: 'Kết quả xếp hạng kỳ bình chọn đã được tính toán.'
+    rankingFinalized: 'Kết quả xếp hạng kỳ bình chọn đã được tính toán.',
+    // Spec 11 §1.3 — text giữ nguyên 1:1 từ hard-code trong service
+    surveyPeriodCreated: 'Kỳ bình chọn mới đã được tạo thành công.',
+    surveyPeriodStatusUpdated: 'Trạng thái kỳ bình chọn đã được cập nhật.',
+    surveyDataImported: 'Dữ liệu bình chọn offline đã được nhập thành công.'
   },
   error: {
     surveyPeriodNotFound: 'Error.SurveyPeriodNotFound',
