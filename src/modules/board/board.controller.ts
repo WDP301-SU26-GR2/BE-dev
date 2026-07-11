@@ -19,6 +19,7 @@ import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
+import type { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
 import {
   SessionAlreadyExistsException,
   SessionNotFoundException,
@@ -32,7 +33,8 @@ import {
   ReportNotFoundException,
   SessionClosedReportException,
   EditorNotInvitedException,
-  InvalidBoardSessionTransitionException
+  InvalidBoardSessionTransitionException,
+  NotSessionCreatorException
 } from './errors/board.errors'
 
 @ApiTags('board')
@@ -74,6 +76,15 @@ export class BoardController {
   @ZodResponse({ status: 200, type: BoardSessionResDto })
   async startSession(@Param('id') id: string) {
     return this.boardService.startSessionManually(id)
+  }
+
+  @ApiOperation({ summary: 'Kết thúc phiên họp Hội đồng → CONCLUDED; quyết định treo → EXPIRED' })
+  @ApiErrors(SessionNotFoundException, NotSessionCreatorException, InvalidBoardSessionTransitionException)
+  @Patch('sessions/:id/conclude')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 200, type: BoardSessionResDto })
+  async concludeSession(@Param('id') id: string, @ActiveUser() user: JwtAccessTokenPayload) {
+    return this.boardService.concludeSession(id, user.userId, user.roleName)
   }
 
   @ApiOperation({ summary: 'Xem cấu hình biểu quyết Hội đồng hiện tại' })

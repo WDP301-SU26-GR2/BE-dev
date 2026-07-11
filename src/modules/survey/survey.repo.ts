@@ -34,7 +34,7 @@ export class SurveyRepository {
     surveyPeriodId: string
     seriesIds: string[]
     identityHash: string
-    authMethod?: 'PHONE_OTP' | null
+    authMethod?: 'EMAIL_OTP' | 'PHONE_OTP' | 'CAPTCHA_ONLY' | null
     ipHash?: string
     captchaScore?: number
     voteWeight: number
@@ -58,6 +58,10 @@ export class SurveyRepository {
     return this.prisma.readerVote.findUnique({
       where: { surveyPeriodId_identityHash: { surveyPeriodId, identityHash } }
     })
+  }
+
+  countReaderVotesByPeriodAndIp(surveyPeriodId: string, ipHash: string): Promise<number> {
+    return this.prisma.readerVote.count({ where: { surveyPeriodId, ipHash } })
   }
 
   createSurveyData(data: ImportSurveyDataBodyDto & { importedBy: string }) {
@@ -217,6 +221,8 @@ export class SurveyRepository {
         otpMaxAttempts: 3,
         ipRateLimit: 10,
         phoneRateLimit: 3,
+        otpCooldownSeconds: 60,
+        ipVotesPerPeriod: 10,
         captchaThreshold: 0.3
       }
     })
@@ -229,6 +235,8 @@ export class SurveyRepository {
     otpMaxAttempts?: number
     ipRateLimit?: number
     phoneRateLimit?: number
+    otpCooldownSeconds?: number
+    ipVotesPerPeriod?: number
     captchaThreshold?: number
   }) {
     const existing = await this.prisma.votingConfig.findFirst()
@@ -242,6 +250,8 @@ export class SurveyRepository {
           otpMaxAttempts: data.otpMaxAttempts ?? existing.otpMaxAttempts,
           ipRateLimit: data.ipRateLimit ?? existing.ipRateLimit,
           phoneRateLimit: data.phoneRateLimit ?? existing.phoneRateLimit,
+          otpCooldownSeconds: data.otpCooldownSeconds ?? existing.otpCooldownSeconds,
+          ipVotesPerPeriod: data.ipVotesPerPeriod ?? existing.ipVotesPerPeriod,
           captchaThreshold: data.captchaThreshold ?? existing.captchaThreshold
         }
       })
@@ -255,6 +265,8 @@ export class SurveyRepository {
         otpMaxAttempts: data.otpMaxAttempts ?? 3,
         ipRateLimit: data.ipRateLimit ?? 10,
         phoneRateLimit: data.phoneRateLimit ?? 3,
+        otpCooldownSeconds: data.otpCooldownSeconds ?? 60,
+        ipVotesPerPeriod: data.ipVotesPerPeriod ?? 10,
         captchaThreshold: data.captchaThreshold ?? 0.3
       }
     })

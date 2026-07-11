@@ -13,4 +13,10 @@ describe('BoardController RBAC', () => {
     const roles = Reflect.getMetadata(ROLES_KEY, handler)
     expect(roles).toEqual([RoleName.EDITOR, RoleName.SUPER_ADMIN])
   })
+
+  it('guards concludeSession with @Roles(EDITOR, SUPER_ADMIN)', () => {
+    const handler = Object.getOwnPropertyDescriptor(BoardController.prototype, 'concludeSession')?.value as object
+    const roles = Reflect.getMetadata(ROLES_KEY, handler)
+    expect(roles).toEqual([RoleName.EDITOR, RoleName.SUPER_ADMIN])
+  })
 })

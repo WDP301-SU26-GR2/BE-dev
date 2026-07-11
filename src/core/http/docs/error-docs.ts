@@ -128,6 +128,8 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.TooManySeriesSelected': 'số series vượt maxSeriesPerVote (VotingConfig); trần cứng 3 theo Requiment §1.15',
   'Error.DuplicateSeriesInVote': 'seriesIds chứa id trùng nhau trong cùng một phiếu (PB-03)',
   'Error.SeriesNotVotable': 'seriesIds chứa id rác/không tồn tại hoặc series không ở trạng thái SERIALIZED (PB-03)',
+  'Error.VoteIpLimitExceeded':
+    'IP này đã đạt trần số phiếu cho kỳ bình chọn (VotingConfig.ipVotesPerPeriod); chặn trước khi đốt OTP',
   'Error.PublicationVersionNotFound': 'publication version does not exist',
   'Error.InvalidVersionType': 'versionType must be one of ORIGINAL, DIGITAL, FLIPPED',
   'Error.RankingAccessDenied':
@@ -158,6 +160,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.BoardReportNotFound': 'series report does not exist (or id is not a valid ObjectId)',
   'Error.EditorNotInvited': 'caller is not in session.allowedEditorIds for report submission',
   'Error.InvalidBoardSessionTransition': 'board session status transition is not allowed by BOARD_SESSION_TRANSITIONS',
+  'Error.NotSessionCreator': 'only the board session creator or a Super Admin can conclude the session',
   // Spec 10 — Chapter-first flow (Task 2)
   'Error.ChapterNotDraftForName': 'chapter must be in DRAFT status to create a Name',
   'Error.ChapterNameAlreadyExists': 'this chapter already has a Name assigned',

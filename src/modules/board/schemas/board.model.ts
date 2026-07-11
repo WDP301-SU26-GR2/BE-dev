@@ -7,7 +7,7 @@ export const DecisionType = $Enums.DecisionType
 export type DecisionTypeType = $Enums.DecisionType
 
 // 🔥 TỰ ĐỊNH NGHĨA: Trạng thái kết quả của Quyết định
-export const BoardDecisionResult = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PENDING_QUORUM'])
+export const BoardDecisionResult = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PENDING_QUORUM', 'EXPIRED'])
 export type BoardDecisionResultType = z.infer<typeof BoardDecisionResult>
 
 // 🔥 TỰ ĐỊNH NGHĨA: Trạng thái của một Phiên họp Hội đồng
@@ -36,6 +36,7 @@ export const BoardSessionSchema = extendApi(
     status: BoardSessionStatusSchema,
     allowedEditorIds: z.array(z.string()),
     startTime: z.coerce.date(),
+    endTime: z.coerce.date().nullable().optional(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date()
   }),

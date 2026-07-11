@@ -22,6 +22,7 @@ export const SurveyMessages = {
     readerAlreadyVoted: 'Error.ReaderAlreadyVoted',
     voteOtpNotFound: 'Error.VoteOtpNotFound',
     voteOtpRateLimit: 'Error.VoteOtpRateLimit',
+    voteIpLimitExceeded: 'Error.VoteIpLimitExceeded',
     surveyDataImportNotAllowed: 'Error.SurveyDataImportNotAllowed',
     rankingFinalizeNotAllowed: 'Error.RankingFinalizeNotAllowed',
     votingConfigNotFound: 'Error.VotingConfigNotFound',

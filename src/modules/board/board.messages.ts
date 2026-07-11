@@ -2,7 +2,10 @@ export const BoardMessages = {
   response: { voteCast: 'Vote cast successfully' },
   notification: {
     sessionCreated: (title: string) => `Phiên họp Hội đồng "${title}" đã được tạo và đang chờ triển khai.`,
-    decisionCreated: 'Một quyết định mới đã được tạo cho phiên họp Hội đồng.'
+    decisionCreated: 'Một quyết định mới đã được tạo cho phiên họp Hội đồng.',
+    sessionConcluded: 'Phiên họp Hội đồng đã kết thúc.',
+    sessionConcludedWithExpired: (count: number) =>
+      `Phiên họp Hội đồng đã kết thúc. ${count} quyết định chưa đủ quorum đã hết hiệu lực - hãy mở phiên mới để bỏ phiếu lại.`
   },
   error: {
     sessionAlreadyExists: 'Error.BoardSessionAlreadyExists',
@@ -18,6 +21,7 @@ export const BoardMessages = {
     sessionClosedReport: 'Error.BoardSessionClosedReport',
     reportNotFound: 'Error.BoardReportNotFound',
     editorNotInvited: 'Error.EditorNotInvited',
-    invalidSessionTransition: 'Error.InvalidBoardSessionTransition'
+    invalidSessionTransition: 'Error.InvalidBoardSessionTransition',
+    notSessionCreator: 'Error.NotSessionCreator'
   }
 } as const

@@ -5,26 +5,38 @@ import { BoardDecisionSchema, BoardConfigSchema, SeriesReportSchema } from './bo
 import { zEnum } from 'src/core/http/docs/enum-docs'
 
 export const CreateBoardSessionBodySchema = extendApi(
-  z.object({
-    title: z
-      .string()
-      .min(5, 'Tiêu đề phiên họp phải từ 5 ký tự trở lên.')
-      .max(100, 'Tiêu đề phiên họp không được vượt quá 100 ký tự.'),
+  z
+    .object({
+      title: z
+        .string()
+        .min(5, 'Tiêu đề phiên họp phải từ 5 ký tự trở lên.')
+        .max(100, 'Tiêu đề phiên họp không được vượt quá 100 ký tự.'),
 
-    startTime: z
-      .string()
-      .datetime({ message: 'startTime phải là chuỗi định dạng ISO 8601 (YYYY-MM-DDTHH:mm:ss.sssZ)' })
-      .refine((value) => new Date(value) > new Date(), {
-        message: 'Thời gian bắt đầu phiên họp phải là một thời điểm trong tương lai.'
-      })
-      .transform((value) => new Date(value)),
+      startTime: z
+        .string()
+        .datetime({ message: 'startTime phải là chuỗi định dạng ISO 8601 (YYYY-MM-DDTHH:mm:ss.sssZ)' })
+        .refine((value) => new Date(value) > new Date(), {
+          message: 'Thời gian bắt đầu phiên họp phải là một thời điểm trong tương lai.'
+        })
+        .transform((value) => new Date(value)),
 
-    description: z.string().max(500, 'Mô tả không được vượt quá 500 ký tự.').optional().nullable(),
+      endTime: z
+        .string()
+        .datetime({ message: 'endTime phải là chuỗi ISO 8601 (YYYY-MM-DDTHH:mm:ss.sssZ)' })
+        .transform((value) => new Date(value))
+        .optional()
+        .describe('Giờ kết thúc dự kiến; bỏ trống = chỉ kết thúc thủ công'),
 
-    allowedEditorIds: z
-      .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'Mã định danh thành viên ban biên tập không hợp lệ.'))
-      .min(3, 'Phiên họp bắt buộc phải mời ít nhất 3 thành viên ban biên tập tham gia.')
-  }),
+      description: z.string().max(500, 'Mô tả không được vượt quá 500 ký tự.').optional().nullable(),
+
+      allowedEditorIds: z
+        .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'Mã định danh thành viên ban biên tập không hợp lệ.'))
+        .min(3, 'Phiên họp bắt buộc phải mời ít nhất 3 thành viên ban biên tập tham gia.')
+    })
+    .refine((value) => !value.endTime || value.endTime > value.startTime, {
+      message: 'endTime phải sau startTime.',
+      path: ['endTime']
+    }),
   { title: 'CreateBoardSessionBody', description: 'Editor tạo phiên họp Hội đồng' }
 )
 // 1. Schema phục vụ API tạo cuộc họp biểu quyết mới (POST /board/decisions)
@@ -126,6 +138,7 @@ export const BoardSessionResSchema = extendApi(
     status: zEnum($Enums.BoardSessionStatus, 'BoardSessionStatus'),
     allowedEditorIds: z.array(z.string()),
     startTime: z.any(),
+    endTime: z.any().nullable().optional(),
     createdAt: z.any(),
     updatedAt: z.any()
   }),
@@ -138,7 +151,7 @@ export const BoardDecisionResSchema = extendApi(
     targetSeriesId: z.string().nullable().optional(),
     boardSessionId: z.string(),
     decisionType: zEnum($Enums.DecisionType, 'DecisionType').nullable().optional(),
-    result: z.enum(['PENDING', 'PENDING_QUORUM', 'APPROVED', 'REJECTED']).nullable().optional(),
+    result: z.enum(['PENDING', 'PENDING_QUORUM', 'APPROVED', 'REJECTED', 'EXPIRED']).nullable().optional(),
     totalVotes: z.number(),
     approveCount: z.number(),
     rejectCount: z.number(),

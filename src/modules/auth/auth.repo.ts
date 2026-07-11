@@ -46,6 +46,10 @@ export class AuthRepository {
     })
   }
 
+  deleteExpiredOtpRequests(now: Date) {
+    return this.prismaService.otpRequest.deleteMany({ where: { expiresAt: { lt: now } } })
+  }
+
   async findUserWithRole(
     uniqueValue: { id: string } | { email: string }
   ): Promise<(UserType & { role: Pick<RoleType, 'code'> }) | null> {
