@@ -197,8 +197,12 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
 
 ## 10. Gotchas (đọc kỹ — build/test tĩnh KHÔNG bắt được)
 
-- **DTO date field → `z.string()` ISO**, KHÔNG `z.date()`/`z.coerce.date()` (vỡ Swagger zod v4 lúc boot).
-  Convert Date → ISO ở mapper.
+- **DTO date field (schema đi vào `@ZodResponse` hoặc request body) → `z.string()` ISO**, KHÔNG
+  `z.date()`/`z.coerce.date()` (vỡ Swagger zod v4 lúc boot). Convert Date → ISO ở mapper.
+  ⚠ **Ngoại lệ hợp lệ:** schema **entity nội bộ** — chỉ dùng để `z.infer` ra data-type khớp Prisma,
+  KHÔNG serialize ra HTTP (mọi field date đều bị `.omit()` khỏi Body, Res schema khai riêng) — **ĐƯỢC**
+  dùng `z.coerce.date()` vì Prisma trả `Date`. Ví dụ: `board/schemas/board.model.ts`. **ĐỪNG "sửa"
+  chúng thành `z.string()`** — sẽ sai type toàn bộ repo/service.
 - **🔴 Prisma optional-composite (Mongo):** field composite optional (vd `Series.proposal SeriesProposal?`)
   khi `.update()` chỉ có `set`/`upsert`/`unset` — KHÔNG có partial update. Bare `proposal: { x }` = `set`
   = **full replace → data loss**. Fix = read-modify-write `proposal: { set: { ...current, changed } }`.

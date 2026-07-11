@@ -1,14 +1,4 @@
 /**
- * Enum đại diện cho các giá trị bỏ phiếu của thành viên Hội đồng.
- * Đồng bộ chính xác với tập hợp giá trị trong CastVoteBodySchema.
- */
-export enum VoteValue {
-  APPROVE = 'APPROVE',
-  REJECT = 'REJECT',
-  ABSTAIN = 'ABSTAIN'
-}
-
-/**
  * Các hằng số cấu hình hệ thống mặc định cho Hội đồng ban trị sự
  * nếu trong Database chưa khởi tạo bản ghi cấu hình nào.
  */

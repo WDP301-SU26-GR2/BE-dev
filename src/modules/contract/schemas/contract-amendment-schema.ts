@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 
 // Body chung cho create/patch: các typed term optional (null/omit = không đổi).
 const amendmentTermFields = {
@@ -94,8 +95,8 @@ export const AmendmentResSchema = extendApi(
     contractId: z.string(),
     changedClauses: z.array(z.string()),
     reason: z.string().nullable(),
-    status: z.nativeEnum($Enums.ContractAmendmentStatus),
-    triggerSource: z.nativeEnum($Enums.AmendmentTrigger),
+    status: zEnum($Enums.ContractAmendmentStatus, 'ContractAmendmentStatus'),
+    triggerSource: zEnum($Enums.AmendmentTrigger, 'AmendmentTrigger'),
     valuationAmount: z.number().nullable(),
     publisherOwnershipPct: z.number().nullable(),
     mangakaOwnershipPct: z.number().nullable(),

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { $Enums } from '@prisma/client'
 import { extendApi } from '@anatine/zod-openapi'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 
 // ============================================================================
 // 1. REQUEST SCHEMAS (Giữ nguyên enum chuẩn để validate dữ liệu đầu vào)
@@ -10,7 +11,7 @@ export const CreateTransferRequestSchema = extendApi(
   z.object({
     seriesId: z.string().min(1, 'SERIES_ID_REQUIRED'),
     planDescription: z.string().min(1, 'PLAN_DESCRIPTION_REQUIRED'),
-    proposedType: z.nativeEnum($Enums.TransferType),
+    proposedType: zEnum($Enums.TransferType, 'TransferType'),
     proposedPercentage: z.number().min(0).max(100).optional()
   }),
   { title: 'CreateTransferRequestBody', description: 'Mangaka B tạo yêu cầu chuyển nhượng tác phẩm' }
@@ -35,9 +36,7 @@ export const AssignFullBuyoutSchema = extendApi(
       .array(
         z.object({
           description: z.string().min(1),
-          type: z.nativeEnum($Enums.ConditionType, {
-            error: 'INVALID_CONDITION_TYPE'
-          }),
+          type: zEnum($Enums.ConditionType, 'ConditionType'),
           value: z.number().positive()
         })
       )
@@ -50,7 +49,7 @@ export const CreateTransferContractSchema = extendApi(
   z.object({
     transferRequestId: z.string().min(1, 'TRANSFER_REQUEST_ID_REQUIRED'),
     transferAmount: z.number().positive('AMOUNT_MUST_BE_POSITIVE'),
-    transferType: z.nativeEnum($Enums.TransferType),
+    transferType: zEnum($Enums.TransferType, 'TransferType'),
     newOwnershipSplit: z.record(z.string(), z.any()).describe('Cấu hình chia tỷ lệ sở hữu doanh thu mới'),
     coOwnerApprovalRequired: z.boolean().default(false)
   }),
@@ -86,7 +85,7 @@ export const TransferRequestSchema = extendApi(
     proposedPercentage: z.number().nullable().optional(),
     planDescription: z.string().nullable().optional(),
     originalContractId: z.string().nullable().optional(),
-    status: z.string(),
+    status: zEnum($Enums.TransferRequestStatus, 'TransferRequestStatus'),
     boardDecisionId: z.string().nullable().optional(),
     createdAt: z.any()
   }),
@@ -115,7 +114,7 @@ export const TransferContractSchema = extendApi(
     transferAmount: z.number().nullable().optional(),
     newOwnershipSplit: z.any().nullable().optional(),
     coOwnerApprovalRequired: z.boolean(),
-    status: z.string(),
+    status: zEnum($Enums.TransferContractStatus, 'TransferContractStatus'),
     aSignedAt: z.any().optional(),
     bSignedAt: z.any().optional(),
     boardSignedAt: z.any().optional(),

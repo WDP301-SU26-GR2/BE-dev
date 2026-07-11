@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 
 // 1. Schema phục vụ API tạo bản thảo hợp đồng mới (POST /contracts)
 export const CreateContractBodySchema = extendApi(
@@ -16,9 +17,7 @@ export const CreateContractBodySchema = extendApi(
         .string({ error: 'boardDecisionId phải là một chuỗi ký tự' })
         .min(1, { message: 'boardDecisionId liên kết quyết định hội đồng là bắt buộc' }),
 
-      contractType: z.nativeEnum($Enums.ContractType, {
-        error: 'contractType phải là một giá trị hợp lệ trong Hệ thống Enum'
-      }),
+      contractType: zEnum($Enums.ContractType, 'ContractType'),
 
       valuationAmount: z
         .number({ error: 'valuationAmount phải là một số' })
@@ -58,7 +57,7 @@ export const CreateContractBodySchema = extendApi(
 export const EditorUpdateContractBodySchema = extendApi(
   z
     .object({
-      contractType: z.nativeEnum($Enums.ContractType).optional(),
+      contractType: zEnum($Enums.ContractType, 'ContractType').optional(),
       valuationAmount: z.number().min(0).optional(),
       publisherOwnershipPct: z.number().min(0).max(100).optional(),
       mangakaOwnershipPct: z.number().min(0).max(100).optional(),
@@ -120,14 +119,14 @@ export const ContractResSchema = extendApi(
     editorId: z.string().nullable(),
     boardDecisionId: z.string().nullable(),
     sourceTransferRequestId: z.string().nullable().optional(),
-    contractType: z.nativeEnum($Enums.ContractType),
+    contractType: zEnum($Enums.ContractType, 'ContractType'),
     valuationAmount: z.number().nullable(),
     publisherOwnershipPct: z.number().nullable(),
     mangakaOwnershipPct: z.number().nullable(),
     terminationClause: z.string().nullable(),
     contractStart: z.any().nullable(),
     contractEnd: z.any().nullable(),
-    status: z.nativeEnum($Enums.ContractStatus),
+    status: zEnum($Enums.ContractStatus, 'ContractStatus'),
     mangakaSignedAt: z.any().nullable(),
     boardSignedAt: z.any().nullable(),
     createdAt: z.any()
@@ -171,7 +170,7 @@ export const ContractSignResSchema = extendApi(
 export const ContractStatusProgressResSchema = extendApi(
   z.object({
     id: z.string(),
-    status: z.nativeEnum($Enums.ContractStatus),
+    status: zEnum($Enums.ContractStatus, 'ContractStatus'),
     mangaka: z.object({
       id: z.string(),
       isSigned: z.boolean(),

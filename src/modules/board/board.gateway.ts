@@ -89,9 +89,17 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
     return { status: 'SUCCESS', message: `Đã kết nối vào phòng ${data.sessionId}` }
   }
 
+  // Realtime hardening (audit 2026-07-11): broadcast là side-effect SAU khi vote đã ghi DB —
+  // lỗi socket (server chưa init / adapter hỏng) tuyệt đối không được làm castVote trả 500.
   broadcastVoteProgress(sessionId: string, progressData: any) {
-    const roomName = `session_${sessionId}`
-    this.server.to(roomName).emit('voteProgressUpdated', progressData)
-    this.logger.log(`[Realtime] Đã phát sóng tiến độ mới cho phòng: ${roomName}`)
+    try {
+      const roomName = `session_${sessionId}`
+      this.server.to(roomName).emit('voteProgressUpdated', progressData)
+      this.logger.log(`[Realtime] Đã phát sóng tiến độ mới cho phòng: ${roomName}`)
+    } catch (error) {
+      this.logger.error(
+        `[Realtime] broadcast thất bại cho session ${sessionId} — ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
   }
 }

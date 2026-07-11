@@ -133,6 +133,9 @@ enum AuditEntityType {
   BOARD_DECISION
   REPRINT_REQUEST
   TRANSFER_REQUEST
+  PAYMENT_RECORD
+  SURVEY_PERIOD
+  PUBLICATION_VERSION
 }
 
 enum PublicationType {
@@ -644,6 +647,20 @@ enum BoardSessionStatus {
   UPCOMING
   ACTIVE
   CONCLUDED
+}
+
+enum BoardDecisionResult {
+  PENDING
+  PENDING_QUORUM
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum VoteValue {
+  APPROVE
+  REJECT
+  ABSTAIN
 }
 
 model Series {
@@ -1449,7 +1466,7 @@ model BoardDecision {
   boardSession   BoardSession @relation(fields: [boardSessionId], references: [id], onDelete: Cascade)
 
   decisionType           DecisionType?
-  result                 String?
+  result                 BoardDecisionResult?
   totalVotes             Int           @default(0)
   approveCount           Int           @default(0)
   rejectCount            Int           @default(0)
@@ -1471,7 +1488,7 @@ model BoardDecision {
 
 type Vote {
   voterId   String?  @db.ObjectId
-  voteValue String?
+  voteValue VoteValue?
   note      String?
   votedAt   DateTime @default(now())
 }

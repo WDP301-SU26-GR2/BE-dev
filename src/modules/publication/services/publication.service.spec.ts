@@ -5,6 +5,7 @@ import {
   SeriesNotFoundException
 } from '../errors/publication.errors'
 import { PublicationService } from '../publication.service'
+import { AuditEntityType } from '@prisma/client'
 
 const SERIES_ID = '507f1f77bcf86cd799439041'
 const VER_ID = '507f1f77bcf86cd799439042'
@@ -34,7 +35,8 @@ function make(
     update: jest.fn().mockResolvedValue(updatedEntity),
     delete: jest.fn().mockResolvedValue(versionEntity)
   }
-  return { svc: new PublicationService(repo as never), repo }
+  const auditService = { record: jest.fn().mockResolvedValue(undefined) }
+  return { svc: new PublicationService(repo as never, auditService as never), repo, auditService }
 }
 
 describe('PublicationService (B-PUB-01)', () => {
@@ -134,5 +136,18 @@ describe('PublicationService (B-PUB-01)', () => {
   it('remove: MANGAKA not owner → 403', async () => {
     const { svc } = make()
     await expect(svc.remove('other-mangaka', RoleName.MANGAKA, VER_ID)).rejects.toBe(SeriesAccessDeniedException)
+  })
+})
+
+describe('PublicationService — AuditService wiring (Spec 11 / Task 13)', () => {
+  it('create records CREATE with actorId=editor-1, entityType=PUBLICATION_VERSION, entityId=created.id', async () => {
+    const { svc, auditService } = make()
+    await svc.create('editor-1', RoleName.EDITOR, SERIES_ID, { language: 'JA', readingDirection: 'RTL' })
+    expect(auditService.record).toHaveBeenCalledWith({
+      actorId: 'editor-1',
+      entityType: AuditEntityType.PUBLICATION_VERSION,
+      entityId: VER_ID,
+      action: 'CREATE'
+    })
   })
 })

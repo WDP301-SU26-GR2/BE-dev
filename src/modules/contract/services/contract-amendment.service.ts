@@ -8,6 +8,7 @@ import { NotificationService } from 'src/modules/notification/notification.servi
 import { AuditService } from 'src/modules/audit/audit.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import type { CreateAmendmentBodyType, UpdateAmendmentBodyType } from '../schemas/contract-amendment-schema'
+import { ContractMessages } from '../contract.messages'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -83,7 +84,7 @@ export class ContractAmendmentService {
         type: NotificationType.CONTRACT,
         referenceId: amendment.id,
         referenceType: 'AMENDMENT_CREATED',
-        content: 'Một phụ lục hợp đồng đang được soạn — vui lòng theo dõi.'
+        content: ContractMessages.notification.amendmentCreated
       })
     }
     return amendment
@@ -158,7 +159,7 @@ export class ContractAmendmentService {
         type: NotificationType.CONTRACT,
         referenceId: id,
         referenceType: 'AMENDMENT_PENDING_SIGNATURES',
-        content: 'Phụ lục hợp đồng đã sẵn sàng để ký.'
+        content: ContractMessages.notification.amendmentPendingSignatures
       })
     }
     return updated
@@ -202,7 +203,7 @@ export class ContractAmendmentService {
           type: NotificationType.CONTRACT,
           referenceId: contractId,
           referenceType: 'CONTRACT_AMENDED',
-          content: 'Điều khoản hợp đồng đã được cập nhật qua phụ lục.'
+          content: ContractMessages.notification.contractAmended
         })
       }
     }
@@ -269,7 +270,7 @@ export class ContractAmendmentService {
       type: NotificationType.CONTRACT,
       referenceId: id,
       referenceType: 'AMENDMENT_REJECTED',
-      content: 'Mangaka đã từ chối phụ lục — vui lòng chỉnh sửa điều khoản.'
+      content: ContractMessages.notification.amendmentRejected
     })
     return updated
   }
