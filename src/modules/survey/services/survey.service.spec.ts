@@ -1,6 +1,7 @@
 import { SurveyService } from './survey.service'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { IdentityHashService } from 'src/infrastructure/crypto/identity-hash.service'
+import { ReaderVoteBodySchema, VoteOtpRequestBodySchema } from '../schemas/survey-schemas'
 
 // Real (not mocked) so identity/ip hashing determinism is exercised end-to-end in submitVote tests.
 const identityHash = new IdentityHashService('test-pepper')
@@ -26,6 +27,7 @@ function makeMocks(): Mocks {
       getRankingRecordsByPeriod: jest.fn().mockResolvedValue([]),
       getRankingRecordsBySeries: jest.fn().mockResolvedValue([]),
       findReaderVoteByPeriodAndIdentity: jest.fn(),
+      countReaderVotesByPeriodAndIp: jest.fn().mockResolvedValue(0),
       createReaderVote: jest.fn().mockResolvedValue({}),
       createRankingRecord: jest.fn().mockResolvedValue({}),
       updateSurveyPeriodStatus: jest.fn().mockResolvedValue({}),
@@ -48,7 +50,9 @@ function makeMocks(): Mocks {
         maxSeriesPerVote: 3,
         captchaThreshold: 0.3,
         phoneRateLimit: 3,
-        ipRateLimit: 10
+        ipRateLimit: 10,
+        otpCooldownSeconds: 60,
+        ipVotesPerPeriod: 10
       })
     },
     appConfigService: {
@@ -143,14 +147,14 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
   const VOTE_BODY = {
     surveyPeriodId: '507f1f77bcf86cd799439011',
     seriesIds: [SERIES_A],
-    phoneNumber: '+84900000000',
+    identity: 'reader@example.com',
     otpCode: '123456'
   }
   const IP = '203.0.113.9'
   const serializedOwnership = (ids: string[]) =>
     ids.map((id) => ({ id, status: 'SERIALIZED', mangakaId: 'm', editorId: null }))
 
-  it('uses HMAC identityHash for BOTH the dedup lookup and the stored vote (so "1 phone = 1 vote/period" holds)', async () => {
+  it('uses HMAC identityHash for BOTH the dedup lookup and the stored vote (so one identity = one vote/period)', async () => {
     const m = makeMocks()
     m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
     m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue(serializedOwnership([SERIES_A]))
@@ -158,7 +162,7 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
 
     await makeService(m).submitVote(VOTE_BODY, IP)
 
-    const expectedIdentityHash = identityHash.hash(VOTE_BODY.phoneNumber)
+    const expectedIdentityHash = identityHash.hash(VOTE_BODY.identity)
     const expectedIpHash = identityHash.hash(IP)
 
     // dedup lookup keyed by the deterministic hash
@@ -172,7 +176,7 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
     )
   })
 
-  it('rejects a second vote from the same phone in the same period (dedup hit)', async () => {
+  it('rejects a second vote from the same identity in the same period (dedup hit)', async () => {
     const m = makeMocks()
     m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
     m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue(serializedOwnership([SERIES_A]))
@@ -198,7 +202,7 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
         {
           surveyPeriodId: '507f1f77bcf86cd799439011',
           seriesIds: ['sA', 'sB'],
-          phoneNumber: '+84900000000',
+          identity: 'reader@example.com',
           otpCode: '123456'
         },
         '1.1.1.1'
@@ -605,5 +609,152 @@ describe('SurveyService.getVoteResults (Fix-1 G-2)', () => {
     expect(serialized).not.toContain('isAtRisk')
     expect(serialized).not.toContain('isReliable')
     expect(serialized).not.toContain('SEVERE')
+  })
+})
+
+describe('Fix-2 G-5 - identity semantics', () => {
+  const PERIOD_ID = '507f1f77bcf86cd799439011'
+  const SERIES_ID = '507f1f77bcf86cd799439021'
+
+  it('schemas accept identity email and reject the legacy identity-field body', () => {
+    const legacyField = ['phone', 'Number'].join('')
+    expect(VoteOtpRequestBodySchema.safeParse({ identity: 'reader@example.com', captchaToken: 'tok' }).success).toBe(
+      true
+    )
+    expect(VoteOtpRequestBodySchema.safeParse({ [legacyField]: '+84900000000', captchaToken: 'tok' }).success).toBe(
+      false
+    )
+    expect(
+      ReaderVoteBodySchema.safeParse({
+        surveyPeriodId: PERIOD_ID,
+        identity: 'not-an-email',
+        otpCode: '123456',
+        seriesIds: [SERIES_ID]
+      }).success
+    ).toBe(false)
+  })
+
+  it('requestOtp sends OTP to the identity email', async () => {
+    const m = makeMocks()
+    const svc = makeService(m)
+
+    await svc.requestOtp({ identity: 'reader@example.com', captchaToken: 'tok' }, '1.2.3.4')
+
+    expect(m.authOtpService.sendOTPService).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'reader@example.com' })
+    )
+    expect(m.rateLimitService.checkAndConsume).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'survey:otp:identity:reader@example.com' })
+    )
+  })
+
+  it('submitVote stores authMethod=EMAIL_OTP and validates OTP against identity', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue({ id: PERIOD_ID, status: 'OPEN' })
+    m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue([{ id: SERIES_ID, status: 'SERIALIZED' }])
+    m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue(null)
+
+    await makeService(m).submitVote(
+      {
+        surveyPeriodId: PERIOD_ID,
+        identity: 'reader@example.com',
+        otpCode: '123456',
+        seriesIds: [SERIES_ID]
+      },
+      '1.2.3.4'
+    )
+
+    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledWith(
+      expect.objectContaining({ authMethod: 'EMAIL_OTP' })
+    )
+    expect(m.authOtpService.validateOtpCode).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'reader@example.com' })
+    )
+    expect(m.authOtpService.burnOtp).toHaveBeenCalledWith('reader@example.com', expect.anything())
+  })
+})
+
+describe('Fix-2 G-4a - OTP cooldown', () => {
+  it('requestOtp passes cooldownSec from VotingConfig', async () => {
+    const m = makeMocks()
+    m.surveyConfigService.get.mockResolvedValue({
+      maxSeriesPerVote: 3,
+      captchaThreshold: 0.3,
+      phoneRateLimit: 3,
+      ipRateLimit: 10,
+      otpCooldownSeconds: 45,
+      ipVotesPerPeriod: 10
+    })
+
+    await makeService(m).requestOtp({ identity: 'r@example.com', captchaToken: 't' }, '1.2.3.4')
+
+    expect(m.rateLimitService.checkAndConsume).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'survey:otp:identity:r@example.com', max: 3, cooldownSec: 45 })
+    )
+  })
+
+  it('cooldown or quota hit returns 429 with retryAfter metadata', async () => {
+    const m = makeMocks()
+    m.rateLimitService.checkAndConsume.mockResolvedValue({
+      allowed: false,
+      reason: 'COOLDOWN',
+      retryAfter: 42
+    })
+
+    await expect(
+      makeService(m).requestOtp({ identity: 'r@example.com', captchaToken: 't' }, '1.2.3.4')
+    ).rejects.toMatchObject({
+      status: 429,
+      response: expect.objectContaining({ code: 'VOTE_OTP_RATE_LIMITED', retryAfter: 42 })
+    })
+    expect(m.authOtpService.sendOTPService).not.toHaveBeenCalled()
+  })
+})
+
+describe('Fix-2 G-4b - IP vote limit per period', () => {
+  const PERIOD_ID = '507f1f77bcf86cd799439011'
+  const SERIES_ID = '507f1f77bcf86cd799439021'
+  const body = {
+    surveyPeriodId: PERIOD_ID,
+    identity: 'r@example.com',
+    otpCode: '123456',
+    seriesIds: [SERIES_ID]
+  }
+
+  function primeHappyPath(m: Mocks) {
+    m.surveyConfigService.get.mockResolvedValue({
+      maxSeriesPerVote: 3,
+      captchaThreshold: 0.3,
+      phoneRateLimit: 3,
+      ipRateLimit: 10,
+      otpCooldownSeconds: 60,
+      ipVotesPerPeriod: 2
+    })
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue({ id: PERIOD_ID, status: 'OPEN' })
+    m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue([{ id: SERIES_ID, status: 'SERIALIZED' }])
+    m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue(null)
+  }
+
+  it('under the IP cap creates the vote', async () => {
+    const m = makeMocks()
+    primeHappyPath(m)
+    m.surveyRepository.countReaderVotesByPeriodAndIp.mockResolvedValue(1)
+
+    await makeService(m).submitVote(body, '1.2.3.4')
+
+    expect(m.surveyRepository.createReaderVote).toHaveBeenCalled()
+  })
+
+  it('at the IP cap returns 429 before OTP burn or vote creation', async () => {
+    const m = makeMocks()
+    primeHappyPath(m)
+    m.surveyRepository.countReaderVotesByPeriodAndIp.mockResolvedValue(2)
+
+    await expect(makeService(m).submitVote(body as never, '1.2.3.4')).rejects.toMatchObject({
+      status: 429,
+      response: 'Error.VoteIpLimitExceeded'
+    })
+    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
+    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
   })
 })

@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   NotFoundException,
   UnprocessableEntityException
 } from '@nestjs/common'
@@ -15,7 +17,12 @@ export const SurveyPeriodAlreadyFinalizedException = new BadRequestException(E.s
 export const SurveyPeriodNotFinalizedException = new ConflictException(E.surveyPeriodNotFinalized)
 export const ReaderAlreadyVotedException = new ConflictException(E.readerAlreadyVoted)
 export const VoteOtpNotFoundException = new BadRequestException(E.voteOtpNotFound)
-export const VoteOtpRateLimitException = new BadRequestException(E.voteOtpRateLimit)
+export const VoteOtpRateLimitException = (retryAfter: number) =>
+  new HttpException(
+    { message: E.voteOtpRateLimit, code: 'VOTE_OTP_RATE_LIMITED', retryAfter },
+    HttpStatus.TOO_MANY_REQUESTS
+  )
+export const VoteIpLimitExceededException = new HttpException(E.voteIpLimitExceeded, HttpStatus.TOO_MANY_REQUESTS)
 export const SurveyDataImportNotAllowedException = new BadRequestException(E.surveyDataImportNotAllowed)
 export const RankingFinalizeNotAllowedException = new BadRequestException(E.rankingFinalizeNotAllowed)
 export const VotingConfigNotFoundException = new NotFoundException(E.votingConfigNotFound)

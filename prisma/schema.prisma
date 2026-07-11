@@ -1435,6 +1435,7 @@ model BoardSession {
   status           BoardSessionStatus @default(UPCOMING)
   allowedEditorIds String[]           @db.ObjectId // Danh sách sếp được mời họp tổng
   startTime        DateTime
+  endTime          DateTime? // Fix-2 G-7: auto-conclude when ACTIVE session passes this time; null = manual-only conclude
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -1502,6 +1503,8 @@ model VotingConfig {
   ipRateLimit      Int            @default(10)
   phoneRateLimit   Int            @default(3)
   captchaThreshold Float          @default(0.3)
+  otpCooldownSeconds Int          @default(60) // Fix-2 G-4: cooldown between vote OTP requests
+  ipVotesPerPeriod   Int          @default(10) // Fix-2 G-4: vote submit cap per IP per period
   updatedAt        DateTime       @updatedAt
 
   @@index([updatedBy])

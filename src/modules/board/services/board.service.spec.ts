@@ -287,3 +287,87 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
     )
   })
 })
+
+describe('BoardService.concludeSession (Fix-2 G-7)', () => {
+  const SESSION_ID = '012345678901234567890123'
+
+  function makeConcludeService(decisions: any[], sessionOverride: any = {}) {
+    const boardRepo = {
+      findSessionById: jest.fn().mockResolvedValue({
+        id: SESSION_ID,
+        status: 'ACTIVE',
+        creatorId: 'creator1',
+        allowedEditorIds: ['b1', 'b2', 'b3'],
+        ...sessionOverride
+      }),
+      findNonTerminalDecisionsBySession: jest.fn().mockResolvedValue(decisions),
+      updateDecisionCounters: jest.fn().mockResolvedValue({}),
+      findDecisionById: jest.fn(),
+      getActiveConfig: jest.fn(),
+      pushVoteToDecision: jest.fn()
+    }
+    const boardGateway = { broadcastVoteProgress: jest.fn() }
+    const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+    const eventBus = { emit: jest.fn() }
+    const audit = { record: jest.fn().mockResolvedValue(undefined) }
+    const stateService = {
+      transition: jest.fn().mockResolvedValue({ id: SESSION_ID, status: 'CONCLUDED' })
+    }
+    const service = new BoardService(
+      boardRepo as never,
+      boardGateway as never,
+      notificationService as never,
+      eventBus as never,
+      audit as never,
+      stateService as never
+    )
+    return { service, boardRepo, notificationService, eventBus, audit, stateService }
+  }
+
+  it('creator concludes -> transition CONCLUDED, expires pending decisions, audits, notifies, no domain event', async () => {
+    const d = makeConcludeService([
+      { id: 'dec1', result: 'PENDING_QUORUM' },
+      { id: 'dec2', result: null }
+    ])
+    await d.service.concludeSession(SESSION_ID, 'creator1', 'EDITOR')
+    expect(d.stateService.transition).toHaveBeenCalledWith(SESSION_ID, 'CONCLUDED', 'creator1')
+    expect(d.boardRepo.updateDecisionCounters).toHaveBeenCalledWith(
+      'dec1',
+      expect.objectContaining({ result: 'EXPIRED' })
+    )
+    expect(d.boardRepo.updateDecisionCounters).toHaveBeenCalledWith(
+      'dec2',
+      expect.objectContaining({ result: 'EXPIRED' })
+    )
+    expect(d.audit.record).toHaveBeenCalledTimes(2)
+    expect(d.notificationService.notifySafe).toHaveBeenCalled()
+    expect(d.eventBus.emit).not.toHaveBeenCalled()
+  })
+
+  it('non-creator non-admin -> 403 NotSessionCreator, nothing mutated', async () => {
+    const d = makeConcludeService([])
+    await expect(d.service.concludeSession(SESSION_ID, 'someone-else', 'EDITOR')).rejects.toMatchObject({
+      status: 403
+    })
+    expect(d.stateService.transition).not.toHaveBeenCalled()
+  })
+
+  it('SUPER_ADMIN may conclude any session', async () => {
+    const d = makeConcludeService([])
+    await d.service.concludeSession(SESSION_ID, 'admin1', 'SUPER_ADMIN')
+    expect(d.stateService.transition).toHaveBeenCalled()
+  })
+
+  it('system actor skips the creator check', async () => {
+    const d = makeConcludeService([])
+    await d.service.concludeSession(SESSION_ID, null, null)
+    expect(d.stateService.transition).toHaveBeenCalledWith(SESSION_ID, 'CONCLUDED', null)
+  })
+
+  it('no pending decisions -> still concludes, no decision writes', async () => {
+    const d = makeConcludeService([])
+    await d.service.concludeSession(SESSION_ID, 'creator1', 'EDITOR')
+    expect(d.boardRepo.updateDecisionCounters).not.toHaveBeenCalled()
+    expect(d.notificationService.notifySafe).toHaveBeenCalled()
+  })
+})

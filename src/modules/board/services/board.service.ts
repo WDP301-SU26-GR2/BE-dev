@@ -19,6 +19,7 @@ import { DomainEvent, DomainEventPayload } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { BoardSessionStateService } from './board-session-state.service'
+import { RoleName } from 'src/core/security/constants/role.constant'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -72,6 +73,54 @@ export class BoardService {
     // BoardSessionStateService enforces the UPCOMING → ACTIVE transition (and throws
     // InvalidBoardSessionTransitionException / SessionNotFoundException otherwise).
     return this.boardSessionStateService.transition(sessionId, $Enums.BoardSessionStatus.ACTIVE, null)
+  }
+
+  async concludeSession(sessionId: string, actorId: string | null, roleName: string | null) {
+    if (!OBJECT_ID_RE.test(sessionId)) throw Errors.SessionNotFoundException
+    const session = await this.boardRepo.findSessionById(sessionId)
+    if (!session) throw Errors.SessionNotFoundException
+    if (actorId !== null && roleName !== RoleName.SUPER_ADMIN && session.creatorId !== actorId) {
+      throw Errors.NotSessionCreatorException
+    }
+
+    const concluded = await this.boardSessionStateService.transition(
+      sessionId,
+      $Enums.BoardSessionStatus.CONCLUDED,
+      actorId
+    )
+
+    const pendingDecisions = await this.boardRepo.findNonTerminalDecisionsBySession(sessionId)
+    for (const decision of pendingDecisions) {
+      await this.boardRepo.updateDecisionCounters(decision.id, { result: 'EXPIRED', decidedAt: new Date() })
+      await this.auditService.record({
+        actorId,
+        entityType: AuditEntityType.BOARD_DECISION,
+        entityId: decision.id,
+        action: 'DECISION_EXPIRED',
+        fromState: decision.result ?? 'PENDING',
+        toState: 'EXPIRED',
+        reason: 'Board session concluded without quorum'
+      })
+    }
+
+    const content =
+      pendingDecisions.length > 0
+        ? BoardMessages.notification.sessionConcludedWithExpired(pendingDecisions.length)
+        : BoardMessages.notification.sessionConcluded
+    const recipients = Array.from(new Set([session.creatorId, ...(session.allowedEditorIds ?? [])]))
+    await Promise.all(
+      recipients.map((recipientId) =>
+        this.notificationService.notifySafe({
+          recipientId,
+          type: NotificationType.BOARD,
+          referenceId: sessionId,
+          referenceType: 'BOARD_SESSION_CONCLUDED',
+          content
+        })
+      )
+    )
+
+    return concluded
   }
 
   /**
@@ -217,6 +266,7 @@ export class BoardService {
 
     // Đọc trạng thái TRƯỚC update để chống re-emit: chỉ phát event khi flip non-terminal → terminal.
     const before = await this.boardRepo.findDecisionById(decisionId)
+    if (before?.result === 'EXPIRED') return before as unknown as BoardDecisionDataType
     const wasTerminal = before?.result === 'APPROVED' || before?.result === 'REJECTED'
 
     const approveCount = currentVotes.filter((v) => v.voteValue === 'APPROVE').length

@@ -53,6 +53,13 @@ export class BoardRepository {
     })
   }
 
+  async findExpiredActiveSessions() {
+    return this.prisma.boardSession.findMany({
+      where: { status: 'ACTIVE', endTime: { not: null, lt: new Date() } },
+      select: { id: true, title: true }
+    })
+  }
+
   // ================= CÁC API KHÁC =================
   async findActiveSessionByTitle(title: string) {
     return this.prisma.boardSession.findFirst({
@@ -72,7 +79,8 @@ export class BoardRepository {
         creatorId: creatorId,
         status: 'UPCOMING',
         allowedEditorIds: dto.allowedEditorIds,
-        startTime: dto.startTime
+        startTime: dto.startTime,
+        endTime: dto.endTime ?? null
       }
     })
   }
@@ -121,6 +129,16 @@ export class BoardRepository {
       data
     }) as unknown as Promise<BoardDecisionDataType>
     // Dùng cấu trúc này một lần duy nhất tại Repo để ép kiểu thô từ Prisma về Model của bạn
+  }
+
+  async findNonTerminalDecisionsBySession(sessionId: string) {
+    return this.prisma.boardDecision.findMany({
+      where: {
+        boardSessionId: sessionId,
+        OR: [{ result: null }, { result: { in: ['PENDING', 'PENDING_QUORUM'] } }]
+      },
+      select: { id: true, result: true }
+    })
   }
 
   async createSeriesReport(data: CreateSeriesReportBodyDto & { preparedBy: string }) {

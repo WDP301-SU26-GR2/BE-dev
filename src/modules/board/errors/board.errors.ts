@@ -31,3 +31,4 @@ export const EditorNotInvitedException = new ForbiddenException([{ message: E.ed
 export const InvalidBoardSessionTransitionException = new ConflictException([
   { message: E.invalidSessionTransition, path: 'status' }
 ])
+export const NotSessionCreatorException = new ForbiddenException([{ message: E.notSessionCreator, path: 'sessionId' }])

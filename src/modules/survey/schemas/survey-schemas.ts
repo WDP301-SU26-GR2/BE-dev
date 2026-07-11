@@ -6,7 +6,10 @@ import { zEnum } from 'src/core/http/docs/enum-docs'
 export const VoteOtpRequestBodySchema = extendApi(
   z
     .object({
-      phoneNumber: z.string().min(10, { message: 'SĐT phải chứa tối thiểu 10 ký tự.' }),
+      identity: z
+        .string()
+        .email({ message: 'identity phải là email hợp lệ.' })
+        .describe('Email nhận OTP - hệ chạy EMAIL mode (Requiment 1.15d); SMS là mở rộng tương lai'),
       captchaToken: z.string().min(1, { message: 'Captcha token là bắt buộc.' })
     })
     .strict(),
@@ -17,7 +20,7 @@ export const ReaderVoteBodySchema = extendApi(
   z
     .object({
       surveyPeriodId: z.string().min(1, { message: 'surveyPeriodId là bắt buộc.' }),
-      phoneNumber: z.string().min(10, { message: 'SĐT là bắt buộc.' }),
+      identity: z.string().email({ message: 'identity phải là email hợp lệ.' }).describe('Email đã nhận OTP'),
       otpCode: z.string().min(4, { message: 'OTP là bắt buộc.' }),
       seriesIds: z.array(z.string().min(1)).min(1).max(3, { message: 'Tối đa 3 series được chọn.' }),
       captchaScore: z.number().min(0).max(1).optional()
@@ -79,6 +82,8 @@ export const VotingConfigBodySchema = extendApi(
       otpMaxAttempts: z.number().int().min(1).optional(),
       ipRateLimit: z.number().int().min(1).optional(),
       phoneRateLimit: z.number().int().min(1).optional(),
+      otpCooldownSeconds: z.number().int().min(0).optional(),
+      ipVotesPerPeriod: z.number().int().min(1).optional(),
       captchaThreshold: z.number().min(0).max(1).optional()
     })
     .strict(),
@@ -109,6 +114,8 @@ export const VotingConfigResSchema = extendApi(
       otpMaxAttempts: z.number().int(),
       ipRateLimit: z.number().int(),
       phoneRateLimit: z.number().int(),
+      otpCooldownSeconds: z.number().int(),
+      ipVotesPerPeriod: z.number().int(),
       captchaThreshold: z.number(),
       updatedAt: z.string().datetime()
     })

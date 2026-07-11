@@ -41,6 +41,7 @@ import {
   SeriesNotVotableException,
   VoteOtpNotFoundException,
   VoteOtpRateLimitException,
+  VoteIpLimitExceededException,
   VotingConfigNotFoundException
 } from './errors/survey.errors'
 
@@ -53,7 +54,7 @@ export class SurveyController {
   @Post('vote/otp')
   @IsPublic()
   @ApiOperation({ summary: 'Reader yêu cầu OTP cho Guest Voting. Public.' })
-  @ApiErrors(VoteOtpRateLimitException)
+  @ApiErrors(VoteOtpRateLimitException(0))
   @ZodResponse({ status: 200, type: MessageResDto })
   requestOtp(@Body() body: VoteOtpRequestBodyDto, @Req() req: Request) {
     return this.surveyService.requestOtp(body, req.ip ?? '')
@@ -67,6 +68,7 @@ export class SurveyController {
     SurveyPeriodNotFoundException,
     SurveyPeriodNotOpenException,
     VoteOtpNotFoundException,
+    VoteIpLimitExceededException,
     TooManySeriesSelectedException,
     DuplicateSeriesInVoteException,
     SeriesNotVotableException

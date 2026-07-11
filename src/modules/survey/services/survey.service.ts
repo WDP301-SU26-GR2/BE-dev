@@ -10,6 +10,7 @@ import {
   ReaderAlreadyVotedException,
   VoteOtpNotFoundException,
   VoteOtpRateLimitException,
+  VoteIpLimitExceededException,
   SurveyDataImportNotAllowedException,
   RankingFinalizeNotAllowedException,
   TooManySeriesSelectedException,
@@ -90,6 +91,8 @@ export class SurveyService {
     otpMaxAttempts: number
     ipRateLimit: number
     phoneRateLimit: number
+    otpCooldownSeconds: number
+    ipVotesPerPeriod: number
     captchaThreshold: number
     updatedAt: Date
   }) {
@@ -101,6 +104,8 @@ export class SurveyService {
       otpMaxAttempts: config.otpMaxAttempts,
       ipRateLimit: config.ipRateLimit,
       phoneRateLimit: config.phoneRateLimit,
+      otpCooldownSeconds: config.otpCooldownSeconds,
+      ipVotesPerPeriod: config.ipVotesPerPeriod,
       captchaThreshold: config.captchaThreshold,
       updatedAt: config.updatedAt.toISOString()
     }
@@ -134,14 +139,15 @@ export class SurveyService {
     // B-VOT-06: rate-limit quota đọc từ VotingConfig DB (admin có thể giảm/tăng qua PATCH).
     const config = await this.surveyConfigService.get()
 
-    // 1. Kiểm tra Rate Limit theo Số điện thoại
-    const phoneLimit = await this.rateLimitService.checkAndConsume({
-      key: `survey:otp:phone:${body.phoneNumber}`,
+    // 1. Kiểm tra Rate Limit theo identity email
+    const identityLimit = await this.rateLimitService.checkAndConsume({
+      key: `survey:otp:identity:${body.identity}`,
       max: config.phoneRateLimit,
-      windowSec: 86400
+      windowSec: 86400,
+      cooldownSec: config.otpCooldownSeconds
     })
-    if (!phoneLimit.allowed) {
-      throw VoteOtpRateLimitException
+    if (!identityLimit.allowed) {
+      throw VoteOtpRateLimitException(identityLimit.retryAfter)
     }
 
     // 2. Kiểm tra Rate Limit theo IP gán cho Guest
@@ -151,14 +157,14 @@ export class SurveyService {
       windowSec: 86400
     })
     if (!ipLimit.allowed) {
-      throw VoteOtpRateLimitException
+      throw VoteOtpRateLimitException(ipLimit.retryAfter)
     }
 
     // 3. Tận dụng hàm sendOTPService của AuthOtpService.
     // Vì OtpPurpose.VOTE không nằm trong nhóm kiểm tra User (như REGISTER/FORGOT_PASSWORD),
     // luồng xử lý sẽ đi thẳng vào hàm issueOtp nội bộ và tự động enqueue gửi SMS/Email.
     await this.authOtpService.sendOTPService({
-      email: body.phoneNumber, // Map phoneNumber vào trường định danh email của AuthOtpService
+      email: body.identity,
       purpose: OtpPurpose.VOTE
     })
 
@@ -193,8 +199,11 @@ export class SurveyService {
 
     // Deterministic HMAC (NOT bcrypt) so the (surveyPeriodId, identityHash) dedup + unique
     // constraint actually catch repeat votes — see B-VOT-03 fix / IdentityHashService.
-    const identityHash = this.identityHashService.hash(body.phoneNumber)
+    const identityHash = this.identityHashService.hash(body.identity)
     const ipHash = this.identityHashService.hash(ip)
+
+    const ipVotes = await this.surveyRepository.countReaderVotesByPeriodAndIp(body.surveyPeriodId, ipHash)
+    if (ipVotes >= config.ipVotesPerPeriod) throw VoteIpLimitExceededException
 
     const existingVote = await this.surveyRepository.findReaderVoteByPeriodAndIdentity(
       body.surveyPeriodId,
@@ -205,7 +214,7 @@ export class SurveyService {
     try {
       // Xác thực mã OTP thông qua AuthOtpService công khai
       await this.authOtpService.validateOtpCode({
-        email: body.phoneNumber,
+        email: body.identity,
         code: body.otpCode,
         purpose: OtpPurpose.VOTE
       })
@@ -215,7 +224,7 @@ export class SurveyService {
     }
 
     // Hủy OTP ngay lập tức sau khi xác thực thành công (Single-use OTP)
-    await this.authOtpService.burnOtp(body.phoneNumber, OtpPurpose.VOTE)
+    await this.authOtpService.burnOtp(body.identity, OtpPurpose.VOTE)
 
     const isCaptchaFlagged = body.captchaScore != null && body.captchaScore < config.captchaThreshold
     const weight = isCaptchaFlagged ? SURVEY_CONFIG.voteWeightForFlagged : 1
@@ -225,7 +234,7 @@ export class SurveyService {
       surveyPeriodId: body.surveyPeriodId,
       seriesIds: body.seriesIds,
       identityHash,
-      authMethod: 'PHONE_OTP',
+      authMethod: 'EMAIL_OTP',
       ipHash,
       captchaScore: body.captchaScore,
       voteWeight: weight,
@@ -553,6 +562,8 @@ export class SurveyService {
       otpMaxAttempts: body.otpMaxAttempts,
       ipRateLimit: body.ipRateLimit,
       phoneRateLimit: body.phoneRateLimit,
+      otpCooldownSeconds: body.otpCooldownSeconds,
+      ipVotesPerPeriod: body.ipVotesPerPeriod,
       captchaThreshold: body.captchaThreshold
     })
     this.surveyConfigService.invalidate()
