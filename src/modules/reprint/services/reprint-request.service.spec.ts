@@ -279,6 +279,30 @@ describe('ReprintRequestService.assignReviser (PB-07)', () => {
 })
 
 describe('ReprintRequestService state-service wiring (B-RPT-02)', () => {
+  // FINDING-BE-002 (flowtest 2026-07-11): mangaka KHÔNG phải chủ hợp đồng series
+  // từng review được reprint của người khác — Ownership Principle guard (BR-CONTRACT-03).
+  it('mangakaReview by non-owner mangaka → 403 ActionNotAllowed', async () => {
+    const repo = {
+      findById: jest.fn().mockResolvedValue({
+        id: REQ_ID,
+        seriesId: 's1',
+        requestedBy: 'editor-1',
+        status: 'PENDING',
+        chapters: []
+      }),
+      findActiveContractBySeriesId: jest.fn().mockResolvedValue({ contractType: 'REVENUE_SHARE', mangakaId: 'm1' }),
+      update: jest.fn()
+    }
+    const service = new ReprintRequestService(
+      repo as never,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
+      { record: jest.fn().mockResolvedValue(undefined) } as never,
+      stateServiceMock() as never
+    )
+    await expect(service.mangakaReview(REQ_ID, { accept: true }, 'm2-not-owner')).rejects.toMatchObject({ status: 403 })
+    expect(repo.update).not.toHaveBeenCalled()
+  })
+
   it('mangakaReview accepts → assertTransition(PENDING → MANGAKA_APPROVED) + audit', async () => {
     const repo = {
       findById: jest.fn().mockResolvedValue({

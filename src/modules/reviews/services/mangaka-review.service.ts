@@ -3,6 +3,7 @@ import { NotificationType } from '@prisma/client'
 import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { MangakaProfileService } from 'src/modules/users/services/mangaka-profile.service'
+import { ProfileNotFoundException } from 'src/modules/users/errors/users.errors'
 import { CannotReviewSelfException } from '../errors/reviews.errors'
 import { ReviewsRepository } from '../reviews.repo'
 import { CreateMangakaReviewBodyType, ReviewResType } from '../schemas/reviews-schemas'
@@ -21,7 +22,10 @@ export class MangakaReviewService {
 
   async createOrUpdate(reviewerId: string, body: CreateMangakaReviewBodyType): Promise<ReviewResType> {
     if (reviewerId === body.mangakaId) throw CannotReviewSelfException
-    await this.mangakaProfileService.getByUserId(body.mangakaId)
+    // Target PHẢI có MangakaProfile — reputation ghi lên profile (applyReputation = update).
+    // ⚠ getByUserId nay GRACEFUL (§19) → phải check cờ; nếu không, update record không tồn tại → P2025 → 500.
+    const targetProfile = await this.mangakaProfileService.getByUserId(body.mangakaId)
+    if (!targetProfile.hasProfile) throw ProfileNotFoundException
 
     const review = await this.reviewsRepository.upsertMangakaReview({
       editorId: reviewerId,

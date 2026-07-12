@@ -33,7 +33,8 @@ function make() {
     )
   }
   const assistantProfileService = {
-    getByUserId: jest.fn().mockResolvedValue({ userId: 'a1' }),
+    // getByUserId GRACEFUL (§19): luôn trả object, cờ hasProfile cho biết profile có thật hay không.
+    getByUserId: jest.fn().mockResolvedValue({ userId: 'a1', hasProfile: true }),
     applyReputation: jest.fn().mockResolvedValue(undefined)
   }
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -94,6 +95,16 @@ describe('AssistantReviewService.createOrUpdate', () => {
   it('throws when reviewer reviews self', async () => {
     const { service } = make()
     await expect(service.createOrUpdate('a1', { ...body, assistantId: 'a1' })).rejects.toBeDefined()
+  })
+
+  // FINDING-BE-012 (flowtest 2026-07-11): target chưa build profile → getByUserId graceful
+  // (hasProfile:false, KHÔNG throw) → applyReputation update record không tồn tại → P2025 → 500.
+  it('target chưa build AssistantProfile (hasProfile:false) → 404 ProfileNotFound, KHÔNG 500', async () => {
+    const { service, assistantProfileService, reviewsRepository } = make()
+    assistantProfileService.getByUserId.mockResolvedValue({ userId: 'a1', hasProfile: false })
+    await expect(service.createOrUpdate('m1', body)).rejects.toMatchObject({ status: 404 })
+    expect(reviewsRepository.upsertAssistantReview).not.toHaveBeenCalled()
+    expect(assistantProfileService.applyReputation).not.toHaveBeenCalled()
   })
 
   it('throws when no ended assignment for the pair (gate)', async () => {

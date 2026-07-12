@@ -1,6 +1,7 @@
 import { TransferService } from './transfer.service'
 import { InvalidTransferStateException, ValuationRequiredException } from '../errors/transfer.error'
 import { TRANSFER_REQUEST_STATUS } from '../transfer.constant'
+import { CreateTransferContractSchema } from '../schemas/transfer-schema'
 import { AuditEntityType } from '@prisma/client'
 
 function makeRepo(overrides: Record<string, unknown> = {}) {
@@ -129,5 +130,32 @@ describe('TransferService — AuditService wiring (Spec 11 / Task 13)', () => {
       fromState: 'UNDER_REVIEW',
       toState: TRANSFER_REQUEST_STATUS.NEGOTIATING
     })
+  })
+})
+
+// FINDING-BE-003 (flowtest 2026-07-11): createTransferContract từng nhận split tổng ≠ 100
+// → thêm refine ở CreateTransferContractSchema (PB-09: newOwnershipSplit tổng PHẢI = 100).
+describe('CreateTransferContractSchema — ownership split validation (PB-09)', () => {
+  const base = {
+    transferRequestId: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+    transferAmount: 5000,
+    transferType: 'PARTIAL_TRANSFER',
+    coOwnerApprovalRequired: false
+  }
+
+  it('split tổng = 100 → parse OK', () => {
+    const r = CreateTransferContractSchema.safeParse({ ...base, newOwnershipSplit: { publisher: 70, A: 10, B: 20 } })
+    expect(r.success).toBe(true)
+  })
+
+  it('split tổng = 90 → fail Error.InvalidOwnershipSplit', () => {
+    const r = CreateTransferContractSchema.safeParse({ ...base, newOwnershipSplit: { A: 60, B: 30 } })
+    expect(r.success).toBe(false)
+    expect(JSON.stringify(r.success ? [] : r.error.issues)).toContain('Error.InvalidOwnershipSplit')
+  })
+
+  it('split có giá trị âm/quá 100 → fail', () => {
+    const r = CreateTransferContractSchema.safeParse({ ...base, newOwnershipSplit: { A: -10, B: 110 } })
+    expect(r.success).toBe(false)
   })
 })
