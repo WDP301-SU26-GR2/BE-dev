@@ -22,6 +22,9 @@ export const BoardMessages = {
     reportNotFound: 'Error.BoardReportNotFound',
     editorNotInvited: 'Error.EditorNotInvited',
     invalidSessionTransition: 'Error.InvalidBoardSessionTransition',
-    notSessionCreator: 'Error.NotSessionCreator'
+    notSessionCreator: 'Error.NotSessionCreator',
+    notEnoughBoardMembers: 'Error.NotEnoughBoardMembers',
+    rosterSourceRequired: 'Error.RosterSourceRequired',
+    seriesNotFound: 'Error.SeriesNotFound'
   }
 } as const

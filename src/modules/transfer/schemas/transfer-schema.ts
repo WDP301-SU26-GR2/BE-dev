@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { $Enums } from '@prisma/client'
 import { extendApi } from '@anatine/zod-openapi'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zDateField } from 'src/core/http/docs/date-docs'
 
 // ============================================================================
 // 1. REQUEST SCHEMAS (Giữ nguyên enum chuẩn để validate dữ liệu đầu vào)
@@ -76,7 +77,7 @@ export const CoOwnerRejectChapterSchema = extendApi(
 )
 
 // ============================================================================
-// 2. RESPONSE SCHEMAS (Đã tối giản bằng z.any() cho các trường Date)
+// 2. RESPONSE SCHEMAS (trường Date dùng zDateField — Spec 12; z.any() chỉ còn cho JSON blob)
 // ============================================================================
 
 export const TransferRequestSchema = extendApi(
@@ -92,7 +93,7 @@ export const TransferRequestSchema = extendApi(
     originalContractId: z.string().nullable().optional(),
     status: zEnum($Enums.TransferRequestStatus, 'TransferRequestStatus'),
     boardDecisionId: z.string().nullable().optional(),
-    createdAt: z.any()
+    createdAt: zDateField()
   }),
   { title: 'TransferRequestRes', description: 'Chi tiết yêu cầu chuyển nhượng' }
 )
@@ -103,7 +104,7 @@ export const TransferContractSignatureSchema = extendApi(
     transferContractId: z.string(),
     userId: z.string(),
     role: z.string(),
-    signedAt: z.any()
+    signedAt: zDateField()
   }),
   { title: 'TransferContractSignature', description: 'Một chữ ký của hợp đồng chuyển nhượng' }
 )
@@ -120,10 +121,10 @@ export const TransferContractSchema = extendApi(
     newOwnershipSplit: z.any().nullable().optional(),
     coOwnerApprovalRequired: z.boolean(),
     status: zEnum($Enums.TransferContractStatus, 'TransferContractStatus'),
-    aSignedAt: z.any().optional(),
-    bSignedAt: z.any().optional(),
-    boardSignedAt: z.any().optional(),
-    createdAt: z.any(),
+    aSignedAt: zDateField().optional(),
+    bSignedAt: zDateField().optional(),
+    boardSignedAt: zDateField().optional(),
+    createdAt: zDateField(),
     signatures: z.array(TransferContractSignatureSchema).optional()
   }),
   { title: 'TransferContractRes', description: 'Chi tiết hợp đồng chuyển nhượng' }

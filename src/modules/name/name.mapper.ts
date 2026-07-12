@@ -4,6 +4,7 @@ export function toNameRes(name: Name & { pages?: { pageNumber: number; fileUrl: 
   return {
     id: name.id,
     seriesId: name.seriesId,
+    chapterId: name.chapterId ?? null,
     chapterNumber: name.chapterNumber,
     kind: name.kind,
     status: name.status,

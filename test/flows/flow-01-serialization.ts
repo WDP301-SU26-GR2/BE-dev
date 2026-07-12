@@ -790,6 +790,104 @@ const main = async () => {
 
   // Create proposal name pages (series không có name pages — bỏ qua happy cho name submission loop)
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // 01.10 — AUTO-ASSIGN BOARD ROSTER (PB-05)
+  // ──────────────────────────────────────────────────────────────────────────
+  section('01.10 Auto-assign Board roster (PB-05)')
+
+  // Seed StaffProfile cho 2 board members (giao với ACTION genre của happy)
+  await prisma.staffProfile
+    .create({ data: { userId: b1.id, specialtyGenres: ['ACTION'], demographics: ['SHONEN'] } })
+    .catch(() => {
+      /* already exists */
+    })
+  await prisma.staffProfile.create({ data: { userId: b2.id, specialtyGenres: ['ACTION', 'ROMANCE'] } }).catch(() => {
+    /* already exists */
+  })
+
+  // Tạo series SERIALIZED mới cho suggest-members test (happy/pre đều terminal).
+  const autoSer = await makeSeriesAt(SeriesStatus.SERIALIZED, {
+    mangakaId: m1.id,
+    editorId: e1.id,
+    genres: ['ACTION', 'ROMANCE'],
+    demographic: 'SHONEN'
+  })
+  // makeSeriesAt không nhận `genres` trong MakeSeriesInput — set inline qua prisma.
+  await prisma.series.update({ where: { id: autoSer.id }, data: { genres: ['ACTION', 'ROMANCE'] } })
+
+  // F01-080 — GET /board/suggest-members (EDITOR) → 200, score giảm dần, size lẻ >= 3
+  const sugRes = await req('GET', `/board/suggest-members?seriesId=${autoSer.id}`, { token: e1Tok })
+  ok('F01-080 GET suggest-members 200', sugRes.status === 200, `got ${sugRes.status}`)
+  const sugBody = sugRes.json?.data ?? sugRes.json
+  const sugItems = sugBody?.items ?? []
+  ok(
+    'F01-080b size LẺ và >= 3',
+    sugItems.length >= 3 && sugItems.length % 2 === 1,
+    `len=${sugItems.length} size=${sugBody?.size}`
+  )
+  ok(
+    'F01-080c score giảm dần',
+    sugItems.every((it: { score: number }, i: number) => i === 0 || sugItems[i - 1].score >= it.score),
+    JSON.stringify(sugItems.map((it: { score: number }) => it.score))
+  )
+
+  // F01-081 — determinism: gọi 2 lần cùng kết quả
+  const sug2Res = await req('GET', `/board/suggest-members?seriesId=${autoSer.id}`, { token: e1Tok })
+  const sug2Body = sug2Res.json?.data ?? sug2Res.json
+  const ids1 = sugItems.map((i: { userId: string }) => i.userId)
+  const ids2 = ((sug2Body?.items ?? []) as Array<{ userId: string }>).map((i) => i.userId)
+  ok(
+    'F01-081 determinism (gọi 2 lần Y HỆT)',
+    JSON.stringify(ids1) === JSON.stringify(ids2),
+    `${JSON.stringify(ids1)} vs ${JSON.stringify(ids2)}`
+  )
+
+  // F01-082 — POST /board/sessions omit allowedEditorIds + seriesId → 201 với roster auto
+  const sessAutoRes = await req('POST', '/board/sessions', {
+    token: e1Tok,
+    body: {
+      title: `auto-${Date.now()}`,
+      startTime: new Date(Date.now() + 3600_000).toISOString(),
+      seriesId: autoSer.id
+    }
+  })
+  ok('F01-082 POST /board/sessions auto-roster 201', sessAutoRes.status === 201, `got ${sessAutoRes.status}`)
+  const sessAutoBody = sessAutoRes.json?.data ?? sessAutoRes.json
+  const autoRoster = sessAutoBody?.allowedEditorIds ?? []
+  ok('F01-082b roster auto LẺ >= 3', autoRoster.length >= 3 && autoRoster.length % 2 === 1, `len=${autoRoster.length}`)
+
+  // F01-083 — omit CẢ HAI → 422 RosterSourceRequired
+  const sessNoSrcRes = await req('POST', '/board/sessions', {
+    token: e1Tok,
+    body: { title: `nosrc-${Date.now()}`, startTime: new Date(Date.now() + 3600_000).toISOString() }
+  })
+  expectError(sessNoSrcRes, 422, 'Error.RosterSourceRequired', 'F01-083 omit cả hai → 422')
+
+  // F01-084 — allowedEditorIds chẵn → 422 (không hồi quy)
+  const sessEvenRes = await req('POST', '/board/sessions', {
+    token: e1Tok,
+    body: {
+      title: `even-${Date.now()}`,
+      startTime: new Date(Date.now() + 3600_000).toISOString(),
+      allowedEditorIds: [b1.id, b2.id]
+    }
+  })
+  ok('F01-084 roster chẵn → 422', sessEvenRes.status === 422, `got ${sessEvenRes.status}`)
+  // BE trả message[] tiếng Việt (ZodValidationException). Assert presence of "thành viên" trong message list
+  // thay vì strict Error.InvalidBoardMembers (BE throw ZodValidationException, không phải ErrorCode).
+  const msgArr: string[] = Array.isArray(sessEvenRes.json?.message)
+    ? (sessEvenRes.json.message as string[])
+    : [String(sessEvenRes.json?.message ?? '')]
+  ok(
+    'F01-084b message có "thành viên"',
+    msgArr.some((m) => m.includes('thành viên')),
+    JSON.stringify(msgArr)
+  )
+
+  // F01-085 — GET /board/suggest-members bởi BOARD_MEMBER → 403
+  const sugDeniedRes = await req('GET', `/board/suggest-members?seriesId=${autoSer.id}`, { token: b1Tok })
+  ok('F01-085 suggest-members (BOARD_MEMBER) → 403', sugDeniedRes.status === 403, `got ${sugDeniedRes.status}`)
+
   await prisma.$disconnect()
   const fail = summary(FLOW)
   process.exit(fail > 0 ? 1 : 0)

@@ -6,11 +6,19 @@ import { BoardGateway } from './board.gateway'
 import { NotificationModule } from '../notification/notification.module'
 import { BoardSessionStateService } from './services/board-session-state.service'
 import { BoardSchedulerService } from './services/board-scheduler.service'
+import { BoardRosterService } from './services/board-roster.service'
 
 @Module({
   imports: [NotificationModule],
   controllers: [BoardController],
-  providers: [BoardService, BoardRepository, BoardGateway, BoardSessionStateService, BoardSchedulerService],
+  providers: [
+    BoardService,
+    BoardRepository,
+    BoardGateway,
+    BoardSessionStateService,
+    BoardSchedulerService,
+    BoardRosterService
+  ],
   exports: [BoardService] // Xuất BoardService ra ngoài nếu các module khác (như Contract) cần inject để dùng chung
 })
 export class BoardModule {}

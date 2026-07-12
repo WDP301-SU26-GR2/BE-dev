@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zDateField } from 'src/core/http/docs/date-docs'
 
 // 1. Schema phục vụ API tạo bản thảo hợp đồng mới (POST /contracts)
 export const CreateContractBodySchema = extendApi(
@@ -124,12 +125,12 @@ export const ContractResSchema = extendApi(
     publisherOwnershipPct: z.number().nullable(),
     mangakaOwnershipPct: z.number().nullable(),
     terminationClause: z.string().nullable(),
-    contractStart: z.any().nullable(),
-    contractEnd: z.any().nullable(),
+    contractStart: zDateField().nullable(),
+    contractEnd: zDateField().nullable(),
     status: zEnum($Enums.ContractStatus, 'ContractStatus'),
-    mangakaSignedAt: z.any().nullable(),
-    boardSignedAt: z.any().nullable(),
-    createdAt: z.any()
+    mangakaSignedAt: zDateField().nullable(),
+    boardSignedAt: zDateField().nullable(),
+    createdAt: zDateField()
   }),
   { title: 'ContractRes', description: 'Chi tiết hợp đồng' }
 )
@@ -145,7 +146,7 @@ export const ContractVersionResSchema = extendApi(
     terminationClause: z.string().nullable(),
     editedById: z.string(),
     note: z.string().nullable(),
-    createdAt: z.any()
+    createdAt: zDateField()
   }),
   { title: 'ContractVersionRes', description: 'Chi tiết phiên bản hợp đồng' }
 )
@@ -174,7 +175,7 @@ export const ContractStatusProgressResSchema = extendApi(
     mangaka: z.object({
       id: z.string(),
       isSigned: z.boolean(),
-      signedAt: z.any().nullable()
+      signedAt: zDateField().nullable()
     }),
     boardProgress: z.object({
       totalRequired: z.number(),
@@ -182,7 +183,7 @@ export const ContractStatusProgressResSchema = extendApi(
       signedEditors: z.array(
         z.object({
           id: z.string(),
-          actionAt: z.any()
+          actionAt: zDateField()
         })
       ),
       pendingEditors: z.array(

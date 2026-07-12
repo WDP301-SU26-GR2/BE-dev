@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { $Enums, Genre, RoleCode } from '@prisma/client'
+import { $Enums, Demographic, Genre, RoleCode } from '@prisma/client'
 import { zEnum, zRole, zRoleSubset } from 'src/core/http/docs/enum-docs'
 import { PhoneNumberE164Schema } from 'src/core/models/user.model'
 
@@ -65,6 +65,41 @@ export const AdminStatsResSchema = extendApi(
   }),
   { title: 'AdminStatsRes', description: 'System snapshot (groupBy counts, zero-filled enum maps)' }
 )
+
+// ---- Part A (Spec 12): tài khoản tự phục vụ ----
+export const MeResSchema = extendApi(
+  z.object({
+    id: z.string(),
+    email: z.string(),
+    name: z.string(),
+    displayName: z.string().nullable(),
+    avatar: z.string().nullable().describe('Object key trên R2 (A7) — FE đổi sang signed GET để hiển thị'),
+    phoneNumber: z.string(),
+    role: zRole(),
+    status: zEnum($Enums.UserStatus, 'UserStatus'),
+    emailVerified: z.boolean(),
+    mustChangePassword: z.boolean(),
+    createdAt: z.string().describe('ISO 8601')
+  }),
+  { title: 'MeRes', description: 'Thông tin tài khoản của chính mình (KHÔNG bao giờ chứa password)' }
+)
+
+export const UpdateMeBodySchema = extendApi(
+  z
+    .object({
+      name: z.string().min(2).max(100).optional(),
+      displayName: z.string().max(100).nullish().describe("Chuỗi rỗng '' = XOÁ; omit/null = giữ nguyên"),
+      avatar: z.string().max(500).nullish().describe("Object key A7. Chuỗi rỗng '' = XOÁ; omit/null = giữ nguyên"),
+      phoneNumber: PhoneNumberE164Schema.optional()
+    })
+    .strict(),
+  {
+    title: 'UpdateMeBody',
+    description: 'Partial-update thông tin tài khoản. KHÔNG cho đổi email/role/status (strict → gửi lên = 422).'
+  }
+)
+
+export type UpdateMeBodyType = z.infer<typeof UpdateMeBodySchema>
 
 export const MangakaProfileBodySchema = extendApi(
   z
@@ -137,6 +172,39 @@ export type AdminCreateUserBodyType = z.infer<typeof AdminCreateUserBodySchema>
 export type AdminUpdateUserStatusBodyType = z.infer<typeof AdminUpdateUserStatusBodySchema>
 export type MangakaProfileBodyType = z.infer<typeof MangakaProfileBodySchema>
 export type AssistantProfileBodyType = z.infer<typeof AssistantProfileBodySchema>
+
+// ---- Part B (Spec 12): hồ sơ nhân sự NXB (EDITOR + BOARD_MEMBER) ----
+export const StaffProfileBodySchema = extendApi(
+  z
+    .object({
+      specialtyGenres: z
+        .array(zEnum(Genre, 'Genre'))
+        .default([])
+        .describe('Sở trường thể loại — dùng để auto-assign Board vào phiên pitch (PB-05)'),
+      demographics: z.array(zEnum(Demographic, 'Demographic')).default([]),
+      bio: z.string().max(2000).optional(),
+      yearsOfExperience: z.number().int().min(0).max(80).optional()
+    })
+    .strict(),
+  { title: 'StaffProfileBody', description: 'Upsert hồ sơ Editor/Board Member' }
+)
+
+export const StaffProfileResSchema = extendApi(
+  z.object({
+    userId: z.string(),
+    role: zRole(),
+    specialtyGenres: z.array(zEnum(Genre, 'Genre')),
+    demographics: z.array(zEnum(Demographic, 'Demographic')),
+    bio: z.string().nullable(),
+    yearsOfExperience: z.number().nullable(),
+    displayName: z.string().nullable(),
+    avatar: z.string().nullable(),
+    hasProfile: z.boolean().describe('false = chưa build hồ sơ; field profile = default rỗng')
+  }),
+  { title: 'StaffProfileRes', description: 'Hồ sơ Editor/Board (public — ẩn email/phone)' }
+)
+
+export type StaffProfileBodyType = z.infer<typeof StaffProfileBodySchema>
 
 // ---- Admin: list/detail users ----
 export const ListUsersQuerySchema = extendApi(

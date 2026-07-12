@@ -2,6 +2,7 @@ import { extendApi } from '@anatine/zod-openapi'
 import { Demographic, Genre, RiskLevel, SurveyStatus } from '@prisma/client'
 import z from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zDateField } from 'src/core/http/docs/date-docs'
 
 const SurveyCreateStatusSchema = zEnum(SurveyStatus, 'SurveyStatus').refine(
   (status): status is typeof SurveyStatus.DRAFT | typeof SurveyStatus.OPEN | typeof SurveyStatus.CLOSED =>
@@ -211,7 +212,7 @@ export const ReaderVoteResSchema = extendApi(
       captchaScore: z.number().nullable(),
       voteWeight: z.number(),
       isFlagged: z.boolean(),
-      votedAt: z.any()
+      votedAt: zDateField()
     })
     .strict(),
   { title: 'ReaderVoteRes', description: 'Một phiếu vote reader' }
@@ -242,8 +243,8 @@ export const SurveyDataResSchema = extendApi(
       id: z.string(),
       surveyPeriodId: z.string(),
       importedBy: z.string().nullable(),
-      surveyDate: z.any().nullable(),
-      importedAt: z.any(),
+      surveyDate: zDateField().nullable(),
+      importedAt: zDateField(),
       entries: z.array(SurveyDataEntryResSchema)
     })
     .strict(),

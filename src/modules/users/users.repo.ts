@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { AvailabilityStatus, ChapterStatus, Prisma, RegistrationType, Specialization, UserStatus } from '@prisma/client'
 import { RoleName, RoleNameType } from 'src/core/security/constants/role.constant'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
-import { AssistantProfileBodyType, MangakaProfileBodyType } from './schemas/users-schemas'
+import { AssistantProfileBodyType, MangakaProfileBodyType, StaffProfileBodyType } from './schemas/users-schemas'
 
 // ---- Admin user listing ----
 
@@ -38,6 +38,21 @@ const ADMIN_USER_SELECT = {
   status: true,
   emailVerified: true,
   registrationType: true,
+  mustChangePassword: true,
+  createdAt: true,
+  role: { select: { code: true } }
+} satisfies Prisma.UserSelect
+
+// Whitelist field trả cho chính chủ (GET/PATCH /me) — KHÔNG bao giờ chứa password.
+const ME_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  displayName: true,
+  avatar: true,
+  phoneNumber: true,
+  status: true,
+  emailVerified: true,
   mustChangePassword: true,
   createdAt: true,
   role: { select: { code: true } }
@@ -102,6 +117,18 @@ export class UsersRepository {
     })
   }
 
+  // Gotcha §10: lọc chưa-xoá-mềm bằng isSet:false, KHÔNG { deletedAt: null }.
+  async findMeById(userId: string) {
+    return await this.prismaService.user.findFirst({
+      where: { id: userId, deletedAt: { isSet: false } },
+      select: ME_SELECT
+    })
+  }
+
+  async updateMe(userId: string, data: Prisma.UserUpdateInput) {
+    return await this.prismaService.user.update({ where: { id: userId }, data, select: ME_SELECT })
+  }
+
   async upsertAssistantProfile(userId: string, data: AssistantProfileBodyType) {
     return await this.prismaService.assistantProfile.upsert({
       where: { userId },
@@ -129,6 +156,32 @@ export class UsersRepository {
     return await this.prismaService.assistantProfile.findUnique({
       where: { userId },
       include: { user: { select: { displayName: true, avatar: true } } }
+    })
+  }
+
+  async upsertStaffProfile(userId: string, data: StaffProfileBodyType) {
+    return await this.prismaService.staffProfile.upsert({
+      where: { userId },
+      create: {
+        userId,
+        specialtyGenres: data.specialtyGenres,
+        demographics: data.demographics,
+        bio: data.bio ?? null,
+        yearsOfExperience: data.yearsOfExperience ?? null
+      },
+      update: {
+        specialtyGenres: data.specialtyGenres,
+        demographics: data.demographics,
+        bio: data.bio ?? null,
+        yearsOfExperience: data.yearsOfExperience ?? null
+      }
+    })
+  }
+
+  async findStaffProfileByUserId(userId: string) {
+    return await this.prismaService.staffProfile.findUnique({
+      where: { userId },
+      include: { user: { select: { displayName: true, avatar: true, role: { select: { code: true } } } } }
     })
   }
 

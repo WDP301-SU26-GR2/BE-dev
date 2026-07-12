@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { PaymentRecordStatus, PaymentType, PaymentSource } from '@prisma/client'
+import { zDateField } from 'src/core/http/docs/date-docs'
 
 export const PaymentRecordModelSchema = extendApi(
   z.object({
@@ -11,7 +12,7 @@ export const PaymentRecordModelSchema = extendApi(
     seriesId: z.string().nullable(),
     description: z.string().nullable(),
     approvedBy: z.string().nullable(),
-    approvedAt: z.any().nullable(),
+    approvedAt: zDateField().nullable(),
     paymentType: z.nativeEnum(PaymentType),
     paymentSource: z.nativeEnum(PaymentSource),
     amount: z.number(),
@@ -19,12 +20,12 @@ export const PaymentRecordModelSchema = extendApi(
     paymentMethod: z.string().nullable(),
     transactionReference: z.string().nullable(),
     status: z.nativeEnum(PaymentRecordStatus),
-    paidAt: z.any().nullable(),
-    cancelledAt: z.any().nullable(),
+    paidAt: zDateField().nullable(),
+    cancelledAt: zDateField().nullable(),
     cancelReason: z.string().nullable(),
     note: z.string().nullable(),
     createdBy: z.string().nullable(),
-    createdAt: z.any()
+    createdAt: zDateField()
   }),
   {
     title: 'PaymentRecordModel',

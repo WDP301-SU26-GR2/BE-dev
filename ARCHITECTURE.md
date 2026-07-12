@@ -249,7 +249,8 @@ Swagger doc auto-sinh từ Zod schema (`createZodDto` + nestjs-zod v5 → `z.toJ
   Example Value của từng API mô tả shape **CHƯA bọc** (chính là `data`) → FE đọc `res.data`.
 - **Field metadata:** enum dùng `zEnum(PrismaEnum, 'Key')` / `zRole()` từ `core/http/docs/enum-docs.ts` để hiện giá trị + mô tả thống nhất; field khó hiểu thêm `.describe(...)`.
 - **Per-route:** `@ApiOperation({ summary })` + `@ApiErrors(...exceptions)` cho các mã lỗi nghiệp vụ; decorator derive status/code/hint từ exception instance + `ERROR_HINTS`.
-- **Catalog dùng chung (`core/http/`):** `enum-docs.ts` (`zEnum`/`zRole` + `ENUM_DOCS`), `error-docs.ts` (`ERROR_HINTS`), `api-errors.decorator.ts` (`@ApiErrors`). Sửa enum/lỗi → sửa 1 nơi.
+- **Catalog dùng chung (`core/http/`):** `enum-docs.ts` (`zEnum`/`zRole` + `ENUM_DOCS`), `error-docs.ts` (`ERROR_HINTS`),
+  `date-docs.ts` (`zDateField()` — Spec 12 Part D), `api-errors.decorator.ts` (`@ApiErrors`). Sửa enum/lỗi → sửa 1 nơi.
 - `message` tuỳ biến chỉ "sống" nếu DTO `@ZodResponse` có field `message` (Zod serialize trước, strip field ngoài DTO — xem §4.1 + AGENTS §10).
 
 ---

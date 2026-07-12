@@ -32,3 +32,10 @@ export const InvalidBoardSessionTransitionException = new ConflictException([
   { message: E.invalidSessionTransition, path: 'status' }
 ])
 export const NotSessionCreatorException = new ForbiddenException([{ message: E.notSessionCreator, path: 'sessionId' }])
+export const NotEnoughBoardMembersException = new UnprocessableEntityException([
+  { message: E.notEnoughBoardMembers, path: 'allowedEditorIds' }
+])
+export const RosterSourceRequiredException = new UnprocessableEntityException([
+  { message: E.rosterSourceRequired, path: 'seriesId' }
+])
+export const SeriesNotFoundException = new NotFoundException([{ message: E.seriesNotFound, path: 'seriesId' }])

@@ -38,6 +38,7 @@ model User {
 
   mangakaProfile   MangakaProfile?
   assistantProfile AssistantProfile?
+  staffProfile     StaffProfile?
   mangakaContracts Contract[]        @relation("MangakaRelation")
   editorContracts  Contract[]        @relation("EditorRelation")
   boardSessions    BoardSession[]
@@ -613,6 +614,21 @@ model AssistantProfile {
   ratingAvg       Float   @default(0)
   ratingCount     Int     @default(0)
   isRecommended   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Spec 12 — Profile & Identity Completion: hồ sơ nhân sự NXB (EDITOR + BOARD_MEMBER)
+model StaffProfile {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  specialtyGenres   Genre[]
+  demographics      Demographic[]
+  bio               String?
+  yearsOfExperience Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -1,4 +1,9 @@
-import { AdminCreateUserBodySchema, AdminUpdateUserStatusBodySchema, MangakaProfileBodySchema } from './users-schemas'
+import {
+  AdminCreateUserBodySchema,
+  AdminUpdateUserStatusBodySchema,
+  MangakaProfileBodySchema,
+  UpdateMeBodySchema
+} from './users-schemas'
 
 const baseAdminCreateUserBody = {
   email: 'editor@example.com',
@@ -33,5 +38,32 @@ describe('MangakaProfile genres enum', () => {
 describe('AdminUpdateUserStatusBodySchema', () => {
   it('rejects INACTIVE for admin moderation status updates', () => {
     expect(() => AdminUpdateUserStatusBodySchema.parse({ status: 'INACTIVE' })).toThrow()
+  })
+})
+
+describe('UpdateMeBodySchema', () => {
+  it('accepts partial update', () => {
+    expect(UpdateMeBodySchema.parse({ displayName: 'Kishi' })).toEqual({ displayName: 'Kishi' })
+  })
+
+  it("accepts '' as the clear sentinel for displayName/avatar", () => {
+    const out = UpdateMeBodySchema.parse({ displayName: '', avatar: '' })
+    expect(out.displayName).toBe('')
+    expect(out.avatar).toBe('')
+  })
+
+  it('rejects email / role / status (strict)', () => {
+    expect(() => UpdateMeBodySchema.parse({ email: 'a@b.com' })).toThrow()
+    expect(() => UpdateMeBodySchema.parse({ role: 'SUPER_ADMIN' })).toThrow()
+    expect(() => UpdateMeBodySchema.parse({ status: 'ACTIVE' })).toThrow()
+  })
+
+  it('rejects non-E.164 phone', () => {
+    expect(() => UpdateMeBodySchema.parse({ phoneNumber: '0912345678' })).toThrow()
+    expect(UpdateMeBodySchema.parse({ phoneNumber: '+84912345678' }).phoneNumber).toBe('+84912345678')
+  })
+
+  it('rejects name shorter than 2 chars (cannot clear a required field)', () => {
+    expect(() => UpdateMeBodySchema.parse({ name: '' })).toThrow()
   })
 })
