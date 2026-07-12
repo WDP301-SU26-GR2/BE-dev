@@ -34,7 +34,7 @@ export class SurveyRepository {
     surveyPeriodId: string
     seriesIds: string[]
     identityHash: string
-    authMethod?: 'PHONE_OTP' | null
+    authMethod?: 'EMAIL_OTP' | 'PHONE_OTP' | 'CAPTCHA_ONLY' | null
     ipHash?: string
     captchaScore?: number
     voteWeight: number
@@ -58,6 +58,10 @@ export class SurveyRepository {
     return this.prisma.readerVote.findUnique({
       where: { surveyPeriodId_identityHash: { surveyPeriodId, identityHash } }
     })
+  }
+
+  countReaderVotesByPeriodAndIp(surveyPeriodId: string, ipHash: string): Promise<number> {
+    return this.prisma.readerVote.count({ where: { surveyPeriodId, ipHash } })
   }
 
   createSurveyData(data: ImportSurveyDataBodyDto & { importedBy: string }) {
@@ -112,6 +116,32 @@ export class SurveyRepository {
 
   getRankingRecordsByPeriod(surveyPeriodId: string) {
     return this.prisma.rankingRecord.findMany({ where: { surveyPeriodId }, orderBy: { rankPosition: 'asc' } })
+  }
+
+  // Fix-1 G-2: kỳ OPEN mới nhất cho trang vote public.
+  findLatestOpenSurveyPeriod() {
+    return this.prisma.surveyPeriod.findFirst({
+      where: { status: 'OPEN' },
+      orderBy: { startDate: 'desc' }
+    })
+  }
+
+  // Fix-1 G-2: danh sách series đang phát hành — CHỈ field public-safe, TUYỆT ĐỐI không thêm select.
+  findManySerializedSeriesPublic() {
+    return this.prisma.series.findMany({
+      where: { status: 'SERIALIZED' },
+      select: { id: true, title: true, coverImage: true, genres: true, demographic: true },
+      orderBy: { title: 'asc' }
+    })
+  }
+
+  // Fix-1 G-2: map title cho bảng kết quả public.
+  findSeriesTitlesByIds(seriesIds: string[]) {
+    if (seriesIds.length === 0) return Promise.resolve([])
+    return this.prisma.series.findMany({
+      where: { id: { in: seriesIds } },
+      select: { id: true, title: true }
+    })
   }
 
   // PB-04 trend: N record gần nhất của 1 series (mới→cũ).
@@ -191,6 +221,8 @@ export class SurveyRepository {
         otpMaxAttempts: 3,
         ipRateLimit: 10,
         phoneRateLimit: 3,
+        otpCooldownSeconds: 60,
+        ipVotesPerPeriod: 10,
         captchaThreshold: 0.3
       }
     })
@@ -203,6 +235,8 @@ export class SurveyRepository {
     otpMaxAttempts?: number
     ipRateLimit?: number
     phoneRateLimit?: number
+    otpCooldownSeconds?: number
+    ipVotesPerPeriod?: number
     captchaThreshold?: number
   }) {
     const existing = await this.prisma.votingConfig.findFirst()
@@ -216,6 +250,8 @@ export class SurveyRepository {
           otpMaxAttempts: data.otpMaxAttempts ?? existing.otpMaxAttempts,
           ipRateLimit: data.ipRateLimit ?? existing.ipRateLimit,
           phoneRateLimit: data.phoneRateLimit ?? existing.phoneRateLimit,
+          otpCooldownSeconds: data.otpCooldownSeconds ?? existing.otpCooldownSeconds,
+          ipVotesPerPeriod: data.ipVotesPerPeriod ?? existing.ipVotesPerPeriod,
           captchaThreshold: data.captchaThreshold ?? existing.captchaThreshold
         }
       })
@@ -229,6 +265,8 @@ export class SurveyRepository {
         otpMaxAttempts: data.otpMaxAttempts ?? 3,
         ipRateLimit: data.ipRateLimit ?? 10,
         phoneRateLimit: data.phoneRateLimit ?? 3,
+        otpCooldownSeconds: data.otpCooldownSeconds ?? 60,
+        ipVotesPerPeriod: data.ipVotesPerPeriod ?? 10,
         captchaThreshold: data.captchaThreshold ?? 0.3
       }
     })

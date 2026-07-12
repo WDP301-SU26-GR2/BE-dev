@@ -53,3 +53,8 @@ export const ChapterNumberLockedException = new ConflictException([
 
 // Task 5 (Spec 10): chặn xóa chapter không phải DRAFT.
 export const ChapterNotDeletableException = new ConflictException([{ message: E.chapterNotDeletable, path: 'status' }])
+
+// Fix-1 (G-1): series CANCELLING đã đạt trần số chương kết thúc Board cấp.
+export const EndingAllowanceExceededException = new ConflictException([
+  { message: E.endingAllowanceExceeded, path: 'seriesId' }
+])

@@ -14,8 +14,16 @@ export class NameRepo {
     return this.prisma.name.findMany({ where: { seriesId }, orderBy: { version: 'asc' } })
   }
 
-  findNamesBySeriesIdAndKind(seriesId: string, kind: NameKind) {
-    return this.prisma.name.findMany({ where: { seriesId, kind }, orderBy: { version: 'asc' } })
+  findNamesBySeriesIdAndKind(seriesId: string, kind: NameKind, page?: { limit: number; offset: number }) {
+    return this.prisma.name.findMany({
+      where: { seriesId, kind },
+      orderBy: { version: 'asc' },
+      ...(page ? { skip: page.offset, take: page.limit } : {})
+    })
+  }
+
+  findNamesByChapterId(chapterId: string) {
+    return this.prisma.name.findMany({ where: { chapterId }, orderBy: { version: 'asc' } })
   }
 
   updateNameStatus(nameId: string, data: { status: NameStatus; version?: number; submittedAt?: Date }) {
@@ -91,6 +99,15 @@ export class NameRepo {
       })
       await tx.chapter.update({ where: { id: data.chapterId }, data: { nameId: name.id } })
       return name
+    })
+  }
+
+  // Xoá chapter-Name + gỡ con trỏ trên Chapter. Dùng `unset` (Mongo) để field về absent —
+  // cùng pattern với series release editorId (PROGRESS §16).
+  async deleteChapterName(chapterId: string, nameId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.name.delete({ where: { id: nameId } })
+      await tx.chapter.update({ where: { id: chapterId }, data: { nameId: { unset: true } } })
     })
   }
 }

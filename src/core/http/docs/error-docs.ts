@@ -19,7 +19,11 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.ChapterNotHoldable': 'manuscript must be IN_PRODUCTION..READY_FOR_PRINT to hold',
   'Error.ChapterAlreadyOnHold': 'chapter is already on hold',
   'Error.ChapterNotOnHold': 'chapter is not on hold; nothing to resume',
-  'Error.SeriesNotSerialized': 'series must be SERIALIZED for this action (create chapter / create contract)',
+  'Error.SeriesNotSerialized':
+    'Series phải ở SERIALIZED (hoặc CANCELLING/COMPLETING cho chương kết thúc) mới tạo được chapter',
+  'Error.EndingAllowanceExceeded': 'Series CANCELLING đã tạo đủ số chương kết thúc Board cấp (endingChapterAllowance)',
+  'Error.SurveyPeriodNotFinalized':
+    'Kỳ bình chọn chưa REFLECTED (chưa finalize) — kết quả public chỉ xem được sau khi chốt',
   'Error.ContractNotExecuted': 'series has no FULLY_EXECUTED contract; cannot publish (BR-CONTRACT-05)',
   'Error.InvalidContractTransition': 'contract status transition not allowed by CONTRACT_TRANSITIONS (Flow 6)',
   'Error.ContractNotSignableYet': 'contract must reach BOARD_APPROVED before it can be signed (B-CON-02)',
@@ -122,6 +126,10 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.OwnershipMismatch': 'ownership split must total 100; FULL_BUYOUT stays 100/0',
   // Spec 5 — voting/ranking completion
   'Error.TooManySeriesSelected': 'số series vượt maxSeriesPerVote (VotingConfig); trần cứng 3 theo Requiment §1.15',
+  'Error.DuplicateSeriesInVote': 'seriesIds chứa id trùng nhau trong cùng một phiếu (PB-03)',
+  'Error.SeriesNotVotable': 'seriesIds chứa id rác/không tồn tại hoặc series không ở trạng thái SERIALIZED (PB-03)',
+  'Error.VoteIpLimitExceeded':
+    'IP này đã đạt trần số phiếu cho kỳ bình chọn (VotingConfig.ipVotesPerPeriod); chặn trước khi đốt OTP',
   'Error.PublicationVersionNotFound': 'publication version does not exist',
   'Error.InvalidVersionType': 'versionType must be one of ORIGINAL, DIGITAL, FLIPPED',
   'Error.RankingAccessDenied':
@@ -152,14 +160,19 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.BoardReportNotFound': 'series report does not exist (or id is not a valid ObjectId)',
   'Error.EditorNotInvited': 'caller is not in session.allowedEditorIds for report submission',
   'Error.InvalidBoardSessionTransition': 'board session status transition is not allowed by BOARD_SESSION_TRANSITIONS',
-  // Spec 10 — Chapter-first flow (Task 2)
+  'Error.NotSessionCreator': 'only the board session creator or a Super Admin can conclude the session',
+  'Error.NotEnoughBoardMembers': 'fewer than 3 active board members exist — cannot form a valid session',
+  'Error.RosterSourceRequired': 'provide allowedEditorIds, or seriesId so the roster can be auto-assigned',
   'Error.ChapterNotDraftForName': 'chapter must be in DRAFT status to create a Name',
   'Error.ChapterNameAlreadyExists': 'this chapter already has a Name assigned',
+  // Spec 10 — Chapter-first flow (Task 2)
   // Spec 10 — Chapter-first flow (Task 3): Page upload gate
   'Error.ChapterNameNotApproved': 'Name must be APPROVED before uploading pages; create/approve the Name first',
   // Spec 10 — Chapter-first flow (Task 4): Update chapter
   'Error.ChapterNotEditable': 'chapter title cannot be changed after PUBLISHED',
   'Error.ChapterNumberLocked': 'chapterNumber can only be changed while the chapter is in DRAFT status',
   // Spec 10 — Chapter-first flow (Task 5): Delete chapter
-  'Error.ChapterNotDeletable': 'chapter can only be deleted while in DRAFT status'
+  'Error.ChapterNotDeletable': 'chapter can only be deleted while in DRAFT status',
+  // Spec 12 — chapter-Name delete (Task 14)
+  'Error.NameNotDeletable': 'only a not-yet-approved Name on a DRAFT chapter can be deleted'
 }

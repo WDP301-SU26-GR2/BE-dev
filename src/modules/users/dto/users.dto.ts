@@ -13,7 +13,11 @@ import {
   ListAssistantsQuerySchema,
   ListUsersQuerySchema,
   MangakaProfileBodySchema,
-  MangakaProfileResSchema
+  MangakaProfileResSchema,
+  MeResSchema,
+  StaffProfileBodySchema,
+  StaffProfileResSchema,
+  UpdateMeBodySchema
 } from '../schemas/users-schemas'
 
 export class AdminCreateUserBodyDto extends createZodDto(AdminCreateUserBodySchema) {}
@@ -30,3 +34,8 @@ export class AdminUserResDto extends createZodDto(AdminUserResSchema) {}
 export class AdminUserListResDto extends createZodDto(AdminUserListResSchema) {}
 export class ListAssistantsQueryDto extends createZodDto(ListAssistantsQuerySchema) {}
 export class AssistantDirectoryListResDto extends createZodDto(AssistantDirectoryListResSchema) {}
+
+export class MeResDto extends createZodDto(MeResSchema) {}
+export class UpdateMeBodyDto extends createZodDto(UpdateMeBodySchema) {}
+export class StaffProfileBodyDto extends createZodDto(StaffProfileBodySchema) {}
+export class StaffProfileResDto extends createZodDto(StaffProfileResSchema) {}

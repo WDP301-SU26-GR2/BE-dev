@@ -9,6 +9,7 @@ import { AuthPasswordService } from './services/auth-password.service'
 import { AuthTokenService } from './services/auth-token.service'
 import { AuthGoogleService } from './services/auth-google.service'
 import { GoogleTokenVerifier } from 'src/infrastructure/oauth/google-token-verifier.service'
+import { OtpCleanupCron } from './otp-cleanup.cron'
 
 @Module({
   controllers: [AuthController],
@@ -21,6 +22,7 @@ import { GoogleTokenVerifier } from 'src/infrastructure/oauth/google-token-verif
     AuthPasswordService,
     AuthTokenService,
     AuthGoogleService,
+    OtpCleanupCron,
     GoogleTokenVerifier
   ],
   exports: [AuthOtpService]

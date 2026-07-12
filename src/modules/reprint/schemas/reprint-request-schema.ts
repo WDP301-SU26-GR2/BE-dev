@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { ReprintChapterSchema } from './reprint-request.model'
+import { zDateField } from 'src/core/http/docs/date-docs'
 
 // B-RPT-01: Payload tạo yêu cầu tái bản ban đầu từ Board/Editor
 export const CreateReprintRequestBodySchema = extendApi(
@@ -90,10 +91,10 @@ export const ReprintRequestResSchema = extendApi(
     chapterRangeStart: z.number().int().nullable(),
     chapterRangeEnd: z.number().int().nullable(),
     status: z.string(),
-    mangakaApprovedAt: z.any().nullable(),
-    boardApprovedAt: z.any().nullable(),
-    publishedAt: z.any().nullable(),
-    createdAt: z.any(),
+    mangakaApprovedAt: zDateField().nullable(),
+    boardApprovedAt: zDateField().nullable(),
+    publishedAt: zDateField().nullable(),
+    createdAt: zDateField(),
     chapters: z.array(ReprintChapterSchema)
   }),
   {

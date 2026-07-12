@@ -10,13 +10,19 @@ export const CreateChapterNameBodySchema = extendApi(z.object({ namePages: z.arr
   description: 'Tạo chapter-Name (namePages; chapterNumber derive từ chapter)'
 })
 
+// Spec 12: bỏ filter `kind` (route series-scoped chỉ trả proposal-Name). `.strict()` giữ lại để
+// `?kind=CHAPTER` của contract cũ bị reject 422 — KHÔNG im lặng trả nhầm proposal-Name cho FE.
+// Phân trang theo convention nhà (limit/offset, như ListSeriesQuery). ⚠ nestjs-zod KHÔNG nhận
+// query schema RỖNG (`cleanupOpenApiDoc: Query or url parameters must be an object type` → vỡ boot),
+// nên schema phải có property thật — và property đã khai thì service PHẢI dùng.
 export const ListNamesQuerySchema = extendApi(
   z
     .object({
-      kind: zEnum(NameKind, 'NameKind').optional()
+      limit: z.coerce.number().int().positive().max(100).default(20),
+      offset: z.coerce.number().int().nonnegative().default(0)
     })
     .strict(),
-  { title: 'ListNamesQuery', description: 'Filter kind (PROPOSAL|CHAPTER) — optional' }
+  { title: 'ListNamesQuery', description: 'Phân trang proposal-Name của series (không còn filter kind)' }
 )
 
 export const UpdateNamePagesBodySchema = extendApi(z.object({ pages: z.array(NamePageSchema) }).strict(), {
@@ -38,6 +44,7 @@ export const NameResSchema = extendApi(
   z.object({
     id: z.string(),
     seriesId: z.string(),
+    chapterId: z.string().nullable().describe('null = proposal-Name; có giá trị = Name của chapter đó'),
     chapterNumber: z
       .number()
       .nullable()

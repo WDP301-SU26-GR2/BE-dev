@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { RoleName } from 'src/core/security/constants/role.constant'
+import { AuditEntityType } from '@prisma/client'
 import { PublicationRepo } from './publication.repo'
 import { toPublicationVersionRes } from './publication.mapper'
 import { CreatePublicationVersionType, UpdatePublicationVersionType } from './schemas/publication-schemas'
@@ -8,12 +9,16 @@ import {
   SeriesAccessDeniedException,
   SeriesNotFoundException
 } from './errors/publication.errors'
+import { AuditService } from 'src/modules/audit/audit.service'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class PublicationService {
-  constructor(private readonly repo: PublicationRepo) {}
+  constructor(
+    private readonly repo: PublicationRepo,
+    private readonly auditService: AuditService
+  ) {}
 
   private assertSeriesScope(series: { mangakaId: string; editorId: string | null }, userId: string, roleName: string) {
     if (roleName === RoleName.BOARD_MEMBER || roleName === RoleName.SUPER_ADMIN) return
@@ -37,6 +42,12 @@ export class PublicationService {
   async create(userId: string, roleName: string, seriesId: string, dto: CreatePublicationVersionType) {
     await this.loadSeriesScoped(seriesId, userId, roleName)
     const created = await this.repo.create(seriesId, dto)
+    await this.auditService.record({
+      actorId: userId,
+      entityType: AuditEntityType.PUBLICATION_VERSION,
+      entityId: created.id,
+      action: 'CREATE'
+    })
     return toPublicationVersionRes(created)
   }
 
@@ -64,12 +75,24 @@ export class PublicationService {
   async update(userId: string, roleName: string, id: string, dto: UpdatePublicationVersionType) {
     await this.loadVersionScoped(id, userId, roleName)
     const updated = await this.repo.update(id, dto)
+    await this.auditService.record({
+      actorId: userId,
+      entityType: AuditEntityType.PUBLICATION_VERSION,
+      entityId: id,
+      action: 'UPDATE'
+    })
     return toPublicationVersionRes(updated)
   }
 
   async remove(userId: string, roleName: string, id: string) {
     await this.loadVersionScoped(id, userId, roleName)
     await this.repo.delete(id)
+    await this.auditService.record({
+      actorId: userId,
+      entityType: AuditEntityType.PUBLICATION_VERSION,
+      entityId: id,
+      action: 'DELETE'
+    })
     return { message: 'Publication version deleted' }
   }
 }

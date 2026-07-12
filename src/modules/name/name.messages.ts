@@ -2,7 +2,9 @@
 // Plain strings only (no NestJS imports). HTTP mapping (status + path) stays in
 // `errors/name.errors.ts`, which references the `error` codes below.
 export const NameMessages = {
-  response: {},
+  response: {
+    chapterNameDeleted: 'Chapter name deleted'
+  },
   // In-app notification content (notification layer).
   notification: {
     nameRevision: (reason: string) => `Name needs revision: ${reason}`,
@@ -21,6 +23,7 @@ export const NameMessages = {
     seriesAccessDenied: 'Error.SeriesAccessDenied',
     chapterNotFound: 'Error.ChapterNotFound',
     chapterNotDraftForName: 'Error.ChapterNotDraftForName',
-    chapterNameAlreadyExists: 'Error.ChapterNameAlreadyExists'
+    chapterNameAlreadyExists: 'Error.ChapterNameAlreadyExists',
+    nameNotDeletable: 'Error.NameNotDeletable'
   }
 } as const

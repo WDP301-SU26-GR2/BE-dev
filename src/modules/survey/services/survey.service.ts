@@ -1,17 +1,21 @@
 import { Injectable } from '@nestjs/common'
-import { NotificationType } from '@prisma/client'
+import { NotificationType, AuditEntityType } from '@prisma/client'
 import { SurveyRepository } from '../survey.repo'
 import { SurveyMessages } from '../survey.messages'
 import {
   SurveyPeriodNotFoundException,
   SurveyPeriodNotOpenException,
   SurveyPeriodAlreadyFinalizedException,
+  SurveyPeriodNotFinalizedException,
   ReaderAlreadyVotedException,
   VoteOtpNotFoundException,
   VoteOtpRateLimitException,
+  VoteIpLimitExceededException,
   SurveyDataImportNotAllowedException,
   RankingFinalizeNotAllowedException,
   TooManySeriesSelectedException,
+  DuplicateSeriesInVoteException,
+  SeriesNotVotableException,
   RankingAccessDeniedException,
   SeriesNotFoundForRankingException
 } from '../errors/survey.errors'
@@ -34,6 +38,7 @@ import { NotificationService } from 'src/modules/notification/notification.servi
 import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { SurveyConfigService } from './survey-config.service'
 import { bottomThirdCount, computeRiskLevel, nextConsecutiveCount } from './ranking-finalize.helpers'
+import { AuditService } from 'src/modules/audit/audit.service'
 
 // B-VOT-07 / Spec 5: per-period reliability threshold uses AppConfig.lowVoteReliabilityThreshold
 // (read at finalize time, not a static constant) — this constant is the SEED default for AppConfig
@@ -54,7 +59,8 @@ export class SurveyService {
     private readonly domainEventBus: DomainEventBus,
     private readonly notificationService: NotificationService,
     private readonly surveyConfigService: SurveyConfigService,
-    private readonly appConfigService: AppConfigService
+    private readonly appConfigService: AppConfigService,
+    private readonly auditService: AuditService
   ) {}
 
   private mapSurveyPeriod(surveyPeriod: {
@@ -87,6 +93,8 @@ export class SurveyService {
     otpMaxAttempts: number
     ipRateLimit: number
     phoneRateLimit: number
+    otpCooldownSeconds: number
+    ipVotesPerPeriod: number
     captchaThreshold: number
     updatedAt: Date
   }) {
@@ -98,6 +106,8 @@ export class SurveyService {
       otpMaxAttempts: config.otpMaxAttempts,
       ipRateLimit: config.ipRateLimit,
       phoneRateLimit: config.phoneRateLimit,
+      otpCooldownSeconds: config.otpCooldownSeconds,
+      ipVotesPerPeriod: config.ipVotesPerPeriod,
       captchaThreshold: config.captchaThreshold,
       updatedAt: config.updatedAt.toISOString()
     }
@@ -131,14 +141,15 @@ export class SurveyService {
     // B-VOT-06: rate-limit quota đọc từ VotingConfig DB (admin có thể giảm/tăng qua PATCH).
     const config = await this.surveyConfigService.get()
 
-    // 1. Kiểm tra Rate Limit theo Số điện thoại
-    const phoneLimit = await this.rateLimitService.checkAndConsume({
-      key: `survey:otp:phone:${body.phoneNumber}`,
+    // 1. Kiểm tra Rate Limit theo identity email
+    const identityLimit = await this.rateLimitService.checkAndConsume({
+      key: `survey:otp:identity:${body.identity}`,
       max: config.phoneRateLimit,
-      windowSec: 86400
+      windowSec: 86400,
+      cooldownSec: config.otpCooldownSeconds
     })
-    if (!phoneLimit.allowed) {
-      throw VoteOtpRateLimitException
+    if (!identityLimit.allowed) {
+      throw VoteOtpRateLimitException(identityLimit.retryAfter)
     }
 
     // 2. Kiểm tra Rate Limit theo IP gán cho Guest
@@ -148,14 +159,14 @@ export class SurveyService {
       windowSec: 86400
     })
     if (!ipLimit.allowed) {
-      throw VoteOtpRateLimitException
+      throw VoteOtpRateLimitException(ipLimit.retryAfter)
     }
 
     // 3. Tận dụng hàm sendOTPService của AuthOtpService.
     // Vì OtpPurpose.VOTE không nằm trong nhóm kiểm tra User (như REGISTER/FORGOT_PASSWORD),
     // luồng xử lý sẽ đi thẳng vào hàm issueOtp nội bộ và tự động enqueue gửi SMS/Email.
     await this.authOtpService.sendOTPService({
-      email: body.phoneNumber, // Map phoneNumber vào trường định danh email của AuthOtpService
+      email: body.identity,
       purpose: OtpPurpose.VOTE
     })
 
@@ -172,14 +183,33 @@ export class SurveyService {
       throw TooManySeriesSelectedException
     }
 
+    // Spec 11 §1.1: guard body.surveyPeriodId TRƯỚC khi đụng Prisma/OTP — id rác sẽ throw P2023 (500)
+    // nếu lọt tới repo, và không được đốt OTP của độc giả.
+    if (!OBJECT_ID_RE.test(body.surveyPeriodId)) throw SurveyPeriodNotFoundException
+
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(body.surveyPeriodId)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     if (surveyPeriod.status !== 'OPEN') throw SurveyPeriodNotOpenException
 
+    // PB-03 (6): seriesIds không trùng + mọi series phải đang SERIALIZED (validate app-layer —
+    // seriesIds là N-N không FK cứng; id rác đưa thẳng vào Prisma `in` sẽ P2023 → 500).
+    // Validate TRƯỚC bước OTP để phiếu không hợp lệ không đốt OTP của độc giả,
+    // và series rác không lọt vào ranking lúc finalize.
+    if (new Set(body.seriesIds).size !== body.seriesIds.length) throw DuplicateSeriesInVoteException
+    if (body.seriesIds.some((id) => !OBJECT_ID_RE.test(id))) throw SeriesNotVotableException
+    const votableSeries = await this.surveyRepository.findSeriesOwnershipByIds(body.seriesIds)
+    const votableStatusById = new Map<string, string>(
+      votableSeries.map((s): [string, string] => [String(s.id), String(s.status)])
+    )
+    if (body.seriesIds.some((id) => votableStatusById.get(id) !== 'SERIALIZED')) throw SeriesNotVotableException
+
     // Deterministic HMAC (NOT bcrypt) so the (surveyPeriodId, identityHash) dedup + unique
     // constraint actually catch repeat votes — see B-VOT-03 fix / IdentityHashService.
-    const identityHash = this.identityHashService.hash(body.phoneNumber)
+    const identityHash = this.identityHashService.hash(body.identity)
     const ipHash = this.identityHashService.hash(ip)
+
+    const ipVotes = await this.surveyRepository.countReaderVotesByPeriodAndIp(body.surveyPeriodId, ipHash)
+    if (ipVotes >= config.ipVotesPerPeriod) throw VoteIpLimitExceededException
 
     const existingVote = await this.surveyRepository.findReaderVoteByPeriodAndIdentity(
       body.surveyPeriodId,
@@ -190,7 +220,7 @@ export class SurveyService {
     try {
       // Xác thực mã OTP thông qua AuthOtpService công khai
       await this.authOtpService.validateOtpCode({
-        email: body.phoneNumber,
+        email: body.identity,
         code: body.otpCode,
         purpose: OtpPurpose.VOTE
       })
@@ -200,7 +230,7 @@ export class SurveyService {
     }
 
     // Hủy OTP ngay lập tức sau khi xác thực thành công (Single-use OTP)
-    await this.authOtpService.burnOtp(body.phoneNumber, OtpPurpose.VOTE)
+    await this.authOtpService.burnOtp(body.identity, OtpPurpose.VOTE)
 
     const isCaptchaFlagged = body.captchaScore != null && body.captchaScore < config.captchaThreshold
     const weight = isCaptchaFlagged ? SURVEY_CONFIG.voteWeightForFlagged : 1
@@ -210,7 +240,7 @@ export class SurveyService {
       surveyPeriodId: body.surveyPeriodId,
       seriesIds: body.seriesIds,
       identityHash,
-      authMethod: 'PHONE_OTP',
+      authMethod: 'EMAIL_OTP',
       ipHash,
       captchaScore: body.captchaScore,
       voteWeight: weight,
@@ -254,7 +284,7 @@ export class SurveyService {
         type: NotificationType.SURVEY,
         referenceId: surveyPeriod.id,
         referenceType: 'SURVEY_PERIOD_CREATED',
-        content: 'Kỳ bình chọn mới đã được tạo thành công.'
+        content: SurveyMessages.notification.surveyPeriodCreated
       })
     }
     return this.mapSurveyPeriod(surveyPeriod)
@@ -265,19 +295,30 @@ export class SurveyService {
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     const updated = await this.surveyRepository.updateSurveyPeriodStatus(id, body.status)
+    await this.auditService.record({
+      actorId: userId ?? null,
+      entityType: AuditEntityType.SURVEY_PERIOD,
+      entityId: id,
+      action: 'TRANSITION',
+      fromState: surveyPeriod.status,
+      toState: body.status
+    })
     if (userId) {
       await this.notificationService.notifySafe({
         recipientId: userId,
         type: NotificationType.SURVEY,
         referenceId: updated.id,
         referenceType: 'SURVEY_PERIOD_STATUS_UPDATED',
-        content: 'Trạng thái kỳ bình chọn đã được cập nhật.'
+        content: SurveyMessages.notification.surveyPeriodStatusUpdated
       })
     }
     return this.mapSurveyPeriod(updated)
   }
 
   async importSurveyData(body: ImportSurveyDataBodyDto, userId: string) {
+    // Spec 11 §1.1: guard body.surveyPeriodId TRƯỚC khi đụng Prisma — id rác sẽ throw P2023 (500).
+    if (!OBJECT_ID_RE.test(body.surveyPeriodId)) throw SurveyPeriodNotFoundException
+
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(body.surveyPeriodId)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
     if (surveyPeriod.status !== 'CLOSED') throw SurveyDataImportNotAllowedException
@@ -287,7 +328,7 @@ export class SurveyService {
       type: NotificationType.SURVEY,
       referenceId: surveyPeriod.id,
       referenceType: 'SURVEY_DATA_IMPORTED',
-      content: 'Dữ liệu bình chọn offline đã được nhập thành công.'
+      content: SurveyMessages.notification.surveyDataImported
     })
     return { message: SurveyMessages.response.surveyDataImported }
   }
@@ -406,6 +447,12 @@ export class SurveyService {
     }
 
     await this.surveyRepository.updateSurveyPeriodStatus(surveyPeriodId, 'REFLECTED')
+    await this.auditService.record({
+      actorId: userId ?? null,
+      entityType: AuditEntityType.SURVEY_PERIOD,
+      entityId: surveyPeriodId,
+      action: 'RANKING_FINALIZED'
+    })
     if (userId) {
       await this.notificationService.notifySafe({
         recipientId: userId,
@@ -538,10 +585,61 @@ export class SurveyService {
       otpMaxAttempts: body.otpMaxAttempts,
       ipRateLimit: body.ipRateLimit,
       phoneRateLimit: body.phoneRateLimit,
+      otpCooldownSeconds: body.otpCooldownSeconds,
+      ipVotesPerPeriod: body.ipVotesPerPeriod,
       captchaThreshold: body.captchaThreshold
     })
     this.surveyConfigService.invalidate()
     return this.mapVotingConfig(config)
+  }
+
+  // Fix-1 G-2 (Req 2.5#1): dữ liệu public dựng trang bình chọn — KHÔNG cần auth, KHÔNG lộ field nội bộ.
+  async getVoteContext() {
+    const config = await this.surveyConfigService.get()
+    const period = await this.surveyRepository.findLatestOpenSurveyPeriod()
+    if (!period) return { period: null, series: [], maxSeriesPerVote: config.maxSeriesPerVote }
+    const series = await this.surveyRepository.findManySerializedSeriesPublic()
+    return {
+      period: {
+        id: period.id,
+        issueNumber: period.issueNumber ?? null,
+        reflectedIssueNumber: period.reflectedIssueNumber ?? null,
+        startDate: period.startDate ? period.startDate.toISOString() : null,
+        endDate: period.endDate ? period.endDate.toISOString() : null
+      },
+      series: series.map((s) => ({
+        id: s.id,
+        title: s.title,
+        coverImage: s.coverImage ?? null,
+        genres: s.genres,
+        demographic: s.demographic ?? null
+      })),
+      maxSeriesPerVote: config.maxSeriesPerVote
+    }
+  }
+
+  // Fix-1 G-2 (Req 2.5#3): kết quả public — chỉ sau khi kỳ REFLECTED; ẩn tín hiệu biên tập nội bộ.
+  async getVoteResults(surveyPeriodId: string) {
+    if (!OBJECT_ID_RE.test(surveyPeriodId)) throw SurveyPeriodNotFoundException
+    const period = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
+    if (!period) throw SurveyPeriodNotFoundException
+    if (period.status !== 'REFLECTED') throw SurveyPeriodNotFinalizedException
+    const records = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
+    const titles = await this.surveyRepository.findSeriesTitlesByIds(records.map((r) => r.seriesId))
+    const titleById = new Map<string, string>(
+      titles.map((t: { id: string; title: string }) => [t.id, t.title] as [string, string])
+    )
+    return {
+      surveyPeriodId,
+      issueNumber: period.issueNumber ?? null,
+      results: records.map((r) => ({
+        rankPosition: r.rankPosition ?? null,
+        seriesId: r.seriesId,
+        seriesTitle: titleById.get(r.seriesId) ?? null,
+        voteCount: r.voteCount,
+        rankChange: r.rankChange ?? null
+      }))
+    }
   }
 }
 

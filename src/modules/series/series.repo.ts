@@ -213,12 +213,20 @@ export class SeriesRepository {
     })
   }
 
-  // Spec 2: N ending chapters Board grants on CANCELLATION (informational).
-  async setEndingChapterAllowance(seriesId: string, allowance: number | null) {
+  // Spec 2 + Fix-1: N ending chapters Board grants on CANCELLATION — ENFORCED bởi chapter-creation guard.
+  async setEndingChapterAllowance(seriesId: string, allowance: number | null, chapterCountAtCancelling?: number) {
     await this.prismaService.series.update({
       where: { id: seriesId },
-      data: { endingChapterAllowance: allowance }
+      data: {
+        endingChapterAllowance: allowance,
+        ...(chapterCountAtCancelling !== undefined ? { chapterCountAtCancelling } : {})
+      }
     })
+  }
+
+  // Fix-1 G-1: đếm chapter để snapshot lúc vào CANCELLING.
+  countChaptersBySeriesId(seriesId: string): Promise<number> {
+    return this.prismaService.chapter.count({ where: { seriesId } })
   }
 
   // Spec 2: change publicationType (FORMAT_CHANGE) — partial, NOT touching magazine/startIssueNumber (avoid clobber).

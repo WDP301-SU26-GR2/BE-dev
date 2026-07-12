@@ -20,18 +20,28 @@ export class OrphanAssetCron {
     const locked = await this.redisService.setNxEx('cron:orphan-asset', 600)
     if (!locked) return
 
-    const before = new Date(Date.now() - envConfig.ORPHAN_ASSET_TTL_HOURS * 3600 * 1000)
-    const assets = await this.storageRepository.findStaleAssets(before)
-    let removed = 0
+    try {
+      const before = new Date(Date.now() - envConfig.ORPHAN_ASSET_TTL_HOURS * 3600 * 1000)
+      const assets = await this.storageRepository.findStaleAssets(before)
+      let removed = 0
 
-    for (const asset of assets) {
-      const exists = await this.objectStorageService.headObjectExists(asset.filePath)
-      if (!exists) {
-        await this.storageRepository.deleteAssetById(asset.id)
-        removed++
+      for (const asset of assets) {
+        try {
+          const exists = await this.objectStorageService.headObjectExists(asset.filePath)
+          if (!exists) {
+            await this.storageRepository.deleteAssetById(asset.id)
+            removed++
+          }
+        } catch (error) {
+          this.logger.error(
+            `Orphan asset cron: skip asset ${asset.id} — ${error instanceof Error ? error.message : String(error)}`
+          )
+        }
       }
-    }
 
-    this.logger.log(`Orphan asset cron: scanned ${assets.length}, removed ${removed}`)
+      this.logger.log(`Orphan asset cron: scanned ${assets.length}, removed ${removed}`)
+    } catch (error) {
+      this.logger.error(`Orphan asset cron failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 }

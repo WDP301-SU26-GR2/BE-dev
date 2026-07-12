@@ -53,6 +53,13 @@ export class BoardRepository {
     })
   }
 
+  async findExpiredActiveSessions() {
+    return this.prisma.boardSession.findMany({
+      where: { status: 'ACTIVE', endTime: { not: null, lt: new Date() } },
+      select: { id: true, title: true }
+    })
+  }
+
   // ================= CÁC API KHÁC =================
   async findActiveSessionByTitle(title: string) {
     return this.prisma.boardSession.findFirst({
@@ -64,15 +71,16 @@ export class BoardRepository {
     return this.prisma.boardSession.findFirst({ where: { status: 'ACTIVE' } })
   }
 
-  async createSession(creatorId: string, dto: CreateBoardSessionBodyDto) {
+  async createSession(creatorId: string, dto: CreateBoardSessionBodyDto, allowedEditorIds: string[]) {
     return this.prisma.boardSession.create({
       data: {
         title: dto.title,
         description: dto.description ?? null,
         creatorId: creatorId,
         status: 'UPCOMING',
-        allowedEditorIds: dto.allowedEditorIds,
-        startTime: dto.startTime
+        allowedEditorIds,
+        startTime: dto.startTime,
+        endTime: dto.endTime ?? null
       }
     })
   }
@@ -123,6 +131,16 @@ export class BoardRepository {
     // Dùng cấu trúc này một lần duy nhất tại Repo để ép kiểu thô từ Prisma về Model của bạn
   }
 
+  async findNonTerminalDecisionsBySession(sessionId: string) {
+    return this.prisma.boardDecision.findMany({
+      where: {
+        boardSessionId: sessionId,
+        OR: [{ result: null }, { result: { in: ['PENDING', 'PENDING_QUORUM'] } }]
+      },
+      select: { id: true, result: true }
+    })
+  }
+
   async createSeriesReport(data: CreateSeriesReportBodyDto & { preparedBy: string }) {
     return this.prisma.seriesReport.create({
       data: {
@@ -151,5 +169,29 @@ export class BoardRepository {
 
   async getActiveConfig() {
     return this.prisma.boardConfig.findFirst()
+  }
+
+  // ================= AUTO-ASSIGN ROSTER (Spec 12 / PB-05) =================
+  findSeriesGenres(seriesId: string) {
+    return this.prisma.series.findFirst({ where: { id: seriesId }, select: { id: true, genres: true } })
+  }
+
+  async findRoleIdByCode(code: string) {
+    const role = await this.prisma.role.findUnique({ where: { code } })
+    return role?.id ?? null
+  }
+
+  // Ứng viên roster: BOARD_MEMBER đang ACTIVE, chưa xoá mềm (gotcha §10: isSet:false).
+  findActiveBoardMembers(roleId: string) {
+    return this.prisma.user.findMany({
+      where: { roleId, status: 'ACTIVE', deletedAt: { isSet: false } },
+      select: {
+        id: true,
+        displayName: true,
+        avatar: true,
+        createdAt: true,
+        staffProfile: { select: { specialtyGenres: true } }
+      }
+    })
   }
 }

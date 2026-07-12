@@ -8,6 +8,7 @@ type Mocks = {
   authOtpService: any
   notificationService: any
   domainEventBus: any
+  auditService: any
 }
 
 function makeMocks(): Mocks {
@@ -17,11 +18,16 @@ function makeMocks(): Mocks {
       updateStatus: jest.fn().mockResolvedValue({ id: 'c1' }),
       createDraft: jest.fn().mockResolvedValue({ id: 'c1' }),
       findSeriesStatus: jest.fn(),
-      updateAndLogVersion: jest.fn()
+      updateAndLogVersion: jest.fn(),
+      findVersionsByContractId: jest.fn(),
+      findVersionById: jest.fn(),
+      getContractSignaturesProgress: jest.fn(),
+      findWithBoardDecision: jest.fn()
     },
     authOtpService: { validateOtpCode: jest.fn().mockResolvedValue(undefined) },
     notificationService: { notifySafe: jest.fn().mockResolvedValue(undefined) },
-    domainEventBus: { emit: jest.fn() }
+    domainEventBus: { emit: jest.fn() },
+    auditService: { record: jest.fn().mockResolvedValue(undefined) }
   }
 }
 
@@ -30,7 +36,8 @@ function makeService(m: Mocks) {
     m.contractRepo as never,
     m.authOtpService as never,
     m.notificationService as never,
-    m.domainEventBus as never
+    m.domainEventBus as never,
+    m.auditService as never
   )
 }
 
@@ -178,18 +185,19 @@ describe('ContractService.createDraft (B-CON-01 gate)', () => {
 })
 
 describe('ContractService.signByMangakaWithOtp (ContractExecuted emit)', () => {
+  const CID = '507f1f77bcf86cd799439044'
   it('emits ContractExecuted {contractId, seriesId} on FULLY_EXECUTED', async () => {
     const m = makeMocks()
     m.contractRepo.findById.mockResolvedValue({
-      id: 'c1',
+      id: CID,
       mangakaId: 'm1',
       mangakaSignedAt: null,
       boardSignedAt: new Date(), // board already signed → mangaka sign flips to FULLY_EXECUTED
       status: ContractStatus.BOARD_APPROVED // B-CON-02: signable only after board approves terms
     })
-    m.contractRepo.updateStatus.mockResolvedValue({ id: 'c1', seriesId: 's1', status: ContractStatus.FULLY_EXECUTED })
-    await makeService(m).signByMangakaWithOtp('c1', 'm1', 'm1@x.test', '123456')
-    expect(m.domainEventBus.emit).toHaveBeenCalledWith('contract.executed', { contractId: 'c1', seriesId: 's1' })
+    m.contractRepo.updateStatus.mockResolvedValue({ id: CID, seriesId: 's1', status: ContractStatus.FULLY_EXECUTED })
+    await makeService(m).signByMangakaWithOtp(CID, 'm1', 'm1@x.test', '123456')
+    expect(m.domainEventBus.emit).toHaveBeenCalledWith('contract.executed', { contractId: CID, seriesId: 's1' })
   })
 })
 
@@ -245,5 +253,219 @@ describe('ContractService.reportRevenue', () => {
     await expect(
       makeService(m).reportRevenue('bad', 'b', RoleName.BOARD_MEMBER, { revenue: 1, period: 'p' })
     ).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+// Spec 11 — ObjectId guards on read-path routes. Mục tiêu: id rác phải 404 sạch,
+// KHÔNG chạm tới repo (tránh Prisma P2023 -> 500).
+describe('ContractService — Spec 11 ObjectId guards (read-path)', () => {
+  const CID = '507f1f77bcf86cd799439099'
+  const BAD = 'not-an-objectid'
+
+  it('getContractById: id rác → 404, KHÔNG chạm repo', async () => {
+    const m = makeMocks()
+    await expect(makeService(m).getContractById(BAD, 'u1', RoleName.EDITOR)).rejects.toMatchObject({ status: 404 })
+    expect(m.contractRepo.findById).not.toHaveBeenCalled()
+  })
+
+  it('getContractVersions: id rác → 404, KHÔNG chạm repo', async () => {
+    const m = makeMocks()
+    await expect(makeService(m).getContractVersions(BAD, 'u1', RoleName.EDITOR)).rejects.toMatchObject({ status: 404 })
+    expect(m.contractRepo.findById).not.toHaveBeenCalled()
+    expect(m.contractRepo.findVersionsByContractId).not.toHaveBeenCalled()
+  })
+
+  it('getContractVersionById: contractId rác → 404, KHÔNG chạm repo', async () => {
+    const m = makeMocks()
+    await expect(
+      makeService(m).getContractVersionById(BAD, '507f1f77bcf86cd799439012', 'u1', RoleName.EDITOR)
+    ).rejects.toMatchObject({ status: 404 })
+    expect(m.contractRepo.findById).not.toHaveBeenCalled()
+    expect(m.contractRepo.findVersionById).not.toHaveBeenCalled()
+  })
+
+  it('getContractVersionById: versionId rác → 404, KHÔNG chạm repo', async () => {
+    const m = makeMocks()
+    await expect(makeService(m).getContractVersionById(CID, BAD, 'u1', RoleName.EDITOR)).rejects.toMatchObject({
+      status: 404
+    })
+    expect(m.contractRepo.findById).not.toHaveBeenCalled()
+    expect(m.contractRepo.findVersionById).not.toHaveBeenCalled()
+  })
+
+  it('checkContractStatus: id rác → 404, KHÔNG chạm repo', async () => {
+    const m = makeMocks()
+    await expect(makeService(m).checkContractStatus(BAD, 'u1', RoleName.MANGAKA)).rejects.toMatchObject({
+      status: 404
+    })
+    expect(m.contractRepo.getContractSignaturesProgress).not.toHaveBeenCalled()
+  })
+
+  it('editorUpdateContract: id rác → 404, KHÔNG chạm repo', async () => {
+    const m = makeMocks()
+    await expect(makeService(m).editorUpdateContract(BAD, 'e1', { mangakaOwnershipPct: 50 })).rejects.toMatchObject({
+      status: 404
+    })
+    expect(m.contractRepo.findById).not.toHaveBeenCalled()
+  })
+
+  it('signByMangakaWithOtp: id rác → 404, KHÔNG chạm repo', async () => {
+    const m = makeMocks()
+    await expect(makeService(m).signByMangakaWithOtp(BAD, 'm1', 'm1@x.test', '123456')).rejects.toMatchObject({
+      status: 404
+    })
+    expect(m.contractRepo.findById).not.toHaveBeenCalled()
+  })
+
+  it('signByBoardWithOtp: id rác → 404, KHÔNG chạm repo', async () => {
+    const m = makeMocks()
+    await expect(makeService(m).signByBoardWithOtp(BAD, 'b1', 'b1@x.test', '123456')).rejects.toMatchObject({
+      status: 404
+    })
+    expect(m.contractRepo.findWithBoardDecision).not.toHaveBeenCalled()
+  })
+})
+
+// Spec 11 — Audit trail for contract signing flow (AGENTS §8 / NFR §6 / BR-GEN-02)
+describe('ContractService — Audit trail (Spec 11)', () => {
+  const CID = '507f1f77bcf86cd799439011'
+
+  it('mangakaApprove: ghi AuditLog CONTRACT/TRANSITION sau khi update', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: CID,
+      mangakaId: '507f1f77bcf86cd799439012',
+      editorId: '507f1f77bcf86cd799439013',
+      status: ContractStatus.MANGAKA_REVIEW
+    })
+    m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.MANGAKA_APPROVED })
+
+    await makeService(m).mangakaApprove(CID, '507f1f77bcf86cd799439012')
+
+    expect(m.auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'CONTRACT',
+        entityId: CID,
+        action: 'TRANSITION',
+        fromState: ContractStatus.MANGAKA_REVIEW,
+        toState: ContractStatus.MANGAKA_APPROVED,
+        actorId: '507f1f77bcf86cd799439012'
+      })
+    )
+  })
+
+  it('mangakaRequestChanges: ghi AuditLog CONTRACT/TRANSITION', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: CID,
+      mangakaId: '507f1f77bcf86cd799439012',
+      editorId: '507f1f77bcf86cd799439013',
+      status: ContractStatus.MANGAKA_REVIEW
+    })
+    m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.NEGOTIATION })
+
+    await makeService(m).mangakaRequestChanges(CID, '507f1f77bcf86cd799439012')
+
+    expect(m.auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'CONTRACT',
+        entityId: CID,
+        action: 'TRANSITION',
+        fromState: ContractStatus.MANGAKA_REVIEW,
+        toState: ContractStatus.NEGOTIATION,
+        actorId: '507f1f77bcf86cd799439012'
+      })
+    )
+  })
+
+  it('boardApprove: ghi AuditLog CONTRACT/TRANSITION (actorId = null)', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: CID,
+      mangakaId: '507f1f77bcf86cd799439012',
+      editorId: '507f1f77bcf86cd799439013',
+      status: ContractStatus.MANGAKA_APPROVED
+    })
+    m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.BOARD_APPROVED })
+
+    await makeService(m).boardApprove(CID)
+
+    expect(m.auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'CONTRACT',
+        entityId: CID,
+        action: 'TRANSITION',
+        fromState: ContractStatus.MANGAKA_APPROVED,
+        toState: ContractStatus.BOARD_APPROVED,
+        actorId: null
+      })
+    )
+  })
+
+  it('boardRequestChanges: ghi AuditLog CONTRACT/TRANSITION (actorId = null)', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: CID,
+      mangakaId: '507f1f77bcf86cd799439012',
+      editorId: '507f1f77bcf86cd799439013',
+      status: ContractStatus.MANGAKA_APPROVED
+    })
+    m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.NEGOTIATION })
+
+    await makeService(m).boardRequestChanges(CID)
+
+    expect(m.auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'CONTRACT',
+        entityId: CID,
+        action: 'TRANSITION',
+        fromState: ContractStatus.MANGAKA_APPROVED,
+        toState: ContractStatus.NEGOTIATION,
+        actorId: null
+      })
+    )
+  })
+
+  it('reportRevenue: ghi AuditLog REVENUE_REPORTED', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: CID,
+      editorId: 'ed1',
+      mangakaId: 'm1',
+      contractType: 'REVENUE_SHARE',
+      status: 'FULLY_EXECUTED'
+    })
+
+    await makeService(m).reportRevenue(CID, 'user1', RoleName.BOARD_MEMBER, {
+      revenue: 1000,
+      period: '2026Q1'
+    })
+
+    expect(m.auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'CONTRACT',
+        entityId: CID,
+        action: 'REVENUE_REPORTED',
+        actorId: 'user1'
+      })
+    )
+    const call = m.auditService.record.mock.calls[0][0]
+    expect(call.reason).toContain('revenue=1000')
+    expect(call.reason).toContain('period=2026Q1')
+  })
+
+  it('audit lỗi → KHÔNG phá nghiệp vụ (best-effort)', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: CID,
+      mangakaId: '507f1f77bcf86cd799439012',
+      editorId: '507f1f77bcf86cd799439013',
+      status: ContractStatus.MANGAKA_REVIEW
+    })
+    m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.MANGAKA_APPROVED })
+    m.auditService.record = jest.fn().mockRejectedValue(new Error('audit down'))
+
+    // phải resolve (không throw) dù audit fail
+    await expect(makeService(m).mangakaApprove(CID, '507f1f77bcf86cd799439012')).resolves.toBeDefined()
   })
 })

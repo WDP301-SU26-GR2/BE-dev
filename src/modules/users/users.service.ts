@@ -6,26 +6,40 @@ import { AdminUserService } from './services/admin-user.service'
 import { AssistantDirectoryService } from './services/assistant-directory.service'
 import { AssistantProfileService } from './services/assistant-profile.service'
 import { MangakaProfileService } from './services/mangaka-profile.service'
+import { MeService } from './services/me.service'
+import { StaffProfileService } from './services/staff-profile.service'
 import {
   AdminCreateUserBodyType,
   AdminUpdateUserStatusBodyType,
   AssistantProfileBodyType,
   ListAssistantsQueryType,
   ListUsersQueryType,
-  MangakaProfileBodyType
+  MangakaProfileBodyType,
+  StaffProfileBodyType,
+  UpdateMeBodyType
 } from './schemas/users-schemas'
 
 @Injectable()
 export class UsersService {
   constructor(
+    private readonly meService: MeService,
     private readonly adminUserService: AdminUserService,
     private readonly adminUserQueryService: AdminUserQueryService,
     private readonly adminModerationService: AdminModerationService,
     private readonly adminStatsService: AdminStatsService,
     private readonly mangakaProfileService: MangakaProfileService,
     private readonly assistantProfileService: AssistantProfileService,
-    private readonly assistantDirectoryService: AssistantDirectoryService
+    private readonly assistantDirectoryService: AssistantDirectoryService,
+    private readonly staffProfileService: StaffProfileService
   ) {}
+
+  getMe(userId: string) {
+    return this.meService.getMe(userId)
+  }
+
+  updateMe(userId: string, body: UpdateMeBodyType) {
+    return this.meService.updateMe(userId, body)
+  }
 
   createUserByAdmin(body: AdminCreateUserBodyType) {
     return this.adminUserService.createUser(body)
@@ -85,5 +99,17 @@ export class UsersService {
 
   listAssistants(query: ListAssistantsQueryType) {
     return this.assistantDirectoryService.list(query)
+  }
+
+  upsertStaffProfile(userId: string, body: StaffProfileBodyType) {
+    return this.staffProfileService.upsertMyProfile(userId, body)
+  }
+
+  getMyStaffProfile(userId: string) {
+    return this.staffProfileService.getByUserId(userId)
+  }
+
+  getStaffProfile(userId: string) {
+    return this.staffProfileService.getByUserId(userId)
   }
 }

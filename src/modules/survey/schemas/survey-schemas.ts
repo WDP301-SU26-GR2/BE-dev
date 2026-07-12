@@ -1,12 +1,28 @@
 import { extendApi } from '@anatine/zod-openapi'
-import { RiskLevel } from '@prisma/client'
+import { Demographic, Genre, RiskLevel, SurveyStatus } from '@prisma/client'
 import z from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zDateField } from 'src/core/http/docs/date-docs'
+
+const SurveyCreateStatusSchema = zEnum(SurveyStatus, 'SurveyStatus').refine(
+  (status): status is typeof SurveyStatus.DRAFT | typeof SurveyStatus.OPEN | typeof SurveyStatus.CLOSED =>
+    status !== SurveyStatus.REFLECTED,
+  { message: 'status chỉ được là DRAFT, OPEN hoặc CLOSED khi tạo kỳ bình chọn.' }
+)
+
+const SurveyUpdateStatusSchema = zEnum(SurveyStatus, 'SurveyStatus').refine(
+  (status): status is typeof SurveyStatus.OPEN | typeof SurveyStatus.CLOSED | typeof SurveyStatus.REFLECTED =>
+    status !== SurveyStatus.DRAFT,
+  { message: 'status chỉ được là OPEN, CLOSED hoặc REFLECTED khi cập nhật kỳ bình chọn.' }
+)
 
 export const VoteOtpRequestBodySchema = extendApi(
   z
     .object({
-      phoneNumber: z.string().min(10, { message: 'SĐT phải chứa tối thiểu 10 ký tự.' }),
+      identity: z
+        .string()
+        .email({ message: 'identity phải là email hợp lệ.' })
+        .describe('Email nhận OTP - hệ chạy EMAIL mode (Requiment 1.15d); SMS là mở rộng tương lai'),
       captchaToken: z.string().min(1, { message: 'Captcha token là bắt buộc.' })
     })
     .strict(),
@@ -17,7 +33,7 @@ export const ReaderVoteBodySchema = extendApi(
   z
     .object({
       surveyPeriodId: z.string().min(1, { message: 'surveyPeriodId là bắt buộc.' }),
-      phoneNumber: z.string().min(10, { message: 'SĐT là bắt buộc.' }),
+      identity: z.string().email({ message: 'identity phải là email hợp lệ.' }).describe('Email đã nhận OTP'),
       otpCode: z.string().min(4, { message: 'OTP là bắt buộc.' }),
       seriesIds: z.array(z.string().min(1)).min(1).max(3, { message: 'Tối đa 3 series được chọn.' }),
       captchaScore: z.number().min(0).max(1).optional()
@@ -33,7 +49,7 @@ export const CreateSurveyPeriodBodySchema = extendApi(
       reflectedIssueNumber: z.number().int().positive().optional(),
       startDate: z.string().datetime({ message: 'startDate phải là chuỗi ISO 8601.' }),
       endDate: z.string().datetime({ message: 'endDate phải là chuỗi ISO 8601.' }),
-      status: z.enum(['DRAFT', 'OPEN', 'CLOSED']).optional()
+      status: SurveyCreateStatusSchema.optional()
     })
     .strict(),
   { title: 'CreateSurveyPeriodBody', description: 'Editor tạo kỳ bình chọn mới' }
@@ -42,7 +58,7 @@ export const CreateSurveyPeriodBodySchema = extendApi(
 export const UpdateSurveyPeriodStatusBodySchema = extendApi(
   z
     .object({
-      status: z.enum(['OPEN', 'CLOSED', 'REFLECTED'])
+      status: SurveyUpdateStatusSchema
     })
     .strict(),
   { title: 'UpdateSurveyPeriodStatusBody', description: 'Editor cập nhật trạng thái kỳ bình chọn' }
@@ -79,6 +95,8 @@ export const VotingConfigBodySchema = extendApi(
       otpMaxAttempts: z.number().int().min(1).optional(),
       ipRateLimit: z.number().int().min(1).optional(),
       phoneRateLimit: z.number().int().min(1).optional(),
+      otpCooldownSeconds: z.number().int().min(0).optional(),
+      ipVotesPerPeriod: z.number().int().min(1).optional(),
       captchaThreshold: z.number().min(0).max(1).optional()
     })
     .strict(),
@@ -93,7 +111,7 @@ export const SurveyPeriodResSchema = extendApi(
       reflectedIssueNumber: z.number().int().optional(),
       startDate: z.string().datetime(),
       endDate: z.string().datetime(),
-      status: z.enum(['DRAFT', 'OPEN', 'CLOSED', 'REFLECTED'])
+      status: zEnum(SurveyStatus, 'SurveyStatus')
     })
     .strict(),
   { title: 'SurveyPeriodRes', description: 'Chi tiết kỳ bình chọn' }
@@ -109,6 +127,8 @@ export const VotingConfigResSchema = extendApi(
       otpMaxAttempts: z.number().int(),
       ipRateLimit: z.number().int(),
       phoneRateLimit: z.number().int(),
+      otpCooldownSeconds: z.number().int(),
+      ipVotesPerPeriod: z.number().int(),
       captchaThreshold: z.number(),
       updatedAt: z.string().datetime()
     })
@@ -192,7 +212,7 @@ export const ReaderVoteResSchema = extendApi(
       captchaScore: z.number().nullable(),
       voteWeight: z.number(),
       isFlagged: z.boolean(),
-      votedAt: z.any()
+      votedAt: zDateField()
     })
     .strict(),
   { title: 'ReaderVoteRes', description: 'Một phiếu vote reader' }
@@ -223,8 +243,8 @@ export const SurveyDataResSchema = extendApi(
       id: z.string(),
       surveyPeriodId: z.string(),
       importedBy: z.string().nullable(),
-      surveyDate: z.any().nullable(),
-      importedAt: z.any(),
+      surveyDate: zDateField().nullable(),
+      importedAt: zDateField(),
       entries: z.array(SurveyDataEntryResSchema)
     })
     .strict(),
@@ -239,3 +259,69 @@ export const SurveyDataListResSchema = extendApi(
     .strict(),
   { title: 'SurveyDataListRes', description: 'Danh sách dữ liệu vote offline' }
 )
+
+// Fix-1 G-2: Public vote context (Guest) — kỳ OPEN + danh sách series SERIALIZED (field public-safe).
+export const VoteContextResSchema = extendApi(
+  z
+    .object({
+      period: z
+        .object({
+          id: z.string(),
+          issueNumber: z.number().int().nullable(),
+          reflectedIssueNumber: z.number().int().nullable(),
+          startDate: z.string().nullable().describe('ISO 8601 UTC'),
+          endDate: z.string().nullable().describe('ISO 8601 UTC')
+        })
+        .nullable()
+        .describe('null = hiện không có kỳ bình chọn OPEN'),
+      series: z.array(
+        z
+          .object({
+            id: z.string(),
+            title: z.string(),
+            coverImage: z.string().nullable().describe('Object key R2 — Guest chưa xem được ảnh (public sign chưa có)'),
+            genres: z.array(zEnum(Genre, 'Genre')),
+            demographic: zEnum(Demographic, 'Demographic').nullable()
+          })
+          .strict()
+      ),
+      maxSeriesPerVote: z.number().int()
+    })
+    .strict(),
+  {
+    title: 'VoteContextRes',
+    description: 'Dữ liệu public dựng trang bình chọn Guest (Req 2.5#1) — Fix-1 G-2'
+  }
+)
+
+// Fix-1 G-2: Public vote results (chỉ sau khi kỳ REFLECTED). ẨN tín hiệu biên tập nội bộ.
+export const VoteResultsResSchema = extendApi(
+  z
+    .object({
+      surveyPeriodId: z.string(),
+      issueNumber: z.number().int().nullable(),
+      results: z.array(
+        z
+          .object({
+            rankPosition: z.number().int().nullable(),
+            seriesId: z.string(),
+            seriesTitle: z.string().nullable().describe('null nếu series đã bị xóa'),
+            voteCount: z.number(),
+            rankChange: z.number().int().nullable()
+          })
+          .strict()
+      )
+    })
+    .strict(),
+  {
+    title: 'VoteResultsRes',
+    description:
+      'Bảng xếp hạng public sau khi kỳ REFLECTED (Req 2.5#3) — Fix-1 G-2. KHÔNG chứa tín hiệu nội bộ (isAtRisk/riskLevel/isReliable)'
+  }
+)
+
+export const VoteResultsQuerySchema = z
+  .object({
+    surveyPeriodId: z.string().min(1, { message: 'surveyPeriodId là bắt buộc.' })
+  })
+  .strict()

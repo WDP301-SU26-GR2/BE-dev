@@ -33,7 +33,7 @@ export class NameController {
 
   // ── Reads (cả 2 kind) ────────────────────────────────────────────────────
   @Get()
-  @ApiOperation({ summary: 'List Name của series (filter kind PROPOSAL|CHAPTER)' })
+  @ApiOperation({ summary: 'List proposal-Name của series (chapter-Name xem ở /chapters/:id/names)' })
   @ApiErrors(SeriesNotFoundException, SeriesAccessDeniedException)
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: NameListResDto })
@@ -43,7 +43,7 @@ export class NameController {
     @ActiveUser('userId') userId: string,
     @ActiveUser('roleName') roleName: string
   ) {
-    return this.nameService.listNames({ userId, roleName }, id, query.kind)
+    return this.nameService.listNames({ userId, roleName }, id, { limit: query.limit, offset: query.offset })
   }
 
   @Get(':nameId')

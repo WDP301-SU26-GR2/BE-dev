@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
+import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zDateField } from 'src/core/http/docs/date-docs'
 
 // Body chung cho create/patch: các typed term optional (null/omit = không đổi).
 const amendmentTermFields = {
@@ -85,7 +87,7 @@ export const AmendmentSignatureResSchema = z.object({
   amendmentId: z.string(),
   userId: z.string(),
   role: z.string(),
-  signedAt: z.any()
+  signedAt: zDateField()
 })
 
 export const AmendmentResSchema = extendApi(
@@ -94,20 +96,20 @@ export const AmendmentResSchema = extendApi(
     contractId: z.string(),
     changedClauses: z.array(z.string()),
     reason: z.string().nullable(),
-    status: z.nativeEnum($Enums.ContractAmendmentStatus),
-    triggerSource: z.nativeEnum($Enums.AmendmentTrigger),
+    status: zEnum($Enums.ContractAmendmentStatus, 'ContractAmendmentStatus'),
+    triggerSource: zEnum($Enums.AmendmentTrigger, 'AmendmentTrigger'),
     valuationAmount: z.number().nullable(),
     publisherOwnershipPct: z.number().nullable(),
     mangakaOwnershipPct: z.number().nullable(),
     terminationClause: z.string().nullable(),
-    contractStart: z.any().nullable(),
-    contractEnd: z.any().nullable(),
-    mangakaSignedAt: z.any().nullable(),
-    boardSignedAt: z.any().nullable(),
-    fullyExecutedAt: z.any().nullable(),
+    contractStart: zDateField().nullable(),
+    contractEnd: zDateField().nullable(),
+    mangakaSignedAt: zDateField().nullable(),
+    boardSignedAt: zDateField().nullable(),
+    fullyExecutedAt: zDateField().nullable(),
     voidReason: z.string().nullable(),
     createdBy: z.string().nullable(),
-    createdAt: z.any(),
+    createdAt: zDateField(),
     signatures: z.array(AmendmentSignatureResSchema).optional()
   }),
   { title: 'AmendmentRes', description: 'Chi tiết phụ lục hợp đồng' }

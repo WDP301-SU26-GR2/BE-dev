@@ -20,3 +20,4 @@ export const ChapterNotDraftForNameException = new ConflictException([
 export const ChapterNameAlreadyExistsException = new ConflictException([
   { message: E.chapterNameAlreadyExists, path: 'id' }
 ])
+export const NameNotDeletableException = new ConflictException([{ message: E.nameNotDeletable, path: 'status' }])

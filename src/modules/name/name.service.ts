@@ -15,6 +15,7 @@ import {
   ChapterNotDraftForNameException,
   ChapterNotFoundException,
   InvalidNameStateException,
+  NameNotDeletableException,
   NameNotFoundException,
   NotSeriesOwnerException,
   SeriesAccessDeniedException,
@@ -27,6 +28,14 @@ import {
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 const N = NameMessages.notification
+
+// Fix-1 G-1: đồng bộ với chapter-creation — ending phase vẫn tạo được chapter-Name.
+// LẶP const cục bộ (không import chéo module chapter — vertical slice); 2 danh sách phải giống hệt.
+const CHAPTER_CREATABLE_STATUSES: SeriesStatus[] = [
+  SeriesStatus.SERIALIZED,
+  SeriesStatus.CANCELLING,
+  SeriesStatus.COMPLETING
+]
 
 export type NameCaller = { userId: string; roleName: string }
 
@@ -46,7 +55,10 @@ export class NameService {
     if (!chapter) throw ChapterNotFoundException
     if (chapter.series?.mangakaId !== mangakaId) throw NotSeriesOwnerException
     if (chapter.status !== 'DRAFT') throw ChapterNotDraftForNameException
-    if (chapter.series?.status !== SeriesStatus.SERIALIZED) throw SeriesNotSerializedException
+    // Fix-1 G-1 (Requiment Flow 5): ending phase vẫn tạo được chapter-Name.
+    // LẶP const cục bộ (không import chéo module chapter — vertical slice); 2 danh sách phải giống hệt.
+    if (!chapter.series?.status || !CHAPTER_CREATABLE_STATUSES.includes(chapter.series.status))
+      throw SeriesNotSerializedException
     if (chapter.nameId) throw ChapterNameAlreadyExistsException
     const created = await this.nameRepo.createChapterNameForChapter({
       chapterId,
@@ -57,9 +69,23 @@ export class NameService {
     return toNameRes(created)
   }
 
-  // ── Lifecycle (MOVE từ series NameService — guard status inline như cũ) ────
+  // ── Lifecycle ────────────────────────────────────────────────────────────
+  // Public series-scoped = PROPOSAL only (Spec 12 tách vai).
+  // Public chapter-scoped (chapter*) = CHAPTER only, resolve seriesId từ chapter.
+  // Thân nghiệp vụ nằm ở do* — DUY NHẤT một bản, không nhân đôi state machine.
+
   async requestRevision(editorId: string, seriesId: string, nameId: string, reason: string) {
-    const { series, name } = await this.requireSeriesName(seriesId, nameId)
+    return this.doRequestRevision(editorId, seriesId, nameId, reason, { kind: NameKind.PROPOSAL })
+  }
+
+  private async doRequestRevision(
+    editorId: string,
+    seriesId: string,
+    nameId: string,
+    reason: string,
+    opts: { kind: NameKind; chapterId?: string }
+  ) {
+    const { series, name } = await this.requireSeriesName(seriesId, nameId, opts)
     requireAssignedEditor(series, editorId)
     if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) {
       throw InvalidNameStateException
@@ -70,7 +96,16 @@ export class NameService {
   }
 
   async resubmit(mangakaId: string, seriesId: string, nameId: string) {
-    const { series, name } = await this.requireOwnerName(seriesId, mangakaId, nameId)
+    return this.doResubmit(mangakaId, seriesId, nameId, { kind: NameKind.PROPOSAL })
+  }
+
+  private async doResubmit(
+    mangakaId: string,
+    seriesId: string,
+    nameId: string,
+    opts: { kind: NameKind; chapterId?: string }
+  ) {
+    const { series, name } = await this.requireOwnerName(seriesId, mangakaId, nameId, opts)
     if (name.status !== NameStatus.REVISION) throw InvalidNameStateException
     const updated = await this.nameRepo.updateNameStatus(nameId, {
       status: NameStatus.IN_REVIEW,
@@ -90,21 +125,45 @@ export class NameService {
   }
 
   async approve(editorId: string, seriesId: string, nameId: string) {
-    const { series, name } = await this.requireSeriesName(seriesId, nameId)
+    return this.doApprove(editorId, seriesId, nameId, { kind: NameKind.PROPOSAL })
+  }
+
+  async chapterApprove(editorId: string, chapterId: string, nameId: string) {
+    const seriesId = await this.chapterSeriesId(chapterId)
+    return this.doApprove(editorId, seriesId, nameId, { kind: NameKind.CHAPTER, chapterId })
+  }
+
+  private async doApprove(
+    editorId: string,
+    seriesId: string,
+    nameId: string,
+    opts: { kind: NameKind; chapterId?: string }
+  ) {
+    const { series, name } = await this.requireSeriesName(seriesId, nameId, opts)
     requireAssignedEditor(series, editorId)
     if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) {
       throw InvalidNameStateException
     }
     const updated = await this.nameRepo.updateNameStatus(nameId, { status: NameStatus.APPROVED })
-    // Cắt coupling Name → Series: emit NameApproved SAU commit. Series listener sẽ advance
-    // READY_TO_PITCH nếu kind=PROPOSAL; kind=CHAPTER → no-op (xem spec §6).
+    // Cắt coupling Name → Series: emit SAU commit. Series listener advance READY_TO_PITCH nếu
+    // kind=PROPOSAL; kind=CHAPTER → no-op (gate page đọc trực tiếp Name.status).
     this.eventBus.emit(DomainEvent.NameApproved, { seriesId, nameId, kind: updated.kind })
     await this.notify(series.mangakaId, seriesId, 'NAME_APPROVED', N.nameApproved)
     return toNameRes(updated)
   }
 
   async updatePages(mangakaId: string, seriesId: string, nameId: string, body: UpdateNamePagesBodyType) {
-    const { name } = await this.requireOwnerName(seriesId, mangakaId, nameId)
+    return this.doUpdatePages(mangakaId, seriesId, nameId, body, { kind: NameKind.PROPOSAL })
+  }
+
+  private async doUpdatePages(
+    mangakaId: string,
+    seriesId: string,
+    nameId: string,
+    body: UpdateNamePagesBodyType,
+    opts: { kind: NameKind; chapterId?: string }
+  ) {
+    const { name } = await this.requireOwnerName(seriesId, mangakaId, nameId, opts)
     if (name.status !== NameStatus.DRAFT && name.status !== NameStatus.REVISION) {
       throw InvalidNameStateException
     }
@@ -113,7 +172,17 @@ export class NameService {
   }
 
   async addPage(mangakaId: string, seriesId: string, nameId: string, page: AddNamePageBodyType) {
-    const { name } = await this.requireOwnerName(seriesId, mangakaId, nameId)
+    return this.doAddPage(mangakaId, seriesId, nameId, page, { kind: NameKind.PROPOSAL })
+  }
+
+  private async doAddPage(
+    mangakaId: string,
+    seriesId: string,
+    nameId: string,
+    page: AddNamePageBodyType,
+    opts: { kind: NameKind; chapterId?: string }
+  ) {
+    const { name } = await this.requireOwnerName(seriesId, mangakaId, nameId, opts)
     if (name.status !== NameStatus.DRAFT && name.status !== NameStatus.REVISION) {
       throw InvalidNameStateException
     }
@@ -121,12 +190,71 @@ export class NameService {
     return toNameRes(updated)
   }
 
+  // ── Chapter-scoped delegates (Spec 12) ───────────────────────────────────
+  // Delegate MỎNG: resolve seriesId từ chapter → gọi đúng core method. KHÔNG nhân đôi
+  // business logic / state machine — chỉ nhân đôi tầng routing.
+  async chapterRequestRevision(editorId: string, chapterId: string, nameId: string, reason: string) {
+    const seriesId = await this.chapterSeriesId(chapterId)
+    return this.doRequestRevision(editorId, seriesId, nameId, reason, { kind: NameKind.CHAPTER, chapterId })
+  }
+
+  async chapterResubmit(mangakaId: string, chapterId: string, nameId: string) {
+    const seriesId = await this.chapterSeriesId(chapterId)
+    return this.doResubmit(mangakaId, seriesId, nameId, { kind: NameKind.CHAPTER, chapterId })
+  }
+
+  async chapterUpdatePages(mangakaId: string, chapterId: string, nameId: string, body: UpdateNamePagesBodyType) {
+    const seriesId = await this.chapterSeriesId(chapterId)
+    return this.doUpdatePages(mangakaId, seriesId, nameId, body, { kind: NameKind.CHAPTER, chapterId })
+  }
+
+  async chapterAddPage(mangakaId: string, chapterId: string, nameId: string, page: AddNamePageBodyType) {
+    const seriesId = await this.chapterSeriesId(chapterId)
+    return this.doAddPage(mangakaId, seriesId, nameId, page, { kind: NameKind.CHAPTER, chapterId })
+  }
+
+  async chapterListNames(caller: NameCaller, chapterId: string) {
+    const seriesId = await this.chapterSeriesId(chapterId)
+    await this.requireSeriesScope(caller, seriesId)
+    const names = await this.nameRepo.findNamesByChapterId(chapterId)
+    return { items: names.map(toNameRes) }
+  }
+
+  async chapterGetName(caller: NameCaller, chapterId: string, nameId: string) {
+    const seriesId = await this.chapterSeriesId(chapterId)
+    await this.requireSeriesScope(caller, seriesId)
+    if (!OBJECT_ID_RE.test(nameId)) throw NameNotFoundException
+    const name = await this.nameRepo.findNameById(nameId)
+    if (!name || name.chapterId !== chapterId) throw NameNotFoundException
+    return toNameRes(name)
+  }
+
+  /**
+   * Mangaka vẽ Name hỏng → xoá để tạo lại (POST /chapters/:id/names bị chặn bởi ChapterNameAlreadyExists).
+   * Chỉ khi chapter còn DRAFT và Name CHƯA APPROVED (Name APPROVED = checkpoint mở gate upload page).
+   */
+  async deleteChapterName(mangakaId: string, chapterId: string, nameId: string) {
+    if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
+    const chapter = await this.nameRepo.findChapterForNameGuard(chapterId)
+    if (!chapter) throw ChapterNotFoundException
+    if (chapter.series?.mangakaId !== mangakaId) throw NotSeriesOwnerException
+
+    if (!OBJECT_ID_RE.test(nameId)) throw NameNotFoundException
+    const name = await this.nameRepo.findNameById(nameId)
+    if (!name || name.chapterId !== chapterId) throw NameNotFoundException
+
+    if (chapter.status !== 'DRAFT') throw NameNotDeletableException
+    if (name.status === NameStatus.APPROVED) throw NameNotDeletableException
+
+    await this.nameRepo.deleteChapterName(chapterId, nameId)
+    return { message: NameMessages.response.chapterNameDeleted }
+  }
+
   // ── Reads (MOVE từ series-query.service, scope theo role) ─────────────────
-  async listNames(caller: NameCaller, seriesId: string, kind?: NameKind) {
+  // Series-scoped: CHỈ proposal-Name (Spec 12).
+  async listNames(caller: NameCaller, seriesId: string, page?: { limit: number; offset: number }) {
     const series = await this.requireSeriesScope(caller, seriesId)
-    const names = kind
-      ? await this.nameRepo.findNamesBySeriesIdAndKind(series.id, kind)
-      : await this.nameRepo.findNamesBySeriesId(series.id)
+    const names = await this.nameRepo.findNamesBySeriesIdAndKind(series.id, NameKind.PROPOSAL, page)
     return { items: names.map(toNameRes) }
   }
 
@@ -134,23 +262,31 @@ export class NameService {
     await this.requireSeriesScope(caller, seriesId)
     if (!OBJECT_ID_RE.test(nameId)) throw NameNotFoundException
     const name = await this.nameRepo.findNameById(nameId)
-    if (!name || name.seriesId !== seriesId) throw NameNotFoundException
+    if (!name || name.seriesId !== seriesId || name.kind !== NameKind.PROPOSAL) throw NameNotFoundException
     return toNameRes(name)
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  private async requireSeriesName(seriesId: string, nameId: string) {
+  private async requireSeriesName(seriesId: string, nameId: string, opts?: { kind?: NameKind; chapterId?: string }) {
     if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
     const series = await this.nameRepo.findSeriesForGuard(seriesId)
     if (!series) throw SeriesNotFoundException
     if (!OBJECT_ID_RE.test(nameId)) throw NameNotFoundException
     const name = await this.nameRepo.findNameById(nameId)
     if (!name || name.seriesId !== seriesId) throw NameNotFoundException
+    // Spec 12: tách vai. Route series-scoped chỉ phục vụ PROPOSAL; chapter-Name → 404 (không lộ tồn tại).
+    if (opts?.kind && name.kind !== opts.kind) throw NameNotFoundException
+    if (opts?.chapterId && name.chapterId !== opts.chapterId) throw NameNotFoundException
     return { series, name }
   }
 
-  private async requireOwnerName(seriesId: string, mangakaId: string, nameId: string) {
-    const { series, name } = await this.requireSeriesName(seriesId, nameId)
+  private async requireOwnerName(
+    seriesId: string,
+    mangakaId: string,
+    nameId: string,
+    opts?: { kind?: NameKind; chapterId?: string }
+  ) {
+    const { series, name } = await this.requireSeriesName(seriesId, nameId, opts)
     if (series.mangakaId !== mangakaId) throw NotSeriesOwnerException
     return { series, name }
   }
@@ -164,6 +300,13 @@ export class NameService {
     if (roleName === RoleName.EDITOR && series.editorId === userId) return series
     if (roleName === RoleName.MANGAKA && series.mangakaId === userId) return series
     throw SeriesAccessDeniedException
+  }
+
+  private async chapterSeriesId(chapterId: string): Promise<string> {
+    if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
+    const chapter = await this.nameRepo.findChapterForNameGuard(chapterId)
+    if (!chapter) throw ChapterNotFoundException
+    return chapter.seriesId
   }
 
   private async notify(recipientId: string, seriesId: string, referenceType: string, content: string) {

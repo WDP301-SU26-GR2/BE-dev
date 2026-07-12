@@ -22,6 +22,11 @@ export class ChapterRepository {
   findNameById(nameId: string) {
     return this.prismaService.name.findUnique({ where: { id: nameId } })
   }
+  // Fix-1 G-1: đếm chapter hiện có để enforce endingChapterAllowance khi series CANCELLING.
+  countChaptersBySeriesId(seriesId: string): Promise<number> {
+    return this.prismaService.chapter.count({ where: { seriesId } })
+  }
+
   // A3 publish gate (BR-CONTRACT-05): series phải có Contract FULLY_EXECUTED trước khi publish.
   // Cross-module read prisma.contract (tiền lệ: reprint/payment repo). Chỉ select id (nhẹ).
   findExecutedContractBySeriesId(seriesId: string) {

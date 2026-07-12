@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common'
+import { Controller, Get, Post, Body, Param, Patch, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { BoardService } from './services/board.service'
@@ -12,13 +12,16 @@ import {
   BoardDecisionResDto,
   BoardVoteResDto,
   SeriesReportResDto,
-  BoardConfigResDto
+  BoardConfigResDto,
+  SuggestBoardMembersQueryDto,
+  SuggestBoardMembersResDto
 } from './dto/board.dto'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
+import type { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
 import {
   SessionAlreadyExistsException,
   SessionNotFoundException,
@@ -32,7 +35,11 @@ import {
   ReportNotFoundException,
   SessionClosedReportException,
   EditorNotInvitedException,
-  InvalidBoardSessionTransitionException
+  InvalidBoardSessionTransitionException,
+  NotSessionCreatorException,
+  SeriesNotFoundException,
+  NotEnoughBoardMembersException,
+  RosterSourceRequiredException
 } from './errors/board.errors'
 
 @ApiTags('board')
@@ -42,12 +49,27 @@ export class BoardController {
   constructor(private readonly boardService: BoardService) {}
 
   @ApiOperation({ summary: 'Editor tạo phiên họp Hội đồng → SCHEDULED' })
-  @ApiErrors(SessionAlreadyExistsException, InvalidBoardMembersException)
+  @ApiErrors(
+    SessionAlreadyExistsException,
+    InvalidBoardMembersException,
+    RosterSourceRequiredException,
+    NotEnoughBoardMembersException,
+    SeriesNotFoundException
+  )
   @Post('sessions')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 201, type: BoardSessionResDto })
   createSession(@ActiveUser('userId') creatorId: string, @Body() dto: CreateBoardSessionBodyDto) {
     return this.boardService.createSession(creatorId, dto)
+  }
+
+  @ApiOperation({ summary: 'Gợi ý roster Board theo thể loại của series (PB-05) — lẻ, >= 3' })
+  @ApiErrors(SeriesNotFoundException, NotEnoughBoardMembersException)
+  @Get('suggest-members')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 200, type: SuggestBoardMembersResDto })
+  suggestMembers(@Query() query: SuggestBoardMembersQueryDto) {
+    return this.boardService.suggestBoardMembers(query.seriesId, query.size)
   }
 
   @ApiOperation({ summary: 'Danh sách phiên họp Hội đồng' })
@@ -74,6 +96,15 @@ export class BoardController {
   @ZodResponse({ status: 200, type: BoardSessionResDto })
   async startSession(@Param('id') id: string) {
     return this.boardService.startSessionManually(id)
+  }
+
+  @ApiOperation({ summary: 'Kết thúc phiên họp Hội đồng → CONCLUDED; quyết định treo → EXPIRED' })
+  @ApiErrors(SessionNotFoundException, NotSessionCreatorException, InvalidBoardSessionTransitionException)
+  @Patch('sessions/:id/conclude')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 200, type: BoardSessionResDto })
+  async concludeSession(@Param('id') id: string, @ActiveUser() user: JwtAccessTokenPayload) {
+    return this.boardService.concludeSession(id, user.userId, user.roleName)
   }
 
   @ApiOperation({ summary: 'Xem cấu hình biểu quyết Hội đồng hiện tại' })

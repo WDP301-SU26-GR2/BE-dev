@@ -10,7 +10,9 @@ import {
   BoardVoteResSchema,
   BoardVoteListResSchema,
   SeriesReportResSchema,
-  BoardConfigResSchema
+  BoardConfigResSchema,
+  SuggestBoardMembersQuerySchema,
+  SuggestBoardMembersResSchema
 } from '../schemas/board-schema'
 
 export class CreateBoardSessionBodyDto extends createZodDto(CreateBoardSessionBodySchema) {}
@@ -24,3 +26,5 @@ export class BoardVoteResDto extends createZodDto(BoardVoteResSchema) {}
 export class BoardVoteListResDto extends createZodDto(BoardVoteListResSchema) {}
 export class SeriesReportResDto extends createZodDto(SeriesReportResSchema) {}
 export class BoardConfigResDto extends createZodDto(BoardConfigResSchema) {}
+export class SuggestBoardMembersQueryDto extends createZodDto(SuggestBoardMembersQuerySchema) {}
+export class SuggestBoardMembersResDto extends createZodDto(SuggestBoardMembersResSchema) {}

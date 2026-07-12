@@ -1,3 +1,10 @@
+// ⚠ FILE NÀY LÀ *ENTITY/DATA SCHEMA NỘI BỘ*, KHÔNG PHẢI DTO.
+// Mục đích: (1) z.infer ra BoardDecisionDataType / VoteDataType cho repo+service — Prisma trả `Date`
+//           nên field date PHẢI là z.coerce.date();
+//           (2) làm base .omit(...) cho Body schema — và MỌI field date đều bị omit.
+// Res schema khai riêng ở board-schema.ts. => KHÔNG đổi z.coerce.date() thành z.string() ở đây
+// (sẽ sai type toàn bộ repo/service). Xem AGENTS §10 "Ngoại lệ hợp lệ".
+
 import { $Enums } from '@prisma/client'
 import { extendApi } from '@anatine/zod-openapi'
 import { z } from 'zod'
@@ -6,40 +13,19 @@ import { z } from 'zod'
 export const DecisionType = $Enums.DecisionType
 export type DecisionTypeType = $Enums.DecisionType
 
-// 🔥 TỰ ĐỊNH NGHĨA: Trạng thái kết quả của Quyết định
-export const BoardDecisionResult = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PENDING_QUORUM'])
-export type BoardDecisionResultType = z.infer<typeof BoardDecisionResult>
-
-// 🔥 TỰ ĐỊNH NGHĨA: Trạng thái của một Phiên họp Hội đồng
-export const BoardSessionStatus = $Enums.BoardSessionStatus
-export const BoardSessionStatusSchema = z.nativeEnum($Enums.BoardSessionStatus)
-export type BoardSessionStatusType = z.infer<typeof BoardSessionStatusSchema>
+// 🌟 Đồng bộ Enum BoardDecisionResult từ Prisma (single source of truth)
+export const BoardDecisionResult = $Enums.BoardDecisionResult
+export type BoardDecisionResultType = $Enums.BoardDecisionResult
 
 // 🔥 Base Vote Schema (Mảng đối tượng nhúng trong MongoDB)
 export const VoteSchema = extendApi(
   z.object({
     voterId: z.string(),
-    voteValue: z.enum(['APPROVE', 'REJECT', 'ABSTAIN']),
+    voteValue: z.nativeEnum($Enums.VoteValue),
     note: z.string().nullable(),
     votedAt: z.coerce.date()
   }),
   { title: 'Vote', description: 'Một phiếu biểu quyết của quyết định Hội đồng' }
-)
-
-// 🔥 Base BoardSession Schema (Bổ sung mới)
-export const BoardSessionSchema = extendApi(
-  z.object({
-    id: z.string(),
-    title: z.string(),
-    description: z.string().nullable(),
-    creatorId: z.string(),
-    status: BoardSessionStatusSchema,
-    allowedEditorIds: z.array(z.string()),
-    startTime: z.coerce.date(),
-    createdAt: z.coerce.date(),
-    updatedAt: z.coerce.date()
-  }),
-  { title: 'BoardSession', description: 'Phiên họp Hội đồng' }
 )
 
 // 🔥 Base BoardDecision Schema
@@ -50,7 +36,7 @@ export const BoardDecisionSchema = extendApi(
     targetSeriesId: z.string().nullable(),
     decisionType: z.nativeEnum($Enums.DecisionType),
     details: z.record(z.string(), z.any()).nullable(),
-    result: BoardDecisionResult,
+    result: z.nativeEnum($Enums.BoardDecisionResult),
     votes: z.array(VoteSchema),
     approveCount: z.number(),
     rejectCount: z.number(),
@@ -95,7 +81,6 @@ export const BoardConfigSchema = extendApi(
 )
 
 export type VoteDataType = z.infer<typeof VoteSchema>
-export type BoardSessionDataType = z.infer<typeof BoardSessionSchema> // 🌟 Bổ sung mới
 export type BoardDecisionDataType = z.infer<typeof BoardDecisionSchema>
 export type SeriesReportDataType = z.infer<typeof SeriesReportSchema>
 export type BoardConfigDataType = z.infer<typeof BoardConfigSchema>

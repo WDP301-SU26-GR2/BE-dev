@@ -38,6 +38,7 @@ model User {
 
   mangakaProfile   MangakaProfile?
   assistantProfile AssistantProfile?
+  staffProfile     StaffProfile?
   mangakaContracts Contract[]        @relation("MangakaRelation")
   editorContracts  Contract[]        @relation("EditorRelation")
   boardSessions    BoardSession[]
@@ -133,6 +134,9 @@ enum AuditEntityType {
   BOARD_DECISION
   REPRINT_REQUEST
   TRANSFER_REQUEST
+  PAYMENT_RECORD
+  SURVEY_PERIOD
+  PUBLICATION_VERSION
 }
 
 enum PublicationType {
@@ -615,6 +619,21 @@ model AssistantProfile {
   updatedAt DateTime @updatedAt
 }
 
+// Spec 12 — Profile & Identity Completion: hồ sơ nhân sự NXB (EDITOR + BOARD_MEMBER)
+model StaffProfile {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  specialtyGenres   Genre[]
+  demographics      Demographic[]
+  bio               String?
+  yearsOfExperience Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // REVIEW: inferred
 enum TaskVersionReviewStatus {
   PENDING
@@ -646,6 +665,20 @@ enum BoardSessionStatus {
   CONCLUDED
 }
 
+enum BoardDecisionResult {
+  PENDING
+  PENDING_QUORUM
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum VoteValue {
+  APPROVE
+  REJECT
+  ABSTAIN
+}
+
 model Series {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
@@ -673,7 +706,8 @@ model Series {
   coOwnerApprovalRequired Boolean                    @default(false)
   reviewStartedAt         DateTime?
   hiatusStartedAt         DateTime? // Spec 2: set when entering HIATUS, null when resumed — used to compute pausedMs
-  endingChapterAllowance  Int? // Spec 2: N ending chapters Board grants on CANCELLATION (informational + audit)
+  endingChapterAllowance  Int? // Spec 2 + Fix-1: N ending chapters Board grants on CANCELLATION — ENFORCED bởi chapter-creation guard
+  chapterCountAtCancelling Int? // Fix-1 G-1: snapshot số chapter tại thời điểm vào CANCELLING — guard ending allowance
   completionProposal      CompletionProposal?
   statusHistory           SeriesStatusHistoryEntry[]
 
@@ -1434,6 +1468,7 @@ model BoardSession {
   status           BoardSessionStatus @default(UPCOMING)
   allowedEditorIds String[]           @db.ObjectId // Danh sách sếp được mời họp tổng
   startTime        DateTime
+  endTime          DateTime? // Fix-2 G-7: auto-conclude when ACTIVE session passes this time; null = manual-only conclude
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -1447,7 +1482,7 @@ model BoardDecision {
   boardSession   BoardSession @relation(fields: [boardSessionId], references: [id], onDelete: Cascade)
 
   decisionType           DecisionType?
-  result                 String?
+  result                 BoardDecisionResult?
   totalVotes             Int           @default(0)
   approveCount           Int           @default(0)
   rejectCount            Int           @default(0)
@@ -1469,7 +1504,7 @@ model BoardDecision {
 
 type Vote {
   voterId   String?  @db.ObjectId
-  voteValue String?
+  voteValue VoteValue?
   note      String?
   votedAt   DateTime @default(now())
 }
@@ -1501,6 +1536,8 @@ model VotingConfig {
   ipRateLimit      Int            @default(10)
   phoneRateLimit   Int            @default(3)
   captchaThreshold Float          @default(0.3)
+  otpCooldownSeconds Int          @default(60) // Fix-2 G-4: cooldown between vote OTP requests
+  ipVotesPerPeriod   Int          @default(10) // Fix-2 G-4: vote submit cap per IP per period
   updatedAt        DateTime       @updatedAt
 
   @@index([updatedBy])

@@ -1,4 +1,5 @@
 import { ReprintRequestService } from './reprint-request.service'
+import { ReprintRequestStateService } from './reprint-request-state.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
 
 const REQ_ID = '012345678901234567890123'
@@ -278,6 +279,30 @@ describe('ReprintRequestService.assignReviser (PB-07)', () => {
 })
 
 describe('ReprintRequestService state-service wiring (B-RPT-02)', () => {
+  // FINDING-BE-002 (flowtest 2026-07-11): mangaka KHÔNG phải chủ hợp đồng series
+  // từng review được reprint của người khác — Ownership Principle guard (BR-CONTRACT-03).
+  it('mangakaReview by non-owner mangaka → 403 ActionNotAllowed', async () => {
+    const repo = {
+      findById: jest.fn().mockResolvedValue({
+        id: REQ_ID,
+        seriesId: 's1',
+        requestedBy: 'editor-1',
+        status: 'PENDING',
+        chapters: []
+      }),
+      findActiveContractBySeriesId: jest.fn().mockResolvedValue({ contractType: 'REVENUE_SHARE', mangakaId: 'm1' }),
+      update: jest.fn()
+    }
+    const service = new ReprintRequestService(
+      repo as never,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
+      { record: jest.fn().mockResolvedValue(undefined) } as never,
+      stateServiceMock() as never
+    )
+    await expect(service.mangakaReview(REQ_ID, { accept: true }, 'm2-not-owner')).rejects.toMatchObject({ status: 403 })
+    expect(repo.update).not.toHaveBeenCalled()
+  })
+
   it('mangakaReview accepts → assertTransition(PENDING → MANGAKA_APPROVED) + audit', async () => {
     const repo = {
       findById: jest.fn().mockResolvedValue({
@@ -330,5 +355,55 @@ describe('ReprintRequestService state-service wiring (B-RPT-02)', () => {
     await service.boardApprove(REQ_ID, { approve: false }, 'board-1')
     expect(stateService.assertTransition).toHaveBeenCalledWith('PENDING', 'REJECTED')
     expect(stateService.audit).toHaveBeenCalledWith(REQ_ID, 'PENDING', 'REJECTED', 'board-1', 'board rejected')
+  })
+
+  it('mangakaReview rejects → REJECTED_BY_MANGAKA (B-RPT-02 AC2, not board REJECTED)', async () => {
+    const repo = {
+      findById: jest.fn().mockResolvedValue({
+        id: REQ_ID,
+        seriesId: 's1',
+        requestedBy: 'editor-1',
+        status: 'PENDING',
+        chapters: []
+      }),
+      findActiveContractBySeriesId: jest.fn().mockResolvedValue({ contractType: 'REVENUE_SHARE', mangakaId: 'm1' }),
+      update: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'REJECTED_BY_MANGAKA' })
+    }
+    const stateService = stateServiceMock()
+    const service = new ReprintRequestService(
+      repo as never,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
+      { record: jest.fn().mockResolvedValue(undefined) } as never,
+      stateService as never
+    )
+    await service.mangakaReview(REQ_ID, { accept: false }, 'm1')
+    expect(repo.update).toHaveBeenCalledWith(REQ_ID, { status: 'REJECTED_BY_MANGAKA' })
+    expect(stateService.assertTransition).toHaveBeenCalledWith('PENDING', 'REJECTED_BY_MANGAKA')
+  })
+
+  // Regression guard cho blindspot mock: chạy với ReprintRequestStateService THẬT để chắc chắn
+  // bảng transition thực sự cho phép mangaka accept từ PENDING (trước đây mock che mất 409 runtime).
+  it('mangakaReview accepts with REAL state service (no InvalidReprintTransition)', async () => {
+    const realState = new ReprintRequestStateService({ record: jest.fn().mockResolvedValue(undefined) } as never)
+    const repo = {
+      findById: jest.fn().mockResolvedValue({
+        id: REQ_ID,
+        seriesId: 's1',
+        requestedBy: 'editor-1',
+        status: 'PENDING',
+        chapters: []
+      }),
+      findActiveContractBySeriesId: jest.fn().mockResolvedValue({ contractType: 'REVENUE_SHARE', mangakaId: 'm1' }),
+      update: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'MANGAKA_APPROVED' })
+    }
+    const service = new ReprintRequestService(
+      repo as never,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
+      { record: jest.fn().mockResolvedValue(undefined) } as never,
+      realState
+    )
+    await expect(service.mangakaReview(REQ_ID, { accept: true }, 'm1')).resolves.toMatchObject({
+      status: 'MANGAKA_APPROVED'
+    })
   })
 })

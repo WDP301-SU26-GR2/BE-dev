@@ -1,5 +1,6 @@
 import { NotificationType, SeriesStatus } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
+import { SeriesMessages } from '../series.messages'
 import { SeriesLifecycleService } from './series-lifecycle.service'
 
 const makeDeps = () => {
@@ -13,6 +14,7 @@ const makeDeps = () => {
       .fn()
       .mockResolvedValue({ id: 's1', mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.SERIALIZED }),
     setEndingChapterAllowance: jest.fn().mockResolvedValue(undefined),
+    countChaptersBySeriesId: jest.fn().mockResolvedValue(0),
     setHiatusStartedAt: jest.fn().mockResolvedValue(undefined),
     updatePublicationType: jest.fn().mockResolvedValue(undefined),
     // PB-06
@@ -22,21 +24,24 @@ const makeDeps = () => {
   }
   const bus = { emit: jest.fn() }
   const notify = { notifySafe: jest.fn().mockResolvedValue(undefined) }
-  return { state, repo, bus, notify }
+  const audit = { record: jest.fn().mockResolvedValue(undefined) }
+  return { state, repo, bus, notify, audit }
 }
 const make = (d: ReturnType<typeof makeDeps>) =>
-  new SeriesLifecycleService(d.state as never, d.repo as never, d.bus as never, d.notify as never)
+  new SeriesLifecycleService(d.state as never, d.repo as never, d.bus as never, d.notify as never, d.audit as never)
 
 describe('SeriesLifecycleService.cancel', () => {
   it('transitions to CANCELLING, sets allowance, emits SeriesCancelling, notifies', async () => {
     const d = makeDeps()
+    d.repo.countChaptersBySeriesId.mockResolvedValue(0)
     await make(d).cancel('s1', 3)
     expect(d.state.transition).toHaveBeenCalledWith(
       's1',
       SeriesStatus.CANCELLING,
       expect.objectContaining({ changedBy: null })
     )
-    expect(d.repo.setEndingChapterAllowance).toHaveBeenCalledWith('s1', 3)
+    expect(d.repo.countChaptersBySeriesId).toHaveBeenCalledWith('s1')
+    expect(d.repo.setEndingChapterAllowance).toHaveBeenCalledWith('s1', 3, 0)
     expect(d.bus.emit).toHaveBeenCalledWith(DomainEvent.SeriesCancelling, { seriesId: 's1' })
     expect(d.notify.notifySafe).toHaveBeenCalledTimes(2)
     expect(d.notify.notifySafe.mock.calls[0][0]).toMatchObject({
@@ -45,10 +50,31 @@ describe('SeriesLifecycleService.cancel', () => {
     })
   })
 
-  it('handles null allowance', async () => {
+  it('handles null allowance (snapshot vẫn lưu)', async () => {
     const d = makeDeps()
+    d.repo.countChaptersBySeriesId.mockResolvedValue(2)
     await make(d).cancel('s1')
-    expect(d.repo.setEndingChapterAllowance).toHaveBeenCalledWith('s1', null)
+    expect(d.repo.countChaptersBySeriesId).toHaveBeenCalledWith('s1')
+    expect(d.repo.setEndingChapterAllowance).toHaveBeenCalledWith('s1', null, 2)
+  })
+
+  it('snapshot count được đọc TRƯỚC transition (Fix-1 G-1)', async () => {
+    const d = makeDeps()
+    const callOrder: string[] = []
+    d.repo.countChaptersBySeriesId.mockImplementation(() => {
+      callOrder.push('count')
+      return Promise.resolve(7)
+    })
+    d.state.transition.mockImplementation(() => {
+      callOrder.push('transition')
+      return Promise.resolve({ id: 's1', mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.CANCELLING })
+    })
+    d.repo.setEndingChapterAllowance.mockImplementation(() => {
+      callOrder.push('set')
+      return Promise.resolve(undefined)
+    })
+    await make(d).cancel('s1', 3)
+    expect(callOrder).toEqual(['count', 'transition', 'set'])
   })
 })
 
@@ -89,6 +115,32 @@ describe('SeriesLifecycleService.changeFormat', () => {
     const d = makeDeps()
     await make(d).changeFormat('s1', undefined)
     expect(d.repo.updatePublicationType).not.toHaveBeenCalled()
+  })
+  it('changeFormat: notify owners bằng message mới + KHÔNG đụng Schedule (G-6)', async () => {
+    const d = makeDeps()
+    d.repo.findById = jest.fn().mockResolvedValue({
+      id: '507f1f77bcf86cd799439011',
+      mangakaId: '507f1f77bcf86cd799439012',
+      editorId: '507f1f77bcf86cd799439013'
+    })
+    d.repo.updatePublicationType = jest.fn().mockResolvedValue(undefined)
+    const service = make(d)
+
+    await service.changeFormat('507f1f77bcf86cd799439011', 'MONTHLY')
+
+    // notify tới CẢ mangaka + editor, dùng text từ catalog
+    expect(d.notify.notifySafe).toHaveBeenCalledTimes(2)
+    expect(d.notify.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceType: 'SERIES_FORMAT_CHANGED',
+        content: SeriesMessages.notification.seriesFormatChanged
+      })
+    )
+    // message mới PHẢI nhắc Editor về deadline
+    expect(SeriesMessages.notification.seriesFormatChanged).toContain('deadline')
+
+    // KHÔNG đụng Schedule
+    expect(d.repo.updateSchedule).toBeUndefined()
   })
 })
 
@@ -313,6 +365,21 @@ describe('SeriesLifecycleService.proposeCompletion (PB-06)', () => {
     expect(d.repo.setCompletionProposal).toHaveBeenCalled()
     expect(d.notify.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'e1', referenceType: 'SERIES_COMPLETION_PROPOSED' })
+    )
+  })
+  it('records audit COMPLETION_PROPOSED (Spec 9 §2.1 — proposal không đi qua state service nên phải audit riêng)', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({ id: S, status: SeriesStatus.SERIALIZED, mangakaId: 'm1', editorId: 'e1' })
+    d.repo.setCompletionProposal.mockResolvedValue({ id: S, status: SeriesStatus.SERIALIZED, mangakaId: 'm1' })
+    await make(d).proposeCompletion(S, 'm1', 'MANGAKA', { reason: 'story finished' })
+    expect(d.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'm1',
+        entityType: 'SERIES',
+        entityId: S,
+        action: 'COMPLETION_PROPOSED',
+        reason: 'story finished'
+      })
     )
   })
   it('editor proposes → notify mangaka', async () => {

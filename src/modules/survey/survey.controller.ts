@@ -20,7 +20,10 @@ import {
   UpdateSurveyPeriodStatusBodyDto,
   VotingConfigBodyDto,
   VotingConfigResDto,
-  VoteOtpRequestBodyDto
+  VoteContextResDto,
+  VoteOtpRequestBodyDto,
+  VoteResultsQueryDto,
+  VoteResultsResDto
 } from './dto/survey.dto'
 import { SurveyService } from './services/survey.service'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
@@ -29,12 +32,16 @@ import {
   RankingAccessDeniedException,
   SeriesNotFoundForRankingException,
   SurveyDataImportNotAllowedException,
+  SurveyPeriodNotFinalizedException,
   SurveyPeriodNotFoundException,
   SurveyPeriodNotOpenException,
   SurveyPeriodAlreadyFinalizedException,
   TooManySeriesSelectedException,
+  DuplicateSeriesInVoteException,
+  SeriesNotVotableException,
   VoteOtpNotFoundException,
   VoteOtpRateLimitException,
+  VoteIpLimitExceededException,
   VotingConfigNotFoundException
 } from './errors/survey.errors'
 
@@ -47,7 +54,7 @@ export class SurveyController {
   @Post('vote/otp')
   @IsPublic()
   @ApiOperation({ summary: 'Reader yêu cầu OTP cho Guest Voting. Public.' })
-  @ApiErrors(VoteOtpRateLimitException)
+  @ApiErrors(VoteOtpRateLimitException(0))
   @ZodResponse({ status: 200, type: MessageResDto })
   requestOtp(@Body() body: VoteOtpRequestBodyDto, @Req() req: Request) {
     return this.surveyService.requestOtp(body, req.ip ?? '')
@@ -61,11 +68,37 @@ export class SurveyController {
     SurveyPeriodNotFoundException,
     SurveyPeriodNotOpenException,
     VoteOtpNotFoundException,
-    TooManySeriesSelectedException
+    VoteIpLimitExceededException,
+    TooManySeriesSelectedException,
+    DuplicateSeriesInVoteException,
+    SeriesNotVotableException
   )
   @ZodResponse({ status: 200, type: MessageResDto })
   submitVote(@Body() body: ReaderVoteBodyDto, @Req() req: Request) {
     return this.surveyService.submitVote(body, req.ip ?? '')
+  }
+
+  // Fix-1 G-2: Public — kỳ OPEN + list series SERIALIZED cho trang vote Guest (B-VOT-08).
+  @Get('vote/context')
+  @IsPublic()
+  @ApiOperation({
+    summary: 'Public — kỳ bình chọn OPEN hiện tại + danh sách series SERIALIZED cho trang vote Guest'
+  })
+  @ZodResponse({ status: 200, type: VoteContextResDto })
+  getVoteContext() {
+    return this.surveyService.getVoteContext()
+  }
+
+  // Fix-1 G-2: Public — kết quả kỳ đã chốt (REFLECTED); ẩn tín hiệu biên tập nội bộ.
+  @Get('vote/results')
+  @IsPublic()
+  @ApiOperation({
+    summary: 'Public — bảng xếp hạng của kỳ đã chốt (REFLECTED); ẩn tín hiệu biên tập nội bộ'
+  })
+  @ApiErrors(SurveyPeriodNotFoundException, SurveyPeriodNotFinalizedException)
+  @ZodResponse({ status: 200, type: VoteResultsResDto })
+  getVoteResults(@Query() query: VoteResultsQueryDto) {
+    return this.surveyService.getVoteResults(query.surveyPeriodId)
   }
 
   @Get('survey-periods')

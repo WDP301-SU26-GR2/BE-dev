@@ -5,6 +5,7 @@ function makeRepo() {
   const prismaService = {
     user: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
       groupBy: jest.fn()
     },
@@ -71,5 +72,35 @@ describe('UsersRepository PA-15 moderation helpers', () => {
       _count: { _all: true }
     })
     expect(res).toEqual([{ role: { code: $Enums.RoleCode.EDITOR }, _count: { _all: 4 } }])
+  })
+})
+
+describe('UsersRepository — me (Spec 12)', () => {
+  const USER_ID = '012345678901234567890123'
+
+  it('findMeById filters soft-deleted with isSet:false (AGENTS §10)', async () => {
+    const { repo, prismaService } = makeRepo()
+    prismaService.user.findFirst.mockResolvedValue(null)
+    await repo.findMeById(USER_ID)
+    expect(prismaService.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: USER_ID, deletedAt: { isSet: false } } })
+    )
+  })
+
+  it('findMeById never selects password', async () => {
+    const { repo, prismaService } = makeRepo()
+    prismaService.user.findFirst.mockResolvedValue(null)
+    await repo.findMeById(USER_ID)
+    const arg = prismaService.user.findFirst.mock.calls[0][0]
+    expect(arg.select.password).toBeUndefined()
+  })
+
+  it('updateMe writes only the given data', async () => {
+    const { repo, prismaService } = makeRepo()
+    prismaService.user.update.mockResolvedValue({})
+    await repo.updateMe(USER_ID, { displayName: null })
+    expect(prismaService.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: USER_ID }, data: { displayName: null } })
+    )
   })
 })

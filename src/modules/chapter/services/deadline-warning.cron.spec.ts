@@ -61,3 +61,36 @@ describe('DeadlineWarningCron', () => {
     )
   })
 })
+
+describe('DeadlineWarningCron — cron hardening (audit 2026-07-11)', () => {
+  it('repo scan failure is swallowed (no unhandled rejection)', async () => {
+    const redis = { setNxEx: jest.fn().mockResolvedValue(true) }
+    const repo = {
+      findChaptersNearDeadline: jest.fn().mockRejectedValue(new Error('mongo down')),
+      findTasksNearDeadline: jest.fn(),
+      findSeriesRecipients: jest.fn()
+    }
+    const queue = { enqueue: jest.fn() }
+    const cron = new DeadlineWarningCron(redis as never, repo as never, queue as never)
+    await expect(cron.run()).resolves.toBeUndefined()
+  })
+
+  it('one failing chapter does not stop warnings for the rest', async () => {
+    const redis = { setNxEx: jest.fn().mockResolvedValue(true) }
+    const repo = {
+      findChaptersNearDeadline: jest.fn().mockResolvedValue([
+        { chapterId: 'c1', seriesId: 's1' },
+        { chapterId: 'c2', seriesId: 's2' }
+      ]),
+      findTasksNearDeadline: jest.fn().mockResolvedValue([]),
+      findSeriesRecipients: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('blip'))
+        .mockResolvedValueOnce({ mangakaId: 'm2', editorId: 'e2' })
+    }
+    const queue = { enqueue: jest.fn().mockResolvedValue(undefined) }
+    const cron = new DeadlineWarningCron(redis as never, repo as never, queue as never)
+    await expect(cron.run()).resolves.toBeUndefined()
+    expect(queue.enqueue).toHaveBeenCalledTimes(2) // m2 + e2 của chapter c2 vẫn được cảnh báo
+  })
+})
