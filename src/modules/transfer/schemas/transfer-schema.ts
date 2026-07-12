@@ -50,7 +50,12 @@ export const CreateTransferContractSchema = extendApi(
     transferRequestId: z.string().min(1, 'TRANSFER_REQUEST_ID_REQUIRED'),
     transferAmount: z.number().positive('AMOUNT_MUST_BE_POSITIVE'),
     transferType: zEnum($Enums.TransferType, 'TransferType'),
-    newOwnershipSplit: z.record(z.string(), z.any()).describe('Cấu hình chia tỷ lệ sở hữu doanh thu mới'),
+    newOwnershipSplit: z
+      .record(z.string(), z.number().min(0).max(100))
+      .refine((split) => Math.abs(Object.values(split).reduce((a, b) => a + b, 0) - 100) < 1e-6, {
+        message: 'Error.InvalidOwnershipSplit'
+      })
+      .describe('Cấu hình chia tỷ lệ sở hữu doanh thu mới — tổng các giá trị PHẢI = 100 (%)'),
     coOwnerApprovalRequired: z.boolean().default(false)
   }),
   { title: 'CreateTransferContractBody', description: 'Editor tạo hợp đồng chuyển nhượng 3 bên' }

@@ -33,7 +33,8 @@ function make() {
     )
   }
   const mangakaProfileService = {
-    getByUserId: jest.fn().mockResolvedValue({ userId: 'm1' }),
+    // getByUserId GRACEFUL (§19): luôn trả object; cờ hasProfile mới cho biết profile có thật.
+    getByUserId: jest.fn().mockResolvedValue({ userId: 'm1', hasProfile: true }),
     applyReputation: jest.fn().mockResolvedValue(undefined)
   }
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -91,5 +92,14 @@ describe('MangakaReviewService.createOrUpdate', () => {
         }
       ]
     })
+  })
+
+  // FINDING-BE-012 (flowtest 2026-07-11) — mirror của AssistantReviewService.
+  it('target chưa build MangakaProfile (hasProfile:false) → 404 ProfileNotFound, KHÔNG 500', async () => {
+    const m = make()
+    m.mangakaProfileService.getByUserId.mockResolvedValue({ userId: 'm1', hasProfile: false })
+    await expect(m.service.createOrUpdate('e1', { mangakaId: 'm1', rating: 5 })).rejects.toMatchObject({ status: 404 })
+    expect(m.reviewsRepository.upsertMangakaReview).not.toHaveBeenCalled()
+    expect(m.mangakaProfileService.applyReputation).not.toHaveBeenCalled()
   })
 })

@@ -43,6 +43,7 @@ lerna-debug.log*
 .env
 .env.production
 .env.local
+.env.flowtest
 
 # Spec/plan docs (superpowers) — root-level docs/ ONLY.
 # Leading slash = anchored to repo root, so `src/core/http/docs/` (real source,
@@ -80,3 +81,7 @@ ai-service/models/
 __pycache__/
 *.py[cod]
 *.egg-info/
+
+# Flowtest run logs (local-only)
+flowtest-results/
+server-flowtest*.log

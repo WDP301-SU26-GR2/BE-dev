@@ -245,6 +245,11 @@ export class ReprintRequestService {
       throw ReprintRequestErrors.ActionNotAllowed()
     }
 
+    // Ownership Principle (BR-CONTRACT-03): chỉ Mangaka của hợp đồng series này được review.
+    if (contract.mangakaId !== actorId) {
+      throw ReprintRequestErrors.ActionNotAllowed()
+    }
+
     if (request.status !== REPRINT_REQUEST_STATUS.PENDING && request.status !== REPRINT_REQUEST_STATUS.PROPOSED) {
       throw ReprintRequestErrors.InvalidReprintTransition()
     }

@@ -24,7 +24,6 @@ export const PaymentRecordModelSchema = extendApi(
     cancelReason: z.string().nullable(),
     note: z.string().nullable(),
     createdBy: z.string().nullable(),
-    userId: z.string().nullable(),
     createdAt: z.any()
   }),
   {

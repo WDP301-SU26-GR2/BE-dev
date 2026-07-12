@@ -1,5 +1,38 @@
 import { PaymentService } from './payment.service'
 import { PaymentRecordNotFoundException } from '../errors/payment.error'
+import { PaymentRecordModelSchema } from '../schemas/payment.model'
+
+// FINDING-BE-004 (flowtest 2026-07-11): schema từng khai field chết `userId` (PaymentRecord
+// entity KHÔNG có) → approve/pay/cancel trả 500 ZodSerializationException dù DB update OK.
+// Guard: schema phải parse được record shape Prisma thật (không userId).
+describe('PaymentRecordModelSchema khớp shape Prisma (FINDING-BE-004)', () => {
+  it('parse record Prisma-shaped (không có userId) → OK', () => {
+    const r = PaymentRecordModelSchema.safeParse({
+      id: '507f1f77bcf86cd799439013',
+      contractId: '507f1f77bcf86cd799439014',
+      conditionId: null,
+      receiverId: '507f1f77bcf86cd799439015',
+      seriesId: null,
+      description: null,
+      approvedBy: null,
+      approvedAt: null,
+      paymentType: 'REVENUE_SHARE',
+      paymentSource: 'CONTRACT',
+      amount: 100,
+      period: null,
+      paymentMethod: null,
+      transactionReference: null,
+      status: 'TRIGGERED',
+      paidAt: null,
+      cancelledAt: null,
+      cancelReason: null,
+      note: null,
+      createdBy: null,
+      createdAt: new Date()
+    })
+    expect(r.success).toBe(true)
+  })
+})
 
 type Mocks = {
   paymentRepo: any

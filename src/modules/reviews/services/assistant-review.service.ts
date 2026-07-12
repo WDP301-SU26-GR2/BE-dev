@@ -4,6 +4,7 @@ import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { StudioAssignmentService } from 'src/modules/studio/services/studio-assignment.service'
 import { AssistantProfileService } from 'src/modules/users/services/assistant-profile.service'
+import { ProfileNotFoundException } from 'src/modules/users/errors/users.errors'
 import { CannotReviewSelfException, ReviewRequiresEndedAssignmentException } from '../errors/reviews.errors'
 import { ReviewsRepository } from '../reviews.repo'
 import { CreateAssistantReviewBodyType, ReviewResType } from '../schemas/reviews-schemas'
@@ -29,8 +30,11 @@ export class AssistantReviewService {
       body.studioAssignmentId
     )
     if (!ended) throw ReviewRequiresEndedAssignmentException
-    // Validate target has an assistant profile (throws ProfileNotFoundException if missing).
-    await this.assistantProfileService.getByUserId(body.assistantId)
+    // Target PHẢI có AssistantProfile — reputation ghi lên profile (applyReputation = update).
+    // ⚠ getByUserId nay GRACEFUL (§19: chưa build profile → trả default + hasProfile:false, KHÔNG throw)
+    // nên phải check cờ tường minh; nếu không, applyReputation update record không tồn tại → P2025 → 500.
+    const targetProfile = await this.assistantProfileService.getByUserId(body.assistantId)
+    if (!targetProfile.hasProfile) throw ProfileNotFoundException
 
     const review = await this.reviewsRepository.upsertAssistantReview({
       mangakaId: reviewerId,

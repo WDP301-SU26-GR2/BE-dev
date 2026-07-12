@@ -13,7 +13,8 @@ import {
   ReviewListResDto,
   ReviewResDto
 } from './dto/reviews.dto'
-import { CannotReviewSelfException } from './errors/reviews.errors'
+import { CannotReviewSelfException, ReviewRequiresEndedAssignmentException } from './errors/reviews.errors'
+import { ProfileNotFoundException } from 'src/modules/users/errors/users.errors'
 import { ReviewsService } from './reviews.service'
 
 @ApiTags('reviews')
@@ -26,7 +27,7 @@ export class ReviewsController {
   @ApiOperation({
     summary: 'Mangaka đánh giá Assistant (rating 1-5 + comment) sau StudioAssignment → feed reputation (A-AUTH-07)'
   })
-  @ApiErrors(CannotReviewSelfException)
+  @ApiErrors(CannotReviewSelfException, ReviewRequiresEndedAssignmentException, ProfileNotFoundException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ReviewResDto })
   createAssistantReview(@Body() body: CreateAssistantReviewBodyDto, @ActiveUser('userId') userId: string) {
@@ -47,7 +48,7 @@ export class ReviewsController {
   @ApiOperation({
     summary: 'Editor đánh giá Mangaka (rating 1-5 + comment) sau series/hợp tác → feed reputation (A-AUTH-07)'
   })
-  @ApiErrors(CannotReviewSelfException)
+  @ApiErrors(CannotReviewSelfException, ProfileNotFoundException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ReviewResDto })
   createMangakaReview(@Body() body: CreateMangakaReviewBodyDto, @ActiveUser('userId') userId: string) {
