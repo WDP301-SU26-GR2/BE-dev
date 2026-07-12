@@ -1,10 +1,12 @@
 import { BoardService } from './board.service'
 import { DomainEvent } from 'src/core/events/domain-events'
+import * as Errors from '../errors/board.errors'
 
 const auditService = { record: jest.fn().mockResolvedValue(undefined) }
 const boardSessionStateService = {
   transition: jest.fn().mockImplementation((id: string, status: string) => Promise.resolve({ id, status }))
 }
+const boardRosterService = { suggest: jest.fn() }
 
 describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', () => {
   const activeSession = { id: '012345678901234567890123', status: 'ACTIVE', allowedEditorIds: ['b1', 'b2', 'b3', 'b4'] }
@@ -37,7 +39,8 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
       notificationService as never,
       eventBus as never,
       auditService as never,
-      boardSessionStateService as never
+      boardSessionStateService as never,
+      boardRosterService as never
     )
     return { service, eventBus, auditService: { record: auditService.record } }
   }
@@ -86,7 +89,8 @@ describe('BoardService notifications', () => {
       notificationService as never,
       eventBus as never,
       auditService as never,
-      boardSessionStateService as never
+      boardSessionStateService as never,
+      boardRosterService as never
     )
 
     await service.createSession('editor-1', {
@@ -128,7 +132,8 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
       notificationService as never,
       eventBus as never,
       auditService as never,
-      boardSessionStateService as never
+      boardSessionStateService as never,
+      boardRosterService as never
     )
     return { service, boardRepo }
   }
@@ -147,7 +152,8 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
       notificationService as never,
       eventBus as never,
       auditService as never,
-      boardSessionStateService as never
+      boardSessionStateService as never,
+      boardRosterService as never
     )
     return { service, boardRepo }
   }
@@ -245,7 +251,8 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
       notificationService as never,
       eventBus as never,
       audit as never,
-      state as never
+      state as never,
+      boardRosterService as never
     )
     return { service, boardRepo, audit, state }
   }
@@ -266,7 +273,8 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
       notificationService as never,
       eventBus as never,
       audit as never,
-      state as never
+      state as never,
+      boardRosterService as never
     )
     await expect(service.castVote('garbage', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toMatchObject({
       status: 404
@@ -319,7 +327,8 @@ describe('BoardService.concludeSession (Fix-2 G-7)', () => {
       notificationService as never,
       eventBus as never,
       audit as never,
-      stateService as never
+      stateService as never,
+      boardRosterService as never
     )
     return { service, boardRepo, notificationService, eventBus, audit, stateService }
   }
@@ -369,5 +378,70 @@ describe('BoardService.concludeSession (Fix-2 G-7)', () => {
     await d.service.concludeSession(SESSION_ID, 'creator1', 'EDITOR')
     expect(d.boardRepo.updateDecisionCounters).not.toHaveBeenCalled()
     expect(d.notificationService.notifySafe).toHaveBeenCalled()
+  })
+})
+
+describe('BoardService.createSession — roster source (Spec 12)', () => {
+  const SERIES_ID = '012345678901234567890124'
+
+  function makeCreateDeps() {
+    const boardRepo = {
+      findActiveSessionByTitle: jest.fn().mockResolvedValue(null),
+      createSession: jest.fn().mockResolvedValue({ id: '012345678901234567890123' })
+    }
+    const boardRosterService = { suggest: jest.fn() }
+    const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+    const service = new BoardService(
+      boardRepo as never,
+      { broadcastVoteProgress: jest.fn() } as never,
+      notificationService as never,
+      { emit: jest.fn() } as never,
+      { record: jest.fn() } as never,
+      { transition: jest.fn() } as never,
+      boardRosterService as never
+    )
+    return { service, boardRepo, boardRosterService }
+  }
+
+  const baseDto: any = { title: 'Pitch X', startTime: new Date() }
+
+  it('auto-assigns the roster when allowedEditorIds is omitted and seriesId is given', async () => {
+    const { service, boardRepo, boardRosterService } = makeCreateDeps()
+    boardRosterService.suggest.mockResolvedValue({
+      items: [{ userId: 'a' }, { userId: 'b' }, { userId: 'c' }],
+      size: 3
+    })
+    await service.createSession('creator', { ...baseDto, seriesId: SERIES_ID })
+    expect(boardRosterService.suggest).toHaveBeenCalledWith(SERIES_ID, undefined)
+    expect(boardRepo.createSession).toHaveBeenCalledWith('creator', expect.anything(), ['a', 'b', 'c'])
+  })
+
+  it('passes rosterSize through to the engine', async () => {
+    const { service, boardRosterService } = makeCreateDeps()
+    boardRosterService.suggest.mockResolvedValue({
+      items: [{ userId: 'a' }, { userId: 'b' }, { userId: 'c' }, { userId: 'd' }, { userId: 'e' }],
+      size: 5
+    })
+    await service.createSession('creator', { ...baseDto, seriesId: SERIES_ID, rosterSize: 5 })
+    expect(boardRosterService.suggest).toHaveBeenCalledWith(SERIES_ID, 5)
+  })
+
+  it('does NOT auto-assign when allowedEditorIds is provided (backward-compatible)', async () => {
+    const { service, boardRepo, boardRosterService } = makeCreateDeps()
+    await service.createSession('creator', { ...baseDto, allowedEditorIds: ['x', 'y', 'z'] })
+    expect(boardRosterService.suggest).not.toHaveBeenCalled()
+    expect(boardRepo.createSession).toHaveBeenCalledWith('creator', expect.anything(), ['x', 'y', 'z'])
+  })
+
+  it('throws when neither allowedEditorIds nor seriesId is given', async () => {
+    const { service } = makeCreateDeps()
+    await expect(service.createSession('creator', { ...baseDto })).rejects.toBe(Errors.RosterSourceRequiredException)
+  })
+
+  it('still rejects an EVEN roster passed by hand (B-BRD-05 defense-in-depth)', async () => {
+    const { service } = makeCreateDeps()
+    await expect(service.createSession('creator', { ...baseDto, allowedEditorIds: ['x', 'y'] })).rejects.toBe(
+      Errors.InvalidBoardMembersException
+    )
   })
 })

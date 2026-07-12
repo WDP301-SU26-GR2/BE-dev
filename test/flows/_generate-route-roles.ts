@@ -50,7 +50,18 @@ const main = async () => {
   const AppModule = mod.AppModule ?? mod.default
   if (!AppModule) throw new Error('AppModule not found — run pnpm build first')
 
-  const app = await NestFactory.createApplicationContext(AppModule, { logger: false })
+  const app = await NestFactory.createApplicationContext(AppModule, {
+    logger: false,
+    abortOnError: false,
+    bufferLogs: true
+  })
+  // Hard timeout — MongoDB replicaSet nếu chưa chạy sẽ treo vô hạn ở onModuleInit.
+  // 12s là đủ cho happy-path; nếu connect xong sớm hơn thì bước dưới đã xử lý xong.
+  const GEN_TIMEOUT_MS = 12_000
+  const genTimeout = setTimeout(() => {
+    console.error(`[generate-route-roles] Timeout ${GEN_TIMEOUT_MS}ms — kiểm tra MongoDB replicaSet + Redis đang chạy.`)
+    process.exit(3)
+  }, GEN_TIMEOUT_MS)
   const authKey = process.env.AUTH_TYPE_KEY ?? 'authType'
   const rules: Rule[] = []
 
@@ -153,6 +164,9 @@ ${lines.join('\n')}
   const counts = { PUBLIC: 0, AUTH: 0, ROLES: 0 }
   unique.forEach((r) => counts[r.access]++)
   console.log(`[generate-route-roles] PUBLIC=${counts.PUBLIC} AUTH=${counts.AUTH} ROLES=${counts.ROLES}`)
+  clearTimeout(genTimeout)
+  // exit explicitly — Mongo keep-alive socket nếu không đóng gọn sẽ block process thoát.
+  process.exit(0)
 }
 
 void main().catch((e) => {

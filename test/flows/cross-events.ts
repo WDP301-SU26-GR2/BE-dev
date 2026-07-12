@@ -149,7 +149,10 @@ const main = async () => {
     status: NameStatus.IN_REVIEW
   })
   await prisma.chapter.update({ where: { id: chName.id }, data: { nameId: nChap.id } })
-  const rApproveChName = await req('POST', `/series/${sSer.id}/names/${nChap.id}/approve`, { token: e1Tok, body: {} })
+  const rApproveChName = await req('POST', `/chapters/${chName.id}/names/${nChap.id}/approve`, {
+    token: e1Tok,
+    body: {}
+  })
   await sleep(800)
   ok(
     'EV-02 NameApproved(kind=CHAPTER) → series GIỮ SERIALIZED (listener no-op)',

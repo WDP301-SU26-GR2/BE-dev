@@ -71,14 +71,14 @@ export class BoardRepository {
     return this.prisma.boardSession.findFirst({ where: { status: 'ACTIVE' } })
   }
 
-  async createSession(creatorId: string, dto: CreateBoardSessionBodyDto) {
+  async createSession(creatorId: string, dto: CreateBoardSessionBodyDto, allowedEditorIds: string[]) {
     return this.prisma.boardSession.create({
       data: {
         title: dto.title,
         description: dto.description ?? null,
         creatorId: creatorId,
         status: 'UPCOMING',
-        allowedEditorIds: dto.allowedEditorIds,
+        allowedEditorIds,
         startTime: dto.startTime,
         endTime: dto.endTime ?? null
       }
@@ -169,5 +169,29 @@ export class BoardRepository {
 
   async getActiveConfig() {
     return this.prisma.boardConfig.findFirst()
+  }
+
+  // ================= AUTO-ASSIGN ROSTER (Spec 12 / PB-05) =================
+  findSeriesGenres(seriesId: string) {
+    return this.prisma.series.findFirst({ where: { id: seriesId }, select: { id: true, genres: true } })
+  }
+
+  async findRoleIdByCode(code: string) {
+    const role = await this.prisma.role.findUnique({ where: { code } })
+    return role?.id ?? null
+  }
+
+  // Ứng viên roster: BOARD_MEMBER đang ACTIVE, chưa xoá mềm (gotcha §10: isSet:false).
+  findActiveBoardMembers(roleId: string) {
+    return this.prisma.user.findMany({
+      where: { roleId, status: 'ACTIVE', deletedAt: { isSet: false } },
+      select: {
+        id: true,
+        displayName: true,
+        avatar: true,
+        createdAt: true,
+        staffProfile: { select: { specialtyGenres: true } }
+      }
+    })
   }
 }

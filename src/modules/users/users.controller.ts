@@ -20,7 +20,11 @@ import {
   ListAssistantsQueryDto,
   ListUsersQueryDto,
   MangakaProfileBodyDto,
-  MangakaProfileResDto
+  MangakaProfileResDto,
+  MeResDto,
+  StaffProfileBodyDto,
+  StaffProfileResDto,
+  UpdateMeBodyDto
 } from './dto/users.dto'
 import {
   CannotModifyAdminUserException,
@@ -122,6 +126,26 @@ export class UsersController {
     return this.usersService.getAdminStats()
   }
 
+  @Get('me')
+  @ApiOperation({ summary: 'Xem thông tin tài khoản của chính mình (mọi role)' })
+  @ApiErrors(UserNotFoundException)
+  @ZodResponse({ status: 200, type: MeResDto })
+  getMe(@ActiveUser('userId') userId: string) {
+    return this.usersService.getMe(userId)
+  }
+
+  @Patch('me')
+  @ApiOperation({
+    summary:
+      "Cập nhật thông tin tài khoản của chính mình (name/displayName/avatar/phoneNumber). '' = xoá field nullable"
+  })
+  @ApiErrors(UserNotFoundException)
+  @ApiResponse({ status: 422, description: 'Validation fail (gửi email/role/status → strict reject)' })
+  @ZodResponse({ status: 200, type: MeResDto })
+  updateMe(@Body() body: UpdateMeBodyDto, @ActiveUser('userId') userId: string) {
+    return this.usersService.updateMe(userId, body)
+  }
+
   @Put('me/mangaka-profile')
   @ApiOperation({ summary: 'Mangaka tạo/cập nhật hồ sơ của mình (penName/genres/level/bio/portfolio) — lazy 1:1' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
@@ -182,5 +206,33 @@ export class UsersController {
   @ZodResponse({ status: 200, type: AssistantProfileResDto })
   getAssistantProfile(@Param('userId') userId: string) {
     return this.usersService.getAssistantProfile(userId)
+  }
+
+  @Put('me/staff-profile')
+  @ApiOperation({
+    summary: 'Editor/Board tạo/cập nhật hồ sơ của mình (specialtyGenres/demographics/bio) — lazy 1:1'
+  })
+  @ApiResponse({ status: 422, description: 'Validation fail' })
+  @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 200, type: StaffProfileResDto })
+  upsertStaffProfile(@Body() body: StaffProfileBodyDto, @ActiveUser('userId') userId: string) {
+    return this.usersService.upsertStaffProfile(userId, body)
+  }
+
+  @Get('me/staff-profile')
+  @ApiOperation({ summary: 'Editor/Board xem hồ sơ của mình' })
+  @ApiErrors(ProfileNotFoundException)
+  @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 200, type: StaffProfileResDto })
+  getMyStaffProfile(@ActiveUser('userId') userId: string) {
+    return this.usersService.getMyStaffProfile(userId)
+  }
+
+  @Get('staff/:userId')
+  @ApiOperation({ summary: 'Xem hồ sơ Editor/Board công khai (ẩn email/phone)' })
+  @ApiErrors(ProfileNotFoundException)
+  @ZodResponse({ status: 200, type: StaffProfileResDto })
+  getStaffProfile(@Param('userId') userId: string) {
+    return this.usersService.getStaffProfile(userId)
   }
 }

@@ -161,14 +161,18 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.EditorNotInvited': 'caller is not in session.allowedEditorIds for report submission',
   'Error.InvalidBoardSessionTransition': 'board session status transition is not allowed by BOARD_SESSION_TRANSITIONS',
   'Error.NotSessionCreator': 'only the board session creator or a Super Admin can conclude the session',
-  // Spec 10 — Chapter-first flow (Task 2)
+  'Error.NotEnoughBoardMembers': 'fewer than 3 active board members exist — cannot form a valid session',
+  'Error.RosterSourceRequired': 'provide allowedEditorIds, or seriesId so the roster can be auto-assigned',
   'Error.ChapterNotDraftForName': 'chapter must be in DRAFT status to create a Name',
   'Error.ChapterNameAlreadyExists': 'this chapter already has a Name assigned',
+  // Spec 10 — Chapter-first flow (Task 2)
   // Spec 10 — Chapter-first flow (Task 3): Page upload gate
   'Error.ChapterNameNotApproved': 'Name must be APPROVED before uploading pages; create/approve the Name first',
   // Spec 10 — Chapter-first flow (Task 4): Update chapter
   'Error.ChapterNotEditable': 'chapter title cannot be changed after PUBLISHED',
   'Error.ChapterNumberLocked': 'chapterNumber can only be changed while the chapter is in DRAFT status',
   // Spec 10 — Chapter-first flow (Task 5): Delete chapter
-  'Error.ChapterNotDeletable': 'chapter can only be deleted while in DRAFT status'
+  'Error.ChapterNotDeletable': 'chapter can only be deleted while in DRAFT status',
+  // Spec 12 — chapter-Name delete (Task 14)
+  'Error.NameNotDeletable': 'only a not-yet-approved Name on a DRAFT chapter can be deleted'
 }

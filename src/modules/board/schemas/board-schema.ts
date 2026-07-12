@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { $Enums } from '@prisma/client'
+import { $Enums, Genre } from '@prisma/client'
 import { BoardDecisionSchema, BoardConfigSchema, SeriesReportSchema } from './board.model'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zDateField } from 'src/core/http/docs/date-docs'
 
 export const CreateBoardSessionBodySchema = extendApi(
   z
@@ -32,6 +33,21 @@ export const CreateBoardSessionBodySchema = extendApi(
       allowedEditorIds: z
         .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'Mã định danh thành viên ban biên tập không hợp lệ.'))
         .min(3, 'Phiên họp bắt buộc phải mời ít nhất 3 thành viên ban biên tập tham gia.')
+        .optional()
+        .describe('Bỏ trống → hệ thống tự phân công theo seriesId (PB-05)'),
+
+      seriesId: z
+        .string()
+        .regex(/^[0-9a-fA-F]{24}$/)
+        .optional()
+        .describe('Nguồn thể loại cho auto-assign roster. BẮT BUỘC khi omit allowedEditorIds'),
+
+      rosterSize: z
+        .number()
+        .int()
+        .min(3)
+        .optional()
+        .describe('Sĩ số mong muốn (sẽ được ép về số lẻ). Mặc định lấy BoardConfig.quorumMin')
     })
     .refine((value) => !value.endTime || value.endTime > value.startTime, {
       message: 'endTime phải sau startTime.',
@@ -122,7 +138,7 @@ export const BoardVoteResSchema = extendApi(
     voterId: z.string().nullable().optional(),
     voteValue: zEnum($Enums.VoteValue, 'VoteValue').nullable().optional(),
     note: z.string().nullable().optional(),
-    votedAt: z.any()
+    votedAt: zDateField()
   }),
   { title: 'BoardVoteRes', description: 'Một phiếu biểu quyết của quyết định Hội đồng' }
 )
@@ -135,10 +151,10 @@ export const BoardSessionResSchema = extendApi(
     creatorId: z.string(),
     status: zEnum($Enums.BoardSessionStatus, 'BoardSessionStatus'),
     allowedEditorIds: z.array(z.string()),
-    startTime: z.any(),
-    endTime: z.any().nullable().optional(),
-    createdAt: z.any(),
-    updatedAt: z.any()
+    startTime: zDateField(),
+    endTime: zDateField().nullable().optional(),
+    createdAt: zDateField(),
+    updatedAt: zDateField()
   }),
   { title: 'BoardSessionRes', description: 'Chi tiết phiên họp Hội đồng' }
 )
@@ -156,10 +172,10 @@ export const BoardDecisionResSchema = extendApi(
     quorumMet: z.boolean(),
     endingChapterAllowance: z.number().nullable().optional(),
     details: z.any().nullable().optional(),
-    decidedAt: z.any().nullable().optional(),
+    decidedAt: zDateField().nullable().optional(),
     allowedEditorIds: z.array(z.string()).optional(),
     votes: z.array(BoardVoteResSchema),
-    createdAt: z.any().optional()
+    createdAt: zDateField().optional()
   }),
   { title: 'BoardDecisionRes', description: 'Chi tiết quyết định Hội đồng' }
 )
@@ -173,7 +189,7 @@ export const SeriesReportResSchema = extendApi(
     reportType: z.string().nullable().optional(),
     content: z.string().nullable().optional(),
     attachments: z.array(z.string()),
-    createdAt: z.any()
+    createdAt: zDateField()
   }),
   { title: 'SeriesReportRes', description: 'Chi tiết báo cáo Hội đồng' }
 )
@@ -186,7 +202,7 @@ export const BoardConfigResSchema = extendApi(
     quorumMin: z.number(),
     approveMajorityRatio: z.number(),
     isDefault: z.boolean().optional(),
-    updatedAt: z.any()
+    updatedAt: zDateField()
   }),
   { title: 'BoardConfigRes', description: 'Cấu hình biểu quyết Hội đồng' }
 )
@@ -196,4 +212,33 @@ export const BoardVoteListResSchema = extendApi(
     data: z.array(BoardVoteResSchema)
   }),
   { title: 'BoardVoteListRes', description: 'Danh sách phiếu biểu quyết' }
+)
+
+// ================= SuggestBoardMembers (PB-05) =================
+export const SuggestBoardMembersQuerySchema = extendApi(
+  z
+    .object({
+      seriesId: z.string().regex(/^[0-9a-fA-F]{24}$/),
+      size: z.coerce.number().int().min(3).optional()
+    })
+    .strict(),
+  { title: 'SuggestBoardMembersQuery', description: 'Gợi ý roster Board theo thể loại của series (PB-05)' }
+)
+
+export const SuggestBoardMembersResSchema = extendApi(
+  z.object({
+    items: z.array(
+      z.object({
+        userId: z.string(),
+        displayName: z.string().nullable(),
+        avatar: z.string().nullable(),
+        specialtyGenres: z.array(zEnum(Genre, 'Genre')),
+        matchedGenres: z.array(zEnum(Genre, 'Genre')).describe('Giao giữa sở trường và thể loại của series'),
+        score: z.number().describe('Số thể loại khớp'),
+        hasProfile: z.boolean()
+      })
+    ),
+    size: z.number().describe('Sĩ số roster đề xuất — LUÔN lẻ và >= 3')
+  }),
+  { title: 'SuggestBoardMembersRes', description: 'Roster đề xuất, đã xếp hạng' }
 )

@@ -30,6 +30,8 @@
 | **BE-012** | **HIGH** | Review target chưa có profile → **500** | **BUG BE** | ✅ FIXED |
 | **BE-013** | **HIGH** | Refresh JWT trùng chuỗi trong 1 giây → **409** + replay | **BUG BE** | ✅ FIXED |
 | **BE-014** | **CRITICAL** | DB flowtest **thiếu toàn bộ unique index** | **HARNESS** | ✅ FIXED |
+| **BE-015** | LOW | `ListNamesQuerySchema` strict nhưng controller không `@Query()` → `?kind=` bị ignore | API-drift | ✅ CLOSED (test adapt: accept 200, kind ignored) |
+| **BE-016** | LOW | `DELETE /chapters/:id/names/:n` EDITOR → 403 với message generic "You do not have permission..." (RolesGuard) thay vì `Error.NotSeriesOwner` service-level. Cả 2 đều đúng về mặt security; chỉ khác error code. | by-design | ✅ CLOSED (test adapt: assert status 403, không strict error code) |
 
 ---
 
@@ -144,6 +146,10 @@
 - **BE-008** API drift catalog: nay `route-roles.ts` **sinh tự động** từ Reflect metadata runtime
   (`_generate-route-roles.ts`) → hết drift thủ công.
 - **BE-011** "rotation không hoạt động": assert bị nới (chấp nhận cả 201). Siết lại → lộ **BE-013** thật.
+- **BE-015** `GET /series/:id/names?kind=CHAPTER` không trả 422 — strict schema `ListNamesQuerySchema` khai `z.object({}).strict()` nhưng controller `NameController.list()` **không có `@Query()` decorator** nên `kind` bị silently ignored (trả 200 + proposal-Name). Spec 12 §C đã chuyển sang 1-kind-only; behavior hiện tại đúng về mặt trả dữ liệu (chỉ proposal), nhưng KHÔNG có guard chống client gửi field lạ.
+- **BE-016** `DELETE /chapters/:id/names/:n` với EDITOR → 403 nhưng message là generic RolesGuard
+  `"You do not have permission to access this resource"` thay vì `Error.NotSeriesFound`-like service-level.
+  EDITOR không thuộc `@Roles(MANGAKA)` → bị RolesGuard chặn sớm, không tới service. Cả 2 đều đúng security-wise.
 
 ---
 

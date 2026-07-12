@@ -47,10 +47,7 @@ export class TransferController {
   @ApiErrors(NoActiveContractFoundException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TransferRequestResDto })
-  createTransferRequest(
-    @Body() body: CreateTransferRequestBodyDto,
-    @ActiveUser('userId') userId: string
-  ): Promise<InstanceType<typeof TransferRequestResDto>> {
+  createTransferRequest(@Body() body: CreateTransferRequestBodyDto, @ActiveUser('userId') userId: string) {
     return this.transferService.createTransferRequest(userId, body)
   }
 
@@ -58,9 +55,7 @@ export class TransferController {
   @ApiOperation({ summary: 'Danh sách yêu cầu chuyển nhượng của Mangaka hiện tại' })
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: TransferRequestListResDto })
-  getTransferRequestsByMangaka(
-    @ActiveUser('userId') userId: string
-  ): Promise<InstanceType<typeof TransferRequestListResDto>> {
+  getTransferRequestsByMangaka(@ActiveUser('userId') userId: string) {
     return this.transferService.getTransferRequestsByMangaka(userId)
   }
 
@@ -68,7 +63,7 @@ export class TransferController {
   @ApiOperation({ summary: 'Danh sách yêu cầu chuyển nhượng chờ Board xử lý' })
   @Roles(RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: TransferRequestListResDto })
-  getPendingBoardRequests(): Promise<InstanceType<typeof TransferRequestListResDto>> {
+  getPendingBoardRequests() {
     return this.transferService.getPendingBoardRequests()
   }
 
@@ -77,7 +72,7 @@ export class TransferController {
   @ApiErrors(TransferRequestNotFoundException)
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: TransferRequestResDto })
-  getTransferRequestById(@Param('id') id: string): Promise<InstanceType<typeof TransferRequestResDto>> {
+  getTransferRequestById(@Param('id') id: string) {
     return this.transferService.getTransferRequestById(id)
   }
 
@@ -87,10 +82,7 @@ export class TransferController {
   @ApiErrors(TransferRequestNotFoundException, InvalidStatusForScreeningException)
   @Roles(RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 201, type: TransferRequestResDto })
-  boardApproveScreening(
-    @Param('id') id: string,
-    @Body() body: BoardDecisionTransferBodyDto
-  ): Promise<InstanceType<typeof TransferRequestResDto>> {
+  boardApproveScreening(@Param('id') id: string, @Body() body: BoardDecisionTransferBodyDto) {
     return this.transferService.boardApproveScreening(id, body)
   }
 
@@ -100,10 +92,7 @@ export class TransferController {
   @ApiErrors(TransferRequestNotFoundException, InvalidStatusForScreeningException)
   @Roles(RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 201, type: TransferRequestResDto })
-  boardRejectScreening(
-    @Param('id') id: string,
-    @Body() body: BoardDecisionTransferBodyDto
-  ): Promise<InstanceType<typeof TransferRequestResDto>> {
+  boardRejectScreening(@Param('id') id: string, @Body() body: BoardDecisionTransferBodyDto) {
     return this.transferService.boardRejectScreening(id, body)
   }
 
@@ -128,7 +117,7 @@ export class TransferController {
   @ApiErrors(TransferRequestNotFoundException, OnlyAppliesToRevenueShareException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: TransferRequestResDto })
-  startNegotiation(@Param('id') id: string): Promise<InstanceType<typeof TransferRequestResDto>> {
+  startNegotiation(@Param('id') id: string) {
     return this.transferService.startNegotiation(id)
   }
 
@@ -137,7 +126,7 @@ export class TransferController {
   @ApiErrors(TransferRequestNotFoundException, RequestNotInNegotiatingStageException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TransferRequestResDto })
-  mangakaAcceptTransfer(@Param('id') id: string): Promise<InstanceType<typeof TransferRequestResDto>> {
+  mangakaAcceptTransfer(@Param('id') id: string) {
     return this.transferService.mangakaAcceptTransfer(id)
   }
 
@@ -146,7 +135,7 @@ export class TransferController {
   @ApiErrors(TransferRequestNotFoundException, RequestNotInNegotiatingStageException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TransferRequestResDto })
-  mangakaRejectTransfer(@Param('id') id: string): Promise<InstanceType<typeof TransferRequestResDto>> {
+  mangakaRejectTransfer(@Param('id') id: string) {
     return this.transferService.mangakaRejectTransfer(id)
   }
 
@@ -156,9 +145,7 @@ export class TransferController {
   @ApiErrors(TransferRequestNotFoundException, InvalidTransferStateException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: TransferContractResDto })
-  createTransferContract(
-    @Body() body: CreateTransferContractBodyDto
-  ): Promise<InstanceType<typeof TransferContractResDto>> {
+  createTransferContract(@Body() body: CreateTransferContractBodyDto) {
     return this.transferService.createTransferContract(body)
   }
 
@@ -187,7 +174,7 @@ export class TransferController {
   @ApiErrors(TransferContractNotFoundException)
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: TransferSignatureListResDto })
-  getSignatures(@Param('id') id: string): Promise<InstanceType<typeof TransferSignatureListResDto>> {
+  getSignatures(@Param('id') id: string) {
     return this.transferService.getSignatures(id)
   }
 

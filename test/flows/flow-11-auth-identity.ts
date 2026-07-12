@@ -542,6 +542,103 @@ const main = async () => {
     `got ${rReviewNoQuery.status}`
   )
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Y — GET/PATCH /me + StaffProfile (Spec 12 Part A + B)
+  // ──────────────────────────────────────────────────────────────────────────
+  section('Y — /me self-service + staff profile (Spec 12)')
+
+  // F11-070 — GET /me (MANGAKA) → 200; không password; role đúng
+  const meM = await req('GET', '/me', { token: mangakaTok })
+  ok('F11-070 GET /me (MANGAKA) 200', meM.status === 200, `got ${meM.status}`)
+  ok('F11-070b KHÔNG password', !!meM.json?.data && !('password' in meM.json.data))
+  ok('F11-070c role=MANGAKA', meM.json?.data?.role === 'MANGAKA')
+
+  // F11-071 — PATCH /me displayName
+  const p11 = await req('PATCH', '/me', { token: mangakaTok, body: { displayName: 'Kishi' } })
+  ok('F11-071 PATCH /me displayName → 200', p11.status === 200, `got ${p11.status}`)
+  ok('F11-071b áp dụng', p11.json?.data?.displayName === 'Kishi', JSON.stringify(p11.json?.data?.displayName))
+
+  // F11-072 — PATCH /me displayName='' → CLEAR
+  const p12 = await req('PATCH', '/me', { token: mangakaTok, body: { displayName: '' } })
+  ok("F11-072 '' → displayName null", p12.json?.data?.displayName === null, JSON.stringify(p12.json?.data?.displayName))
+
+  // F11-073 — PATCH /me displayName=null → GIỮ NGUYÊN
+  await req('PATCH', '/me', { token: mangakaTok, body: { displayName: 'Test' } })
+  const p13 = await req('PATCH', '/me', { token: mangakaTok, body: { displayName: null } })
+  ok('F11-073 null → no-op', p13.json?.data?.displayName === 'Test', JSON.stringify(p13.json?.data?.displayName))
+
+  // F11-074 — PATCH /me { email } → 422 (strict, BE trả ZodValidation message[] tiếng Anh)
+  const p14 = await req('PATCH', '/me', { token: mangakaTok, body: { email: 'x@y.z' } })
+  ok('F11-074 PATCH email → 422', p14.status === 422, `got ${p14.status}`)
+
+  // F11-075 — PATCH /me { role: 'SUPER_ADMIN' } → 422
+  const p15 = await req('PATCH', '/me', { token: mangakaTok, body: { role: 'SUPER_ADMIN' } })
+  ok('F11-075 PATCH role → 422', p15.status === 422, `got ${p15.status}`)
+
+  // F11-076 — PATCH /me phoneNumber non-E.164 → 422
+  const p16 = await req('PATCH', '/me', { token: mangakaTok, body: { phoneNumber: '0912345678' } })
+  ok('F11-076 PATCH phone non-E.164 → 422', p16.status === 422, `got ${p16.status}`)
+
+  // F11-077 — PATCH /me name 'A' (< 2 chars) → 422
+  const p17 = await req('PATCH', '/me', { token: mangakaTok, body: { name: 'A' } })
+  ok('F11-077 PATCH name < 2 chars → 422', p17.status === 422, `got ${p17.status}`)
+
+  // F11-078 — GET /me KHÔNG token → 401
+  const meNo = await req('GET', '/me', {})
+  ok('F11-078 GET /me no token → 401', meNo.status === 401, `got ${meNo.status}`)
+
+  // F11-079 — PUT /me/staff-profile (EDITOR) → 200 hasProfile=true
+  const sp1 = await req('PUT', '/me/staff-profile', {
+    token: editorTok2,
+    body: { specialtyGenres: ['ACTION'], demographics: ['SHONEN'], bio: 'test', yearsOfExperience: 3 }
+  })
+  ok('F11-079 PUT /me/staff-profile (EDITOR) 200', sp1.status === 200, `got ${sp1.status}`)
+  ok('F11-079b hasProfile=true', sp1.json?.data?.hasProfile === true)
+
+  // F11-080 — PUT /me/staff-profile (MANGAKA) → 403 (RolesGuard generic)
+  const spDenied = await req('PUT', '/me/staff-profile', {
+    token: mangakaTok,
+    body: { specialtyGenres: [] }
+  })
+  ok('F11-080 PUT /me/staff-profile (MANGAKA) → 403', spDenied.status === 403, `got ${spDenied.status}`)
+
+  // F11-081 — GET /staff/:editorId → 200 hasProfile=true (dùng editor từ setup)
+  const editorId = rAdminCreate.json?.data?.id as string
+  const stE = await req('GET', `/staff/${editorId}`, { token: mangakaTok })
+  ok('F11-081 GET /staff/:editorId 200', stE.status === 200, `got ${stE.status}`)
+
+  // F11-082 — GET /staff/:boardId chưa build hồ sơ → 200 hasProfile:false (graceful)
+  // Tạo 1 board member mới, KHÔNG tạo StaffProfile cho họ.
+  const staffBoard = await makeUser(RoleCode.BOARD_MEMBER)
+  const staffBoardTok = await login(staffBoard.email)
+  const stBoard = await req('GET', `/staff/${staffBoard.id}`, { token: mangakaTok })
+  ok(
+    'F11-082 GET /staff/:boardId no profile → 200 hasProfile=false',
+    stBoard.status === 200 && stBoard.json?.data?.hasProfile === false,
+    `got ${stBoard.status} ${JSON.stringify(stBoard.json?.data?.hasProfile)}`
+  )
+
+  // F11-083 — PUT /me/staff-profile (BOARD_MEMBER) → 200
+  const spBoard = await req('PUT', '/me/staff-profile', {
+    token: staffBoardTok,
+    body: { specialtyGenres: ['ROMANCE'], demographics: ['SHOJO'] }
+  })
+  ok('F11-083 PUT /me/staff-profile (BOARD_MEMBER) 200', spBoard.status === 200, `got ${spBoard.status}`)
+
+  // F11-084 — PUT /me/staff-profile (ASSISTANT) → 403 (RolesGuard generic)
+  const spAsst = await req('PUT', '/me/staff-profile', { token: asstTok, body: { specialtyGenres: [] } })
+  ok('F11-084 PUT /me/staff-profile (ASSISTANT) → 403', spAsst.status === 403, `got ${spAsst.status}`)
+
+  // F11-085 — GET /staff/:mangakaId → 404 (sai role — StaffProfile chỉ cho EDITOR/BOARD)
+  const stMg = await req('GET', `/staff/${(await prisma.user.findFirst({ where: { email: email1 } }))?.id}`, {
+    token: mangakaTok
+  })
+  ok('F11-085 GET /staff/:mangakaId → 404', stMg.status === 404, `got ${stMg.status}`)
+
+  // F11-086 — GET /staff/garbage → 404 (id rác, KHÔNG 500)
+  const stGhost = await req('GET', `/staff/${FAKE_ID}`, { token: mangakaTok })
+  ok('F11-086 GET /staff/garbage → 404', stGhost.status === 404, `got ${stGhost.status}`)
+
   await prisma.$disconnect()
   const fail = summary(FLOW)
   await sleep(300)

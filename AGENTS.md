@@ -197,6 +197,16 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
 
 ## 10. Gotchas (đọc kỹ — build/test tĩnh KHÔNG bắt được)
 
+- **🔴 Response date field — 2 pattern, đừng trộn:** module **có mapper** (BE-A) khai `z.string()` + mapper
+  `.toISOString()`. Module **parse thẳng Prisma entity** (BE-B) dùng **`zDateField()`**
+  (`core/http/docs/date-docs.ts`). ⚠ `zDateField` PHẢI là `z.preprocess` — KHÔNG dùng
+  `z.union([z.date(), z.string()]).transform(...)`: `z.toJSONSchema` sẽ ném *"Transforms cannot be represented
+  in JSON Schema"* → **vỡ boot Swagger**. Đổi `z.any()` → `z.string()` mà KHÔNG convert cũng sai (Date không phải
+  string → ZodSerializationException → **500**, đúng lớp bug BE-004).
+- **🔴 ListNamesQuery / Empty strict query: `nestjs-zod` vỡ boot nếu `@Query()` schema là `z.object({}).strict()`** —
+  `cleanupOpenApiDoc` yêu cầu "Query or url parameters must be an object type" (non-empty). Workaround:
+  thêm **một field optional** vào schema (vd `page: z.coerce.number().int().min(1).optional()`) và giữ `.strict()`.
+  Đây là cách `name.controller.list()` enforce `?kind=CHAPTER → 422` (tách vai Spec 12 Part C).
 - **DTO date field (schema đi vào `@ZodResponse` hoặc request body) → `z.string()` ISO**, KHÔNG
   `z.date()`/`z.coerce.date()` (vỡ Swagger zod v4 lúc boot). Convert Date → ISO ở mapper.
   ⚠ **Ngoại lệ hợp lệ:** schema **entity nội bộ** — chỉ dùng để `z.infer` ra data-type khớp Prisma,
@@ -258,6 +268,7 @@ Mỗi refactor/feature phải giữ:
 - **Enum field (BẮT BUỘC):** field enum (status, role/type, ...) ở **CẢ body/query/response** dùng
   `zEnum(PrismaEnum, 'Key')` / `zRole()` / `zRoleSubset([...])` từ `src/core/http/docs/enum-docs.ts`, **KHÔNG**
   `z.string()`. Mô tả enum sống tập trung ở `ENUM_DOCS`; date field response vẫn `z.string()` ISO (xem §10).
+- `core/http/docs/date-docs.ts` — `zDateField()` helper (Spec 12 Part D).
 - **Mô tả field:** field id/object-key/audit/nullable-có-ngữ-nghĩa → `.describe('...')` ngay trên zod field
   (vd `editorId: z.string().nullable().describe('null = ở hàng đợi review')`). Field hiển nhiên (title) thì bỏ qua.
 - **Operation:** mỗi route mutating có `@ApiOperation({ summary })` (1 câu mô tả hành vi + transition).

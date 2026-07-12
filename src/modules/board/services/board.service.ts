@@ -19,6 +19,7 @@ import { DomainEvent, DomainEventPayload } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { BoardSessionStateService } from './board-session-state.service'
+import { BoardRosterService } from './board-roster.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
@@ -33,7 +34,8 @@ export class BoardService {
     private readonly notificationService: NotificationService,
     private readonly eventBus: DomainEventBus,
     private readonly auditService: AuditService,
-    private readonly boardSessionStateService: BoardSessionStateService
+    private readonly boardSessionStateService: BoardSessionStateService,
+    private readonly boardRosterService: BoardRosterService
   ) {}
 
   /**
@@ -41,18 +43,27 @@ export class BoardService {
    * Spec 7 / B-BRD-05: sĩ số đại biểu bắt buộc lẻ (loại trừ hòa phiếu).
    */
   async createSession(creatorId: string, dto: CreateBoardSessionBodyDto) {
-    // B-BRD-05: validate odd-size roster up-front (defense in depth — BoardConfig PATCH đã enforce qua zod superRefine,
-    // nhưng createSession là entry khác nên check ở đây để khóa cứng).
-    if (dto.allowedEditorIds.length === 0 || dto.allowedEditorIds.length % 2 === 0) {
+    // Spec 12 / PB-05: roster đến từ 1 trong 2 nguồn — chọn tay, hoặc auto-assign theo thể loại series.
+    let roster = dto.allowedEditorIds
+    if (!roster || roster.length === 0) {
+      if (!dto.seriesId) throw Errors.RosterSourceRequiredException
+      const suggestion = await this.boardRosterService.suggest(dto.seriesId, dto.rosterSize)
+      roster = suggestion.items.map((c) => c.userId)
+    }
+
+    // B-BRD-05: sĩ số lẻ (chống hoà phiếu). Giữ nguyên guard cũ — engine đã đảm bảo lẻ,
+    // đây là defense-in-depth cho nhánh roster chọn tay.
+    if (roster.length === 0 || roster.length % 2 === 0) {
       throw Errors.InvalidBoardMembersException
     }
+
     const isSessionExist = await this.boardRepo.findActiveSessionByTitle(dto.title)
     if (isSessionExist) {
       throw Errors.SessionAlreadyExistsException
     }
-    const createdSession = await this.boardRepo.createSession(creatorId, dto)
+    const createdSession = await this.boardRepo.createSession(creatorId, dto, roster)
 
-    const recipients = Array.from(new Set([creatorId, ...dto.allowedEditorIds]))
+    const recipients = Array.from(new Set([creatorId, ...roster]))
     await Promise.all(
       recipients.map((recipientId) =>
         this.notificationService.notifySafe({
@@ -66,6 +77,10 @@ export class BoardService {
     )
 
     return createdSession
+  }
+
+  suggestBoardMembers(seriesId: string, size?: number) {
+    return this.boardRosterService.suggest(seriesId, size)
   }
 
   async startSessionManually(sessionId: string) {

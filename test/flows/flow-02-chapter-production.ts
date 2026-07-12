@@ -99,7 +99,7 @@ const createChapterWithApprovedName = async (
   const name = nRes.json?.data ?? nRes.json
 
   // Editor approves Name → APPROVED (this is the actual API per AUTHORITATIVE.md §4)
-  const aRes = await req('POST', `/series/${seriesId}/names/${name.id}/approve`, {
+  const aRes = await req('POST', `/chapters/${chapter.id}/names/${name.id}/approve`, {
     token: s.tokens.e1
   })
   if (aRes.status !== 201) throw new Error(`approve Name failed: ${aRes.status} ${aRes.raw}`)
@@ -145,7 +145,7 @@ const main = async () => {
   )
 
   // F02-003 — Editor approves Name
-  const c1naRes = await req('POST', `/series/${s.seriesA.id}/names/${c1name.id}/approve`, {
+  const c1naRes = await req('POST', `/chapters/${c1.id}/names/${c1name.id}/approve`, {
     token: s.tokens.e1
   })
   ok('F02-003 Name approve 201', c1naRes.status === 201, `got ${c1naRes.status} ${c1naRes.raw.slice(0, 200)}`)
@@ -334,7 +334,7 @@ const main = async () => {
     body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
   })
   const c4name = (c4nRes.json?.data ?? c4nRes.json) as { id: string }
-  await req('POST', `/series/${s.seriesA.id}/names/${c4name.id}/approve`, { token: s.tokens.e1 })
+  await req('POST', `/chapters/${c4.id}/names/${c4name.id}/approve`, { token: s.tokens.e1 })
   await req('POST', `/chapters/${c4.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
@@ -390,7 +390,7 @@ const main = async () => {
     body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
   })
   const c6name = (c6nRes.json?.data ?? c6nRes.json) as { id: string }
-  await req('POST', `/series/${s.seriesB.id}/names/${c6name.id}/approve`, { token: s.tokens.e1 })
+  await req('POST', `/chapters/${c6.id}/names/${c6name.id}/approve`, { token: s.tokens.e1 })
   const p6Res = await req('POST', `/chapters/${c6.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
@@ -552,7 +552,7 @@ const main = async () => {
     body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://n1' }] }
   })
   const c11n = await prisma.name.findFirst({ where: { chapterId: c11forPub.id } })
-  await req('POST', `/series/${s.seriesA.id}/names/${c11n!.id}/approve`, { token: s.tokens.e1 })
+  await req('POST', `/chapters/${c11forPub.id}/names/${c11n!.id}/approve`, { token: s.tokens.e1 })
   const c11p1 = await req('POST', `/chapters/${c11forPub.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
@@ -785,7 +785,7 @@ const main = async () => {
     body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://n1' }] }
   })
   const c11name = (c11nRes.json?.data ?? c11nRes.json) as { id: string }
-  const c11n2Res = await req('POST', `/series/${s.seriesA.id}/names/${c11name.id}/pages`, {
+  const c11n2Res = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 2, fileUrl: 'r2://n2' }
   })
@@ -798,9 +798,9 @@ const main = async () => {
   ok('F02-060b Name has 1 page', (c11nameDB?.pages as unknown as unknown[]).length === 1)
 
   // F02-061 — Add page when APPROVED → InvalidNameState
-  const c11n3Res = await req('POST', `/series/${s.seriesA.id}/names/${c11name.id}/approve`, { token: s.tokens.e1 })
+  const c11n3Res = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/approve`, { token: s.tokens.e1 })
   ok('F02-061 setup approve 201', c11n3Res.status === 201)
-  const c11n4Res = await req('POST', `/series/${s.seriesA.id}/names/${c11name.id}/pages`, {
+  const c11n4Res = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 3, fileUrl: 'r2://n3' }
   })
@@ -813,13 +813,12 @@ const main = async () => {
   // Create another chapter w/ DRAFT name → manually push to SUBMITTED via request-revision by editor? Not allowed (editor triggers REVISION from SUBMITTED).
   // Use existing pattern: create chapter + name + push name to IN_REVIEW by calling name.editor-side approve twice (it would fail). Instead, fastForward Name via Prisma:
   const c12 = c12Setup.chapter
-  void c12
   const c12nameId = c12Setup.name.id
   await prisma.name.update({
     where: { id: c12nameId },
     data: { status: NameStatus.SUBMITTED, submittedAt: new Date() }
   })
-  const c12revRes = await req('POST', `/series/${s.seriesA.id}/names/${c12nameId}/request-revision`, {
+  const c12revRes = await req('POST', `/chapters/${c12.id}/names/${c12nameId}/request-revision`, {
     token: s.tokens.e1,
     body: { reason: 'redo panel 1' }
   })
@@ -832,7 +831,7 @@ const main = async () => {
   ok('F02-062b Name.status=REVISION', c12nameDB?.status === NameStatus.REVISION, `got ${c12nameDB?.status}`)
 
   // F02-063 — Resubmit Name → IN_REVIEW, version+1
-  const c12resubRes = await req('POST', `/series/${s.seriesA.id}/names/${c12nameId}/resubmit`, { token: s.tokens.mA })
+  const c12resubRes = await req('POST', `/chapters/${c12.id}/names/${c12nameId}/resubmit`, { token: s.tokens.mA })
   ok(
     'F02-063 resubmit Name 201',
     c12resubRes.status === 201,
@@ -842,11 +841,11 @@ const main = async () => {
   ok('F02-063b Name.version incremented', (c12nameDB2?.version ?? 0) >= 2, `got ${c12nameDB2?.version}`)
 
   // F02-064 — Update pages when REVISION → OK
-  await req('POST', `/series/${s.seriesA.id}/names/${c12nameId}/request-revision`, {
+  await req('POST', `/chapters/${c12.id}/names/${c12nameId}/request-revision`, {
     token: s.tokens.e1,
     body: { reason: 'another revision' }
   })
-  const c12upRes = await req('PUT', `/series/${s.seriesA.id}/names/${c12nameId}/pages`, {
+  const c12upRes = await req('PUT', `/chapters/${c12.id}/names/${c12nameId}/pages`, {
     token: s.tokens.mA,
     body: { pages: [{ pageNumber: 1, fileUrl: 'r2://nrev' }] }
   })
@@ -905,6 +904,103 @@ const main = async () => {
     body: { pages: [{ pageNumber: 1, fileUrl: 'r2://prop2' }] }
   })
   expectError(propPg2Res, 409, 'Error.InvalidNameState', 'F02-073 proposal updatePages APPROVED')
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // §3.8  CHAPTER-NAME TÁCH VAI + DELETE (Spec 12 Part C)
+  // ──────────────────────────────────────────────────────────────────────────
+  section('§3.8 Chapter-Name split + DELETE (Spec 12)')
+
+  // Create a DRAFT chapter with Name for the full lifecycle
+  const cSplitRes = await req('POST', '/chapters', {
+    token: s.tokens.mA,
+    body: { seriesId: s.seriesA.id, chapterNumber: 13 }
+  })
+  const cSplit = (cSplitRes.json?.data ?? cSplitRes.json) as { id: string }
+
+  // F02-080 — GET /chapters/:id/names
+  const cnListRes = await req('GET', `/chapters/${cSplit.id}/names`, { token: s.tokens.mA })
+  ok('F02-080 GET /chapters/:id/names 200', cnListRes.status === 200, `got ${cnListRes.status}`)
+
+  // F02-081 — POST /chapters/:id/names
+  const cn1Res = await req('POST', `/chapters/${cSplit.id}/names`, {
+    token: s.tokens.mA,
+    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://split-1' }] }
+  })
+  ok('F02-081 chapter-Name 201', cn1Res.status === 201, `got ${cn1Res.status}`)
+  const cn1Id = (cn1Res.json?.data ?? cn1Res.json).id
+  ok(
+    'F02-081b NameRes expose chapterId',
+    (cn1Res.json?.data ?? cn1Res.json).chapterId === cSplit.id,
+    JSON.stringify((cn1Res.json?.data ?? cn1Res.json).chapterId)
+  )
+
+  // F02-082 — GET /chapters/:id/names/:nameId
+  const cnGetRes = await req('GET', `/chapters/${cSplit.id}/names/${cn1Id}`, { token: s.tokens.e1 })
+  ok('F02-082 GET chapter-Name 200', cnGetRes.status === 200, `got ${cnGetRes.status}`)
+
+  // ★ BẰNG CHỨNG TÁCH VAI:
+  // F02-083 — chapter-Name qua route series-scoped → 404
+  const crossGet = await req('GET', `/series/${s.seriesA.id}/names/${cn1Id}`, { token: s.tokens.mA })
+  expectError(crossGet, 404, 'Error.NameNotFound', 'F02-083 chapter-Name via series-scoped GET → 404')
+
+  // F02-084 — chapter-Name approve qua route series-scoped → 404
+  const crossAppr = await req('POST', `/series/${s.seriesA.id}/names/${cn1Id}/approve`, {
+    token: s.tokens.e1,
+    body: {}
+  })
+  expectError(crossAppr, 404, 'Error.NameNotFound', 'F02-084 chapter-Name approve via series-scoped → 404')
+
+  // F02-085 — GET /series/:id/names liệt kê chỉ PROPOSAL
+  const sListRes = await req('GET', `/series/${s.seriesA.id}/names`, { token: s.tokens.mA })
+  const sListItems = (sListRes.json?.data ?? sListRes.json).items ?? []
+  ok(
+    'F02-085 /series/:id/names only PROPOSAL',
+    sListItems.every((n: { kind: string }) => n.kind === 'PROPOSAL'),
+    JSON.stringify(sListItems.map((n: { kind: string }) => n.kind))
+  )
+
+  // F02-086 — Spec 12 tách vai: ListNamesQuery bỏ field `kind` + .strict() → gửi ?kind= là 422,
+  // KHÔNG im lặng bỏ qua (controller vẫn khai @Query nên pipe validate chạy).
+  const sListKindRes = await req('GET', `/series/${s.seriesA.id}/names?kind=CHAPTER`, { token: s.tokens.mA })
+  ok(
+    'F02-086 series names?kind=CHAPTER → 422 (strict reject, Spec 12)',
+    sListKindRes.status === 422,
+    `got ${sListKindRes.status}`
+  )
+
+  // F02-087 — DELETE chapter-Name (DRAFT + chưa APPROVED) → 200 + Chapter.nameId unset
+  const cnDelRes = await req('DELETE', `/chapters/${cSplit.id}/names/${cn1Id}`, { token: s.tokens.mA })
+  ok('F02-087 DELETE chapter-Name 200', cnDelRes.status === 200, `got ${cnDelRes.status}`)
+  ok(
+    'F02-087b trả message (MessageResDto)',
+    typeof cnDelRes.json?.message === 'string' && cnDelRes.json.message !== 'Success',
+    JSON.stringify(cnDelRes.json?.message)
+  )
+  const cnAfterDel = await prisma.name.findUnique({ where: { id: cn1Id } })
+  ok('F02-087c Name bị xoá', cnAfterDel === null)
+  const chAfterDel = await prisma.chapter.findUnique({ where: { id: cSplit.id } })
+  ok(
+    'F02-087d Chapter.nameId unset',
+    chAfterDel?.nameId === null || chAfterDel?.nameId === undefined,
+    String(chAfterDel?.nameId)
+  )
+
+  // F02-088 — POST /chapters/:id/names (lại) → 201 — vẽ lại được
+  const cn2Res = await req('POST', `/chapters/${cSplit.id}/names`, {
+    token: s.tokens.mA,
+    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://split-2' }] }
+  })
+  ok('F02-088 recreate chapter-Name 201', cn2Res.status === 201, `got ${cn2Res.status}`)
+  const cn2Id = (cn2Res.json?.data ?? cn2Res.json).id
+
+  // F02-089 — DELETE bởi EDITOR → 403 (RolesGuard chặn ở @Roles(MANGAKA) — không phải NotSeriesOwner service-level)
+  const cnDelE = await req('DELETE', `/chapters/${cSplit.id}/names/${cn2Id}`, { token: s.tokens.e1 })
+  ok('F02-089 DELETE by EDITOR → 403', cnDelE.status === 403, `got ${cnDelE.status}`)
+
+  // F02-090 — Approve Name → APPROVED, then DELETE → 409 NameNotDeletable
+  await req('POST', `/chapters/${cSplit.id}/names/${cn2Id}/approve`, { token: s.tokens.e1, body: {} })
+  const cnDelApproved = await req('DELETE', `/chapters/${cSplit.id}/names/${cn2Id}`, { token: s.tokens.mA })
+  expectError(cnDelApproved, 409, 'Error.NameNotDeletable', 'F02-090 DELETE APPROVED Name → 409')
 
   await prisma.$disconnect()
   const fail = summary(FLOW)

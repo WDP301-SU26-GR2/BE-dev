@@ -222,14 +222,40 @@ POST   /name-proposals/:id/request-revision → REVISION
 POST   /name-proposals/:id/approve          → APPROVED
 POST   /name-proposals/:id/reject           → REJECTED
 
-# Name (chapter)
-POST   /chapters/:chapterId/names           create Name (kind=CHAPTER, chapterId set)
-POST   /names/:id/submit                    → SUBMITTED
-POST   /names/:id/start-review              → IN_REVIEW
-POST   /names/:id/request-revision          → REVISION
-POST   /names/:id/approve                   → APPROVED
-POST   /names/:id/pages                     update pages (DRAFT|REVISION only)
-POST   /names/:id/resubmit                  REVISION → IN_REVIEW
+# Name (chapter) — chapter-scoped (Spec 12 tách vai; chapter-Name là tài nguyên của CHAPTER, không phải SERIES)
+POST   /chapters/:id/names                        create chapter-Name (kind=CHAPTER) — chapter DRAFT only
+GET    /chapters/:id/names                        list Name của chapter (0..1)
+GET    /chapters/:id/names/:nameId                chi tiết chapter-Name
+POST   /chapters/:id/names/:nameId/request-revision → REVISION
+POST   /chapters/:id/names/:nameId/resubmit       REVISION → IN_REVIEW, version++
+POST   /chapters/:id/names/:nameId/approve        → APPROVED
+PUT    /chapters/:id/names/:nameId/pages          thay TOÀN BỘ pages (DRAFT/REVISION only)
+POST   /chapters/:id/names/:nameId/pages          thêm 1 page (DRAFT/REVISION only)
+DELETE /chapters/:id/names/:nameId                xoá chapter-Name (chapter DRAFT + Name chưa APPROVED) → 200 { message }
+
+# Name (proposal) — series-scoped, **PROPOSAL-ONLY** (Spec 12)
+# Truy cập chapter-Name qua các route dưới đây → 404 Error.NameNotFound (bằng chứng tách vai).
+GET    /series/:id/names                          list proposal-Name (CHỈ kind=PROPOSAL; query không có filter kind — strict reject mọi field lạ → 422)
+GET    /series/:id/names/:nameId                  chi tiết proposal-Name
+POST   /series/:id/names/:nameId/request-revision → REVISION
+POST   /series/:id/names/:nameId/resubmit         REVISION → IN_REVIEW, version++
+POST   /series/:id/names/:nameId/approve          → APPROVED (emit NameApproved → Series READY_TO_PITCH nếu kind=PROPOSAL)
+PUT    /series/:id/names/:nameId/pages            thay TOÀN BỘ pages (DRAFT/REVISION only)
+POST   /series/:id/names/:nameId/pages            thêm 1 page (DRAFT/REVISION only)
+
+# Self-service identity (Spec 12 Part A)
+GET    /me                                        thông tin tài khoản của chính mình (mọi role; KHÔNG password)
+PATCH  /me                                        body: { name?, displayName?, avatar?, phoneNumber? }
+                                                    '' = clear sentinel; null/omit = giữ nguyên
+                                                    strict reject email/role/status → 422
+
+# StaffProfile CRUD — Editor/Board (Spec 12 Part B)
+PUT    /me/staff-profile                          body: { specialtyGenres?, demographics?, bio?, yearsOfExperience? } — EDITOR/BOARD only
+GET    /me/staff-profile                          xem staff profile của mình (EDITOR/BOARD)
+GET    /staff/:userId                             xem công khai staff profile (ẩn email/phone); hasProfile=false nếu chưa build
+
+# Board auto-roster (PB-05)
+GET    /board/suggest-members?seriesId=           gợi ý roster Board theo thể loại series; items[].score giảm dần, size lẻ >= 3 — EDITOR/SUPER_ADMIN only
 
 # Chapters
 POST   /series/:seriesId/chapters           body: { chapterNumber, title?, nameId? }

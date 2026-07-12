@@ -43,7 +43,10 @@ function make(
     }),
     countChapterNameByNumber: jest.fn().mockResolvedValue(0),
     findNamesBySeriesId: jest.fn().mockResolvedValue([]),
-    findNamesBySeriesIdAndKind: jest.fn().mockResolvedValue([])
+    findNamesBySeriesIdAndKind: jest.fn().mockResolvedValue([]),
+    findChapterForNameGuard: jest.fn().mockResolvedValue({ id: CHAPTER_ID, seriesId: SERIES_ID }),
+    findNamesByChapterId: jest.fn().mockResolvedValue([]),
+    deleteChapterName: jest.fn().mockResolvedValue(undefined)
   }
   const eventBus = { emit: jest.fn() }
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -114,13 +117,15 @@ describe('NameService — lifecycle (MOVE từ series)', () => {
     )
   })
 
-  it('approve emits NameApproved with kind payload (Spec 8 §6 event coupling)', async () => {
-    const { service, eventBus } = make({
+  it('chapterApprove emits NameApproved with kind=CHAPTER payload (Spec 8 §6 event coupling)', async () => {
+    const { service, nameRepo, eventBus } = make({
       status: NameStatus.SUBMITTED,
       kind: NameKind.CHAPTER,
-      chapterNumber: 5
+      chapterNumber: 5,
+      chapterId: CHAPTER_ID
     })
-    await service.approve('e1', SERIES_ID, NAME_ID)
+    nameRepo.findChapterForNameGuard = jest.fn().mockResolvedValue({ id: CHAPTER_ID, seriesId: SERIES_ID })
+    await service.chapterApprove('e1', CHAPTER_ID, NAME_ID)
     expect(eventBus.emit).toHaveBeenCalledWith(DomainEvent.NameApproved, {
       seriesId: SERIES_ID,
       nameId: NAME_ID,
@@ -332,5 +337,169 @@ describe('NameService.createChapterName — ending phase (Fix-1 G-1)', () => {
     await expect(
       makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
     ).rejects.toMatchObject({ status: 409 })
+  })
+})
+
+import { NameNotFoundException } from './errors/name.errors'
+
+describe('NameService — series-scoped routes are PROPOSAL-only (Spec 12)', () => {
+  it('getName returns 404 for a chapter-Name via the series-scoped route', async () => {
+    const { service } = make({ kind: NameKind.CHAPTER, chapterId: CHAPTER_ID })
+    await expect(service.getName({ userId: 'm1', roleName: 'MANGAKA' }, SERIES_ID, NAME_ID)).rejects.toBe(
+      NameNotFoundException
+    )
+  })
+
+  it('listNames only ever asks the repo for PROPOSAL names', async () => {
+    const { service, nameRepo } = make()
+    await service.listNames({ userId: 'm1', roleName: 'MANGAKA' }, SERIES_ID)
+    expect(nameRepo.findNamesBySeriesIdAndKind).toHaveBeenCalledWith(SERIES_ID, NameKind.PROPOSAL, undefined)
+  })
+
+  it('listNames forwards limit/offset to the repo (query đã khai thì phải được dùng)', async () => {
+    const { service, nameRepo } = make()
+    await service.listNames({ userId: 'm1', roleName: 'MANGAKA' }, SERIES_ID, { limit: 5, offset: 10 })
+    expect(nameRepo.findNamesBySeriesIdAndKind).toHaveBeenCalledWith(SERIES_ID, NameKind.PROPOSAL, {
+      limit: 5,
+      offset: 10
+    })
+  })
+
+  it('approve on a chapter-Name via the series-scoped route returns 404', async () => {
+    const { service } = make({ status: NameStatus.SUBMITTED, kind: NameKind.CHAPTER, chapterId: CHAPTER_ID })
+    await expect(service.approve('e1', SERIES_ID, NAME_ID)).rejects.toBe(NameNotFoundException)
+  })
+
+  it('requestRevision on a chapter-Name via the series-scoped route returns 404', async () => {
+    const { service } = make({ status: NameStatus.SUBMITTED, kind: NameKind.CHAPTER, chapterId: CHAPTER_ID })
+    await expect(service.requestRevision('e1', SERIES_ID, NAME_ID, 'fix')).rejects.toBe(NameNotFoundException)
+  })
+
+  it('a PROPOSAL name still works on the series-scoped route (không hồi quy)', async () => {
+    const { service, nameRepo } = make({ status: NameStatus.SUBMITTED, kind: NameKind.PROPOSAL })
+    await service.approve('e1', SERIES_ID, NAME_ID)
+    expect(nameRepo.updateNameStatus).toHaveBeenCalledWith(NAME_ID, { status: NameStatus.APPROVED })
+  })
+})
+
+describe('NameService — chapter-scoped delegates (Spec 12)', () => {
+  it('chapterApprove resolves seriesId from the chapter and approves the chapter-Name', async () => {
+    const { service, nameRepo } = make({
+      status: NameStatus.SUBMITTED,
+      kind: NameKind.CHAPTER,
+      chapterId: CHAPTER_ID
+    })
+    const out = await service.chapterApprove('e1', CHAPTER_ID, NAME_ID)
+    expect(nameRepo.findChapterForNameGuard).toHaveBeenCalledWith(CHAPTER_ID)
+    expect(nameRepo.updateNameStatus).toHaveBeenCalledWith(NAME_ID, { status: NameStatus.APPROVED })
+    expect(out.chapterId).toBe(CHAPTER_ID)
+  })
+
+  it('chapterApprove returns 404 when the Name belongs to a DIFFERENT chapter', async () => {
+    const { service } = make({
+      status: NameStatus.SUBMITTED,
+      kind: NameKind.CHAPTER,
+      chapterId: 'ffffffffffffffffffffffff'
+    })
+    await expect(service.chapterApprove('e1', CHAPTER_ID, NAME_ID)).rejects.toBe(NameNotFoundException)
+  })
+
+  it('chapterApprove returns 404 for a malformed chapterId without touching the name repo', async () => {
+    const { service, nameRepo } = make({ kind: NameKind.CHAPTER, chapterId: CHAPTER_ID })
+    await expect(service.chapterApprove('e1', 'garbage', NAME_ID)).rejects.toMatchObject({ status: 404 })
+    expect(nameRepo.findNameById).not.toHaveBeenCalled()
+  })
+
+  it('chapterResubmit bumps the version for a chapter-Name', async () => {
+    const { service, nameRepo } = make({
+      status: NameStatus.REVISION,
+      version: 2,
+      kind: NameKind.CHAPTER,
+      chapterId: CHAPTER_ID
+    })
+    await service.chapterResubmit('m1', CHAPTER_ID, NAME_ID)
+    expect(nameRepo.updateNameStatus).toHaveBeenCalledWith(NAME_ID, {
+      status: NameStatus.IN_REVIEW,
+      version: 3
+    })
+  })
+
+  it('chapterListNames reads by chapterId', async () => {
+    const { service, nameRepo } = make({ kind: NameKind.CHAPTER, chapterId: CHAPTER_ID })
+    await service.chapterListNames({ userId: 'm1', roleName: 'MANGAKA' }, CHAPTER_ID)
+    expect(nameRepo.findNamesByChapterId).toHaveBeenCalledWith(CHAPTER_ID)
+  })
+
+  it('chapterGetName enforces the caller scope (outsider mangaka → 403)', async () => {
+    const { service } = make({ kind: NameKind.CHAPTER, chapterId: CHAPTER_ID })
+    await expect(
+      service.chapterGetName({ userId: 'someone-else', roleName: 'MANGAKA' }, CHAPTER_ID, NAME_ID)
+    ).rejects.toMatchObject({ status: 403 })
+  })
+})
+
+import { NameMessages } from './name.messages'
+import { NameNotDeletableException, NotSeriesOwnerException } from './errors/name.errors'
+
+describe('NameService.deleteChapterName (Spec 12)', () => {
+  const chapterRow = (status: string) => ({
+    id: CHAPTER_ID,
+    seriesId: SERIES_ID,
+    chapterNumber: 1,
+    status,
+    nameId: NAME_ID,
+    series: { mangakaId: 'm1', status: SeriesStatus.SERIALIZED }
+  })
+
+  function makeDelRepo(chapterStatus = 'DRAFT', nameStatus: NameStatus = NameStatus.SUBMITTED, chapterId = CHAPTER_ID) {
+    return {
+      findChapterForNameGuard: jest.fn().mockResolvedValue(chapterRow(chapterStatus)),
+      findNameById: jest.fn().mockResolvedValue({ id: NAME_ID, chapterId, status: nameStatus }),
+      deleteChapterName: jest.fn().mockResolvedValue(undefined)
+    }
+  }
+  const makeDelSvc = (repo: any) =>
+    new NameService(
+      repo as never,
+      { emit: jest.fn() } as never,
+      { notifySafe: jest.fn() } as never,
+      {
+        get: jest.fn()
+      } as never
+    )
+
+  it('deletes the Name and unsets Chapter.nameId when the chapter is DRAFT', async () => {
+    const repo = makeDelRepo()
+    const out = await makeDelSvc(repo).deleteChapterName('m1', CHAPTER_ID, NAME_ID)
+    expect(repo.deleteChapterName).toHaveBeenCalledWith(CHAPTER_ID, NAME_ID)
+    expect(out).toEqual({ message: NameMessages.response.chapterNameDeleted })
+  })
+
+  it('409 when the chapter is no longer DRAFT', async () => {
+    const repo = makeDelRepo('IN_PRODUCTION')
+    await expect(makeDelSvc(repo).deleteChapterName('m1', CHAPTER_ID, NAME_ID)).rejects.toBe(NameNotDeletableException)
+    expect(repo.deleteChapterName).not.toHaveBeenCalled()
+  })
+
+  it('409 when the Name is already APPROVED (checkpoint — gate page depends on it)', async () => {
+    const repo = makeDelRepo('DRAFT', NameStatus.APPROVED)
+    await expect(makeDelSvc(repo).deleteChapterName('m1', CHAPTER_ID, NAME_ID)).rejects.toBe(NameNotDeletableException)
+    expect(repo.deleteChapterName).not.toHaveBeenCalled()
+  })
+
+  it('403 when the caller is not the series owner', async () => {
+    const repo = makeDelRepo()
+    await expect(makeDelSvc(repo).deleteChapterName('other', CHAPTER_ID, NAME_ID)).rejects.toBe(NotSeriesOwnerException)
+  })
+
+  it('404 when the Name belongs to a different chapter', async () => {
+    const repo = makeDelRepo('DRAFT', NameStatus.SUBMITTED, 'ffffffffffffffffffffffff')
+    await expect(makeDelSvc(repo).deleteChapterName('m1', CHAPTER_ID, NAME_ID)).rejects.toBe(NameNotFoundException)
+  })
+
+  it('404 for a malformed chapterId without touching the repo', async () => {
+    const repo = makeDelRepo()
+    await expect(makeDelSvc(repo).deleteChapterName('m1', 'garbage', NAME_ID)).rejects.toMatchObject({ status: 404 })
+    expect(repo.findChapterForNameGuard).not.toHaveBeenCalled()
   })
 })
