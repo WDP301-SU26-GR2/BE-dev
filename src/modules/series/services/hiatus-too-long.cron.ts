@@ -35,9 +35,7 @@ export class HiatusTooLongCron {
       if (overdue.length === 0) return
 
       const boardIds = await this.seriesRepository.findBoardMemberIds()
-      // Append the day to the referenceType so the same (recipient, series) pair can be re-notified
-      // the next day without being deduped by NotificationService.findDuplicate (which keys on
-      // recipient+type+referenceId+referenceType).
+      // Append the day to referenceType so the next day's notification receives a distinct dedupeKey.
       const day = new Date().toISOString().slice(0, 10)
 
       for (const series of overdue) {

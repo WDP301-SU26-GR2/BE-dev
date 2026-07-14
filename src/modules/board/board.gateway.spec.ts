@@ -1,17 +1,24 @@
 import { BoardGateway } from './board.gateway'
 import { RoleName } from 'src/core/security/constants/role.constant'
+import { createAdapter } from '@socket.io/redis-adapter'
+
+const redisAdapter = { name: 'redis-adapter' }
+
+jest.mock('@socket.io/redis-adapter', () => ({ createAdapter: jest.fn() }))
 
 const SESSION_ID = '0123456789abcdef01234567'
 
 function makeDeps() {
+  const subRedis = {} as any
   return {
-    redis: { getClient: jest.fn().mockReturnValue({ duplicate: jest.fn() }) } as any,
+    wsRedis: { duplicate: jest.fn().mockReturnValue(subRedis) } as any,
+    subRedis,
     tokenService: { verifyAccessToken: jest.fn() } as any,
     boardRepo: { findSessionById: jest.fn() } as any
   }
 }
 function makeGateway(d: ReturnType<typeof makeDeps>) {
-  return new BoardGateway(d.redis, d.tokenService, d.boardRepo)
+  return new BoardGateway(d.wsRedis, d.tokenService, d.boardRepo)
 }
 function makeSocket(token?: string) {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
@@ -25,6 +32,20 @@ function makeSocket(token?: string) {
 }
 
 describe('BoardGateway auth (Fix-1 G-9)', () => {
+  it('afterInit duplicates the injected WS Redis client and installs its adapter', () => {
+    const d = makeDeps()
+    const gateway = makeGateway(d)
+    const adapterSetter = jest.fn()
+    gateway.server = { adapter: adapterSetter } as any
+    ;(createAdapter as jest.Mock).mockReturnValue(redisAdapter)
+
+    gateway.afterInit()
+
+    expect(d.wsRedis.duplicate).toHaveBeenCalledTimes(1)
+    expect(createAdapter).toHaveBeenCalledWith(d.wsRedis, d.subRedis)
+    expect(adapterSetter).toHaveBeenCalledWith(redisAdapter)
+  })
+
   it('handleConnection without token → disconnect(true)', async () => {
     const d = makeDeps()
     const socket = makeSocket()

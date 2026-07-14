@@ -28,4 +28,11 @@ describe('RedisService', () => {
     expect(await svc.setNxEx('k', 1)).toBe(true)
     expect(await svc.setNxEx('k', 1)).toBe(false)
   })
+
+  it('setNxEx returns false when Redis rejects because the stream is not writeable', async () => {
+    const redis = makeRedis({ set: jest.fn().mockRejectedValue(new Error("Stream isn't writeable")) })
+    const svc = new RedisService(redis)
+
+    await expect(svc.setNxEx('cron:example', 60)).resolves.toBe(false)
+  })
 })

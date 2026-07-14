@@ -8,20 +8,16 @@ export interface CreateNotificationData {
   referenceId: string | null
   referenceType: string | null
   content: string | null
+  dedupeKey: string
 }
 
 @Injectable()
 export class NotificationRepository {
   constructor(private readonly prismaService: PrismaService) {}
 
-  // Idempotency lookup (recipient + type + ref) — A-NOT-01.
-  async findDuplicate(where: {
-    recipientId: string
-    type: NotificationType
-    referenceId: string | null
-    referenceType: string | null
-  }) {
-    return await this.prismaService.notification.findFirst({ where })
+  // Idempotency lookup by the derived dedupeKey, including the content hash (A-NOT-01).
+  async findByDedupeKey(dedupeKey: string) {
+    return await this.prismaService.notification.findUnique({ where: { dedupeKey } })
   }
 
   async create(data: CreateNotificationData) {
