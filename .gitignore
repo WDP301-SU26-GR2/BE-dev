@@ -70,8 +70,11 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .pnpm-store
 
 # Local smoke/dev scripts (ephemeral; excluded from prod build too — see tsconfig.build.json).
-# Untracked on purpose so a root-level TS dir never breaks the Docker build.
-/scripts/
+# The directory is ignored by default; only planned tracked JS scripts are excepted.
+!/scripts/
+/scripts/*
+!/scripts/migrate-notification-dedupe.mjs
+!/scripts/smoke-spec13.mjs
 
 # ---- AI service (Python) — runtime/generated, never commit ----
 ai-service/.venv/

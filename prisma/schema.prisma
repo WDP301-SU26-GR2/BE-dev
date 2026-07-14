@@ -1599,7 +1599,12 @@ model Notification {
   content       String?
   isRead        Boolean           @default(false)
   createdAt     DateTime          @default(now())
+  // Derived non-null dedupe key avoids Mongo non-sparse unique index on nullable fields/E11000.
+  // Formula: `${recipientId}|${type ?? ''}|${referenceId ?? ''}|${referenceType ?? ''}|${sha1(content ?? '').slice(0,16)}`
+  // Content hash prevents swallowing later review-round notifications.
+  dedupeKey     String            @default("")
 
+  @@unique([dedupeKey])
   @@index([recipientId])
 }
 

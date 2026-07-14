@@ -8,11 +8,12 @@ import {
   OnGatewayConnection
 } from '@nestjs/websockets'
 import { Server, Socket } from 'socket.io'
-import { Logger } from '@nestjs/common'
+import { Inject, Logger } from '@nestjs/common'
 import { createAdapter } from '@socket.io/redis-adapter'
-import { RedisService } from 'src/infrastructure/redis/redis.service'
+import { REDIS_WS_CONNECTION } from 'src/infrastructure/redis/redis.constant'
 import { TokenService } from 'src/infrastructure/token/token.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
+import { corsOrigins } from 'src/core/config/cors'
 import { BoardRepository } from './board.repo'
 import type { Redis } from 'ioredis'
 
@@ -20,7 +21,7 @@ import type { Redis } from 'ioredis'
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: { origin: corsOrigins() },
   namespace: 'board'
 })
 export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
@@ -30,13 +31,13 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
   server!: Server
 
   constructor(
-    private readonly redisService: RedisService,
+    @Inject(REDIS_WS_CONNECTION) private readonly wsRedis: Redis,
     private readonly tokenService: TokenService,
     private readonly boardRepo: BoardRepository
   ) {}
 
   afterInit() {
-    const pubClient: Redis = this.redisService.getClient()
+    const pubClient: Redis = this.wsRedis
     const subClient: Redis = pubClient.duplicate()
 
     const ioServer = (this.server as unknown as { server?: unknown }).server ?? this.server

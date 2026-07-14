@@ -30,13 +30,14 @@ export class RedisService implements OnModuleInit {
     this.logger.log(`Redis connected (PING ${pong})`)
   }
 
-  getClient(): Redis {
-    return this.client
-  }
-
   async setNxEx(key: string, ttlSec: number, value = '1'): Promise<boolean> {
-    const res = await this.client.set(key, value, 'EX', ttlSec, 'NX')
-    return res === 'OK'
+    try {
+      const res = await this.client.set(key, value, 'EX', ttlSec, 'NX')
+      return res === 'OK'
+    } catch (error) {
+      this.logger.warn(`Redis SET NX EX failed for key "${key}"`, error)
+      return false
+    }
   }
 
   async eval(script: string, keys: string[], args: (string | number)[]): Promise<unknown> {
