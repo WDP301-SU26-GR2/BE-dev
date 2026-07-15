@@ -6,6 +6,7 @@ function makeRepo() {
     user: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
       groupBy: jest.fn()
     },
@@ -13,7 +14,16 @@ function makeRepo() {
       deleteMany: jest.fn()
     },
     role: {
-      findMany: jest.fn()
+      findMany: jest.fn(),
+      findFirst: jest.fn()
+    },
+    assistantProfile: {
+      findMany: jest.fn(),
+      count: jest.fn()
+    },
+    mangakaProfile: {
+      findMany: jest.fn(),
+      count: jest.fn()
     }
   }
   const repo = new UsersRepository(prismaService as never)
@@ -102,5 +112,69 @@ describe('UsersRepository — me (Spec 12)', () => {
     expect(prismaService.user.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: USER_ID }, data: { displayName: null } })
     )
+  })
+})
+
+describe('UsersRepository — directories (Spec 14)', () => {
+  it('searches assistants by name/displayName only and applies the same profile where to list and count', async () => {
+    const { repo, prismaService } = makeRepo()
+    prismaService.role.findFirst.mockResolvedValue({ id: 'assistant-role' })
+    prismaService.user.findMany.mockResolvedValue([{ id: 'assistant-1' }])
+    prismaService.assistantProfile.findMany.mockResolvedValue([])
+    prismaService.assistantProfile.count.mockResolvedValue(0)
+    const filter = { q: 'saku', level: 'SENIOR' }
+
+    await repo.findAssistantsForDirectory(filter, { limit: 20, offset: 0 })
+    await repo.countAssistantsForDirectory(filter)
+
+    for (const call of prismaService.user.findMany.mock.calls) {
+      expect(call[0]).toEqual({
+        where: {
+          roleId: 'assistant-role',
+          status: 'ACTIVE',
+          deletedAt: { isSet: false },
+          OR: [
+            { name: { contains: 'saku', mode: 'insensitive' } },
+            { displayName: { contains: 'saku', mode: 'insensitive' } }
+          ]
+        },
+        select: { id: true }
+      })
+      expect(JSON.stringify(call[0])).not.toContain('email')
+    }
+    expect(prismaService.assistantProfile.findMany.mock.calls[0][0].where).toEqual(
+      prismaService.assistantProfile.count.mock.calls[0][0].where
+    )
+  })
+
+  it('combines active Mangaka ids with penName/name matching and keeps list/count filters consistent', async () => {
+    const { repo, prismaService } = makeRepo()
+    prismaService.role.findFirst.mockResolvedValue({ id: 'mangaka-role' })
+    prismaService.user.findMany.mockImplementation(({ where }) =>
+      Promise.resolve(where.OR ? [{ id: 'name-match' }] : [{ id: 'pen-match' }, { id: 'name-match' }])
+    )
+    prismaService.mangakaProfile.findMany.mockResolvedValue([])
+    prismaService.mangakaProfile.count.mockResolvedValue(0)
+    const filter = { q: 'saku', genre: 'ACTION' as const, level: 'SENIOR' }
+
+    await repo.findMangakasForDirectory(filter, { limit: 10, offset: 5 })
+    await repo.countMangakasForDirectory(filter)
+
+    const expectedWhere = {
+      userId: { in: ['pen-match', 'name-match'] },
+      genres: { has: 'ACTION' },
+      experienceLevel: 'SENIOR',
+      OR: [{ penName: { contains: 'saku', mode: 'insensitive' } }, { userId: { in: ['name-match'] } }]
+    }
+    expect(prismaService.mangakaProfile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expectedWhere,
+        include: { user: { select: { displayName: true, avatar: true } } }
+      })
+    )
+    expect(prismaService.mangakaProfile.count).toHaveBeenCalledWith({ where: expectedWhere })
+    for (const call of prismaService.user.findMany.mock.calls) {
+      expect(call[0].where.deletedAt).toEqual({ isSet: false })
+    }
   })
 })

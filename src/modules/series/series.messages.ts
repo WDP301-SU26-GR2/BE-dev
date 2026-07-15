@@ -12,8 +12,9 @@ export const SeriesMessages = {
   },
   // In-app notification content (notification layer).
   notification: {
-    proposalRevision: (reason: string) => `Proposal needs revision: ${reason}`,
-    proposalResubmitted: 'Proposal resubmitted',
+    seriesMetadataUpdated: (fields: string) => `Series metadata updated: ${fields}`,
+    proposalRevision: (round: number, reason: string) => `Proposal needs revision (round ${round}): ${reason}`,
+    proposalResubmitted: (round: number) => `Proposal resubmitted (round ${round})`,
     proposalApproved: 'Proposal approved',
     proposalRejected: (reason: string) => `Proposal rejected: ${reason}`,
     seriesCancelling: (allowance: number | null) =>
@@ -43,6 +44,8 @@ export const SeriesMessages = {
   // Name-related error codes moved to name module (errors/name.errors.ts).
   error: {
     seriesNotFound: 'Error.SeriesNotFound',
+    seriesNotEditable: 'Error.SeriesNotEditable',
+    seriesMetadataConflict: 'Error.SeriesMetadataConflict',
     notSeriesOwner: 'Error.NotSeriesOwner',
     proposalNotEditable: 'Error.ProposalNotEditable',
     invalidSeriesTransition: 'Error.InvalidSeriesTransition',

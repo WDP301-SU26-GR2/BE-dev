@@ -4,6 +4,10 @@ import { SeriesMessages } from '../series.messages'
 const E = SeriesMessages.error
 
 export const SeriesNotFoundException = new NotFoundException(E.seriesNotFound)
+export const SeriesNotEditableException = new ConflictException([{ message: E.seriesNotEditable, path: 'status' }])
+export const SeriesMetadataConflictException = new ConflictException([
+  { message: E.seriesMetadataConflict, path: 'metadata' }
+])
 export const NotSeriesOwnerException = new ForbiddenException(E.notSeriesOwner)
 export const ProposalNotEditableException = new ConflictException(E.proposalNotEditable)
 export const InvalidSeriesTransitionException = new ConflictException(E.invalidSeriesTransition)

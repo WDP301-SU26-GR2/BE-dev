@@ -3,8 +3,8 @@
 export const TaskMessages = {
   notification: {
     taskAssigned: 'You have been assigned a new task',
-    taskSubmittedForReview: 'A task was submitted for your review',
-    taskRevisionRequested: 'Revision requested on your task',
+    taskSubmittedForReview: (version: number) => `A task was submitted for your review (version ${version})`,
+    taskRevisionRequested: (round: number, note: string) => `Revision requested on your task (round ${round}): ${note}`,
     taskApproved: 'Your task was approved',
     taskCancelled: 'Your task was cancelled',
     taskReassigned: 'Your task was reassigned to another assistant'

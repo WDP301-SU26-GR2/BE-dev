@@ -57,4 +57,18 @@ describe('AssistantDirectoryService.list', () => {
     const res = await service.list({ limit: 20, offset: 0 })
     expect(res).toEqual({ items: [], total: 0, limit: 20, offset: 0 })
   })
+
+  it('forwards the q search term to both the list and count queries (Spec 14 §3.1)', async () => {
+    const { service, usersRepository } = make()
+    usersRepository.findAssistantsForDirectory.mockResolvedValueOnce([])
+    usersRepository.countAssistantsForDirectory.mockResolvedValueOnce(0)
+
+    await service.list({ q: 'saku', limit: 20, offset: 0 })
+
+    expect(usersRepository.findAssistantsForDirectory).toHaveBeenCalledWith(expect.objectContaining({ q: 'saku' }), {
+      limit: 20,
+      offset: 0
+    })
+    expect(usersRepository.countAssistantsForDirectory).toHaveBeenCalledWith(expect.objectContaining({ q: 'saku' }))
+  })
 })

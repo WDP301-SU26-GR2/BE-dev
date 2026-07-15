@@ -1,5 +1,7 @@
 //error-docs.ts dùng cho Swagger error description.
 export const ERROR_HINTS: Record<string, string> = {
+  'Error.RevisionRequestNotFound': 'revision request does not exist (or malformed id)',
+  'Error.NotRevisionRecipient': 'only the person asked to make the fix (recipientId) can resolve this revision round',
   'Error.AccountBanned': 'account is banned or blocked',
   'Error.AiEnqueueFailed': 'could not enqueue AI job (queue unavailable); use manual regions',
   'Error.AiJobNotApplicable': 'AI job is not in SUCCEEDED state or has no proposed regions',
@@ -95,6 +97,10 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.ReviewRequiresEndedAssignment': 'review requires an ended studio assignment between the pair',
   'Error.SeriesAccessDenied': 'current user cannot access this series',
   'Error.SeriesAlreadyClaimed': 'series has already been claimed',
+  'Error.SeriesNotEditable':
+    'series đã kết thúc (COMPLETED/CANCELLED/ABANDONED/WITHDRAWN/REJECTED) — không sửa metadata được',
+  'Error.SeriesMetadataConflict':
+    'series metadata changed concurrently too many times; reload the latest series and retry the patch',
   'Error.SeriesNotFound': 'series does not exist',
   'Error.SeriesNotInEndingState': 'Series không ở trạng thái CANCELLING/COMPLETING nên không thể chốt kết thúc.',
   'Error.SeriesNotReadyToPitch': 'series is not ready to pitch',

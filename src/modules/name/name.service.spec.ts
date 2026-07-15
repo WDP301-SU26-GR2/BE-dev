@@ -4,6 +4,7 @@ import { DomainEvent } from 'src/core/events/domain-events'
 
 const SERIES_ID = '507f1f77bcf86cd799439011'
 const NAME_ID = '507f1f77bcf86cd799439012'
+const OTHER_NAME_ID = '507f1f77bcf86cd799439016'
 const CHAPTER_ID = '507f1f77bcf86cd799439013'
 
 function make(
@@ -51,22 +52,48 @@ function make(
   const eventBus = { emit: jest.fn() }
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const appConfigService = { get: jest.fn().mockResolvedValue({ nameMaxReviewRounds: 4 }) }
+  const revisionService = {
+    openSafe: jest.fn().mockResolvedValue({ round: 1 }),
+    currentRound: jest.fn().mockResolvedValue(1)
+  }
   const service = new NameService(
     nameRepo as never,
     eventBus as never,
     notificationService as never,
-    appConfigService as never
+    appConfigService as never,
+    revisionService as never
   )
-  return { service, nameRepo, eventBus, notificationService, appConfigService, name, series: currentSeries }
+  return {
+    service,
+    nameRepo,
+    eventBus,
+    notificationService,
+    appConfigService,
+    revisionService,
+    name,
+    series: currentSeries
+  }
 }
 
 describe('NameService — lifecycle (MOVE từ series)', () => {
   it('resubmit: REVISION->IN_REVIEW with version++', async () => {
-    const { service, nameRepo } = make({ status: NameStatus.REVISION, version: 2 })
+    const { service, nameRepo, notificationService, revisionService } = make({
+      status: NameStatus.REVISION,
+      version: 2
+    })
+    revisionService.currentRound.mockResolvedValueOnce(2)
     await service.resubmit('m1', SERIES_ID, NAME_ID)
     expect(nameRepo.updateNameStatus).toHaveBeenCalledWith(NAME_ID, {
       status: NameStatus.IN_REVIEW,
       version: 3
+    })
+    expect(revisionService.currentRound).toHaveBeenCalledWith('NAME', NAME_ID)
+    expect(notificationService.notifySafe).toHaveBeenCalledWith({
+      recipientId: 'e1',
+      type: NotificationType.REVIEW,
+      referenceId: NAME_ID,
+      referenceType: 'NAME_RESUBMITTED',
+      content: 'Name resubmitted (round 2)'
     })
   })
 
@@ -84,12 +111,14 @@ describe('NameService — lifecycle (MOVE từ series)', () => {
     })
   })
 
-  it('resubmit does not notify before review round threshold', async () => {
+  it('resubmit does not send a loop warning before review round threshold', async () => {
     const { service, notificationService } = make({ status: NameStatus.REVISION, version: 2 })
 
     await service.resubmit('m1', SERIES_ID, NAME_ID)
 
-    expect(notificationService.notifySafe).not.toHaveBeenCalled()
+    expect(notificationService.notifySafe).not.toHaveBeenCalledWith(
+      expect.objectContaining({ referenceType: 'NAME_LOOP_WARNING' })
+    )
   })
 
   it('resubmit does not notify at threshold when series has no assigned editor', async () => {
@@ -111,6 +140,7 @@ describe('NameService — lifecycle (MOVE từ series)', () => {
     expect(notificationService.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({
         recipientId: 'm1',
+        referenceId: SERIES_ID,
         referenceType: 'NAME_APPROVED',
         content: expect.any(String)
       })
@@ -134,16 +164,46 @@ describe('NameService — lifecycle (MOVE từ series)', () => {
   })
 
   it('requestRevision notifies with NAME_REVISION_REQUESTED', async () => {
-    const { service, notificationService } = make({ status: NameStatus.SUBMITTED })
+    const { service, nameRepo, notificationService, revisionService } = make({ status: NameStatus.SUBMITTED })
+    revisionService.openSafe.mockResolvedValueOnce({ round: 2 })
 
     await service.requestRevision('e1', SERIES_ID, NAME_ID, 'fix pacing')
 
+    expect(revisionService.openSafe).toHaveBeenCalledWith({
+      targetType: 'NAME',
+      targetId: NAME_ID,
+      seriesId: SERIES_ID,
+      reason: 'fix pacing',
+      requestedBy: 'e1',
+      recipientId: 'm1'
+    })
+    expect(nameRepo.updateNameStatus.mock.invocationCallOrder[0]).toBeLessThan(
+      revisionService.openSafe.mock.invocationCallOrder[0]
+    )
     expect(notificationService.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({
         recipientId: 'm1',
+        referenceId: NAME_ID,
         referenceType: 'NAME_REVISION_REQUESTED',
-        content: expect.any(String)
+        content: 'Name needs revision (round 2): fix pacing'
       })
+    )
+  })
+
+  it('uses each nameId as the revision notification reference so Names in one series do not dedupe each other', async () => {
+    const { service, nameRepo, notificationService, name } = make({ status: NameStatus.SUBMITTED })
+    nameRepo.findNameById.mockImplementation((id: string) => Promise.resolve({ ...name, id }))
+
+    await service.requestRevision('e1', SERIES_ID, NAME_ID, 'fix pacing')
+    await service.requestRevision('e1', SERIES_ID, OTHER_NAME_ID, 'fix panel flow')
+
+    expect(notificationService.notifySafe).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ referenceId: NAME_ID, referenceType: 'NAME_REVISION_REQUESTED' })
+    )
+    expect(notificationService.notifySafe).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ referenceId: OTHER_NAME_ID, referenceType: 'NAME_REVISION_REQUESTED' })
     )
   })
 
@@ -177,7 +237,7 @@ describe('NameService.createChapterName (chapter-first)', () => {
       createChapterNameForChapter: jest.fn().mockResolvedValue({
         id: 'n1',
         kind: NameKind.CHAPTER,
-        status: NameStatus.SUBMITTED,
+        status: NameStatus.DRAFT,
         chapterId: CHAPTER_ID,
         chapterNumber: 5,
         pages: []
@@ -189,7 +249,8 @@ describe('NameService.createChapterName (chapter-first)', () => {
       repo as never,
       { emit: jest.fn() } as never,
       { notifySafe: jest.fn() } as never,
-      { get: jest.fn() } as never
+      { get: jest.fn() } as never,
+      { openSafe: jest.fn(), currentRound: jest.fn() } as never
     )
 
   it('malformed chapterId → 404', async () => {
@@ -291,7 +352,7 @@ describe('NameService.createChapterName — ending phase (Fix-1 G-1)', () => {
       createChapterNameForChapter: jest.fn().mockResolvedValue({
         id: 'n1',
         kind: NameKind.CHAPTER,
-        status: NameStatus.SUBMITTED,
+        status: NameStatus.DRAFT,
         chapterId: CHAPTER_ID,
         chapterNumber: 8,
         pages: []
@@ -303,7 +364,8 @@ describe('NameService.createChapterName — ending phase (Fix-1 G-1)', () => {
       repo as never,
       { emit: jest.fn() } as never,
       { notifySafe: jest.fn() } as never,
-      { get: jest.fn() } as never
+      { get: jest.fn() } as never,
+      { openSafe: jest.fn(), currentRound: jest.fn() } as never
     )
 
   it.each([SeriesStatus.CANCELLING, SeriesStatus.COMPLETING])(
@@ -465,7 +527,8 @@ describe('NameService.deleteChapterName (Spec 12)', () => {
       { notifySafe: jest.fn() } as never,
       {
         get: jest.fn()
-      } as never
+      } as never,
+      { openSafe: jest.fn(), currentRound: jest.fn() } as never
     )
 
   it('deletes the Name and unsets Chapter.nameId when the chapter is DRAFT', async () => {
@@ -501,5 +564,48 @@ describe('NameService.deleteChapterName (Spec 12)', () => {
     const repo = makeDelRepo()
     await expect(makeDelSvc(repo).deleteChapterName('m1', 'garbage', NAME_ID)).rejects.toMatchObject({ status: 404 })
     expect(repo.findChapterForNameGuard).not.toHaveBeenCalled()
+  })
+})
+
+// ── Option A (chapter-Name born DRAFT + explicit submit) ─────────────────────
+describe('NameService.chapterSubmit', () => {
+  const CHAPTER_NAME = { kind: NameKind.CHAPTER, chapterId: CHAPTER_ID, chapterNumber: 2 }
+
+  it('DRAFT chapter-Name → SUBMITTED and stamps submittedAt', async () => {
+    const { service, nameRepo } = make({ ...CHAPTER_NAME, status: NameStatus.DRAFT })
+    nameRepo.findChapterForNameGuard.mockResolvedValue({ id: CHAPTER_ID, seriesId: SERIES_ID })
+
+    const res = await service.chapterSubmit('m1', CHAPTER_ID, NAME_ID)
+
+    expect(res.status).toBe(NameStatus.SUBMITTED)
+    const call = nameRepo.updateNameStatus.mock.calls[0]
+    expect(call[0]).toBe(NAME_ID)
+    expect(call[1].status).toBe(NameStatus.SUBMITTED)
+    expect(call[1].submittedAt).toBeInstanceOf(Date)
+  })
+
+  it('non-DRAFT chapter-Name (already SUBMITTED) → 409 InvalidNameState', async () => {
+    const { service, nameRepo } = make({ ...CHAPTER_NAME, status: NameStatus.SUBMITTED })
+    nameRepo.findChapterForNameGuard.mockResolvedValue({ id: CHAPTER_ID, seriesId: SERIES_ID })
+
+    await expect(service.chapterSubmit('m1', CHAPTER_ID, NAME_ID)).rejects.toMatchObject({ status: 409 })
+    expect(nameRepo.updateNameStatus).not.toHaveBeenCalled()
+  })
+
+  it('non-owner → 403', async () => {
+    const { service, nameRepo } = make({ ...CHAPTER_NAME, status: NameStatus.DRAFT })
+    nameRepo.findChapterForNameGuard.mockResolvedValue({ id: CHAPTER_ID, seriesId: SERIES_ID })
+
+    await expect(service.chapterSubmit('someone-else', CHAPTER_ID, NAME_ID)).rejects.toMatchObject({ status: 403 })
+    expect(nameRepo.updateNameStatus).not.toHaveBeenCalled()
+  })
+
+  it('chapterAddPage works while the chapter-Name is still DRAFT (the whole point of Option A)', async () => {
+    const { service, nameRepo } = make({ ...CHAPTER_NAME, status: NameStatus.DRAFT, pages: [] })
+    nameRepo.findChapterForNameGuard.mockResolvedValue({ id: CHAPTER_ID, seriesId: SERIES_ID })
+
+    await service.chapterAddPage('m1', CHAPTER_ID, NAME_ID, { pageNumber: 1, fileUrl: 'k' })
+
+    expect(nameRepo.appendNamePage).toHaveBeenCalledWith(NAME_ID, { pageNumber: 1, fileUrl: 'k' })
   })
 })

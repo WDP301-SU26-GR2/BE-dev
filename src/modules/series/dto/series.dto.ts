@@ -10,11 +10,13 @@ import {
   ReasonBodySchema,
   SeriesListResSchema,
   SeriesResSchema,
-  UpdateProposalBodySchema
+  UpdateProposalBodySchema,
+  UpdateSeriesMetadataBodySchema
 } from '../schemas/series-schemas'
 
 export class CreateProposalBodyDto extends createZodDto(CreateProposalBodySchema) {}
 export class UpdateProposalBodyDto extends createZodDto(UpdateProposalBodySchema) {}
+export class UpdateSeriesMetadataBodyDto extends createZodDto(UpdateSeriesMetadataBodySchema) {}
 export class ReasonBodyDto extends createZodDto(ReasonBodySchema) {}
 export class SeriesResDto extends createZodDto(SeriesResSchema) {}
 export class NameResDto extends createZodDto(NameResSchema) {}

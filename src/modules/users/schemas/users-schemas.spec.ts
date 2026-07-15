@@ -1,6 +1,8 @@
 import {
   AdminCreateUserBodySchema,
   AdminUpdateUserStatusBodySchema,
+  ListAssistantsQuerySchema,
+  ListMangakasQuerySchema,
   MangakaProfileBodySchema,
   UpdateMeBodySchema
 } from './users-schemas'
@@ -65,5 +67,23 @@ describe('UpdateMeBodySchema', () => {
 
   it('rejects name shorter than 2 chars (cannot clear a required field)', () => {
     expect(() => UpdateMeBodySchema.parse({ name: '' })).toThrow()
+  })
+})
+
+describe('Directory query schemas (Spec 14)', () => {
+  it('trims assistant q and rejects email/search-shaped unknown fields', () => {
+    expect(ListAssistantsQuerySchema.parse({ q: '  Saku  ' }).q).toBe('Saku')
+    expect(() => ListAssistantsQuerySchema.parse({ search: 'saku' })).toThrow()
+  })
+
+  it('defaults Mangaka pagination and strictly validates genre', () => {
+    expect(ListMangakasQuerySchema.parse({ q: '  Saku  ', genre: 'ACTION' })).toEqual({
+      q: 'Saku',
+      genre: 'ACTION',
+      limit: 20,
+      offset: 0
+    })
+    expect(() => ListMangakasQuerySchema.parse({ genre: 'action' })).toThrow()
+    expect(() => ListMangakasQuerySchema.parse({ email: 'hidden@example.com' })).toThrow()
   })
 })

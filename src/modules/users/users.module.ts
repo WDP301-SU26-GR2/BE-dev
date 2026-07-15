@@ -4,6 +4,7 @@ import { AdminStatsService } from './services/admin-stats.service'
 import { AdminUserQueryService } from './services/admin-user-query.service'
 import { AssistantProfileService } from './services/assistant-profile.service'
 import { MangakaProfileService } from './services/mangaka-profile.service'
+import { MangakaDirectoryService } from './services/mangaka-directory.service'
 import { MeService } from './services/me.service'
 import { AdminUserService } from './services/admin-user.service'
 import { AssistantDirectoryService } from './services/assistant-directory.service'
@@ -23,6 +24,7 @@ import { UsersService } from './users.service'
     AdminModerationService,
     AdminStatsService,
     MangakaProfileService,
+    MangakaDirectoryService,
     AssistantProfileService,
     AssistantDirectoryService,
     StaffProfileService

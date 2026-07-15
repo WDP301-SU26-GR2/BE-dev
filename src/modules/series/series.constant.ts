@@ -17,3 +17,16 @@ export const SERIES_TRANSITIONS: Record<SeriesStatus, SeriesStatus[]> = {
   ABANDONED: [],
   WITHDRAWN: []
 }
+
+// Metadata của hồ sơ series đã đóng không còn chỉnh sửa được. Dùng chung ở service guard
+// và repository atomic write guard để không có TOCTOU với state transition.
+export const SERIES_METADATA_TERMINAL_STATUSES: SeriesStatus[] = [
+  SeriesStatus.COMPLETED,
+  SeriesStatus.CANCELLED,
+  SeriesStatus.ABANDONED,
+  SeriesStatus.WITHDRAWN,
+  SeriesStatus.REJECTED
+]
+
+// Optimistic writes are intentionally bounded so a hot Series cannot keep an API request alive forever.
+export const SERIES_PROPOSAL_CAS_MAX_ATTEMPTS = 3

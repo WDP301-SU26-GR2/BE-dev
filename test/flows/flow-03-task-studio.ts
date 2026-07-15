@@ -42,9 +42,9 @@ const main = async () => {
   await wipeDb()
   await seedRolesAndAdmin()
 
-  const m1 = await makeUser(RoleCode.MANGAKA)
+  const m1 = await makeUser(RoleCode.MANGAKA, { name: 'Spec14 Mangaka Needle' })
   const m2 = await makeUser(RoleCode.MANGAKA) // không sở hữu series
-  const a1 = await makeUser(RoleCode.ASSISTANT)
+  const a1 = await makeUser(RoleCode.ASSISTANT, { name: 'Spec14 Assistant Needle' })
   const a2 = await makeUser(RoleCode.ASSISTANT)
   const a3 = await makeUser(RoleCode.ASSISTANT) // không được thuê
   const e1 = await makeUser(RoleCode.EDITOR)
@@ -74,6 +74,18 @@ const main = async () => {
     rProfile.status === 200,
     `got ${rProfile.status} ${rProfile.raw.slice(0, 160)}`
   )
+  const rMangakaProfile = await req('PUT', '/me/mangaka-profile', {
+    token: m1Tok,
+    body: {
+      penName: 'Spec14PenNeedle',
+      genres: ['ACTION'],
+      experienceLevel: 'SENIOR',
+      bio: 'Spec 14 directory fixture',
+      portfolioFiles: []
+    }
+  })
+  ok('F03-000b M1 upsert mangaka-profile -> 200', rMangakaProfile.status === 200, `got ${rMangakaProfile.status}`)
+
   const rDir = await req('GET', `/assistants?specialization=${Spec.INKING}`, { token: m1Tok })
   const dirItems = (rDir.json?.data?.items ?? []) as Array<Record<string, unknown>>
   ok('F03-001a GET /assistants filter specialization → 200', rDir.status === 200, `got ${rDir.status}`)
@@ -85,8 +97,38 @@ const main = async () => {
   )
   const rDirLvl = await req('GET', '/assistants?level=SENIOR', { token: m1Tok })
   ok('F03-002 GET /assistants filter level → 200', rDirLvl.status === 200, `got ${rDirLvl.status}`)
+  const rDirQuery = await req('GET', '/assistants?q=assistant%20needle', { token: m1Tok })
+  const queryAssistantItems = (rDirQuery.json?.data?.items ?? []) as Array<Record<string, unknown>>
+  ok(
+    'F03-DIR1 GET /assistants?q searches name/displayName and keeps privacy',
+    rDirQuery.status === 200 &&
+      queryAssistantItems.some((item) => item.userId === a1.id) &&
+      queryAssistantItems.every((item) => !('email' in item) && !('phoneNumber' in item)),
+    `got ${rDirQuery.status} ${rDirQuery.raw.slice(0, 200)}`
+  )
+
+  const rMangakaByPenName = await req('GET', '/mangakas?q=PenNeedle', { token: e1Tok })
+  const mangakaDirectoryItems = (rMangakaByPenName.json?.data?.items ?? []) as Array<Record<string, unknown>>
+  ok(
+    'F03-DIR2 Editor searches /mangakas by penName with private fields hidden',
+    rMangakaByPenName.status === 200 &&
+      mangakaDirectoryItems.some((item) => item.userId === m1.id && item.penName === 'Spec14PenNeedle') &&
+      mangakaDirectoryItems.every((item) => !('email' in item) && !('phoneNumber' in item)),
+    `got ${rMangakaByPenName.status} ${rMangakaByPenName.raw.slice(0, 220)}`
+  )
+  const rMangakaByGenre = await req('GET', '/mangakas?genre=ACTION', { token: m2Tok })
+  const mangakasByGenreItems = (rMangakaByGenre.json?.data?.items ?? []) as Array<{ userId?: string }>
+  ok(
+    'F03-DIR3 Mangaka role can filter /mangakas by genre',
+    rMangakaByGenre.status === 200 && mangakasByGenreItems.some((item) => item.userId === m1.id),
+    `got ${rMangakaByGenre.status}`
+  )
+
   const rDirAsst = await req('GET', '/assistants', { token: a1Tok })
   ok('F03-002b ASSISTANT xem danh bạ → 403 (route M/E/B/SA)', rDirAsst.status === 403, `got ${rDirAsst.status}`)
+
+  const rMangakaDirAsst = await req('GET', '/mangakas', { token: a1Tok })
+  ok('F03-DIR4 ASSISTANT cannot read /mangakas -> 403', rMangakaDirAsst.status === 403, `got ${rMangakaDirAsst.status}`)
 
   const rInv = await req('POST', '/collaboration-invites', {
     token: m1Tok,
@@ -379,6 +421,48 @@ const main = async () => {
     rRev.status === 201 &&
       (await prisma.task.findUnique({ where: { id: t1.id! } }))?.status === TaskStatus.REVISION_REQUESTED,
     `got ${rRev.status}`
+  )
+
+  const taskRevisions = await req('GET', `/revision-requests?targetType=TASK&targetId=${t1.id}`, {
+    token: a1Tok
+  })
+  const taskRevisionItems = (taskRevisions.json?.data?.items ?? []) as Array<Record<string, unknown>>
+  ok(
+    'F03-RV1 Assistant lists TASK revision round 1',
+    taskRevisions.status === 200 &&
+      taskRevisionItems.length === 1 &&
+      taskRevisionItems[0]?.round === 1 &&
+      taskRevisionItems[0]?.reason === 'sửa panel 3',
+    `got ${taskRevisions.status} ${taskRevisions.raw.slice(0, 200)}`
+  )
+  const taskRevisionId = taskRevisionItems[0]?.id as string
+  const taskResolveByRequester = await req('PATCH', `/revision-requests/${taskRevisionId}/resolve`, {
+    token: m1Tok,
+    body: {}
+  })
+  expectError(
+    taskResolveByRequester,
+    403,
+    'Error.NotRevisionRecipient',
+    'F03-RV2 requesting Mangaka cannot resolve Assistant revision'
+  )
+  const taskResolveByAssistant = await req('PATCH', `/revision-requests/${taskRevisionId}/resolve`, {
+    token: a1Tok,
+    body: {}
+  })
+  ok(
+    'F03-RV3 recipient Assistant resolves TASK revision -> 200',
+    taskResolveByAssistant.status === 200 && taskResolveByAssistant.json?.data?.isResolved === true,
+    `got ${taskResolveByAssistant.status} ${taskResolveByAssistant.raw.slice(0, 180)}`
+  )
+  const taskResolveAgain = await req('PATCH', `/revision-requests/${taskRevisionId}/resolve`, {
+    token: a1Tok,
+    body: {}
+  })
+  ok(
+    'F03-RV4 TASK resolve is idempotent',
+    taskResolveAgain.status === 200 && taskResolveAgain.json?.data?.id === taskRevisionId,
+    `got ${taskResolveAgain.status}`
   )
 
   await req('POST', `/tasks/${t1.id}/start`, { token: a1Tok, body: {} })

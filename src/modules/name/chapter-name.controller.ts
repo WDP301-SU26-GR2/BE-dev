@@ -49,6 +49,15 @@ export class ChapterNameController {
     return this.nameService.createChapterName(userId, id, body)
   }
 
+  @Post(':nameId/submit')
+  @ApiOperation({ summary: 'Mangaka nộp chapter-Name lên Editor duyệt → DRAFT chuyển SUBMITTED' })
+  @ApiErrors(NotSeriesOwnerException, ChapterNotFoundException, NameNotFoundException, InvalidNameStateException)
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 201, type: NameResDto })
+  submit(@Param('id') id: string, @Param('nameId') nameId: string, @ActiveUser('userId') userId: string) {
+    return this.nameService.chapterSubmit(userId, id, nameId)
+  }
+
   @Get()
   @ApiOperation({ summary: 'List Name của chapter (thực tế 0..1)' })
   @ApiErrors(ChapterNotFoundException, SeriesAccessDeniedException)

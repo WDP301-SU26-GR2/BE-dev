@@ -47,8 +47,15 @@ export const UpdatePageBodySchema = extendApi(
 )
 
 export const ReasonBodySchema = extendApi(z.object({ reason: z.string().max(1000).optional() }).strict(), {
-  title: 'ReasonBody',
-  description: 'Lý do (request-revision)'
+  title: 'OptionalReasonBody',
+  description: 'Optional reason for co-owner rejection and other general chapter actions'
+})
+
+// Spec 14 §1.5.1 (BREAKING): a manuscript revision request must explain what needs changing.
+// ReasonBodySchema remains optional because co-owner-reject also uses it.
+export const RevisionReasonBodySchema = extendApi(z.object({ reason: z.string().min(1).max(1000) }).strict(), {
+  title: 'RevisionReasonBody',
+  description: 'Lý do yêu cầu sửa (bắt buộc)'
 })
 
 export const HoldChapterBodySchema = extendApi(
@@ -186,5 +193,6 @@ export type ExtendDeadlineBodyType = z.infer<typeof ExtendDeadlineBodySchema>
 export type CreatePageBodyType = z.infer<typeof CreatePageBodySchema>
 export type UpdatePageBodyType = z.infer<typeof UpdatePageBodySchema>
 export type ReasonBodyType = z.infer<typeof ReasonBodySchema>
+export type RevisionReasonBodyType = z.infer<typeof RevisionReasonBodySchema>
 export type HoldChapterBodyType = z.infer<typeof HoldChapterBodySchema>
 export type UpdateChapterBodyType = z.infer<typeof UpdateChapterBodySchema>

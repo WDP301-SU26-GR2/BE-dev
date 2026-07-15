@@ -23,6 +23,7 @@ export class AssistantDirectoryService {
 
   async list(query: ListAssistantsQueryType) {
     const filter = {
+      q: query.q,
       specialization: query.specialization,
       level: query.level,
       availableFrom: query.availableFrom,

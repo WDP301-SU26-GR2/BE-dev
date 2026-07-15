@@ -29,6 +29,7 @@ import { ReprintRequestModule } from './modules/reprint/reprint-request.module'
 import { TransferModule } from './modules/transfer/transfer.module'
 import { PaymentModule } from './modules/payment/payment.module'
 import { AuditModule } from './modules/audit/audit.module'
+import { RevisionModule } from './modules/revision/revision.module'
 import { AppConfigModule } from './modules/app-config/app-config.module'
 import { PublicationModule } from './modules/publication/publication.module'
 
@@ -59,6 +60,7 @@ import { PublicationModule } from './modules/publication/publication.module'
     TransferModule,
     PaymentModule,
     AuditModule,
+    RevisionModule,
     AppConfigModule,
     PublicationModule
   ],

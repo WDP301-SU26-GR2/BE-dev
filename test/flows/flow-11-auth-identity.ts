@@ -351,9 +351,70 @@ const main = async () => {
   expectError(rGoogle, 401, 'Error.InvalidGoogleToken', 'F11-035 google login token rác → 401 InvalidGoogleToken')
 
   // OTP rate-limit: cooldown giữa 2 lần xin OTP cùng email
+  // Spec 14: validation/business failures must not consume the per-email cooldown.
+  // Dedicated IPs keep these assertions independent from the IP quota exercised later in this file.
+  const validationCooldownEmail = `spec14-422-${Date.now()}@flowtest.local`
+  const validationFailed = await req('POST', '/auth/register', {
+    body: regBody(validationCooldownEmail, 'MANGAKA', { password: 'weak', confirm_password: 'weak' }),
+    xff: '198.51.100.111'
+  })
+  ok('F11-RL1a failed register validation -> 422', validationFailed.status === 422, `got ${validationFailed.status}`)
+  const registerAfterValidationFailure = await req('POST', '/auth/register', {
+    body: regBody(validationCooldownEmail, 'MANGAKA'),
+    xff: '198.51.100.111'
+  })
+  ok(
+    'F11-RL1b valid register immediately after 422 -> 201 (email cooldown not consumed by failure)',
+    registerAfterValidationFailure.status === 201,
+    `got ${registerAfterValidationFailure.status} ${registerAfterValidationFailure.raw.slice(0, 180)}`
+  )
+  const resendAfterRealRegisterOtp = await req('POST', '/auth/send-otp-email', {
+    body: { email: validationCooldownEmail, purpose: 'REGISTER' },
+    xff: '198.51.100.111'
+  })
+  ok(
+    'F11-RL1c successful register sent a real OTP and now enforces cooldown',
+    resendAfterRealRegisterOtp.status === 429 && resendAfterRealRegisterOtp.json?.code === 'AUTH_OTP_RATE_LIMITED',
+    `got ${resendAfterRealRegisterOtp.status} ${resendAfterRealRegisterOtp.raw.slice(0, 180)}`
+  )
+
+  const businessCooldownEmail = `spec14-409-${Date.now()}@flowtest.local`
+  await makeUser(RoleCode.MANGAKA, { email: businessCooldownEmail })
+  const businessFailed = await req('POST', '/auth/register', {
+    body: regBody(businessCooldownEmail, 'MANGAKA'),
+    xff: '198.51.100.112'
+  })
+  expectError(businessFailed, 409, 'Error.EmailAlreadyExists', 'F11-RL2a duplicate register -> 409')
+  const otpAfterBusinessFailure = await req('POST', '/auth/send-otp-email', {
+    body: { email: businessCooldownEmail, purpose: 'FORGOT_PASSWORD' },
+    xff: '198.51.100.112'
+  })
+  ok(
+    'F11-RL2b valid OTP immediately after 409 -> 201 (email cooldown not consumed by failure)',
+    otpAfterBusinessFailure.status === 201,
+    `got ${otpAfterBusinessFailure.status} ${otpAfterBusinessFailure.raw.slice(0, 180)}`
+  )
+  const otpAfterRealSend = await req('POST', '/auth/send-otp-email', {
+    body: { email: businessCooldownEmail, purpose: 'FORGOT_PASSWORD' },
+    xff: '198.51.100.112'
+  })
+  ok(
+    'F11-RL2c real OTP send consumes cooldown',
+    otpAfterRealSend.status === 429 && otpAfterRealSend.json?.code === 'AUTH_OTP_RATE_LIMITED',
+    `got ${otpAfterRealSend.status} ${otpAfterRealSend.raw.slice(0, 180)}`
+  )
+
   const rlEmail = `ratelimit-${Date.now()}@flowtest.local`
-  await req('POST', '/auth/send-otp-email', { body: { email: rlEmail }, xff: '198.51.100.10' })
-  const rRl2 = await req('POST', '/auth/send-otp-email', { body: { email: rlEmail }, xff: '198.51.100.10' })
+  await makeUser(RoleCode.MANGAKA, { email: rlEmail })
+  const rRl1 = await req('POST', '/auth/send-otp-email', {
+    body: { email: rlEmail, purpose: 'FORGOT_PASSWORD' },
+    xff: '198.51.100.10'
+  })
+  ok('F11-036a first valid OTP request -> 201', rRl1.status === 201, `got ${rRl1.status}`)
+  const rRl2 = await req('POST', '/auth/send-otp-email', {
+    body: { email: rlEmail, purpose: 'FORGOT_PASSWORD' },
+    xff: '198.51.100.10'
+  })
   ok(
     'F11-036 xin OTP lại ngay (cooldown) → 429 + code + retryAfter',
     rRl2.status === 429 && typeof rRl2.json?.retryAfter === 'number' && typeof rRl2.json?.code === 'string',
@@ -367,7 +428,7 @@ const main = async () => {
   for (let i = 0; i < 26; i++) {
     ipTries++
     const r = await req('POST', '/auth/send-otp-email', {
-      body: { email: `ip-${Date.now()}-${i}@flowtest.local` },
+      body: { email: `ip-${Date.now()}-${i}@flowtest.local`, purpose: 'FORGOT_PASSWORD' },
       xff: '198.51.100.77'
     })
     if (r.status === 429) {

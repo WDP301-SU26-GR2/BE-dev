@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
-import { ManuscriptStatus, NotificationType } from '@prisma/client'
+import { ManuscriptStatus, NotificationType, RevisionTargetType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { RevisionService } from 'src/modules/revision/revision.service'
 import {
   ChapterNotFoundException,
   ChapterOnHoldException,
@@ -17,7 +18,8 @@ export class ManuscriptReviewService {
   constructor(
     private readonly chapterRepository: ChapterRepository,
     private readonly manuscriptStateService: ManuscriptStateService,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly revisionService: RevisionService
   ) {}
 
   private async loadOwned(userId: string, chapterId: string) {
@@ -65,7 +67,7 @@ export class ManuscriptReviewService {
   }
 
   // EDITOR_REVIEW→EDITOR_REVISION (annotation markup tạo riêng qua module annotation)
-  async requestRevision(userId: string, chapterId: string, reason?: string) {
+  async requestRevision(userId: string, chapterId: string, reason: string) {
     const { chapter, series } = await this.loadOwned(userId, chapterId)
     if (series.editorId !== userId) throw NotSeriesEditorException
     this.assertNotOnHold(chapter)
@@ -73,12 +75,22 @@ export class ManuscriptReviewService {
       changedBy: userId,
       reason
     })
+
+    const { round } = await this.revisionService.openSafe({
+      targetType: RevisionTargetType.MANUSCRIPT,
+      targetId: chapterId,
+      seriesId: series.id,
+      reason,
+      requestedBy: userId,
+      recipientId: series.mangakaId
+    })
+
     await this.notificationService.notifySafe({
       recipientId: series.mangakaId,
       type: NotificationType.REVIEW,
       referenceId: chapterId,
       referenceType: 'MANUSCRIPT_REVISION_REQUESTED',
-      content: ChapterMessages.notification.editorRequestedRevision
+      content: ChapterMessages.notification.editorRequestedRevision(round, reason)
     })
     return res
   }
@@ -92,12 +104,13 @@ export class ManuscriptReviewService {
       changedBy: userId
     })
     if (series.editorId) {
+      const round = await this.revisionService.currentRound(RevisionTargetType.MANUSCRIPT, chapterId)
       await this.notificationService.notifySafe({
         recipientId: series.editorId,
         type: NotificationType.REVIEW,
         referenceId: chapterId,
         referenceType: 'MANUSCRIPT_RESUBMITTED',
-        content: ChapterMessages.notification.manuscriptResubmitted
+        content: ChapterMessages.notification.manuscriptResubmitted(round)
       })
     }
     return res

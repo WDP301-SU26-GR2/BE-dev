@@ -10,6 +10,7 @@ import {
   PageListResSchema,
   PageResSchema,
   ReasonBodySchema,
+  RevisionReasonBodySchema,
   SetScheduleBodySchema,
   StudioOverviewResSchema,
   UpdateChapterBodySchema,
@@ -24,6 +25,7 @@ export class CreatePageBodyDto extends createZodDto(CreatePageBodySchema) {}
 export class UpdatePageBodyDto extends createZodDto(UpdatePageBodySchema) {}
 export class UpdateChapterBodyDto extends createZodDto(UpdateChapterBodySchema) {}
 export class ReasonBodyDto extends createZodDto(ReasonBodySchema) {}
+export class RevisionReasonBodyDto extends createZodDto(RevisionReasonBodySchema) {}
 export class ChapterResDto extends createZodDto(ChapterResSchema) {}
 export class ChapterListResDto extends createZodDto(ChapterListResSchema) {}
 export class ChapterProgressResDto extends createZodDto(ChapterProgressResSchema) {}
