@@ -4,13 +4,15 @@ import {
   CreateProposalBodyType,
   ListSeriesQueryType,
   ProposeCompletionBodyType,
-  UpdateProposalBodyType
+  UpdateProposalBodyType,
+  UpdateSeriesMetadataBodyType
 } from './schemas/series-schemas'
 import { toSeriesRes } from './series.mapper'
 import { SeriesLifecycleService } from './services/series-lifecycle.service'
 import { SeriesPitchService } from './services/series-pitch.service'
 import { SeriesProposalService } from './services/series-proposal.service'
 import { SeriesClaimService } from './services/series-claim.service'
+import { SeriesMetadataService } from './services/series-metadata.service'
 
 // Spec 8: các route Name (lifecycle + reads + chapter-Name create) đã chuyển sang NameController→
 // NameService trực tiếp. Orchestrator series.service chỉ còn proposal/pitch/claim/query/lifecycle.
@@ -21,7 +23,8 @@ export class SeriesService {
     private readonly pitchService: SeriesPitchService,
     private readonly queryService: SeriesQueryService,
     private readonly claimService: SeriesClaimService,
-    private readonly lifecycleService: SeriesLifecycleService
+    private readonly lifecycleService: SeriesLifecycleService,
+    private readonly metadataService: SeriesMetadataService
   ) {}
 
   createProposal(mangakaId: string, body: CreateProposalBodyType) {
@@ -82,6 +85,10 @@ export class SeriesService {
 
   getSeries(caller: SeriesCaller, seriesId: string) {
     return this.queryService.getById(caller, seriesId)
+  }
+
+  updateSeriesMetadata(caller: SeriesCaller, seriesId: string, body: UpdateSeriesMetadataBodyType) {
+    return this.metadataService.update(caller, seriesId, body)
   }
 
   // Spec 2 / Flow 5: Editor-driven series lifecycle (HIATUS / RESUME / FINALIZE_ENDING).

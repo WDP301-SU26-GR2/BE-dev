@@ -18,8 +18,10 @@ import {
   AssistantProfileBodyDto,
   AssistantProfileResDto,
   ListAssistantsQueryDto,
+  ListMangakasQueryDto,
   ListUsersQueryDto,
   MangakaProfileBodyDto,
+  MangakaDirectoryListResDto,
   MangakaProfileResDto,
   MeResDto,
   StaffProfileBodyDto,
@@ -182,6 +184,16 @@ export class UsersController {
     return this.usersService.getMyAssistantProfile(userId)
   }
 
+  @Get('mangakas')
+  @ApiOperation({
+    summary: 'Danh bạ Mangaka: tìm theo tên/penName, lọc genre/level; ưu tiên isRecommended/reputation (ẩn email/phone)'
+  })
+  @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN, RoleName.MANGAKA)
+  @ZodResponse({ status: 200, type: MangakaDirectoryListResDto })
+  listMangakas(@Query() query: ListMangakasQueryDto) {
+    return this.usersService.listMangakas(query)
+  }
+
   @Get('mangakas/:userId')
   @ApiOperation({ summary: 'Xem hồ sơ Mangaka công khai (kèm reputation)' })
   @ApiErrors(ProfileNotFoundException)
@@ -192,7 +204,8 @@ export class UsersController {
 
   @Get('assistants')
   @ApiOperation({
-    summary: 'Danh bạ trợ lý: lọc specialization/level/availability, ưu tiên isRecommended/reputation (ẩn email/phone)'
+    summary:
+      'Danh bạ trợ lý: tìm theo tên, lọc specialization/level/availability, ưu tiên isRecommended/reputation (ẩn email/phone)'
   })
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: AssistantDirectoryListResDto })

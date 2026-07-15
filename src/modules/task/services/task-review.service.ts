@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
-import { NotificationType } from '@prisma/client'
+import { NotificationType, RevisionTargetType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { RevisionService } from 'src/modules/revision/revision.service'
 import {
   NotSeriesOwnerException,
   NotTaskAssigneeException,
@@ -22,7 +23,8 @@ export class TaskReviewService {
     private readonly taskRepository: TaskRepository,
     private readonly taskStateService: TaskStateService,
     private readonly taskCascadeService: TaskCascadeService,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly revisionService: RevisionService
   ) {}
 
   private async requireTask(taskId: string) {
@@ -82,7 +84,7 @@ export class TaskReviewService {
         NotificationType.REVIEW,
         'TASK_SUBMITTED',
         taskId,
-        TaskMessages.notification.taskSubmittedForReview
+        TaskMessages.notification.taskSubmittedForReview(versionNumber)
       )
     return toTaskRes(updated)
   }
@@ -120,12 +122,20 @@ export class TaskReviewService {
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
     if (updated.assistantId) {
+      const { round } = await this.revisionService.openSafe({
+        targetType: RevisionTargetType.TASK,
+        targetId: taskId,
+        seriesId: null,
+        reason: body.reviewerNote,
+        requestedBy: mangakaId,
+        recipientId: updated.assistantId
+      })
       await this.notify(
         updated.assistantId,
         NotificationType.TASK,
         'TASK_REVISION_REQUESTED',
         taskId,
-        TaskMessages.notification.taskRevisionRequested
+        TaskMessages.notification.taskRevisionRequested(round, body.reviewerNote)
       )
     }
     return toTaskRes(updated)

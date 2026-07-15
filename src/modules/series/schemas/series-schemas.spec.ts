@@ -1,4 +1,9 @@
-import { CreateProposalBodySchema, SeriesResSchema, UpdateProposalBodySchema } from './series-schemas'
+import {
+  CreateProposalBodySchema,
+  SeriesResSchema,
+  UpdateProposalBodySchema,
+  UpdateSeriesMetadataBodySchema
+} from './series-schemas'
 
 describe('Genre/Demographic enums', () => {
   it('CreateProposalBody chấp nhận genres enum hợp lệ + demographic', () => {
@@ -128,5 +133,37 @@ describe('series schemas — coverImage', () => {
       proposal: null
     })
     expect(parsed.coverImage).toBe('uploads/m1/cover.png')
+  })
+})
+
+describe('UpdateSeriesMetadataBodySchema', () => {
+  it('accepts only presentation metadata and supports clear values', () => {
+    expect(
+      UpdateSeriesMetadataBodySchema.parse({
+        title: 'New title',
+        coverImage: '',
+        synopsis: '',
+        characterDesigns: []
+      })
+    ).toEqual({ title: 'New title', coverImage: '', synopsis: '', characterDesigns: [] })
+  })
+
+  it('accepts null as keep-current PATCH semantics', () => {
+    expect(UpdateSeriesMetadataBodySchema.parse({ coverImage: null, synopsis: null, characterDesigns: null })).toEqual({
+      coverImage: null,
+      synopsis: null,
+      characterDesigns: null
+    })
+  })
+
+  it.each(['genres', 'demographic', 'publicationType', 'magazine', 'startIssueNumber', 'status', 'mangakaId'])(
+    'rejects protected field %s via strict schema',
+    (field) => {
+      expect(UpdateSeriesMetadataBodySchema.safeParse({ [field]: 'forbidden' }).success).toBe(false)
+    }
+  )
+
+  it('rejects an empty title', () => {
+    expect(UpdateSeriesMetadataBodySchema.safeParse({ title: '' }).success).toBe(false)
   })
 })

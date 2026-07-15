@@ -13,6 +13,7 @@ import { SeriesIntegrationListener } from './services/series-integration.listene
 import { NameApprovedListener } from './services/name-approved.listener'
 import { HiatusTooLongCron } from './services/hiatus-too-long.cron'
 import { NameModule } from 'src/modules/name/name.module'
+import { SeriesMetadataService } from './services/series-metadata.service'
 
 // Spec 8 §6: NameApprovedListener lắng NameApproved event (emit bởi name module SAU commit) →
 // nếu kind=PROPOSAL → advance READY_TO_PITCH. kind=CHAPTER → no-op.
@@ -31,6 +32,7 @@ import { NameModule } from 'src/modules/name/name.module'
     SeriesClaimService,
     SeriesQueryService,
     SeriesLifecycleService,
+    SeriesMetadataService,
     SeriesSerializeService,
     SeriesIntegrationListener,
     NameApprovedListener,

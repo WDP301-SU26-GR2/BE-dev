@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common'
-import { FranchiseConsentStatus, NameStatus, NotificationType, ProposalStatus, SeriesStatus } from '@prisma/client'
+import {
+  FranchiseConsentStatus,
+  NameStatus,
+  NotificationType,
+  ProposalStatus,
+  RevisionTargetType,
+  SeriesStatus
+} from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { NameRepo } from 'src/modules/name/name.repo'
+import { RevisionService } from 'src/modules/revision/revision.service'
 import {
   FranchiseConsentRequiredException,
   InvalidProposalStateException,
@@ -29,7 +37,8 @@ export class SeriesProposalService {
     private readonly seriesRepository: SeriesRepository,
     private readonly nameRepo: NameRepo,
     private readonly seriesStateService: SeriesStateService,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly revisionService: RevisionService
   ) {}
 
   async createProposal(mangakaId: string, body: CreateProposalBodyType) {
@@ -98,11 +107,21 @@ export class SeriesProposalService {
     requireAssignedEditor(series, editorId)
     if (!series.reviewStartedAt) await this.seriesRepository.markReviewStarted(seriesId)
     const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVISION)
+
+    const { round } = await this.revisionService.openSafe({
+      targetType: RevisionTargetType.PROPOSAL,
+      targetId: seriesId,
+      seriesId,
+      reason,
+      requestedBy: editorId,
+      recipientId: series.mangakaId
+    })
+
     await this.notifyMangaka(
       series.mangakaId,
       seriesId,
       'PROPOSAL_REVISION_REQUESTED',
-      SeriesMessages.notification.proposalRevision(reason)
+      SeriesMessages.notification.proposalRevision(round, reason)
     )
     return toSeriesRes(updated)
   }
@@ -111,13 +130,15 @@ export class SeriesProposalService {
     const series = await this.requireOwner(seriesId, mangakaId)
     if (series.proposal?.status !== ProposalStatus.PROPOSAL_REVISION) throw InvalidProposalStateException
     const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVIEW)
-    if (series.editorId)
+    if (series.editorId) {
+      const round = await this.revisionService.currentRound(RevisionTargetType.PROPOSAL, seriesId)
       await this.notifyMangaka(
         series.editorId,
         seriesId,
         'PROPOSAL_RESUBMITTED',
-        SeriesMessages.notification.proposalResubmitted
+        SeriesMessages.notification.proposalResubmitted(round)
       )
+    }
     return toSeriesRes(updated)
   }
 

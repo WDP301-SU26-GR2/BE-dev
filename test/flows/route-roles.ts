@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-12T12:42:02.987Z — 239 routes.
+// Sinh lúc: 2026-07-15T05:30:49.582Z — 244 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -172,6 +172,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'PUT', path: '/chapters/:id/names/:nameId/pages', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/chapters/:id/names/:nameId/request-revision', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/chapters/:id/names/:nameId/resubmit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'POST', path: '/chapters/:id/names/:nameId/submit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'GET', path: '/chapters/:id/pages', access: 'AUTH', allowed: [] },
   { method: 'POST', path: '/chapters/:id/pages', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   {
@@ -334,6 +335,12 @@ export const ROUTE_RULES: RouteRule[] = [
   },
   { method: 'GET', path: '/mangaka-reviews', access: 'AUTH', allowed: [] },
   { method: 'POST', path: '/mangaka-reviews', access: 'ROLES', allowed: [RoleCode.EDITOR] },
+  {
+    method: 'GET',
+    path: '/mangakas',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN, RoleCode.MANGAKA]
+  },
   { method: 'GET', path: '/mangakas/:userId', access: 'AUTH', allowed: [] },
   { method: 'GET', path: '/me', access: 'AUTH', allowed: [] },
   { method: 'PATCH', path: '/me', access: 'AUTH', allowed: [] },
@@ -468,6 +475,18 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'PATCH', path: '/reprint-requests/:id/mangaka-review', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   {
     method: 'GET',
+    path: '/revision-requests',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.ASSISTANT, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
+  {
+    method: 'PATCH',
+    path: '/revision-requests/:id/resolve',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.ASSISTANT]
+  },
+  {
+    method: 'GET',
     path: '/series',
     access: 'ROLES',
     allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
@@ -478,6 +497,7 @@ export const ROUTE_RULES: RouteRule[] = [
     access: 'ROLES',
     allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
   },
+  { method: 'PATCH', path: '/series/:id', access: 'ROLES', allowed: [RoleCode.MANGAKA, RoleCode.EDITOR] },
   { method: 'POST', path: '/series/:id/claim', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   {
     method: 'GET',

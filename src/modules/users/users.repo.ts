@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common'
-import { AvailabilityStatus, ChapterStatus, Prisma, RegistrationType, Specialization, UserStatus } from '@prisma/client'
+import {
+  AvailabilityStatus,
+  ChapterStatus,
+  Genre,
+  Prisma,
+  RegistrationType,
+  Specialization,
+  UserStatus
+} from '@prisma/client'
 import { RoleName, RoleNameType } from 'src/core/security/constants/role.constant'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { AssistantProfileBodyType, MangakaProfileBodyType, StaffProfileBodyType } from './schemas/users-schemas'
@@ -16,10 +24,18 @@ export type AdminUserFilter = {
 
 // ---- Assistant directory (A-TSK-06) ----
 export type AssistantDirectoryFilter = {
+  q?: string
   specialization?: Specialization
   level?: string
   availableFrom?: string
   availableTo?: string
+}
+
+// ---- Mangaka directory (Spec 14 §3.2) ----
+export type MangakaDirectoryFilter = {
+  q?: string
+  genre?: Genre
+  level?: string
 }
 
 export type UserRoleCountRow = {
@@ -335,11 +351,23 @@ export class UsersRepository {
 
   // ---- Assistant directory (A-TSK-06) ----
   // Mongo: KHÔNG relation-filter — resolve roleId trước (bám buildAdminUserWhere).
-  private async findActiveAssistantUserIds(): Promise<string[]> {
+  private async findActiveAssistantUserIds(q?: string): Promise<string[]> {
     const role = await this.prismaService.role.findFirst({ where: { code: RoleName.ASSISTANT }, select: { id: true } })
     if (!role) return []
     const users = await this.prismaService.user.findMany({
-      where: { roleId: role.id, status: UserStatus.ACTIVE, deletedAt: { isSet: false } },
+      where: {
+        roleId: role.id,
+        status: UserStatus.ACTIVE,
+        deletedAt: { isSet: false },
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+                { displayName: { contains: q, mode: 'insensitive' } }
+              ]
+            }
+          : {})
+      },
       select: { id: true }
     })
     return users.map((u) => u.id)
@@ -365,7 +393,7 @@ export class UsersRepository {
   }
 
   async findAssistantsForDirectory(f: AssistantDirectoryFilter, page: { limit: number; offset: number }) {
-    const activeIds = await this.findActiveAssistantUserIds()
+    const activeIds = await this.findActiveAssistantUserIds(f.q)
     if (activeIds.length === 0) return []
     return await this.prismaService.assistantProfile.findMany({
       where: this.buildDirectoryWhere(activeIds, f),
@@ -377,8 +405,67 @@ export class UsersRepository {
   }
 
   async countAssistantsForDirectory(f: AssistantDirectoryFilter): Promise<number> {
-    const activeIds = await this.findActiveAssistantUserIds()
+    const activeIds = await this.findActiveAssistantUserIds(f.q)
     if (activeIds.length === 0) return 0
     return await this.prismaService.assistantProfile.count({ where: this.buildDirectoryWhere(activeIds, f) })
+  }
+
+  // ---- Mangaka directory (Spec 14 §3.2) ----
+  private async findActiveMangakaUserIds(q?: string): Promise<string[]> {
+    const role = await this.prismaService.role.findFirst({ where: { code: RoleName.MANGAKA }, select: { id: true } })
+    if (!role) return []
+    const users = await this.prismaService.user.findMany({
+      where: {
+        roleId: role.id,
+        status: UserStatus.ACTIVE,
+        deletedAt: { isSet: false },
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+                { displayName: { contains: q, mode: 'insensitive' } }
+              ]
+            }
+          : {})
+      },
+      select: { id: true }
+    })
+    return users.map((u) => u.id)
+  }
+
+  private async buildMangakaDirectoryWhere(f: MangakaDirectoryFilter): Promise<Prisma.MangakaProfileWhereInput | null> {
+    const allActiveIds = await this.findActiveMangakaUserIds()
+    if (allActiveIds.length === 0) return null
+
+    const base: Prisma.MangakaProfileWhereInput = {
+      userId: { in: allActiveIds },
+      ...(f.genre ? { genres: { has: f.genre } } : {}),
+      ...(f.level ? { experienceLevel: f.level } : {})
+    }
+    if (!f.q) return base
+
+    const nameMatchedIds = await this.findActiveMangakaUserIds(f.q)
+    return {
+      ...base,
+      OR: [{ penName: { contains: f.q, mode: 'insensitive' } }, { userId: { in: nameMatchedIds } }]
+    }
+  }
+
+  async findMangakasForDirectory(f: MangakaDirectoryFilter, page: { limit: number; offset: number }) {
+    const where = await this.buildMangakaDirectoryWhere(f)
+    if (!where) return []
+    return await this.prismaService.mangakaProfile.findMany({
+      where,
+      orderBy: [{ isRecommended: 'desc' }, { reputationScore: 'desc' }, { ratingCount: 'desc' }],
+      skip: page.offset,
+      take: page.limit,
+      include: { user: { select: { displayName: true, avatar: true } } }
+    })
+  }
+
+  async countMangakasForDirectory(f: MangakaDirectoryFilter): Promise<number> {
+    const where = await this.buildMangakaDirectoryWhere(f)
+    if (!where) return 0
+    return await this.prismaService.mangakaProfile.count({ where })
   }
 }

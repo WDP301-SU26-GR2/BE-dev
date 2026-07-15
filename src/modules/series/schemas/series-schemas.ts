@@ -50,6 +50,24 @@ export const UpdateProposalBodySchema = extendApi(
   { title: 'UpdateProposalBody', description: 'Sửa proposal (DRAFT/PROPOSAL_REVISION) - gửi field nào sửa field đó' }
 )
 
+// Spec 14 §2: metadata trình bày có thể sửa ở mọi giai đoạn trừ khi series đã kết thúc.
+// Concept/roster fields (genres/demographic) và Board-owned slot fields intentionally không có trong
+// schema; `.strict()` khiến client gửi các field ngoài allowlist nhận 422.
+export const UpdateSeriesMetadataBodySchema = extendApi(
+  z
+    .object({
+      title: z.string().min(1).max(200).optional(),
+      coverImage: z.string().nullish().describe("Object key A7; '' = xoá ảnh bìa"),
+      synopsis: z.string().max(5000).nullish().describe("'' = xoá synopsis"),
+      characterDesigns: z.array(z.string()).nullish().describe('Object key A7; [] = xoá hết')
+    })
+    .strict(),
+  {
+    title: 'UpdateSeriesMetadataBody',
+    description: 'PATCH metadata series — omit/null = giữ nguyên, "" = clear, [] = clear mảng'
+  }
+)
+
 export const ReasonBodySchema = extendApi(z.object({ reason: z.string().min(1).max(1000) }).strict(), {
   title: 'ReasonBody',
   description: 'Lý do (revision/reject/withdraw)'
@@ -145,6 +163,7 @@ export const CreateProposalResSchema = extendApi(z.object({ series: SeriesResSch
 
 export type CreateProposalBodyType = z.infer<typeof CreateProposalBodySchema>
 export type UpdateProposalBodyType = z.infer<typeof UpdateProposalBodySchema>
+export type UpdateSeriesMetadataBodyType = z.infer<typeof UpdateSeriesMetadataBodySchema>
 export type ReasonBodyType = z.infer<typeof ReasonBodySchema>
 export type ListSeriesQueryType = z.infer<typeof ListSeriesQuerySchema>
 

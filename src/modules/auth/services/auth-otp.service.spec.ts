@@ -13,8 +13,9 @@ function makeService(overrides: { otp?: unknown; compare?: boolean }) {
     compare: jest.fn().mockResolvedValue(overrides.compare ?? false)
   }
   const emailQueue = { enqueueOtp: jest.fn().mockResolvedValue(undefined) }
-  const service = new AuthOtpService(repo as never, hashing, emailQueue as never)
-  return { service, repo, hashing, emailQueue }
+  const rateLimitService = { checkAndConsume: jest.fn().mockResolvedValue({ allowed: true }) }
+  const service = new AuthOtpService(repo as never, hashing, emailQueue as never, rateLimitService as never)
+  return { service, repo, hashing, emailQueue, rateLimitService }
 }
 
 const future = new Date(Date.now() + 60_000)
@@ -77,5 +78,57 @@ describe('AuthOtpService.validateOtpCode', () => {
     await expect(
       service.validateOtpCode({ email: 'a@b.com', code: '123456', purpose: OtpPurpose.REGISTER })
     ).resolves.toBe(otp)
+  })
+})
+
+// Spec 14 §4: rate-limit email chuyển xuống issueOtp.
+describe('AuthOtpService.issueOtp rate-limit', () => {
+  const makeRateLimitService = (allowed: boolean) => ({
+    checkAndConsume: jest
+      .fn()
+      .mockResolvedValue(allowed ? { allowed: true } : { allowed: false, reason: 'COOLDOWN', retryAfter: 30 })
+  })
+
+  const makeIssueOtpService = (allowed: boolean) => {
+    const rateLimitService = makeRateLimitService(allowed)
+    const repo = { createOtpRequest: jest.fn().mockResolvedValue(undefined) }
+    const hashing = { hash: jest.fn().mockResolvedValue('hashed') }
+    const emailQueue = { enqueueOtp: jest.fn().mockResolvedValue(undefined) }
+    const service = new AuthOtpService(repo as never, hashing as never, emailQueue as never, rateLimitService as never)
+    return { service, repo, emailQueue, rateLimitService }
+  }
+
+  it('consumes the email rule and issues OTP when allowed', async () => {
+    const { service, repo, emailQueue, rateLimitService } = makeIssueOtpService(true)
+
+    await service.issueOtp('a@b.com', OtpPurpose.REGISTER)
+
+    expect(rateLimitService.checkAndConsume).toHaveBeenCalledTimes(1)
+    expect(repo.createOtpRequest).toHaveBeenCalledTimes(1)
+    expect(emailQueue.enqueueOtp).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws 429 and does not create an OtpRequest when the email rule is exhausted', async () => {
+    const { service, repo, emailQueue } = makeIssueOtpService(false)
+
+    await expect(service.issueOtp('a@b.com', OtpPurpose.REGISTER)).rejects.toMatchObject({
+      status: 429,
+      response: {
+        message: 'Error.OtpRateLimited',
+        code: 'AUTH_OTP_RATE_LIMITED',
+        retryAfter: 30
+      }
+    })
+    expect(repo.createOtpRequest).not.toHaveBeenCalled()
+    expect(emailQueue.enqueueOtp).not.toHaveBeenCalled()
+  })
+
+  it('skips the auth email rule for OtpPurpose.VOTE because survey owns its limiter', async () => {
+    const { service, repo, rateLimitService } = makeIssueOtpService(false)
+
+    await service.issueOtp('guest@b.com', OtpPurpose.VOTE)
+
+    expect(rateLimitService.checkAndConsume).not.toHaveBeenCalled()
+    expect(repo.createOtpRequest).toHaveBeenCalledTimes(1)
   })
 })

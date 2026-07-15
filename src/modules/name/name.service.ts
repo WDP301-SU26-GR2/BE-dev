@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import { NameKind, NameStatus, NotificationType, SeriesStatus } from '@prisma/client'
+import { NameKind, NameStatus, NotificationType, RevisionTargetType, SeriesStatus } from '@prisma/client'
 import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { RevisionService } from 'src/modules/revision/revision.service'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
@@ -45,7 +46,8 @@ export class NameService {
     private readonly nameRepo: NameRepo,
     private readonly eventBus: DomainEventBus,
     private readonly notificationService: NotificationService,
-    private readonly appConfigService: AppConfigService
+    private readonly appConfigService: AppConfigService,
+    private readonly revisionService: RevisionService
   ) {}
 
   // ── Chapter-Name create (Flow 2, MỚI) ──────────────────────────────────────
@@ -91,7 +93,25 @@ export class NameService {
       throw InvalidNameStateException
     }
     const updated = await this.nameRepo.updateNameStatus(nameId, { status: NameStatus.REVISION })
-    await this.notify(series.mangakaId, seriesId, 'NAME_REVISION_REQUESTED', N.nameRevision(reason))
+
+    const { round } = await this.revisionService.openSafe({
+      targetType: RevisionTargetType.NAME,
+      targetId: nameId,
+      seriesId,
+      reason,
+      requestedBy: editorId,
+      recipientId: series.mangakaId
+    })
+
+    // A revision belongs to one Name, so its notification idempotency key must use nameId.
+    // The shared helper below intentionally remains series-scoped for the other lifecycle notifications.
+    await this.notificationService.notifySafe({
+      recipientId: series.mangakaId,
+      type: NotificationType.SYSTEM,
+      referenceId: nameId,
+      referenceType: 'NAME_REVISION_REQUESTED',
+      content: N.nameRevision(round, reason)
+    })
     return toNameRes(updated)
   }
 
@@ -111,6 +131,20 @@ export class NameService {
       status: NameStatus.IN_REVIEW,
       version: name.version + 1
     })
+
+    // Spec 14 §1.6.1: notify the assigned editor on every Name resubmission. Use nameId
+    // as the reference because the existing helper is intentionally series-scoped.
+    if (series.editorId) {
+      const round = await this.revisionService.currentRound(RevisionTargetType.NAME, nameId)
+      await this.notificationService.notifySafe({
+        recipientId: series.editorId,
+        type: NotificationType.REVIEW,
+        referenceId: nameId,
+        referenceType: 'NAME_RESUBMITTED',
+        content: N.nameResubmitted(round)
+      })
+    }
+
     const config = await this.appConfigService.get()
     if (updated.version >= config.nameMaxReviewRounds && series.editorId) {
       await this.notificationService.notifySafe({
@@ -201,6 +235,19 @@ export class NameService {
   async chapterResubmit(mangakaId: string, chapterId: string, nameId: string) {
     const seriesId = await this.chapterSeriesId(chapterId)
     return this.doResubmit(mangakaId, seriesId, nameId, { kind: NameKind.CHAPTER, chapterId })
+  }
+
+  // Option A: chapter-Name sinh ở DRAFT (sửa pages thoải mái) → Mangaka bấm nộp mới vào tầm Editor.
+  // Đối xứng proposal-Name (POST /series/:id/submit). DRAFT→SUBMITTED, khác → 409.
+  async chapterSubmit(mangakaId: string, chapterId: string, nameId: string) {
+    const seriesId = await this.chapterSeriesId(chapterId)
+    const { name } = await this.requireOwnerName(seriesId, mangakaId, nameId, { kind: NameKind.CHAPTER, chapterId })
+    if (name.status !== NameStatus.DRAFT) throw InvalidNameStateException
+    const updated = await this.nameRepo.updateNameStatus(nameId, {
+      status: NameStatus.SUBMITTED,
+      submittedAt: new Date()
+    })
+    return toNameRes(updated)
   }
 
   async chapterUpdatePages(mangakaId: string, chapterId: string, nameId: string, body: UpdateNamePagesBodyType) {
