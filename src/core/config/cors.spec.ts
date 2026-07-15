@@ -22,4 +22,17 @@ describe('parseCorsOrigins', () => {
       'https://admin.example.com'
     ])
   })
+
+  // Browsers send the `Origin` header WITHOUT a trailing slash / path, and CORS matching is exact.
+  // Strip a configured trailing slash so `https://app.example.com/` still matches the real origin.
+  it('strips a trailing slash from each origin', () => {
+    expect(parseCorsOrigins('https://app.example.com/, http://localhost:3000/')).toEqual([
+      'https://app.example.com',
+      'http://localhost:3000'
+    ])
+  })
+
+  it('collapses multiple trailing slashes too', () => {
+    expect(parseCorsOrigins('https://app.example.com///')).toEqual(['https://app.example.com'])
+  })
 })
