@@ -45,16 +45,19 @@ const configSchema = z
     R2_BUCKET: z.string(),
     R2_REGION: z.string(),
     ////REDIS / QUEUE / RATE-LIMIT (tunable — có default)
-    OTP_RL_EMAIL_MAX: z.coerce.number().default(5),
+    // Spec 14 §4.3: nới quota + hạ cooldown. Rule email nay chỉ tiêu thụ khi OTP THẬT SỰ gửi
+    // (AuthOtpService.issueOtp), rule IP vẫn tiêu thụ mọi request ở OtpRateLimitGuard.
+    OTP_RL_EMAIL_MAX: z.coerce.number().default(10),
     OTP_RL_EMAIL_WINDOW: z.coerce.number().default(3600),
-    OTP_RL_IP_MAX: z.coerce.number().default(20),
+    OTP_RL_IP_MAX: z.coerce.number().default(50),
     OTP_RL_IP_WINDOW: z.coerce.number().default(3600),
-    OTP_RL_COOLDOWN: z.coerce.number().default(60),
+    OTP_RL_COOLDOWN: z.coerce.number().default(30),
     DEADLINE_WARN_THRESHOLD_HOURS: z.coerce.number().default(48),
     DEADLINE_SLOT_GRACE_HOURS: z.coerce.number().default(48),
     NAME_MAX_REVIEW_ROUNDS: z.coerce.number().default(8),
     ORPHAN_ASSET_TTL_HOURS: z.coerce.number().default(24),
     TRUST_PROXY_HOPS: z.coerce.number().default(1),
+    CORS_ORIGINS: z.string().default(''),
     // Guest identity/ip HMAC pepper (B-VOT-03 / NFR §1). Set a strong random secret in production;
     // empty default keeps dev/test booting but offers no leak-resistance — MUST override in prod.
     IDENTITY_HASH_PEPPER: z.string().default(''),

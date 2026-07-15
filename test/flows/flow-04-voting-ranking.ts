@@ -184,11 +184,7 @@ const main = async () => {
   ok('04.4a cooldown 429', r4.status === 429, `got ${r4.status} ${r4.raw.slice(0, 200)}`)
   const top4 = typeof r4.json?.message === 'string' ? r4.json.message : ''
   const code4 = r4.json?.code ?? ''
-  ok(
-    '04.4b code VOTE_OTP_RATE_LIMITED',
-    top4 === 'Error.VoteOtpRateLimit' || code4 === 'VOTE_OTP_RATE_LIMITED',
-    `got top="${top4}" code="${code4}"`
-  )
+  ok('04.4b code VOTE_OTP_RATE_LIMITED', code4 === 'VOTE_OTP_RATE_LIMITED', `got top="${top4}" code="${code4}"`)
 
   section('F04.5 Validation identity')
   const r5 = await req('POST', '/vote/otp', {

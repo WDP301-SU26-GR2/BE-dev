@@ -16,6 +16,7 @@ import {
   PageListResDto,
   PageResDto,
   ReasonBodyDto,
+  RevisionReasonBodyDto,
   SetScheduleBodyDto,
   UpdateChapterBodyDto,
   UpdatePageBodyDto
@@ -225,7 +226,7 @@ export class ChapterController {
   )
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ChapterResDto })
-  requestRevision(@Param('id') id: string, @Body() body: ReasonBodyDto, @ActiveUser('userId') userId: string) {
+  requestRevision(@Param('id') id: string, @Body() body: RevisionReasonBodyDto, @ActiveUser('userId') userId: string) {
     return this.chapterService.requestRevision(userId, id, body.reason)
   }
 

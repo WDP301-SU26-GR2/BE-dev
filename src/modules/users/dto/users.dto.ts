@@ -11,7 +11,9 @@ import {
   AssistantProfileBodySchema,
   AssistantProfileResSchema,
   ListAssistantsQuerySchema,
+  ListMangakasQuerySchema,
   ListUsersQuerySchema,
+  MangakaDirectoryListResSchema,
   MangakaProfileBodySchema,
   MangakaProfileResSchema,
   MeResSchema,
@@ -34,6 +36,8 @@ export class AdminUserResDto extends createZodDto(AdminUserResSchema) {}
 export class AdminUserListResDto extends createZodDto(AdminUserListResSchema) {}
 export class ListAssistantsQueryDto extends createZodDto(ListAssistantsQuerySchema) {}
 export class AssistantDirectoryListResDto extends createZodDto(AssistantDirectoryListResSchema) {}
+export class ListMangakasQueryDto extends createZodDto(ListMangakasQuerySchema) {}
+export class MangakaDirectoryListResDto extends createZodDto(MangakaDirectoryListResSchema) {}
 
 export class MeResDto extends createZodDto(MeResSchema) {}
 export class UpdateMeBodyDto extends createZodDto(UpdateMeBodySchema) {}

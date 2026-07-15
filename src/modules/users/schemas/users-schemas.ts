@@ -260,6 +260,13 @@ export type ListUsersQueryType = z.infer<typeof ListUsersQuerySchema>
 export const ListAssistantsQuerySchema = extendApi(
   z
     .object({
+      q: z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe('Tìm theo tên: khớp User.name hoặc User.displayName (không phân biệt hoa thường)'),
       specialization: zEnum($Enums.Specialization, 'Specialization').optional(),
       level: z.string().min(1).max(100).optional(),
       availableFrom: z.string().datetime({ offset: true }).optional(),
@@ -268,7 +275,7 @@ export const ListAssistantsQuerySchema = extendApi(
       offset: z.coerce.number().int().nonnegative().default(0)
     })
     .strict(),
-  { title: 'ListAssistantsQuery', description: 'Lọc danh bạ trợ lý (specialization/level/availability)' }
+  { title: 'ListAssistantsQuery', description: 'Lọc danh bạ trợ lý (tên/specialization/level/availability)' }
 )
 
 export const AssistantDirectoryItemSchema = extendApi(
@@ -302,3 +309,54 @@ export const AssistantDirectoryListResSchema = extendApi(
 
 export type ListAssistantsQueryType = z.infer<typeof ListAssistantsQuerySchema>
 export type AssistantDirectoryItemType = z.infer<typeof AssistantDirectoryItemSchema>
+
+// ---- Mangaka directory (Spec 14 §3.2) — đối xứng với danh bạ assistant ----
+export const ListMangakasQuerySchema = extendApi(
+  z
+    .object({
+      q: z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe('Tìm theo User.name / User.displayName / MangakaProfile.penName (không phân biệt hoa thường)'),
+      genre: zEnum(Genre, 'Genre').optional().describe('Lọc mangaka có thể loại này trong genres[]'),
+      level: z.string().min(1).max(100).optional(),
+      limit: z.coerce.number().int().positive().max(100).default(20),
+      offset: z.coerce.number().int().nonnegative().default(0)
+    })
+    .strict(),
+  { title: 'ListMangakasQuery', description: 'Lọc danh bạ Mangaka (tên/penName/genre/level)' }
+)
+
+export const MangakaDirectoryItemSchema = extendApi(
+  z.object({
+    userId: z.string(),
+    displayName: z.string().nullable(),
+    avatar: z.string().nullable(),
+    penName: z.string(),
+    genres: z.array(zEnum(Genre, 'Genre')),
+    experienceLevel: z.string().nullable(),
+    bio: z.string().nullable(),
+    portfolioFiles: z.array(z.string()),
+    reputationScore: z.number(),
+    ratingAvg: z.number(),
+    ratingCount: z.number(),
+    isRecommended: z.boolean()
+  }),
+  { title: 'MangakaDirectoryItem', description: 'Một mangaka trong danh bạ (ẩn email/phone)' }
+)
+
+export const MangakaDirectoryListResSchema = extendApi(
+  z.object({
+    items: z.array(MangakaDirectoryItemSchema),
+    total: z.number(),
+    limit: z.number(),
+    offset: z.number()
+  }),
+  { title: 'MangakaDirectoryListRes', description: 'Danh bạ Mangaka phân trang, ưu tiên isRecommended/reputation' }
+)
+
+export type ListMangakasQueryType = z.infer<typeof ListMangakasQuerySchema>
+export type MangakaDirectoryItemType = z.infer<typeof MangakaDirectoryItemSchema>

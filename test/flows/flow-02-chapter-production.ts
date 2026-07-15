@@ -98,6 +98,10 @@ const createChapterWithApprovedName = async (
   if (nRes.status !== 201) throw new Error(`create chapter-Name failed: ${nRes.status} ${nRes.raw}`)
   const name = nRes.json?.data ?? nRes.json
 
+  // Option A: chapter-Name born DRAFT → Mangaka submits → SUBMITTED before the Editor can review.
+  const subRes = await req('POST', `/chapters/${chapter.id}/names/${name.id}/submit`, { token: s.tokens.mA })
+  if (subRes.status !== 201) throw new Error(`submit chapter-Name failed: ${subRes.status} ${subRes.raw}`)
+
   // Editor approves Name → APPROVED (this is the actual API per AUTHORITATIVE.md §4)
   const aRes = await req('POST', `/chapters/${chapter.id}/names/${name.id}/approve`, {
     token: s.tokens.e1
@@ -143,6 +147,16 @@ const main = async () => {
     'F02-002b chapter.nameId set',
     !!c1name?.id && c1?.id === (await prisma.chapter.findUnique({ where: { id: c1.id } }))?.id
   )
+  ok('F02-002c chapter-Name born DRAFT', c1name?.status === NameStatus.DRAFT, `got ${c1name?.status}`)
+
+  // F02-002d — Option A: Mangaka submits DRAFT chapter-Name → SUBMITTED
+  const c1subRes = await req('POST', `/chapters/${c1.id}/names/${c1name.id}/submit`, { token: s.tokens.mA })
+  ok(
+    'F02-002d chapter-Name submit 201',
+    c1subRes.status === 201,
+    `got ${c1subRes.status} ${c1subRes.raw.slice(0, 200)}`
+  )
+  ok('F02-002e submit → SUBMITTED', (c1subRes.json?.data ?? c1subRes.json)?.status === NameStatus.SUBMITTED)
 
   // F02-003 — Editor approves Name
   const c1naRes = await req('POST', `/chapters/${c1.id}/names/${c1name.id}/approve`, {
@@ -214,6 +228,16 @@ const main = async () => {
   ok('F02-007b Manuscript=EDITOR_REVIEW', ms1d?.status === ManuscriptStatus.EDITOR_REVIEW, `got ${ms1d?.status}`)
 
   // F02-008 — E request-revision → EDITOR_REVISION + annotation (we just check state + annotation row)
+  const noRevisionReason = await req('POST', `/chapters/${c1.id}/manuscript/request-revision`, {
+    token: s.tokens.e1,
+    body: {}
+  })
+  ok(
+    'F02-RV1 manuscript request-revision without reason -> 422',
+    noRevisionReason.status === 422,
+    `got ${noRevisionReason.status} ${noRevisionReason.raw.slice(0, 160)}`
+  )
+
   const revRes = await req('POST', `/chapters/${c1.id}/manuscript/request-revision`, {
     token: s.tokens.e1,
     body: { reason: 'fix panel 3' }
@@ -221,6 +245,54 @@ const main = async () => {
   ok('F02-008 request-revision 201', revRes.status === 201, `got ${revRes.status} ${revRes.raw.slice(0, 200)}`)
   const ms1e = await prisma.manuscript.findFirst({ where: { chapterId: c1.id } })
   ok('F02-008b Manuscript=EDITOR_REVISION', ms1e?.status === ManuscriptStatus.EDITOR_REVISION, `got ${ms1e?.status}`)
+
+  const manuscriptRevisions = await req('GET', `/revision-requests?targetType=MANUSCRIPT&targetId=${c1.id}`, {
+    token: s.tokens.mA
+  })
+  const manuscriptRevisionItems = (manuscriptRevisions.json?.data?.items ?? []) as Array<Record<string, unknown>>
+  ok(
+    'F02-RV2 recipient lists the manuscript revision round',
+    manuscriptRevisions.status === 200 &&
+      manuscriptRevisionItems.length === 1 &&
+      manuscriptRevisionItems[0]?.round === 1 &&
+      manuscriptRevisionItems[0]?.reason === 'fix panel 3',
+    `got ${manuscriptRevisions.status} ${manuscriptRevisions.raw.slice(0, 200)}`
+  )
+  const manuscriptRevisionId = manuscriptRevisionItems[0]?.id as string
+
+  const requestedByList = await req('GET', `/revision-requests?targetType=MANUSCRIPT&targetId=${c1.id}`, {
+    token: s.tokens.e1
+  })
+  ok(
+    'F02-RV3 requesting Editor can list the same revision round',
+    requestedByList.status === 200 && requestedByList.json?.data?.items?.[0]?.id === manuscriptRevisionId,
+    `got ${requestedByList.status}`
+  )
+
+  const editorResolve = await req('PATCH', `/revision-requests/${manuscriptRevisionId}/resolve`, {
+    token: s.tokens.e1,
+    body: {}
+  })
+  ok('F02-RV4 requesting Editor cannot resolve recipient work -> 403', editorResolve.status === 403, editorResolve.raw)
+
+  const mangakaResolve = await req('PATCH', `/revision-requests/${manuscriptRevisionId}/resolve`, {
+    token: s.tokens.mA,
+    body: {}
+  })
+  ok(
+    'F02-RV5 recipient Mangaka resolves revision -> 200',
+    mangakaResolve.status === 200 && mangakaResolve.json?.data?.isResolved === true,
+    `got ${mangakaResolve.status} ${mangakaResolve.raw.slice(0, 180)}`
+  )
+  const mangakaResolveAgain = await req('PATCH', `/revision-requests/${manuscriptRevisionId}/resolve`, {
+    token: s.tokens.mA,
+    body: {}
+  })
+  ok(
+    'F02-RV6 resolving the same revision is idempotent',
+    mangakaResolveAgain.status === 200 && mangakaResolveAgain.json?.data?.id === manuscriptRevisionId,
+    `got ${mangakaResolveAgain.status}`
+  )
 
   // F02-009 — M resubmit → EDITOR_REVIEW
   const resubRes = await req('POST', `/chapters/${c1.id}/manuscript/resubmit`, { token: s.tokens.mA })
@@ -334,6 +406,7 @@ const main = async () => {
     body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
   })
   const c4name = (c4nRes.json?.data ?? c4nRes.json) as { id: string }
+  await req('POST', `/chapters/${c4.id}/names/${c4name.id}/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c4.id}/names/${c4name.id}/approve`, { token: s.tokens.e1 })
   await req('POST', `/chapters/${c4.id}/pages`, {
     token: s.tokens.mA,
@@ -390,6 +463,7 @@ const main = async () => {
     body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
   })
   const c6name = (c6nRes.json?.data ?? c6nRes.json) as { id: string }
+  await req('POST', `/chapters/${c6.id}/names/${c6name.id}/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c6.id}/names/${c6name.id}/approve`, { token: s.tokens.e1 })
   const p6Res = await req('POST', `/chapters/${c6.id}/pages`, {
     token: s.tokens.mA,
@@ -552,6 +626,7 @@ const main = async () => {
     body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://n1' }] }
   })
   const c11n = await prisma.name.findFirst({ where: { chapterId: c11forPub.id } })
+  await req('POST', `/chapters/${c11forPub.id}/names/${c11n!.id}/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c11forPub.id}/names/${c11n!.id}/approve`, { token: s.tokens.e1 })
   const c11p1 = await req('POST', `/chapters/${c11forPub.id}/pages`, {
     token: s.tokens.mA,
@@ -773,8 +848,7 @@ const main = async () => {
   // ──────────────────────────────────────────────────────────────────────────
   section('§3.6 Name (proposal + chapter) lifecycle')
 
-  // F02-060 — chapter-Name is created with status=SUBMITTED, not DRAFT. addPage only allows DRAFT/REVISION.
-  // Per spec & implementation, addPage when SUBMITTED → InvalidNameState 409. Documenting as expected behavior.
+  // F02-060 — Option A: chapter-Name born DRAFT is editable; addPage works. After submit → SUBMITTED locks it.
   const c11Res = await req('POST', '/chapters', {
     token: s.tokens.mA,
     body: { seriesId: s.seriesA.id, chapterNumber: 11 }
@@ -785,17 +859,34 @@ const main = async () => {
     body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://n1' }] }
   })
   const c11name = (c11nRes.json?.data ?? c11nRes.json) as { id: string }
-  const c11n2Res = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/pages`, {
+
+  // F02-060a — addPage while DRAFT → 201 (the whole point of Option A: fix your Name before submitting)
+  const c11draftAdd = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 2, fileUrl: 'r2://n2' }
   })
   ok(
-    'F02-060 addPage when SUBMITTED → 409 InvalidNameState (chapter-Name starts as SUBMITTED)',
+    'F02-060a addPage while DRAFT → 201',
+    c11draftAdd.status === 201,
+    `got ${c11draftAdd.status} ${c11draftAdd.raw.slice(0, 200)}`
+  )
+
+  // F02-060 — after submit → SUBMITTED, addPage is locked → 409 InvalidNameState
+  await req('POST', `/chapters/${c11.id}/names/${c11name.id}/submit`, { token: s.tokens.mA })
+  const c11n2Res = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageNumber: 3, fileUrl: 'r2://n3' }
+  })
+  ok(
+    'F02-060 addPage when SUBMITTED → 409 InvalidNameState',
     c11n2Res.status === 409,
     `got ${c11n2Res.status} ${c11n2Res.raw.slice(0, 200)}`
   )
   const c11nameDB = await prisma.name.findUnique({ where: { id: c11name.id } })
-  ok('F02-060b Name has 1 page', (c11nameDB?.pages as unknown as unknown[]).length === 1)
+  ok(
+    'F02-060b Name has 2 pages (1 born + 1 added while DRAFT)',
+    (c11nameDB?.pages as unknown as unknown[]).length === 2
+  )
 
   // F02-061 — Add page when APPROVED → InvalidNameState
   const c11n3Res = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/approve`, { token: s.tokens.e1 })
@@ -839,6 +930,17 @@ const main = async () => {
   )
   const c12nameDB2 = await prisma.name.findUnique({ where: { id: c12nameId } })
   ok('F02-063b Name.version incremented', (c12nameDB2?.version ?? 0) >= 2, `got ${c12nameDB2?.version}`)
+
+  const editorNotifications = await req('GET', '/notifications?limit=100', { token: s.tokens.e1 })
+  const nameResubmittedNotification = editorNotifications.json?.data?.items?.find(
+    (notification: { referenceType?: string; referenceId?: string }) =>
+      notification.referenceType === 'NAME_RESUBMITTED' && notification.referenceId === c12nameId
+  )
+  ok(
+    'F02-RV7 Name resubmit notifies assigned Editor with NAME_RESUBMITTED',
+    editorNotifications.status === 200 && !!nameResubmittedNotification,
+    `got ${editorNotifications.status} ${editorNotifications.raw.slice(0, 220)}`
+  )
 
   // F02-064 — Update pages when REVISION → OK
   await req('POST', `/chapters/${c12.id}/names/${c12nameId}/request-revision`, {
@@ -998,6 +1100,7 @@ const main = async () => {
   ok('F02-089 DELETE by EDITOR → 403', cnDelE.status === 403, `got ${cnDelE.status}`)
 
   // F02-090 — Approve Name → APPROVED, then DELETE → 409 NameNotDeletable
+  await req('POST', `/chapters/${cSplit.id}/names/${cn2Id}/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${cSplit.id}/names/${cn2Id}/approve`, { token: s.tokens.e1, body: {} })
   const cnDelApproved = await req('DELETE', `/chapters/${cSplit.id}/names/${cn2Id}`, { token: s.tokens.mA })
   expectError(cnDelApproved, 409, 'Error.NameNotDeletable', 'F02-090 DELETE APPROVED Name → 409')

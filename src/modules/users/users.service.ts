@@ -6,6 +6,7 @@ import { AdminUserService } from './services/admin-user.service'
 import { AssistantDirectoryService } from './services/assistant-directory.service'
 import { AssistantProfileService } from './services/assistant-profile.service'
 import { MangakaProfileService } from './services/mangaka-profile.service'
+import { MangakaDirectoryService } from './services/mangaka-directory.service'
 import { MeService } from './services/me.service'
 import { StaffProfileService } from './services/staff-profile.service'
 import {
@@ -13,6 +14,7 @@ import {
   AdminUpdateUserStatusBodyType,
   AssistantProfileBodyType,
   ListAssistantsQueryType,
+  ListMangakasQueryType,
   ListUsersQueryType,
   MangakaProfileBodyType,
   StaffProfileBodyType,
@@ -30,6 +32,7 @@ export class UsersService {
     private readonly mangakaProfileService: MangakaProfileService,
     private readonly assistantProfileService: AssistantProfileService,
     private readonly assistantDirectoryService: AssistantDirectoryService,
+    private readonly mangakaDirectoryService: MangakaDirectoryService,
     private readonly staffProfileService: StaffProfileService
   ) {}
 
@@ -99,6 +102,10 @@ export class UsersService {
 
   listAssistants(query: ListAssistantsQueryType) {
     return this.assistantDirectoryService.list(query)
+  }
+
+  listMangakas(query: ListMangakasQueryType) {
+    return this.mangakaDirectoryService.list(query)
   }
 
   upsertStaffProfile(userId: string, body: StaffProfileBodyType) {

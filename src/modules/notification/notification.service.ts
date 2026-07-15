@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { NotificationType } from '@prisma/client'
+import { createHash } from 'node:crypto'
+import { isUniqueConstrainError } from 'src/infrastructure/database/prisma-error.helper'
 import { NotificationRepository } from './notification.repo'
 
 export interface NotifyInput {
@@ -10,13 +12,20 @@ export interface NotifyInput {
   content?: string | null
 }
 
+export function buildDedupeKey(input: NotifyInput): string {
+  const contentHash = createHash('sha1')
+    .update(input.content ?? '')
+    .digest('hex')
+    .slice(0, 16)
+  return `${input.recipientId}|${input.type ?? ''}|${input.referenceId ?? ''}|${input.referenceType ?? ''}|${contentHash}`
+}
+
 /**
  * Shared notification service (Sprint 0 — S0-5). Any module injects this and calls
  * `notify(...)` to push an in-app notification. Provided globally via NotificationModule.
  *
- * Idempotent per (recipientId + type + referenceId + referenceType): re-notifying the
- * same event for the same recipient returns the existing record instead of duplicating
- * (A-NOT-01). Best-effort (find-then-create); acceptable at project scale.
+ * Idempotent per the unique dedupe key: a concurrent duplicate create returns the
+ * existing record instead of creating a second notification (A-NOT-01).
  */
 @Injectable()
 export class NotificationService {
@@ -25,20 +34,23 @@ export class NotificationService {
   constructor(private readonly notificationRepository: NotificationRepository) {}
 
   async notify(input: NotifyInput) {
-    const key = {
+    const data = {
       recipientId: input.recipientId,
       type: input.type,
       referenceId: input.referenceId ?? null,
       referenceType: input.referenceType ?? null
     }
+    const dedupeKey = buildDedupeKey(input)
 
-    const existing = await this.notificationRepository.findDuplicate(key)
-    if (existing) return existing
+    try {
+      return await this.notificationRepository.create({ ...data, content: input.content ?? null, dedupeKey })
+    } catch (error) {
+      if (!isUniqueConstrainError(error)) throw error
 
-    return await this.notificationRepository.create({
-      ...key,
-      content: input.content ?? null
-    })
+      const existing = await this.notificationRepository.findByDedupeKey(dedupeKey)
+      if (existing) return existing
+      throw error
+    }
   }
 
   async notifySafe(input: NotifyInput): Promise<void> {

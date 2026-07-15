@@ -6,11 +6,13 @@ import {
   Prisma,
   ProposalStatus,
   PublicationType,
+  Series,
   SeriesStatus
 } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { SeriesNotFoundException } from './errors/series.errors'
-import { CreateProposalBodyType, UpdateProposalBodyType } from './schemas/series-schemas'
+import { CreateProposalBodyType, UpdateProposalBodyType, UpdateSeriesMetadataBodyType } from './schemas/series-schemas'
+import { SERIES_PROPOSAL_CAS_MAX_ATTEMPTS } from './series.constant'
 
 // Trạng thái series "đang chờ editor pick-up" (chưa gán editor) — hàng đợi review của Editor.
 const REVIEW_QUEUE_STATES: SeriesStatus[] = [SeriesStatus.IN_REVIEW]
@@ -21,6 +23,46 @@ export type SeriesListScope = { kind: 'mangaka'; userId: string } | { kind: 'edi
 export type SeriesListFilter = {
   scope: SeriesListScope
   status?: SeriesStatus
+}
+
+export type SeriesMetadataUpdateResult =
+  | { outcome: 'UPDATED'; series: Series; changedFields: SeriesMetadataField[] }
+  | { outcome: 'UNCHANGED'; series: Series }
+  | { outcome: 'GUARD_MISMATCH'; series: Series }
+  | { outcome: 'RETRY_EXHAUSTED'; series: Series }
+
+export type SeriesMetadataField = 'title' | 'coverImage' | 'synopsis' | 'characterDesigns'
+
+export type SeriesMetadataUpdateGuard = {
+  authorization: { kind: 'OWNER' | 'EDITOR'; userId: string }
+  blockedStatuses: SeriesStatus[]
+}
+
+type SeriesProposalCasMutation =
+  | { outcome: 'UNCHANGED' }
+  | { outcome: 'GUARD_MISMATCH' }
+  | { outcome: 'PROPOSAL_MISSING' }
+  | {
+      outcome: 'WRITE'
+      data: Prisma.SeriesUpdateManyMutationInput
+      where?: Prisma.SeriesWhereInput
+      guardProposal: boolean
+      changedFields?: SeriesMetadataField[]
+    }
+
+type SeriesProposalCasResult =
+  | { outcome: 'UPDATED'; series: Series; changedFields: SeriesMetadataField[] }
+  | { outcome: 'UNCHANGED'; series: Series }
+  | { outcome: 'GUARD_MISMATCH'; series: Series }
+  | { outcome: 'PROPOSAL_MISSING'; series: Series }
+  | { outcome: 'NOT_FOUND' }
+  | { outcome: 'RETRY_EXHAUSTED'; series: Series }
+
+export class SeriesProposalCasExhaustedError extends Error {
+  constructor(seriesId: string) {
+    super(`Series proposal write conflict after ${SERIES_PROPOSAL_CAS_MAX_ATTEMPTS} attempts: ${seriesId}`)
+    this.name = 'SeriesProposalCasExhaustedError'
+  }
 }
 
 @Injectable()
@@ -67,10 +109,21 @@ export class SeriesRepository {
 
     // `proposal` là composite OPTIONAL → Prisma chỉ hỗ trợ set/upsert/unset (KHÔNG có partial `update`).
     // Phải `set` cả object cũ + nameId, nếu không sẽ ghi đè rỗng synopsis/characterDesigns/... (data loss).
-    const updated = await this.prismaService.series.update({
-      where: { id: series.id },
-      data: { proposal: { set: { ...series.proposal, nameId: name.id } } }
+    const linked = await this.updateSeriesWithProposalCas(series.id, (current) => {
+      if (!current.proposal) return { outcome: 'PROPOSAL_MISSING' }
+      if (current.proposal.nameId === name.id) return { outcome: 'UNCHANGED' }
+      return {
+        outcome: 'WRITE',
+        data: { proposal: { set: { ...current.proposal, nameId: name.id } } },
+        // The freshly-created Series id has not escaped this request yet, so no
+        // external writer can race this initial link.  Do not compare the full
+        // composite here: Mongo stores an omitted optional nameId while Prisma
+        // hydrates it as null, and `{ equals: current.proposal }` can therefore
+        // never match this one legacy-shaped document.
+        guardProposal: false
+      }
     })
+    const updated = this.requireProposalCasWrite(linked, series.id)
 
     return { series: updated, name }
   }
@@ -80,30 +133,150 @@ export class SeriesRepository {
   }
 
   async updateProposalContent(seriesId: string, body: UpdateProposalBodyType) {
-    const series = await this.prismaService.series.findUnique({ where: { id: seriesId } })
-    if (!series?.proposal) throw SeriesNotFoundException
+    const result = await this.updateSeriesWithProposalCas(seriesId, (series) => {
+      if (!series.proposal) return { outcome: 'PROPOSAL_MISSING' }
 
-    const data: Prisma.SeriesUpdateInput = {}
-    if (body.title != null) data.title = body.title
-    if (body.coverImage != null) data.coverImage = body.coverImage
-    if (body.genres != null) data.genres = body.genres
-    if (body.demographic != null) data.demographic = body.demographic
-    if (body.publicationType != null) data.publicationType = body.publicationType
-    data.proposal = {
-      set: {
-        ...series.proposal,
-        synopsis: body.synopsis ?? series.proposal.synopsis,
-        characterDesigns: body.characterDesigns ?? series.proposal.characterDesigns,
-        estimatedLength: body.estimatedLength ?? series.proposal.estimatedLength
+      const data: Prisma.SeriesUpdateManyMutationInput = {}
+      if (body.title != null && body.title !== series.title) data.title = body.title
+      if (body.coverImage != null && body.coverImage !== series.coverImage) data.coverImage = body.coverImage
+      if (body.genres != null && !this.sameStringArray(body.genres, series.genres)) data.genres = body.genres
+      if (body.demographic != null && body.demographic !== series.demographic) data.demographic = body.demographic
+      if (body.publicationType != null && body.publicationType !== series.publicationType) {
+        data.publicationType = body.publicationType
       }
-    }
 
-    const updated = await this.prismaService.series.update({
-      where: { id: seriesId },
-      data
+      const proposalChanged =
+        (body.synopsis != null && body.synopsis !== series.proposal.synopsis) ||
+        (body.characterDesigns != null &&
+          !this.sameStringArray(body.characterDesigns, series.proposal.characterDesigns)) ||
+        (body.estimatedLength != null && body.estimatedLength !== series.proposal.estimatedLength)
+      if (proposalChanged) {
+        data.proposal = {
+          set: {
+            ...series.proposal,
+            ...(body.synopsis != null ? { synopsis: body.synopsis } : {}),
+            ...(body.characterDesigns != null ? { characterDesigns: body.characterDesigns } : {}),
+            ...(body.estimatedLength != null ? { estimatedLength: body.estimatedLength } : {})
+          }
+        }
+      }
+
+      if (Object.keys(data).length === 0) return { outcome: 'UNCHANGED' }
+      return { outcome: 'WRITE', data, guardProposal: proposalChanged }
+    })
+    return this.requireProposalCasWrite(result, seriesId)
+  }
+
+  /**
+   * Spec 14 §2.5 — PATCH metadata.
+   * `Series.proposal` là optional composite: Prisma Mongo chỉ hỗ trợ set/upsert/unset, không partial update.
+   * Luôn read-modify-write toàn bộ object để không làm mất nameId/status/createdAt và các field không đổi.
+   */
+  async updateSeriesMetadata(
+    seriesId: string,
+    body: UpdateSeriesMetadataBodyType,
+    guard: SeriesMetadataUpdateGuard
+  ): Promise<SeriesMetadataUpdateResult> {
+    const result = await this.updateSeriesWithProposalCas(seriesId, (series) => {
+      const authorized =
+        guard.authorization.kind === 'OWNER'
+          ? series.mangakaId === guard.authorization.userId
+          : series.editorId === guard.authorization.userId
+      if (!authorized || guard.blockedStatuses.includes(series.status)) return { outcome: 'GUARD_MISMATCH' }
+
+      const changedFields: SeriesMetadataField[] = []
+      const data: Prisma.SeriesUpdateManyMutationInput = {}
+      if (body.title != null && body.title !== series.title) {
+        data.title = body.title
+        changedFields.push('title')
+      }
+      if (body.coverImage != null && body.coverImage !== series.coverImage) {
+        data.coverImage = body.coverImage
+        changedFields.push('coverImage')
+      }
+
+      const synopsisChanged = body.synopsis != null && series.proposal && body.synopsis !== series.proposal.synopsis
+      const designsChanged =
+        body.characterDesigns != null &&
+        series.proposal &&
+        !this.sameStringArray(body.characterDesigns, series.proposal.characterDesigns)
+      const touchesProposal = Boolean(synopsisChanged || designsChanged)
+      if (touchesProposal && series.proposal) {
+        if (synopsisChanged) changedFields.push('synopsis')
+        if (designsChanged) changedFields.push('characterDesigns')
+        data.proposal = {
+          set: {
+            ...series.proposal,
+            ...(synopsisChanged ? { synopsis: body.synopsis } : {}),
+            ...(designsChanged ? { characterDesigns: body.characterDesigns! } : {})
+          }
+        }
+      }
+
+      if (changedFields.length === 0) return { outcome: 'UNCHANGED' }
+      const authorizationWhere: Prisma.SeriesWhereInput =
+        guard.authorization.kind === 'OWNER'
+          ? { mangakaId: guard.authorization.userId }
+          : { editorId: guard.authorization.userId }
+      return {
+        outcome: 'WRITE',
+        data,
+        where: { ...authorizationWhere, status: { notIn: guard.blockedStatuses } },
+        guardProposal: touchesProposal,
+        changedFields
+      }
     })
 
-    return updated
+    if (result.outcome === 'NOT_FOUND') throw SeriesNotFoundException
+    if (result.outcome === 'PROPOSAL_MISSING') return { outcome: 'UNCHANGED', series: result.series }
+    return result
+  }
+
+  private async updateSeriesWithProposalCas(
+    seriesId: string,
+    buildMutation: (series: Series) => SeriesProposalCasMutation
+  ): Promise<SeriesProposalCasResult> {
+    let series = await this.prismaService.series.findUnique({ where: { id: seriesId } })
+    if (!series) return { outcome: 'NOT_FOUND' }
+
+    for (let attempt = 0; attempt < SERIES_PROPOSAL_CAS_MAX_ATTEMPTS; attempt += 1) {
+      const mutation = buildMutation(series)
+      if (mutation.outcome !== 'WRITE') return { outcome: mutation.outcome, series }
+
+      const guarded = await this.prismaService.series.updateMany({
+        where: {
+          id: seriesId,
+          ...(mutation.where ?? {}),
+          ...(mutation.guardProposal
+            ? { proposal: series.proposal ? { equals: series.proposal } : { isSet: false } }
+            : {})
+        },
+        data: mutation.data
+      })
+
+      if (guarded.count === 1) {
+        const updated = await this.prismaService.series.findUnique({ where: { id: seriesId } })
+        if (!updated) return { outcome: 'NOT_FOUND' }
+        return { outcome: 'UPDATED', series: updated, changedFields: mutation.changedFields ?? [] }
+      }
+
+      const latest = await this.prismaService.series.findUnique({ where: { id: seriesId } })
+      if (!latest) return { outcome: 'NOT_FOUND' }
+      series = latest
+      if (attempt === SERIES_PROPOSAL_CAS_MAX_ATTEMPTS - 1) return { outcome: 'RETRY_EXHAUSTED', series }
+    }
+
+    return { outcome: 'RETRY_EXHAUSTED', series }
+  }
+
+  private requireProposalCasWrite(result: SeriesProposalCasResult, seriesId: string): Series {
+    if (result.outcome === 'UPDATED' || result.outcome === 'UNCHANGED') return result.series
+    if (result.outcome === 'NOT_FOUND' || result.outcome === 'PROPOSAL_MISSING') throw SeriesNotFoundException
+    throw new SeriesProposalCasExhaustedError(seriesId)
+  }
+
+  private sameStringArray(left: readonly string[], right: readonly string[]): boolean {
+    return left.length === right.length && left.every((value, index) => value === right[index])
   }
 
   async deleteSeriesWithNames(seriesId: string): Promise<void> {
@@ -114,13 +287,17 @@ export class SeriesRepository {
   }
 
   async updateProposalStatus(seriesId: string, status: ProposalStatus) {
-    const series = await this.prismaService.series.findUnique({ where: { id: seriesId } })
-    if (!series?.proposal) throw SeriesNotFoundException
-    // `set` full (composite optional không partial-update được) — giữ nguyên nameId/synopsis/...
-    return await this.prismaService.series.update({
-      where: { id: seriesId },
-      data: { proposal: { set: { ...series.proposal, status } } }
+    const result = await this.updateSeriesWithProposalCas(seriesId, (series) => {
+      if (!series.proposal) return { outcome: 'PROPOSAL_MISSING' }
+      if (series.proposal.status === status) return { outcome: 'UNCHANGED' }
+      // `set` full (composite optional không partial-update được) — giữ nguyên nameId/synopsis/...
+      return {
+        outcome: 'WRITE',
+        data: { proposal: { set: { ...series.proposal, status } } },
+        guardProposal: true
+      }
     })
+    return this.requireProposalCasWrite(result, seriesId)
   }
 
   async claimSeries(seriesId: string, editorId: string): Promise<number> {

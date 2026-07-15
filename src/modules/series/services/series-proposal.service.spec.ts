@@ -69,13 +69,18 @@ function make(seriesOverride: Record<string, unknown> = {}) {
     tryAdvanceToReadyToPitch: jest.fn().mockResolvedValue({ ...series, status: SeriesStatus.READY_TO_PITCH })
   }
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+  const revisionService = {
+    openSafe: jest.fn().mockResolvedValue({ round: 1 }),
+    currentRound: jest.fn().mockResolvedValue(1)
+  }
   const service = new SeriesProposalService(
     seriesRepository as never,
     nameRepo as never,
     seriesStateService as never,
-    notificationService as never
+    notificationService as never,
+    revisionService as never
   )
-  return { service, seriesRepository, nameRepo, seriesStateService, notificationService }
+  return { service, seriesRepository, nameRepo, seriesStateService, notificationService, revisionService }
 }
 
 describe('SeriesProposalService', () => {
@@ -144,37 +149,51 @@ describe('SeriesProposalService', () => {
   })
 
   it('requestRevision notifies with PROPOSAL_REVISION_REQUESTED', async () => {
-    const { service, notificationService } = make({
+    const { service, seriesRepository, notificationService, revisionService } = make({
       editorId: 'editor1',
       status: SeriesStatus.IN_REVIEW,
       proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVIEW }
     })
+    revisionService.openSafe.mockResolvedValueOnce({ round: 2 })
 
     await service.requestRevision('editor1', 's1', 'needs work')
 
+    expect(revisionService.openSafe).toHaveBeenCalledWith({
+      targetType: 'PROPOSAL',
+      targetId: 's1',
+      seriesId: 's1',
+      reason: 'needs work',
+      requestedBy: 'editor1',
+      recipientId: 'm1'
+    })
+    expect(seriesRepository.updateProposalStatus.mock.invocationCallOrder[0]).toBeLessThan(
+      revisionService.openSafe.mock.invocationCallOrder[0]
+    )
     expect(notificationService.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({
         recipientId: 'm1',
         referenceType: 'PROPOSAL_REVISION_REQUESTED',
-        content: expect.any(String)
+        content: 'Proposal needs revision (round 2): needs work'
       })
     )
   })
 
   it('resubmit notifies assigned editor with PROPOSAL_RESUBMITTED', async () => {
-    const { service, notificationService } = make({
+    const { service, notificationService, revisionService } = make({
       editorId: 'editor1',
       status: SeriesStatus.IN_REVIEW,
       proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVISION }
     })
+    revisionService.currentRound.mockResolvedValueOnce(2)
 
     await service.resubmit('m1', 's1')
 
+    expect(revisionService.currentRound).toHaveBeenCalledWith('PROPOSAL', 's1')
     expect(notificationService.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({
         recipientId: 'editor1',
         referenceType: 'PROPOSAL_RESUBMITTED',
-        content: expect.any(String)
+        content: 'Proposal resubmitted (round 2)'
       })
     )
   })

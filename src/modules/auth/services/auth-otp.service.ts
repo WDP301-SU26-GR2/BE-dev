@@ -16,6 +16,9 @@ import {
 import { SendOtpBodyType } from '../schemas/auth-schemas'
 import { UserStatus } from 'src/core/models/user.model'
 import { AuthMessages } from '../auth.messages'
+import { otpEmailRule } from 'src/core/security/constants/rate-limit.constant'
+import { OtpRateLimitedException } from 'src/core/security/errors/rate-limit.errors'
+import { RateLimitService } from 'src/core/security/services/rate-limit.service'
 
 @Injectable()
 export class AuthOtpService {
@@ -25,10 +28,19 @@ export class AuthOtpService {
   constructor(
     private readonly authRepository: AuthRepository,
     private readonly hashingService: HashingService,
-    private readonly emailQueue: EmailQueue
+    private readonly emailQueue: EmailQueue,
+    private readonly rateLimitService: RateLimitService
   ) {}
 
   async issueOtp(email: string, purpose: OtpPurposeType): Promise<void> {
+    // Spec 14 §4: email cooldown/quota is consumed only after validation and business checks have passed.
+    // Guest voting already has identity/IP limits in SurveyService; applying this rule would double-limit it
+    // and return AUTH_OTP_RATE_LIMITED instead of VOTE_OTP_RATE_LIMITED.
+    if (purpose !== OtpPurpose.VOTE) {
+      const decision = await this.rateLimitService.checkAndConsume(otpEmailRule(email))
+      if (!decision.allowed) throw OtpRateLimitedException(decision.retryAfter)
+    }
+
     const code = generateOTP()
     const otpCodeHash = await this.hashingService.hash(code)
     await this.authRepository.createOtpRequest({

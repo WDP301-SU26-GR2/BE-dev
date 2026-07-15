@@ -93,7 +93,8 @@ export class NameRepo {
           chapterId: data.chapterId,
           kind: NameKind.CHAPTER,
           chapterNumber: data.chapterNumber,
-          status: NameStatus.SUBMITTED,
+          // Option A: born DRAFT (Mangaka sửa pages thoải mái) → submit tường minh mới sang SUBMITTED.
+          status: NameStatus.DRAFT,
           pages: data.namePages
         }
       })

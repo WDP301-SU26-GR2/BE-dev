@@ -3,12 +3,14 @@
 > **Bug ledger** của flow-test. Khi test phát hiện bug thật của BE (status sai, payload sai, 500,
 > state machine vi phạm, race, thiếu guard...), ghi vào đây.
 >
-> **Cập nhật 2026-07-12 (BE-A review + verify):** đã **triage lại toàn bộ** 11 finding cũ do AI ghi.
+> **Cập nhật 2026-07-15 (Spec 14):** bổ sung 3 bug notification trong vòng review (BE-017..019), đều đã fix và có unit-test guard. Kết quả flow/smoke Spec 14 chưa được ghi nhận tại thời điểm cập nhật này.
+>
+> **Đợt triage 2026-07-12 (BE-A review + verify):** đã **triage lại toàn bộ** 11 finding cũ do AI ghi.
 > Kết quả: **3 là bug BE thật (đã FIX)**, **2 là bug HARNESS** (test tự sai), **6 là API-drift/nhầm lẫn**
 > (route/DTO của test lệch code thật — sửa test). BE-A tìm thêm **3 bug mới** khi mở rộng coverage
 > (BE-012, BE-013 + gap index DB BE-014).
 >
-> **Trạng thái:** 0 FAIL trên toàn suite; mọi bug BE đã fix + có unit test guard.
+> **Baseline 2026-07-12:** 0 FAIL trên toàn flow suite khi đó. Với Spec 14, ba bug dưới đây đã có unit-test guard; kết quả flow/smoke tích hợp đang chờ lượt verify riêng.
 
 ---
 
@@ -32,10 +34,40 @@
 | **BE-014** | **CRITICAL** | DB flowtest **thiếu toàn bộ unique index** | **HARNESS** | ✅ FIXED |
 | **BE-015** | LOW | `ListNamesQuerySchema` strict nhưng controller không `@Query()` → `?kind=` bị ignore | API-drift | ✅ CLOSED (test adapt: accept 200, kind ignored) |
 | **BE-016** | LOW | `DELETE /chapters/:id/names/:n` EDITOR → 403 với message generic "You do not have permission..." (RolesGuard) thay vì `Error.NotSeriesOwner` service-level. Cả 2 đều đúng về mặt security; chỉ khác error code. | by-design | ✅ CLOSED (test adapt: assert status 403, không strict error code) |
+| **BE-017** | **HIGH** | Manuscript request-revision vòng 2 bị notification dedupe nuốt | **BUG BE** | ✅ FIXED (Spec 14) |
+| **BE-018** | **HIGH** | Assistant nộp task v2 nhưng Mangaka không nhận notification mới | **BUG BE** | ✅ FIXED (Spec 14) |
+| **BE-019** | **HIGH** | Name resubmit không notify Editor ở bất kỳ vòng nào | **BUG BE** | ✅ FIXED (Spec 14) |
 
 ---
 
 ## 🔴 BUG BE THẬT — ĐÃ FIX
+
+### FINDING-BE-017: Manuscript request-revision vòng 2 bị dedupe nuốt
+- **Phát hiện bởi:** review nghiệp vụ Spec 14 trên call-site `ManuscriptReviewService.requestRevision()` · **Severity:** HIGH
+- **Actual:** mọi vòng dùng cùng content `Editor requested revision`; notification dedupe theo content hash trả bản ghi vòng 1 đã đọc, nên Mangaka không biết Editor vừa yêu cầu sửa vòng 2.
+- **Expected:** mỗi vòng review sinh một notification mới, còn retry cùng vòng vẫn dedupe.
+- **Root cause:** notification không mang số vòng; Spec 13 chỉ hash content nên không phân biệt hai vòng có nội dung hằng số.
+- **Fix:** persist `RevisionRequest.round`; content mới `Editor requested revision (round N): <reason>`. Manuscript resubmit cũng dùng `Manuscript resubmitted (round N)`.
+- **Test guard:** `manuscript-review.service.spec.ts` — request revision/resubmit đều assert content có round.
+- **Status:** ✅ FIXED (Spec 14)
+
+### FINDING-BE-018: Task version mới bị dedupe như lần nộp cũ
+- **Phát hiện bởi:** review nghiệp vụ Spec 14 trên `TaskReviewService.submit()` · **Severity:** HIGH
+- **Actual:** Assistant nộp v1 → Mangaka nhận thông báo; sau request-revision, Assistant nộp v2 nhưng content vẫn là `A task was submitted for your review` nên notification mới bị nuốt. Task có thể nằm chờ review vô hạn.
+- **Expected:** mỗi TaskVersion mới báo cho Mangaka đúng một lần.
+- **Root cause:** `TASK_SUBMITTED` dùng content hằng số, không mang `versionNumber`.
+- **Fix:** content mới `A task was submitted for your review (version N)`; retry cùng version vẫn dedupe, version kế tiếp có dedupe key khác.
+- **Test guard:** `task-review.service.spec.ts` — case riêng assert lần nộp kế tiếp tạo content `(version 2)`.
+- **Status:** ✅ FIXED (Spec 14)
+
+### FINDING-BE-019: Name resubmit không hề notify Editor
+- **Phát hiện bởi:** review nghiệp vụ Spec 14 trên `NameService.doResubmit()` · **Severity:** HIGH (checkpoint đầu Flow 2)
+- **Actual:** Mangaka sửa và resubmit Name nhưng Editor không nhận notification nào, kể cả vòng đầu; vòng review có thể đứng im.
+- **Expected:** Editor đang phụ trách nhận notification mỗi lần Name được resubmit.
+- **Root cause:** call-site Name resubmit chưa từng gọi notification service.
+- **Fix:** thêm `NAME_RESUBMITTED`, `referenceId=nameId`, content `Name resubmitted (round N)` lấy từ RevisionRequest hiện tại; vẫn giữ `NAME_LOOP_WARNING` riêng khi đạt ngưỡng cấu hình.
+- **Test guard:** `name.service.spec.ts` — resubmit assert notify Editor với `NAME_RESUBMITTED` + round; các case threshold/no-editor giữ đúng behavior.
+- **Status:** ✅ FIXED (Spec 14)
 
 ### FINDING-BE-002: Mangaka bất kỳ review được ReprintRequest của series người khác
 - **Phát hiện:** `flow-07-reprint.ts` case 7.8a · **Severity:** HIGH (vi phạm Ownership Principle / BR-CONTRACT-03)

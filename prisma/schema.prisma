@@ -1589,6 +1589,38 @@ model AuditLog {
   @@index([createdAt])
 }
 
+enum RevisionTargetType {
+  PROPOSAL
+  NAME
+  MANUSCRIPT
+  TASK
+}
+
+/// Spec 14 §1 — một vòng "yêu cầu sửa". Sinh ra từ 4 call-site request-revision
+/// (proposal / Name / manuscript / task). Người PHẢI SỬA (recipientId) tự đánh dấu resolve.
+model RevisionRequest {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  targetType RevisionTargetType
+  targetId   String             @db.ObjectId // seriesId | nameId | chapterId | taskId
+  seriesId   String?            @db.ObjectId // null cho TASK (task-review không load Series)
+
+  round       Int
+  reason      String
+  requestedBy String @db.ObjectId
+  recipientId String @db.ObjectId
+
+  isResolved Boolean   @default(false)
+  resolvedAt DateTime?
+  resolvedBy String?   @db.ObjectId
+
+  createdAt DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([recipientId, isResolved])
+  @@index([seriesId])
+}
+
 model Notification {
   id          String @id @default(auto()) @map("_id") @db.ObjectId
   recipientId String @db.ObjectId
@@ -1599,7 +1631,12 @@ model Notification {
   content       String?
   isRead        Boolean           @default(false)
   createdAt     DateTime          @default(now())
+  // Derived non-null dedupe key avoids Mongo non-sparse unique index on nullable fields/E11000.
+  // Formula: `${recipientId}|${type ?? ''}|${referenceId ?? ''}|${referenceType ?? ''}|${sha1(content ?? '').slice(0,16)}`
+  // Content hash prevents swallowing later review-round notifications.
+  dedupeKey     String            @default("")
 
+  @@unique([dedupeKey])
   @@index([recipientId])
 }
 

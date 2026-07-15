@@ -7,7 +7,8 @@ export const NameMessages = {
   },
   // In-app notification content (notification layer).
   notification: {
-    nameRevision: (reason: string) => `Name needs revision: ${reason}`,
+    nameRevision: (round: number, reason: string) => `Name needs revision (round ${round}): ${reason}`,
+    nameResubmitted: (round: number) => `Name resubmitted (round ${round})`,
     nameApproved: 'Name approved',
     nameLoopWarning: (rounds: number) => `Name review loop has reached ${rounds} rounds`
   },

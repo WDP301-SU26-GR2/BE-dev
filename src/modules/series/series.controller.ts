@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
@@ -16,7 +16,8 @@ import {
   ReasonBodyDto,
   SeriesListResDto,
   SeriesResDto,
-  UpdateProposalBodyDto
+  UpdateProposalBodyDto,
+  UpdateSeriesMetadataBodyDto
 } from './dto/series.dto'
 import {
   FranchiseConsentRequiredException,
@@ -32,7 +33,9 @@ import {
   ReviewAlreadyStartedException,
   SeriesAccessDeniedException,
   SeriesAlreadyClaimedException,
+  SeriesMetadataConflictException,
   SeriesNotFoundException,
+  SeriesNotEditableException,
   SeriesNotInCancellingStateException,
   SeriesNotInEndingStateException,
   SeriesNotProposableForCompletionException,
@@ -67,6 +70,27 @@ export class SeriesController {
   @ZodResponse({ status: 200, type: SeriesResDto })
   getSeries(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
     return this.seriesService.getSeries({ userId, roleName }, id)
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Sửa metadata series (title/coverImage/synopsis/characterDesigns) — Mangaka chủ hoặc Editor phụ trách'
+  })
+  @ApiErrors(
+    SeriesNotFoundException,
+    SeriesAccessDeniedException,
+    SeriesNotEditableException,
+    SeriesMetadataConflictException
+  )
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR)
+  @ZodResponse({ status: 200, type: SeriesResDto })
+  updateSeriesMetadata(
+    @Param('id') id: string,
+    @Body() body: UpdateSeriesMetadataBodyDto,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.seriesService.updateSeriesMetadata({ userId, roleName }, id, body)
   }
 
   @Post('proposals')

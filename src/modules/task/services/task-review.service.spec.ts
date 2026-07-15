@@ -19,8 +19,22 @@ describe('TaskReviewService', () => {
   const taskState = { transition: jest.fn() }
   const cascade = { fireOnSubmitted: jest.fn() }
   const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
-  const service = new TaskReviewService(repo as never, taskState as never, cascade as never, notification as never)
-  beforeEach(() => jest.clearAllMocks())
+  const revision = {
+    openSafe: jest.fn().mockResolvedValue({ round: 1 }),
+    currentRound: jest.fn().mockResolvedValue(1)
+  }
+  const service = new TaskReviewService(
+    repo as never,
+    taskState as never,
+    cascade as never,
+    notification as never,
+    revision as never
+  )
+  beforeEach(() => {
+    jest.clearAllMocks()
+    revision.openSafe.mockResolvedValue({ round: 1 })
+    revision.currentRound.mockResolvedValue(1)
+  })
 
   it('start assignee: transition ASSIGNED → IN_PROGRESS', async () => {
     repo.findTaskById
@@ -68,7 +82,46 @@ describe('TaskReviewService', () => {
     expect(repo.pushTaskVersion).toHaveBeenCalledWith(ID, { submittedBy: 'me', versionNumber: 1, file: 'k' })
     expect(cascade.fireOnSubmitted).toHaveBeenCalled()
     expect(notification.notifySafe).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientId: 'm', type: 'REVIEW', referenceType: 'TASK_SUBMITTED' })
+      expect.objectContaining({
+        recipientId: 'm',
+        type: 'REVIEW',
+        referenceType: 'TASK_SUBMITTED',
+        content: 'A task was submitted for your review (version 1)'
+      })
+    )
+  })
+
+  it('puts the version number in TASK_SUBMITTED content so later submissions are not deduped away', async () => {
+    repo.findTaskById
+      .mockResolvedValueOnce({
+        id: 't',
+        pageId: 'a'.repeat(24),
+        assistantId: 'me',
+        versions: [{ versionNumber: 1 }]
+      })
+      .mockResolvedValue({
+        id: 't',
+        pageId: 'a'.repeat(24),
+        assistantId: 'me',
+        status: 'SUBMITTED',
+        priority: 0,
+        assetIds: [],
+        versions: [
+          { versionNumber: 1, reviewStatus: 'REVISION_REQUESTED', submittedAt: new Date() },
+          { versionNumber: 2, reviewStatus: 'PENDING', submittedAt: new Date() }
+        ],
+        createdAt: new Date()
+      })
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+
+    await service.submit('me', ID, { file: 'k2' })
+
+    expect(repo.pushTaskVersion).toHaveBeenCalledWith(ID, { submittedBy: 'me', versionNumber: 2, file: 'k2' })
+    expect(notification.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceType: 'TASK_SUBMITTED',
+        content: 'A task was submitted for your review (version 2)'
+      })
     )
   })
 
@@ -111,13 +164,28 @@ describe('TaskReviewService', () => {
       createdAt: new Date()
     })
     repo.findPageWithOwner.mockResolvedValue(PAGE)
+    revision.openSafe.mockResolvedValueOnce({ round: 2 })
 
     await service.requestRevision('m', ID, { reviewerNote: 'fix tone' })
 
     expect(taskState.transition).toHaveBeenNthCalledWith(1, ID, 'UNDER_REVIEW', undefined, 'm')
     expect(taskState.transition).toHaveBeenNthCalledWith(2, ID, 'REVISION_REQUESTED', undefined, 'm')
+    expect(revision.openSafe).toHaveBeenCalledWith({
+      targetType: 'TASK',
+      targetId: ID,
+      seriesId: null,
+      reason: 'fix tone',
+      requestedBy: 'm',
+      recipientId: 'a'
+    })
+    expect(taskState.transition.mock.invocationCallOrder[1]).toBeLessThan(revision.openSafe.mock.invocationCallOrder[0])
     expect(notification.notifySafe).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientId: 'a', type: 'TASK', referenceType: 'TASK_REVISION_REQUESTED' })
+      expect.objectContaining({
+        recipientId: 'a',
+        type: 'TASK',
+        referenceType: 'TASK_REVISION_REQUESTED',
+        content: 'Revision requested on your task (round 2): fix tone'
+      })
     )
   })
 })

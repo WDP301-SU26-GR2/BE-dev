@@ -32,6 +32,7 @@ export const ENUM_DOCS = {
   ReviewStage: 'Review stage: ASSISTANT, MANGAKA, EDITOR',
   AssetType: 'Uploaded asset type',
   NotificationType: 'Notification type: SYSTEM, CONTRACT, TASK, DEADLINE, SURVEY, BOARD, REVIEW',
+  RevisionTargetType: 'Đối tượng của vòng yêu cầu sửa: PROPOSAL, NAME, MANUSCRIPT, TASK',
   AiJobType: 'AI job type: SEGMENT; COLOR/NUMBER are reserved for Spec 3',
   AiJobStatus: 'AI job lifecycle: QUEUED -> RUNNING -> SUCCEEDED | FAILED',
   AiSegmentMode: 'Segmentation mode: MODEL (YOLO deep learning) or HEURISTIC (OpenCV baseline)',

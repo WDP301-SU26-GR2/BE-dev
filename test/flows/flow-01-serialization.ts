@@ -192,6 +192,45 @@ const main = async () => {
   ok('01.1n magazine set on serialize', !!sSer?.magazine)
   ok('01.1o publicationType set', !!sSer?.publicationType)
 
+  // Spec 14 section 2: metadata stays editable after serialization for the owner and assigned editor.
+  section('01.1 PATCH /series/:id metadata (Spec 14)')
+  const proposalNameIdBeforePatch = sSer?.proposal?.nameId ?? null
+  const rMetadataOwner = await req('PATCH', `/series/${happy.seriesId}`, {
+    token: m1Tok,
+    body: { title: 'FT Happy Series - Revised' }
+  })
+  ok('F01-PM1 Mangaka owner updates title -> 200', rMetadataOwner.status === 200, `got ${rMetadataOwner.status}`)
+
+  const rMetadataEditor = await req('PATCH', `/series/${happy.seriesId}`, {
+    token: e1Tok,
+    body: { synopsis: 'Updated after serialization without replacing proposal metadata.' }
+  })
+  ok('F01-PM2 assigned Editor updates synopsis -> 200', rMetadataEditor.status === 200, `got ${rMetadataEditor.status}`)
+  const afterMetadataPatch = await prisma.series.findUnique({ where: { id: happy.seriesId } })
+  ok('F01-PM2b DB title updated', afterMetadataPatch?.title === 'FT Happy Series - Revised')
+  ok(
+    'F01-PM2c DB synopsis updated and proposal.nameId preserved',
+    afterMetadataPatch?.proposal?.synopsis === 'Updated after serialization without replacing proposal metadata.' &&
+      (afterMetadataPatch?.proposal?.nameId ?? null) === proposalNameIdBeforePatch,
+    `proposal=${JSON.stringify(afterMetadataPatch?.proposal)}`
+  )
+
+  const rMetadataStranger = await req('PATCH', `/series/${happy.seriesId}`, {
+    token: m2Tok,
+    body: { title: 'Unauthorized title' }
+  })
+  expectError(rMetadataStranger, 403, 'Error.SeriesAccessDenied', 'F01-PM3 unrelated Mangaka cannot edit metadata')
+
+  const rMetadataStrict = await req('PATCH', `/series/${happy.seriesId}`, {
+    token: m1Tok,
+    body: { genres: ['ACTION'] }
+  })
+  ok(
+    'F01-PM4 strict metadata schema rejects genres -> 422',
+    rMetadataStrict.status === 422,
+    `got ${rMetadataStrict.status} ${rMetadataStrict.raw.slice(0, 160)}`
+  )
+
   // ═════════════ 01.2 — STATE MACHINE (invalid transitions) ══════════════════════════════
   section('01.2 State machine: invalid transitions')
 
@@ -653,6 +692,17 @@ const main = async () => {
   expectError(rHiatusOnCancelled, 409, 'Error.InvalidSeriesTransition', '01.7r hiatus khi CANCELLED')
 
   // ═════════════ 01.8 — FRANCHISE / CO-OWNER ═════════════════════════════════════════════
+  const rMetadataCancelled = await req('PATCH', `/series/${pre.seriesId}`, {
+    token: m1Tok,
+    body: { title: 'Closed record must not change' }
+  })
+  expectError(
+    rMetadataCancelled,
+    409,
+    'Error.SeriesNotEditable',
+    'F01-PM5 PATCH metadata on terminal CANCELLED series -> SeriesNotEditable'
+  )
+
   section('01.8 Franchise consent + parent/child relationship')
   // Tạo parent REVENUE_SHARE FULLY_EXECUTED
   const parentFR = await makeSeriesAt(SeriesStatus.SERIALIZED, {

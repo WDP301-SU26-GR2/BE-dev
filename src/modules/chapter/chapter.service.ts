@@ -110,7 +110,7 @@ export class ChapterService {
     await this.reviewService.submit(userId, chapterId)
     return this.getOne(chapterId)
   }
-  async requestRevision(userId: string, chapterId: string, reason?: string) {
+  async requestRevision(userId: string, chapterId: string, reason: string) {
     await this.reviewService.requestRevision(userId, chapterId, reason)
     return this.getOne(chapterId)
   }

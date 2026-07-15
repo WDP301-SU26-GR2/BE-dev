@@ -3,12 +3,13 @@ import { AppModule } from './app.module'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { cleanupOpenApiDoc } from 'nestjs-zod'
 import envConfig from 'src/core/config/envConfig'
+import { corsOrigins } from 'src/core/config/cors'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
   app.getHttpAdapter().getInstance().set('trust proxy', envConfig.TRUST_PROXY_HOPS)
   app.enableShutdownHooks()
-  app.enableCors()
+  app.enableCors({ origin: corsOrigins() })
   const config = new DocumentBuilder()
     .setTitle('WDP API')
     .setDescription(
