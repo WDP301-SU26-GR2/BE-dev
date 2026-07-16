@@ -32,6 +32,8 @@ export const ContractMessages = {
   error: {
     // Error.* code (FE map sang text hiển thị). KHÔNG hard-code chuỗi hiển thị ở service.
     invalidContractTransition: 'Error.InvalidContractTransition',
-    contractNotSignableYet: 'Error.ContractNotSignableYet'
+    contractNotSignableYet: 'Error.ContractNotSignableYet',
+    notContractMangaka: 'Error.NotContractMangaka',
+    contractAccessDenied: 'Error.ContractAccessDenied'
   }
 } as const

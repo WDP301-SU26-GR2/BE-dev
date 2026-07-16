@@ -22,6 +22,13 @@ export const ContractErrors = {
   // Lỗi khi Editor này cố tình sửa hợp đồng của Editor khác phụ trách
   UnauthorizedEditor: () => new ForbiddenException('ONLY_ASSIGNED_EDITOR_CAN_EDIT'),
 
+  // Sai Mangaka của hợp đồng (approve / request-changes / ký OTP / xem tiến độ ký) — chuẩn Error.PascalCase.
+  // Trước 2026-07-17 các path này ném nhầm UnauthorizedEditor (lệch ngữ nghĩa) — đã tách.
+  NotContractMangaka: () => new ForbiddenException([{ message: E.notContractMangaka, path: 'mangakaId' }]),
+
+  // Ngoài phạm vi xem hợp đồng này (Mangaka khác / Editor khác phụ trách) — mirror Error.SeriesAccessDenied.
+  ContractAccessDenied: () => new ForbiddenException([{ message: E.contractAccessDenied, path: 'id' }]),
+
   // Lỗi khi trạng thái hợp đồng không hợp lệ cho hành động hiện tại (ví dụ: đang DRAFT mà đòi ký)
   InvalidStatus: () => new BadRequestException('INVALID_CONTRACT_STATUS_FOR_THIS_ACTION'),
 
