@@ -25,6 +25,9 @@ export const BoardMessages = {
     notSessionCreator: 'Error.NotSessionCreator',
     notEnoughBoardMembers: 'Error.NotEnoughBoardMembers',
     rosterSourceRequired: 'Error.RosterSourceRequired',
-    seriesNotFound: 'Error.SeriesNotFound'
+    seriesNotFound: 'Error.SeriesNotFound',
+    invalidPhaseTransition: 'Error.InvalidPhaseTransition',
+    votingNotOpen: 'Error.VotingNotOpen',
+    notSessionParticipant: 'Error.NotSessionParticipant'
   }
 } as const

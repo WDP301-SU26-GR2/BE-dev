@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-15T05:30:49.582Z — 244 routes.
+// Sinh lúc: 2026-07-16T20:20:18.084Z — 251 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -125,6 +125,18 @@ export const ROUTE_RULES: RouteRule[] = [
   {
     method: 'PATCH',
     path: '/board/sessions/:id/conclude',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN]
+  },
+  {
+    method: 'GET',
+    path: '/board/sessions/:id/messages',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN, RoleCode.BOARD_MEMBER]
+  },
+  {
+    method: 'PATCH',
+    path: '/board/sessions/:id/phase',
     access: 'ROLES',
     allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN]
   },
@@ -396,6 +408,9 @@ export const ROUTE_RULES: RouteRule[] = [
     access: 'ROLES',
     allowed: [RoleCode.MANGAKA, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
   },
+  { method: 'GET', path: '/public/chapters/:id/pages', access: 'PUBLIC', allowed: [] },
+  { method: 'GET', path: '/public/series', access: 'PUBLIC', allowed: [] },
+  { method: 'GET', path: '/public/series/:id', access: 'PUBLIC', allowed: [] },
   {
     method: 'DELETE',
     path: '/publication-versions/:id',
@@ -655,7 +670,9 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'POST', path: '/vote', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/vote/context', access: 'PUBLIC', allowed: [] },
   { method: 'POST', path: '/vote/otp', access: 'PUBLIC', allowed: [] },
+  { method: 'GET', path: '/vote/periods', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/vote/results', access: 'PUBLIC', allowed: [] },
+  { method: 'GET', path: '/vote/results/latest', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/voting-config', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   { method: 'PATCH', path: '/voting-config', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] }
 ]

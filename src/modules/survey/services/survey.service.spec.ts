@@ -4,6 +4,7 @@ import { DomainEvent } from 'src/core/events/domain-events'
 import { IdentityHashService } from 'src/infrastructure/crypto/identity-hash.service'
 import { ReaderVoteBodySchema, VoteOtpRequestBodySchema } from '../schemas/survey-schemas'
 import { AuditEntityType } from '@prisma/client'
+import { CaptchaRejectedException } from '../errors/survey.errors'
 
 // Real (not mocked) so identity/ip hashing determinism is exercised end-to-end in submitVote tests.
 const identityHash = new IdentityHashService('test-pepper')
@@ -18,6 +19,8 @@ type Mocks = {
   surveyConfigService: any
   appConfigService: any
   auditService: any
+  recaptchaService: any
+  redisService: any
 }
 
 function makeMocks(): Mocks {
@@ -40,6 +43,8 @@ function makeMocks(): Mocks {
       findBoardMemberIds: jest.fn().mockResolvedValue([]),
       // Fix-1 G-2
       findLatestOpenSurveyPeriod: jest.fn().mockResolvedValue(null),
+      findLatestReflectedPeriod: jest.fn().mockResolvedValue(null),
+      findReflectedPeriods: jest.fn().mockResolvedValue([]),
       findManySerializedSeriesPublic: jest.fn().mockResolvedValue([]),
       findSeriesTitlesByIds: jest.fn().mockResolvedValue([])
     },
@@ -64,7 +69,14 @@ function makeMocks(): Mocks {
         hiatusTooLongDays: 30
       })
     },
-    auditService: { record: jest.fn().mockResolvedValue(undefined) }
+    auditService: { record: jest.fn().mockResolvedValue(undefined) },
+    recaptchaService: {
+      verify: jest.fn().mockResolvedValue({ ok: true, score: null, degraded: false })
+    },
+    redisService: {
+      incrWithTtl: jest.fn().mockResolvedValue(1),
+      decrSafe: jest.fn().mockResolvedValue(undefined)
+    }
   }
 }
 
@@ -78,7 +90,9 @@ function makeService(m: Mocks) {
     m.notificationService as never,
     m.surveyConfigService as never,
     m.appConfigService as never,
-    m.auditService as never
+    m.auditService as never,
+    m.recaptchaService as never,
+    m.redisService as never
   )
 }
 
@@ -153,7 +167,8 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
     surveyPeriodId: '507f1f77bcf86cd799439011',
     seriesIds: [SERIES_A],
     identity: 'reader@example.com',
-    otpCode: '123456'
+    otpCode: '123456',
+    captchaToken: 'tok'
   }
   const IP = '203.0.113.9'
   const serializedOwnership = (ids: string[]) =>
@@ -208,7 +223,8 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
           surveyPeriodId: '507f1f77bcf86cd799439011',
           seriesIds: ['sA', 'sB'],
           identity: 'reader@example.com',
-          otpCode: '123456'
+          otpCode: '123456',
+          captchaToken: 'tok'
         },
         '1.1.1.1'
       )
@@ -601,19 +617,208 @@ describe('SurveyService.getVoteResults (Fix-1 G-2)', () => {
         isReliable: true
       }
     ])
-    m.surveyRepository.findSeriesTitlesByIds = jest.fn().mockResolvedValue([{ id: S1, title: 'One' }])
+    m.surveyRepository.findSeriesTitlesByIds = jest
+      .fn()
+      .mockResolvedValue([{ id: S1, title: 'One', publicationType: 'WEEKLY' }])
     const out = await makeService(m).getVoteResults(P)
     expect(out.surveyPeriodId).toBe(P)
     expect(out.issueNumber).toBe(12)
     expect(out.results).toEqual([
-      { rankPosition: 1, seriesId: S1, seriesTitle: 'One', voteCount: 10.5, rankChange: 2 },
-      { rankPosition: 2, seriesId: S2, seriesTitle: null, voteCount: 3, rankChange: null }
+      { rankPosition: 1, seriesId: S1, seriesTitle: 'One', publicationType: 'WEEKLY', voteCount: 10.5, rankChange: 2 },
+      { rankPosition: 2, seriesId: S2, seriesTitle: null, publicationType: null, voteCount: 3, rankChange: null }
     ])
     const serialized = JSON.stringify(out)
     expect(serialized).not.toContain('riskLevel')
     expect(serialized).not.toContain('isAtRisk')
     expect(serialized).not.toContain('isReliable')
     expect(serialized).not.toContain('SEVERE')
+  })
+})
+
+describe('SurveyService captcha verification (Spec 15 Part C)', () => {
+  const PERIOD_ID = '507f1f77bcf86cd799439011'
+  const SERIES_ID = '507f1f77bcf86cd799439021'
+  const IP = '1.1.1.1'
+  const validVoteBody = {
+    surveyPeriodId: PERIOD_ID,
+    identity: 'reader@example.com',
+    otpCode: '123456',
+    seriesIds: [SERIES_ID],
+    captchaToken: 'tok'
+  }
+
+  function primeVote(m: Mocks) {
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue({ id: PERIOD_ID, status: 'OPEN' })
+    m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue([{ id: SERIES_ID, status: 'SERIALIZED' }])
+    m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue(null)
+  }
+
+  it('requestOtp: captcha ok=false → 403 và không gửi OTP', async () => {
+    const m = makeMocks()
+    m.recaptchaService.verify.mockResolvedValue({ ok: false, score: null, degraded: false })
+
+    await expect(makeService(m).requestOtp({ identity: 'r@x.com', captchaToken: 'bad' }, IP)).rejects.toBe(
+      CaptchaRejectedException
+    )
+
+    expect(m.recaptchaService.verify).toHaveBeenCalledWith('bad', IP)
+    expect(m.authOtpService.sendOTPService).not.toHaveBeenCalled()
+  })
+
+  it('requestOtp: score dưới threshold → 403 và không gửi OTP', async () => {
+    const m = makeMocks()
+    m.recaptchaService.verify.mockResolvedValue({ ok: true, score: 0.1, degraded: false })
+
+    await expect(makeService(m).requestOtp({ identity: 'r@x.com', captchaToken: 'tok' }, IP)).rejects.toBe(
+      CaptchaRejectedException
+    )
+
+    expect(m.authOtpService.sendOTPService).not.toHaveBeenCalled()
+  })
+
+  it('requestOtp: score=null dev/degraded → gửi OTP bình thường', async () => {
+    const m = makeMocks()
+    m.recaptchaService.verify.mockResolvedValue({ ok: true, score: null, degraded: true })
+
+    await expect(makeService(m).requestOtp({ identity: 'r@x.com', captchaToken: 'tok' }, IP)).resolves.toBeDefined()
+
+    expect(m.authOtpService.sendOTPService).toHaveBeenCalled()
+  })
+
+  it('requestOtp: IP rate-limit chặn trước captcha', async () => {
+    const m = makeMocks()
+    m.rateLimitService.checkAndConsume
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: false, retryAfter: 30 })
+
+    await expect(makeService(m).requestOtp({ identity: 'r@x.com', captchaToken: 'tok' }, IP)).rejects.toMatchObject({
+      status: 429
+    })
+
+    expect(m.recaptchaService.verify).not.toHaveBeenCalled()
+    expect(m.authOtpService.sendOTPService).not.toHaveBeenCalled()
+  })
+
+  it('submitVote: ok=false → 403 sau IP-limit nhưng trước validate/burn OTP', async () => {
+    const m = makeMocks()
+    primeVote(m)
+    m.recaptchaService.verify.mockResolvedValue({ ok: false, score: null, degraded: false })
+
+    await expect(makeService(m).submitVote(validVoteBody, IP)).rejects.toBe(CaptchaRejectedException)
+
+    expect(m.surveyRepository.countReaderVotesByPeriodAndIp).toHaveBeenCalled()
+    expect(m.recaptchaService.verify).toHaveBeenCalledWith('tok', IP)
+    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
+    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
+    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+  })
+
+  it('submitVote: IP cap chặn trước captcha và OTP', async () => {
+    const m = makeMocks()
+    primeVote(m)
+    m.surveyRepository.countReaderVotesByPeriodAndIp.mockResolvedValue(10)
+
+    await expect(makeService(m).submitVote(validVoteBody, IP)).rejects.toMatchObject({ status: 429 })
+
+    expect(m.recaptchaService.verify).not.toHaveBeenCalled()
+    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
+    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'score thấp',
+      captcha: { ok: true, score: 0.1, degraded: false },
+      expected: { voteWeight: 0.5, isFlagged: true, captchaScore: 0.1 }
+    },
+    {
+      name: 'score cao',
+      captcha: { ok: true, score: 0.9, degraded: false },
+      expected: { voteWeight: 1, isFlagged: false, captchaScore: 0.9 }
+    },
+    {
+      name: 'Google degraded',
+      captcha: { ok: true, score: null, degraded: true },
+      expected: { voteWeight: 1, isFlagged: true, captchaScore: null }
+    },
+    {
+      name: 'dev-mode',
+      captcha: { ok: true, score: null, degraded: false },
+      expected: { voteWeight: 1, isFlagged: false, captchaScore: null }
+    }
+  ])('submitVote: $name → lưu đúng score/weight/flag', async ({ captcha, expected }) => {
+    const m = makeMocks()
+    primeVote(m)
+    m.recaptchaService.verify.mockResolvedValue(captcha)
+
+    await makeService(m).submitVote(validVoteBody, IP)
+
+    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledWith(expect.objectContaining(expected))
+  })
+})
+
+describe('SurveyService public ranking discovery (Spec 15 Part B)', () => {
+  it('không có kỳ REFLECTED → {period:null, results:[]}, KHÔNG 404', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findLatestReflectedPeriod.mockResolvedValue(null)
+
+    await expect(makeService(m).getLatestVoteResults()).resolves.toEqual({ period: null, results: [] })
+  })
+
+  it('có kỳ → period map ISO + results tái dùng getVoteResults theo id kỳ đó', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findLatestReflectedPeriod.mockResolvedValue({
+      id: 'p1',
+      issueNumber: 7,
+      reflectedIssueNumber: 5,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-08T00:00:00.000Z'),
+      status: 'REFLECTED'
+    })
+    const service = makeService(m)
+    const spy = jest.spyOn(service, 'getVoteResults').mockResolvedValue({
+      surveyPeriodId: 'p1',
+      issueNumber: 7,
+      results: [{ rankPosition: 1, seriesId: 's1', seriesTitle: 'T', voteCount: 3, rankChange: null }]
+    })
+
+    const result = await service.getLatestVoteResults()
+
+    expect(spy).toHaveBeenCalledWith('p1', undefined)
+    expect(result.period).toEqual({
+      id: 'p1',
+      issueNumber: 7,
+      reflectedIssueNumber: 5,
+      startDate: '2026-07-01T00:00:00.000Z',
+      endDate: '2026-07-08T00:00:00.000Z'
+    })
+    expect(result.results).toHaveLength(1)
+  })
+
+  it('danh sách kỳ map ISO + null-safe và truyền limit xuống repository', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findReflectedPeriods.mockResolvedValue([
+      {
+        id: 'p1',
+        issueNumber: 7,
+        reflectedIssueNumber: null,
+        startDate: null,
+        endDate: new Date('2026-07-08T00:00:00.000Z')
+      }
+    ])
+
+    const result = await makeService(m).getReflectedPeriods(5)
+
+    expect(m.surveyRepository.findReflectedPeriods).toHaveBeenCalledWith(5)
+    expect(result.items).toEqual([
+      {
+        id: 'p1',
+        issueNumber: 7,
+        reflectedIssueNumber: null,
+        startDate: null,
+        endDate: '2026-07-08T00:00:00.000Z'
+      }
+    ])
   })
 })
 
@@ -632,9 +837,27 @@ describe('Fix-2 G-5 - identity semantics', () => {
     expect(
       ReaderVoteBodySchema.safeParse({
         surveyPeriodId: PERIOD_ID,
-        identity: 'not-an-email',
+        identity: 'reader@example.com',
+        otpCode: '123456',
+        seriesIds: [SERIES_ID],
+        captchaToken: 'tok'
+      }).success
+    ).toBe(true)
+    expect(
+      ReaderVoteBodySchema.safeParse({
+        surveyPeriodId: PERIOD_ID,
+        identity: 'reader@example.com',
         otpCode: '123456',
         seriesIds: [SERIES_ID]
+      }).success
+    ).toBe(false)
+    expect(
+      ReaderVoteBodySchema.safeParse({
+        surveyPeriodId: PERIOD_ID,
+        identity: 'reader@example.com',
+        otpCode: '123456',
+        seriesIds: [SERIES_ID],
+        captchaScore: 0.9
       }).success
     ).toBe(false)
   })
@@ -664,7 +887,8 @@ describe('Fix-2 G-5 - identity semantics', () => {
         surveyPeriodId: PERIOD_ID,
         identity: 'reader@example.com',
         otpCode: '123456',
-        seriesIds: [SERIES_ID]
+        seriesIds: [SERIES_ID],
+        captchaToken: 'tok'
       },
       '1.2.3.4'
     )
@@ -725,7 +949,8 @@ describe('SurveyService — ObjectId guard cho id lấy từ BODY (Spec 11 §1.1
           surveyPeriodId: 'not-an-objectid',
           seriesIds: ['507f1f77bcf86cd799439021'],
           identity: 'a@b.com',
-          otpCode: '123456'
+          otpCode: '123456',
+          captchaToken: 'tok'
         },
         '203.0.113.9'
       )
@@ -753,7 +978,8 @@ describe('Fix-2 G-4b - IP vote limit per period', () => {
     surveyPeriodId: PERIOD_ID,
     identity: 'r@example.com',
     otpCode: '123456',
-    seriesIds: [SERIES_ID]
+    seriesIds: [SERIES_ID],
+    captchaToken: 'tok'
   }
 
   function primeHappyPath(m: Mocks) {
@@ -839,5 +1065,174 @@ describe('SurveyService — AuditService wiring (Spec 11 / Task 13)', () => {
       fromState: 'DRAFT',
       toState: 'OPEN'
     })
+  })
+})
+
+describe('SurveyService IP quota reservation nguyên tử (Spec 15.1 hardening)', () => {
+  const PERIOD_ID = '507f1f77bcf86cd799439011'
+  const SERIES_ID = '507f1f77bcf86cd799439021'
+  const IP = '9.9.9.9'
+  const voteBody = {
+    surveyPeriodId: PERIOD_ID,
+    identity: 'quota-reader@example.com',
+    otpCode: '123456',
+    seriesIds: [SERIES_ID],
+    captchaToken: 'tok'
+  }
+
+  function primeVote(m: Mocks) {
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue({ id: PERIOD_ID, status: 'OPEN' })
+    m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue([{ id: SERIES_ID, status: 'SERIALIZED' }])
+    m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue(null)
+  }
+
+  it('reservation vượt cap (2 request song song sát trần) → 429 + refund DECR, phiếu KHÔNG ghi', async () => {
+    const m = makeMocks()
+    primeVote(m)
+    // DB count còn dưới trần (9 < 10) nhưng reservation nguyên tử trả 11 > cap → request thua race bị chặn.
+    m.surveyRepository.countReaderVotesByPeriodAndIp.mockResolvedValue(9)
+    m.redisService.incrWithTtl.mockResolvedValue(11)
+
+    await expect(makeService(m).submitVote(voteBody, IP)).rejects.toMatchObject({ status: 429 })
+
+    expect(m.redisService.incrWithTtl).toHaveBeenCalledWith(
+      expect.stringMatching(new RegExp(`^survey:vote:ipq:${PERIOD_ID}:`)),
+      expect.any(Number)
+    )
+    expect(m.redisService.decrSafe).toHaveBeenCalledTimes(1)
+    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
+    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+  })
+
+  it('OTP sai → refund reservation (quota chỉ đếm phiếu ghi thật)', async () => {
+    const m = makeMocks()
+    primeVote(m)
+    m.redisService.incrWithTtl.mockResolvedValue(1)
+    m.authOtpService.validateOtpCode.mockRejectedValue(new Error('bad otp'))
+
+    await expect(makeService(m).submitVote(voteBody, IP)).rejects.toBeDefined()
+
+    expect(m.redisService.decrSafe).toHaveBeenCalledTimes(1)
+    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+  })
+
+  it('danh tính đã vote (409) → refund reservation', async () => {
+    const m = makeMocks()
+    primeVote(m)
+    m.redisService.incrWithTtl.mockResolvedValue(2)
+    m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue({ id: 'v1' })
+
+    await expect(makeService(m).submitVote(voteBody, IP)).rejects.toMatchObject({ status: 409 })
+
+    expect(m.redisService.decrSafe).toHaveBeenCalledTimes(1)
+  })
+
+  it('vote thành công → GIỮ reservation (không refund)', async () => {
+    const m = makeMocks()
+    primeVote(m)
+    m.redisService.incrWithTtl.mockResolvedValue(3)
+
+    await expect(makeService(m).submitVote(voteBody, IP)).resolves.toBeDefined()
+
+    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledTimes(1)
+    expect(m.redisService.decrSafe).not.toHaveBeenCalled()
+  })
+
+  it('Redis lỗi (incrWithTtl null) → FAIL-OPEN theo DB count, lỗi sau đó KHÔNG refund', async () => {
+    const m = makeMocks()
+    primeVote(m)
+    m.redisService.incrWithTtl.mockResolvedValue(null)
+    m.authOtpService.validateOtpCode.mockRejectedValue(new Error('bad otp'))
+
+    await expect(makeService(m).submitVote(voteBody, IP)).rejects.toBeDefined()
+
+    expect(m.redisService.decrSafe).not.toHaveBeenCalled()
+  })
+
+  it('Redis lỗi (null) → vote thành công vẫn đi trọn flow (fail-open)', async () => {
+    const m = makeMocks()
+    primeVote(m)
+    m.redisService.incrWithTtl.mockResolvedValue(null)
+
+    await expect(makeService(m).submitVote(voteBody, IP)).resolves.toBeDefined()
+
+    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledTimes(1)
+  })
+
+  it('DB count đã đạt trần → 429 TRƯỚC khi reservation (không đụng Redis)', async () => {
+    const m = makeMocks()
+    primeVote(m)
+    m.surveyRepository.countReaderVotesByPeriodAndIp.mockResolvedValue(10)
+
+    await expect(makeService(m).submitVote(voteBody, IP)).rejects.toMatchObject({ status: 429 })
+
+    expect(m.redisService.incrWithTtl).not.toHaveBeenCalled()
+  })
+})
+
+describe('SurveyService.getVoteResults — filter publicationType (Spec 15.2, bảng con WEEKLY/MONTHLY)', () => {
+  const P = '507f1f77bcf86cd799439011'
+  const S1 = '507f1f77bcf86cd799439021'
+  const S2 = '507f1f77bcf86cd799439022'
+
+  function primeReflected(m: Mocks) {
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue({ id: P, status: 'REFLECTED', issueNumber: 12 })
+    m.surveyRepository.getRankingRecordsByPeriod = jest.fn().mockResolvedValue([
+      { seriesId: S1, rankPosition: 1, voteCount: 10, rankChange: 2 },
+      { seriesId: S2, rankPosition: 2, voteCount: 3, rankChange: null }
+    ])
+    m.surveyRepository.findSeriesTitlesByIds = jest.fn().mockResolvedValue([
+      { id: S1, title: 'Weekly One', publicationType: 'WEEKLY' },
+      { id: S2, title: 'Monthly Two', publicationType: 'MONTHLY' }
+    ])
+  }
+
+  it('filter WEEKLY → chỉ series WEEKLY, GIỮ rankPosition gốc (vị trí bảng tổng)', async () => {
+    const m = makeMocks()
+    primeReflected(m)
+    const out = await makeService(m).getVoteResults(P, 'WEEKLY')
+    expect(out.results).toEqual([
+      {
+        rankPosition: 1,
+        seriesId: S1,
+        seriesTitle: 'Weekly One',
+        publicationType: 'WEEKLY',
+        voteCount: 10,
+        rankChange: 2
+      }
+    ])
+  })
+
+  it('filter MONTHLY → chỉ series MONTHLY', async () => {
+    const m = makeMocks()
+    primeReflected(m)
+    const out = await makeService(m).getVoteResults(P, 'MONTHLY')
+    expect(out.results.map((r) => r.seriesId)).toEqual([S2])
+  })
+
+  it('không filter → trả đủ (backward-compatible)', async () => {
+    const m = makeMocks()
+    primeReflected(m)
+    const out = await makeService(m).getVoteResults(P)
+    expect(out.results).toHaveLength(2)
+  })
+
+  it('getLatestVoteResults truyền filter xuống getVoteResults', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findLatestReflectedPeriod.mockResolvedValue({
+      id: P,
+      issueNumber: 12,
+      reflectedIssueNumber: null,
+      startDate: null,
+      endDate: null
+    })
+    const service = makeService(m)
+    const spy = jest.spyOn(service, 'getVoteResults').mockResolvedValue({
+      surveyPeriodId: P,
+      issueNumber: 12,
+      results: []
+    })
+    await service.getLatestVoteResults('WEEKLY')
+    expect(spy).toHaveBeenCalledWith(P, 'WEEKLY')
   })
 })

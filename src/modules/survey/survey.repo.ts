@@ -36,7 +36,7 @@ export class SurveyRepository {
     identityHash: string
     authMethod?: 'EMAIL_OTP' | 'PHONE_OTP' | 'CAPTCHA_ONLY' | null
     ipHash?: string
-    captchaScore?: number
+    captchaScore?: number | null
     voteWeight: number
     isFlagged: boolean
   }) {
@@ -126,6 +126,29 @@ export class SurveyRepository {
     })
   }
 
+  // Spec 15 Part B — endDate is nullable, so id is the deterministic tiebreaker.
+  findLatestReflectedPeriod() {
+    return this.prisma.surveyPeriod.findFirst({
+      where: { status: 'REFLECTED' },
+      orderBy: [{ endDate: 'desc' }, { id: 'desc' }]
+    })
+  }
+
+  findReflectedPeriods(limit: number) {
+    return this.prisma.surveyPeriod.findMany({
+      where: { status: 'REFLECTED' },
+      orderBy: [{ endDate: 'desc' }, { id: 'desc' }],
+      take: limit,
+      select: {
+        id: true,
+        issueNumber: true,
+        reflectedIssueNumber: true,
+        startDate: true,
+        endDate: true
+      }
+    })
+  }
+
   // Fix-1 G-2: danh sách series đang phát hành — CHỈ field public-safe, TUYỆT ĐỐI không thêm select.
   findManySerializedSeriesPublic() {
     return this.prisma.series.findMany({
@@ -140,7 +163,8 @@ export class SurveyRepository {
     if (seriesIds.length === 0) return Promise.resolve([])
     return this.prisma.series.findMany({
       where: { id: { in: seriesIds } },
-      select: { id: true, title: true }
+      // Spec 15.2: kèm publicationType để bảng xếp hạng public filter/badge theo WEEKLY/MONTHLY.
+      select: { id: true, title: true, publicationType: true }
     })
   }
 

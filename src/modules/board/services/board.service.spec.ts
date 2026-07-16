@@ -7,9 +7,15 @@ const boardSessionStateService = {
   transition: jest.fn().mockImplementation((id: string, status: string) => Promise.resolve({ id, status }))
 }
 const boardRosterService = { suggest: jest.fn() }
+const boardMeetingService = { advancePhase: jest.fn(), listMessages: jest.fn() }
 
 describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', () => {
-  const activeSession = { id: '012345678901234567890123', status: 'ACTIVE', allowedEditorIds: ['b1', 'b2', 'b3', 'b4'] }
+  const activeSession = {
+    id: '012345678901234567890123',
+    status: 'ACTIVE',
+    phase: 'VOTING',
+    allowedEditorIds: ['b1', 'b2', 'b3', 'b4']
+  }
 
   // preVotes = state BEFORE this vote (used for double-vote check + `before.result`);
   // pushedVotes = state AFTER pushVote (used to recompute counters).
@@ -40,7 +46,8 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
       eventBus as never,
       auditService as never,
       boardSessionStateService as never,
-      boardRosterService as never
+      boardRosterService as never,
+      boardMeetingService as never
     )
     return { service, eventBus, auditService: { record: auditService.record } }
   }
@@ -90,7 +97,8 @@ describe('BoardService notifications', () => {
       eventBus as never,
       auditService as never,
       boardSessionStateService as never,
-      boardRosterService as never
+      boardRosterService as never,
+      boardMeetingService as never
     )
 
     await service.createSession('editor-1', {
@@ -133,7 +141,8 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
       eventBus as never,
       auditService as never,
       boardSessionStateService as never,
-      boardRosterService as never
+      boardRosterService as never,
+      boardMeetingService as never
     )
     return { service, boardRepo }
   }
@@ -153,7 +162,8 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
       eventBus as never,
       auditService as never,
       boardSessionStateService as never,
-      boardRosterService as never
+      boardRosterService as never,
+      boardMeetingService as never
     )
     return { service, boardRepo }
   }
@@ -219,7 +229,12 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
 })
 
 describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () => {
-  const activeSession = { id: '012345678901234567890123', status: 'ACTIVE', allowedEditorIds: ['b1', 'b2', 'b3'] }
+  const activeSession = {
+    id: '012345678901234567890123',
+    status: 'ACTIVE',
+    phase: 'VOTING',
+    allowedEditorIds: ['b1', 'b2', 'b3']
+  }
 
   function makeService(preResult: string, preVotes: any[], pushedVotes: any[]) {
     const preDecision = {
@@ -252,7 +267,8 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
       eventBus as never,
       audit as never,
       state as never,
-      boardRosterService as never
+      boardRosterService as never,
+      boardMeetingService as never
     )
     return { service, boardRepo, audit, state }
   }
@@ -274,7 +290,8 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
       eventBus as never,
       audit as never,
       state as never,
-      boardRosterService as never
+      boardRosterService as never,
+      boardMeetingService as never
     )
     await expect(service.castVote('garbage', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toMatchObject({
       status: 404
@@ -293,6 +310,100 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
         entityId: '012345678901234567890124'
       })
     )
+  })
+
+  it('castVote rejects an ACTIVE roster member before VOTING without writing a vote', async () => {
+    const { service, boardRepo } = makeService('PENDING', [], [{ voterId: 'b1', voteValue: 'APPROVE' }])
+    boardRepo.findSessionById.mockResolvedValue({ ...activeSession, phase: 'PRESENTING' })
+
+    await expect(service.castVote('012345678901234567890124', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toBe(
+      Errors.VotingNotOpenException
+    )
+    expect(boardRepo.pushVoteToDecision).not.toHaveBeenCalled()
+  })
+
+  it('castVote checks roster before phase so an outsider still receives 403 on PRESENTING', async () => {
+    const { service, boardRepo } = makeService('PENDING', [], [{ voterId: 'outsider', voteValue: 'APPROVE' }])
+    boardRepo.findSessionById.mockResolvedValue({ ...activeSession, phase: 'PRESENTING' })
+
+    await expect(
+      service.castVote('012345678901234567890124', 'outsider', { voteValue: 'APPROVE' } as never)
+    ).rejects.toBe(Errors.VoterNotAllowedException)
+    expect(boardRepo.pushVoteToDecision).not.toHaveBeenCalled()
+  })
+})
+
+describe('BoardService read response enrichment (Spec 16)', () => {
+  const SESSION_ID = 'a'.repeat(24)
+  const DECISION_ID = 'b'.repeat(24)
+  const CREATOR_ID = 'c'.repeat(24)
+  const MEMBER_1 = 'd'.repeat(24)
+  const MEMBER_2 = 'e'.repeat(24)
+  const SERIES_ID = 'f'.repeat(24)
+
+  function makeReadService() {
+    const session = {
+      id: SESSION_ID,
+      creatorId: CREATOR_ID,
+      allowedEditorIds: [MEMBER_1, MEMBER_2]
+    }
+    const decision = { id: DECISION_ID, targetSeriesId: SERIES_ID }
+    const boardRepo = {
+      findManySessions: jest.fn().mockResolvedValue([session]),
+      findSessionById: jest.fn().mockResolvedValue(session),
+      findUsersMiniByIds: jest.fn().mockResolvedValue([
+        { id: CREATOR_ID, name: 'Creator Name', displayName: null, avatar: null },
+        { id: MEMBER_1, name: 'Member One', displayName: 'Member DN', avatar: 'avatar.png' },
+        { id: MEMBER_2, name: 'Member Two', displayName: null, avatar: null }
+      ]),
+      findManyDecisions: jest.fn().mockResolvedValue([decision]),
+      findDecisionById: jest.fn().mockResolvedValue(decision),
+      findSeriesTitlesByIds: jest.fn().mockResolvedValue([{ id: SERIES_ID, title: 'Series Title' }])
+    }
+    const service = new BoardService(
+      boardRepo as never,
+      { broadcastVoteProgress: jest.fn(), broadcastPhaseChanged: jest.fn() } as never,
+      { notifySafe: jest.fn() } as never,
+      { emit: jest.fn() } as never,
+      { record: jest.fn() } as never,
+      { transition: jest.fn() } as never,
+      boardRosterService as never,
+      boardMeetingService as never
+    )
+    return { service, boardRepo, session, decision }
+  }
+
+  it('enriches session list and detail with creator and ordered roster members in one batch query', async () => {
+    const { service, boardRepo } = makeReadService()
+
+    const sessions = await service.getSessions({ userId: MEMBER_1 }, { mine: true, status: 'ACTIVE' })
+    const detail = await service.getSessionById(SESSION_ID)
+
+    expect(boardRepo.findManySessions).toHaveBeenCalledWith({ participantId: MEMBER_1, status: 'ACTIVE' })
+    expect(boardRepo.findUsersMiniByIds).toHaveBeenNthCalledWith(1, [CREATOR_ID, MEMBER_1, MEMBER_2])
+    expect(sessions[0]).toMatchObject({
+      creator: { id: CREATOR_ID, displayName: 'Creator Name', avatar: null },
+      members: [
+        { id: MEMBER_1, displayName: 'Member DN', avatar: 'avatar.png' },
+        { id: MEMBER_2, displayName: 'Member Two', avatar: null }
+      ]
+    })
+    expect(detail.creator.displayName).toBe('Creator Name')
+    expect(detail.members).toHaveLength(2)
+  })
+
+  it('enriches decision list/detail with targetSeries and returns null when no target exists', async () => {
+    const { service, boardRepo } = makeReadService()
+
+    const decisions = await service.getDecisions()
+    const detail = await service.getDecisionDetails(DECISION_ID)
+    boardRepo.findDecisionById.mockResolvedValue({ id: DECISION_ID, targetSeriesId: null })
+    const withoutTarget = await service.getDecisionDetails(DECISION_ID)
+
+    expect(boardRepo.findSeriesTitlesByIds).toHaveBeenNthCalledWith(1, [SERIES_ID])
+    expect(decisions[0].targetSeries).toEqual({ id: SERIES_ID, title: 'Series Title' })
+    expect(detail.targetSeries).toEqual({ id: SERIES_ID, title: 'Series Title' })
+    expect(withoutTarget.targetSeries).toBeNull()
   })
 })
 
@@ -328,7 +439,8 @@ describe('BoardService.concludeSession (Fix-2 G-7)', () => {
       eventBus as never,
       audit as never,
       stateService as never,
-      boardRosterService as never
+      boardRosterService as never,
+      boardMeetingService as never
     )
     return { service, boardRepo, notificationService, eventBus, audit, stateService }
   }
@@ -398,7 +510,8 @@ describe('BoardService.createSession — roster source (Spec 12)', () => {
       { emit: jest.fn() } as never,
       { record: jest.fn() } as never,
       { transition: jest.fn() } as never,
-      boardRosterService as never
+      boardRosterService as never,
+      boardMeetingService as never
     )
     return { service, boardRepo, boardRosterService }
   }

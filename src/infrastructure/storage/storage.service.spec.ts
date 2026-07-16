@@ -33,6 +33,10 @@ describe('StorageService', () => {
     jest.clearAllMocks()
   })
 
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
   it('creates an R2-compatible S3 client with default checksums disabled', () => {
     new StorageService()
 
@@ -100,5 +104,16 @@ describe('StorageService', () => {
       downloadUrl: 'https://r2/get-signed',
       expiresAt: expect.any(String)
     })
+  })
+
+  it('createPresignedDownload uses a caller-provided TTL for the signature and expiry', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-16T00:00:00.000Z'))
+    mockGetSignedUrl.mockResolvedValue('https://r2/get-signed')
+    const service = new StorageService()
+
+    const result = await service.createPresignedDownload('uploads/u1/x.png', 900)
+
+    expect(mockGetSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), { expiresIn: 900 })
+    expect(result.expiresAt).toBe('2026-07-16T00:15:00.000Z')
   })
 })

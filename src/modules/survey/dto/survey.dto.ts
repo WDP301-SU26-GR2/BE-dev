@@ -18,7 +18,11 @@ import {
   SurveyDataListResSchema,
   VoteContextResSchema,
   VoteResultsResSchema,
-  VoteResultsQuerySchema
+  VoteResultsQuerySchema,
+  LatestVoteResultsResSchema,
+  LatestVoteResultsQuerySchema,
+  VotePeriodsQuerySchema,
+  VotePeriodsResSchema
 } from '../schemas/survey-schemas'
 
 export class VoteOtpRequestBodyDto extends createZodDto(VoteOtpRequestBodySchema) {}
@@ -40,6 +44,10 @@ export class SurveyDataListResDto extends createZodDto(SurveyDataListResSchema) 
 export class VoteContextResDto extends createZodDto(VoteContextResSchema) {}
 export class VoteResultsResDto extends createZodDto(VoteResultsResSchema) {}
 export class VoteResultsQueryDto extends createZodDto(VoteResultsQuerySchema) {}
+export class LatestVoteResultsResDto extends createZodDto(LatestVoteResultsResSchema) {}
+export class LatestVoteResultsQueryDto extends createZodDto(LatestVoteResultsQuerySchema) {}
+export class VotePeriodsQueryDto extends createZodDto(VotePeriodsQuerySchema) {}
+export class VotePeriodsResDto extends createZodDto(VotePeriodsResSchema) {}
 
 export type GetSeriesTrendQueryType = {
   seriesId: string

@@ -6,6 +6,7 @@ import {
   SurveyStatus,
   RiskLevel,
   BoardSessionStatus,
+  BoardSessionPhase,
   BoardDecisionResult,
   DecisionType,
   UserStatus,
@@ -438,6 +439,7 @@ export const makeBoardSession = async (o: {
   creatorId: string
   allowedEditorIds: string[]
   status?: BoardSessionStatus
+  phase?: BoardSessionPhase
   startTime?: Date
   endTime?: Date | null
   title?: string
@@ -446,6 +448,7 @@ export const makeBoardSession = async (o: {
     data: {
       creatorId: o.creatorId,
       status: o.status ?? BoardSessionStatus.UPCOMING,
+      phase: o.phase ?? BoardSessionPhase.PRESENTING,
       allowedEditorIds: o.allowedEditorIds,
       title: o.title ?? `FT Session ${++seriesSeq}`,
       startTime: o.startTime ?? new Date(Date.now() + 60_000),

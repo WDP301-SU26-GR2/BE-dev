@@ -64,7 +64,15 @@ const configSchema = z
     ////AI SERVICE (Spec 2 - optional: empty = AI disabled)
     AI_SERVICE_URL: z.string().default(''),
     AI_SERVICE_API_KEY: z.string().default(''),
-    AI_HTTP_TIMEOUT_MS: z.coerce.number().default(120000)
+    AI_HTTP_TIMEOUT_MS: z.coerce.number().default(120000),
+    ////SPEC 15 — PUBLIC READER & VOTING COMPLETION (optional defaults preserve existing deployments)
+    // Google siteverify secret. Empty disables verification for dev/test.
+    RECAPTCHA_SECRET: z.string().default(''),
+    // Public cover/page signed URL lifetime in seconds.
+    PUBLIC_SIGN_TTL_SECONDS: z.coerce.number().default(900),
+    // Fixed-window, per-IP quota for public read routes.
+    PUBLIC_RL_IP_MAX: z.coerce.number().default(120),
+    PUBLIC_RL_IP_WINDOW: z.coerce.number().default(60)
   })
   .refine((c) => c.AI_SERVICE_URL === '' || c.AI_SERVICE_API_KEY !== '', {
     message: 'AI_SERVICE_API_KEY is required when AI_SERVICE_URL is set'

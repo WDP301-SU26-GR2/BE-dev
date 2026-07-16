@@ -1,5 +1,12 @@
 //error-docs.ts dùng cho Swagger error description.
 export const ERROR_HINTS: Record<string, string> = {
+  'Error.PublicSeriesNotFound':
+    'series does not exist, id is malformed, or the series is outside the post-serialization public status set',
+  'Error.PublicChapterNotFound':
+    'chapter does not exist, id is malformed, chapter is not PUBLISHED, or its series is not public',
+  'Error.PublicRateLimited': 'IP exceeded the public route quota; retry after the response retryAfter duration',
+  'Error.CaptchaRejected':
+    'reCAPTCHA verification failed or score is below VotingConfig.captchaThreshold when RECAPTCHA_SECRET is enabled',
   'Error.RevisionRequestNotFound': 'revision request does not exist (or malformed id)',
   'Error.NotRevisionRecipient': 'only the person asked to make the fix (recipientId) can resolve this revision round',
   'Error.AccountBanned': 'account is banned or blocked',
@@ -167,6 +174,9 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.EditorNotInvited': 'caller is not in session.allowedEditorIds for report submission',
   'Error.InvalidBoardSessionTransition': 'board session status transition is not allowed by BOARD_SESSION_TRANSITIONS',
   'Error.NotSessionCreator': 'only the board session creator or a Super Admin can conclude the session',
+  'Error.InvalidPhaseTransition': 'session phase only moves forward: PRESENTING -> QA -> VOTING (skipping allowed)',
+  'Error.VotingNotOpen': 'castVote requires session.phase = VOTING - the session creator must advance the phase first',
+  'Error.NotSessionParticipant': 'only the session creator, roster members, or a Super Admin can read meeting messages',
   'Error.NotEnoughBoardMembers': 'fewer than 3 active board members exist — cannot form a valid session',
   'Error.RosterSourceRequired': 'provide allowedEditorIds, or seriesId so the roster can be auto-assigned',
   'Error.ChapterNotDraftForName': 'chapter must be in DRAFT status to create a Name',

@@ -26,16 +26,33 @@ export class BoardRepository {
     return this.prisma.boardDecision.findUnique({ where: { id } })
   }
 
-  async findManySessions() {
-    return this.prisma.boardSession.findMany({ orderBy: { createdAt: 'desc' } })
+  async findManySessions(filter?: { participantId?: string; status?: $Enums.BoardSessionStatus }) {
+    return this.prisma.boardSession.findMany({
+      where: {
+        ...(filter?.participantId
+          ? { OR: [{ creatorId: filter.participantId }, { allowedEditorIds: { has: filter.participantId } }] }
+          : {}),
+        ...(filter?.status ? { status: filter.status } : {})
+      },
+      orderBy: { startTime: 'desc' }
+    })
   }
 
-  async findManyDecisions() {
-    return this.prisma.boardDecision.findMany({ orderBy: { id: 'desc' } })
+  async findManyDecisions(boardSessionId?: string) {
+    return this.prisma.boardDecision.findMany({
+      where: boardSessionId ? { boardSessionId } : {},
+      orderBy: { id: 'desc' }
+    })
   }
 
-  async findManyReports() {
-    return this.prisma.seriesReport.findMany({ orderBy: { createdAt: 'desc' } })
+  async findManyReports(filter?: { seriesId?: string; boardDecisionId?: string }) {
+    return this.prisma.seriesReport.findMany({
+      where: {
+        ...(filter?.seriesId ? { seriesId: filter.seriesId } : {}),
+        ...(filter?.boardDecisionId ? { boardDecisionId: filter.boardDecisionId } : {})
+      },
+      orderBy: { createdAt: 'desc' }
+    })
   }
 
   async findReportById(id: string) {
@@ -193,5 +210,46 @@ export class BoardRepository {
         staffProfile: { select: { specialtyGenres: true } }
       }
     })
+  }
+
+  // ================= SPEC 16 — MEETING ROOM =================
+  async updateSessionPhase(id: string, phase: $Enums.BoardSessionPhase) {
+    return this.prisma.boardSession.update({ where: { id }, data: { phase } })
+  }
+
+  async createBoardMessage(data: {
+    sessionId: string
+    senderId: string
+    content: string
+    phase: $Enums.BoardSessionPhase
+  }) {
+    return this.prisma.boardMessage.create({ data })
+  }
+
+  async findMessagesBySession(sessionId: string, page: { limit: number; offset: number }) {
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.boardMessage.findMany({
+        where: { sessionId },
+        orderBy: { createdAt: 'asc' },
+        skip: page.offset,
+        take: page.limit
+      }),
+      this.prisma.boardMessage.count({ where: { sessionId } })
+    ])
+    return { items, total }
+  }
+
+  // Batch resolve tên hiển thị (Spec 16 embed names) — 1 query, không N+1.
+  findUsersMiniByIds(ids: string[]) {
+    if (ids.length === 0) return Promise.resolve([])
+    return this.prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, displayName: true, avatar: true }
+    })
+  }
+
+  findSeriesTitlesByIds(ids: string[]) {
+    if (ids.length === 0) return Promise.resolve([])
+    return this.prisma.series.findMany({ where: { id: { in: ids } }, select: { id: true, title: true } })
   }
 }
