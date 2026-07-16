@@ -1,5 +1,12 @@
 //error-docs.ts dùng cho Swagger error description.
 export const ERROR_HINTS: Record<string, string> = {
+  'Error.PublicSeriesNotFound':
+    'series does not exist, id is malformed, or the series is outside the post-serialization public status set',
+  'Error.PublicChapterNotFound':
+    'chapter does not exist, id is malformed, chapter is not PUBLISHED, or its series is not public',
+  'Error.PublicRateLimited': 'IP exceeded the public route quota; retry after the response retryAfter duration',
+  'Error.CaptchaRejected':
+    'reCAPTCHA verification failed or score is below VotingConfig.captchaThreshold when RECAPTCHA_SECRET is enabled',
   'Error.RevisionRequestNotFound': 'revision request does not exist (or malformed id)',
   'Error.NotRevisionRecipient': 'only the person asked to make the fix (recipientId) can resolve this revision round',
   'Error.AccountBanned': 'account is banned or blocked',

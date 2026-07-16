@@ -1,5 +1,5 @@
 import { extendApi } from '@anatine/zod-openapi'
-import { Demographic, Genre, RiskLevel, SurveyStatus } from '@prisma/client'
+import { Demographic, Genre, PublicationType, RiskLevel, SurveyStatus } from '@prisma/client'
 import z from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
@@ -36,7 +36,7 @@ export const ReaderVoteBodySchema = extendApi(
       identity: z.string().email({ message: 'identity phải là email hợp lệ.' }).describe('Email đã nhận OTP'),
       otpCode: z.string().min(4, { message: 'OTP là bắt buộc.' }),
       seriesIds: z.array(z.string().min(1)).min(1).max(3, { message: 'Tối đa 3 series được chọn.' }),
-      captchaScore: z.number().min(0).max(1).optional()
+      captchaToken: z.string().min(1, { message: 'Captcha token là bắt buộc.' })
     })
     .strict(),
   { title: 'ReaderVoteBody', description: 'Reader xác thực OTP và gửi vote' }
@@ -279,7 +279,10 @@ export const VoteContextResSchema = extendApi(
           .object({
             id: z.string(),
             title: z.string(),
-            coverImage: z.string().nullable().describe('Object key R2 — Guest chưa xem được ảnh (public sign chưa có)'),
+            coverImage: z
+              .string()
+              .nullable()
+              .describe('Object key R2 — xem catalog public /public/series để lấy signed URL'),
             genres: z.array(zEnum(Genre, 'Genre')),
             demographic: zEnum(Demographic, 'Demographic').nullable()
           })
@@ -294,23 +297,30 @@ export const VoteContextResSchema = extendApi(
   }
 )
 
+const VoteResultItemSchema = z
+  .object({
+    rankPosition: z
+      .number()
+      .int()
+      .nullable()
+      .describe('Vị trí trên BẢNG TỔNG của kỳ (giữ nguyên khi filter publicationType — FE tự đánh số bảng con)'),
+    seriesId: z.string(),
+    seriesTitle: z.string().nullable().describe('null nếu series đã bị xóa'),
+    publicationType: zEnum(PublicationType, 'PublicationType')
+      .nullable()
+      .describe('Nhịp xuất bản của series — Spec 15.2'),
+    voteCount: z.number(),
+    rankChange: z.number().int().nullable()
+  })
+  .strict()
+
 // Fix-1 G-2: Public vote results (chỉ sau khi kỳ REFLECTED). ẨN tín hiệu biên tập nội bộ.
 export const VoteResultsResSchema = extendApi(
   z
     .object({
       surveyPeriodId: z.string(),
       issueNumber: z.number().int().nullable(),
-      results: z.array(
-        z
-          .object({
-            rankPosition: z.number().int().nullable(),
-            seriesId: z.string(),
-            seriesTitle: z.string().nullable().describe('null nếu series đã bị xóa'),
-            voteCount: z.number(),
-            rankChange: z.number().int().nullable()
-          })
-          .strict()
-      )
+      results: z.array(VoteResultItemSchema)
     })
     .strict(),
   {
@@ -322,6 +332,69 @@ export const VoteResultsResSchema = extendApi(
 
 export const VoteResultsQuerySchema = z
   .object({
-    surveyPeriodId: z.string().min(1, { message: 'surveyPeriodId là bắt buộc.' })
+    surveyPeriodId: z.string().min(1, { message: 'surveyPeriodId là bắt buộc.' }),
+    // Spec 15.2: bảng con theo nhịp xuất bản (WEEKLY/MONTHLY/IRREGULAR); omit = bảng tổng.
+    publicationType: zEnum(PublicationType, 'PublicationType').optional()
   })
   .strict()
+
+// Spec 15.2 — query riêng cho /vote/results/latest (1 field optional → thỏa ràng buộc non-empty strict query).
+export const LatestVoteResultsQuerySchema = z
+  .object({
+    publicationType: zEnum(PublicationType, 'PublicationType').optional()
+  })
+  .strict()
+
+export const LatestVoteResultsResSchema = extendApi(
+  z
+    .object({
+      period: z
+        .object({
+          id: z.string(),
+          issueNumber: z.number().int().nullable(),
+          reflectedIssueNumber: z.number().int().nullable(),
+          startDate: z.string().nullable().describe('ISO 8601 UTC'),
+          endDate: z.string().nullable().describe('ISO 8601 UTC')
+        })
+        .strict()
+        .nullable()
+        .describe('null = chưa có kỳ nào REFLECTED'),
+      results: z.array(VoteResultItemSchema)
+    })
+    .strict(),
+  {
+    title: 'LatestVoteResultsRes',
+    description: 'Bảng xếp hạng kỳ REFLECTED mới nhất — Spec 15 §3.1'
+  }
+)
+
+export const VotePeriodsQuerySchema = extendApi(
+  z
+    .object({
+      limit: z.coerce.number().int().min(1).max(24).default(12)
+    })
+    .strict(),
+  { title: 'VotePeriodsQuery' }
+)
+
+export const VotePeriodsResSchema = extendApi(
+  z
+    .object({
+      items: z.array(
+        z
+          .object({
+            id: z.string(),
+            issueNumber: z.number().int().nullable(),
+            reflectedIssueNumber: z.number().int().nullable(),
+            startDate: z.string().nullable().describe('ISO 8601 UTC'),
+            endDate: z.string().nullable().describe('ISO 8601 UTC')
+          })
+          .strict()
+      )
+    })
+    .strict(),
+  {
+    title: 'VotePeriodsRes',
+    description: 'Kỳ REFLECTED (lịch sử) cho dropdown — Spec 15 §3.2'
+  }
+)

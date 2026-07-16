@@ -68,13 +68,13 @@ export class StorageService {
     }
   }
 
-  async createPresignedDownload(key: string): Promise<PresignedDownload> {
+  async createPresignedDownload(key: string, expiresInSeconds = PRESIGN_EXPIRES_SECONDS): Promise<PresignedDownload> {
     const command = new GetObjectCommand({ Bucket: storageEnvConfig.R2_BUCKET, Key: key })
-    const downloadUrl = await getSignedUrl(this.client, command, { expiresIn: PRESIGN_EXPIRES_SECONDS })
+    const downloadUrl = await getSignedUrl(this.client, command, { expiresIn: expiresInSeconds })
 
     return {
       downloadUrl,
-      expiresAt: new Date(Date.now() + PRESIGN_EXPIRES_SECONDS * 1000).toISOString()
+      expiresAt: new Date(Date.now() + expiresInSeconds * 1000).toISOString()
     }
   }
 

@@ -196,7 +196,13 @@ const main = async () => {
   section('F04.7 Cast vote OK')
   await seedOtp(readerEmail, OtpPurpose.VOTE)
   const r7 = await req('POST', '/vote', {
-    body: { surveyPeriodId: periodId, identity: readerEmail, otpCode: '123456', seriesIds: [s1.id, s2.id] }
+    body: {
+      surveyPeriodId: periodId,
+      identity: readerEmail,
+      otpCode: '123456',
+      seriesIds: [s1.id, s2.id],
+      captchaToken: 'tok'
+    }
   })
   ok('04.7a cast vote 200', r7.status === 200, `got ${r7.status} ${r7.raw.slice(0, 200)}`)
   const rv1 = await prisma.readerVote.findFirst({ where: { surveyPeriodId: periodId } })
@@ -206,14 +212,26 @@ const main = async () => {
   section('F04.8 Duplicate identity → ReaderAlreadyVoted')
   await seedOtp(readerEmail, OtpPurpose.VOTE)
   const r8 = await req('POST', '/vote', {
-    body: { surveyPeriodId: periodId, identity: readerEmail, otpCode: '123456', seriesIds: [s3.id] }
+    body: {
+      surveyPeriodId: periodId,
+      identity: readerEmail,
+      otpCode: '123456',
+      seriesIds: [s3.id],
+      captchaToken: 'tok'
+    }
   })
   expectError(r8, 409, 'Error.ReaderAlreadyVoted', '04.8a duplicate identity → ReaderAlreadyVoted')
 
   section('F04.9 Vote identity đã vote (OTP burn check)')
   // OTP đã burn trong lần vote 7; nhưng identityHash check trước nên trả ReaderAlreadyVoted
   const r9 = await req('POST', '/vote', {
-    body: { surveyPeriodId: periodId, identity: readerEmail, otpCode: '123456', seriesIds: [s2.id] }
+    body: {
+      surveyPeriodId: periodId,
+      identity: readerEmail,
+      otpCode: '123456',
+      seriesIds: [s2.id],
+      captchaToken: 'tok'
+    }
   })
   ok('04.9a vote identity đã vote', r9.status === 400 || r9.status === 409, `got ${r9.status} ${r9.raw.slice(0, 200)}`)
 
@@ -223,7 +241,13 @@ const main = async () => {
   await sleep(50)
   await seedOtp(reader3, OtpPurpose.VOTE)
   const r10 = await req('POST', '/vote', {
-    body: { surveyPeriodId: periodId, identity: reader3, otpCode: '123456', seriesIds: [s1.id, s2.id, s3.id, s4.id] }
+    body: {
+      surveyPeriodId: periodId,
+      identity: reader3,
+      otpCode: '123456',
+      seriesIds: [s1.id, s2.id, s3.id, s4.id],
+      captchaToken: 'tok'
+    }
   })
   ok(
     '04.10a 4 seriesIds → Zod max 3 (422)',
@@ -237,7 +261,13 @@ const main = async () => {
   await sleep(50)
   await seedOtp(reader4, OtpPurpose.VOTE)
   const r11 = await req('POST', '/vote', {
-    body: { surveyPeriodId: periodId, identity: reader4, otpCode: '123456', seriesIds: [s1.id, s1.id, s2.id] }
+    body: {
+      surveyPeriodId: periodId,
+      identity: reader4,
+      otpCode: '123456',
+      seriesIds: [s1.id, s1.id, s2.id],
+      captchaToken: 'tok'
+    }
   })
   expectError(r11, 422, 'Error.DuplicateSeriesInVote', '04.11a duplicate seriesIds → DuplicateSeriesInVote')
 
@@ -247,7 +277,13 @@ const main = async () => {
   await sleep(50)
   await seedOtp(reader5, OtpPurpose.VOTE)
   const r12 = await req('POST', '/vote', {
-    body: { surveyPeriodId: periodId, identity: reader5, otpCode: '123456', seriesIds: ['aaaaaaaaaaaaaaaaaaaaaaaa'] }
+    body: {
+      surveyPeriodId: periodId,
+      identity: reader5,
+      otpCode: '123456',
+      seriesIds: ['aaaaaaaaaaaaaaaaaaaaaaaa'],
+      captchaToken: 'tok'
+    }
   })
   expectError(r12, 422, 'Error.SeriesNotVotable', '04.12a seriesId rác → SeriesNotVotable')
 
@@ -257,7 +293,13 @@ const main = async () => {
   await sleep(50)
   await seedOtp(reader6, OtpPurpose.VOTE)
   const r13 = await req('POST', '/vote', {
-    body: { surveyPeriodId: periodId, identity: reader6, otpCode: '123456', seriesIds: [sDraft.id] }
+    body: {
+      surveyPeriodId: periodId,
+      identity: reader6,
+      otpCode: '123456',
+      seriesIds: [sDraft.id],
+      captchaToken: 'tok'
+    }
   })
   expectError(r13, 422, 'Error.SeriesNotVotable', '04.13a DRAFT series → SeriesNotVotable')
 
@@ -267,7 +309,13 @@ const main = async () => {
   await sleep(50)
   await seedOtp(reader7, OtpPurpose.VOTE)
   const r14 = await req('POST', '/vote', {
-    body: { surveyPeriodId: 'aaaaaaaaaaaaaaaaaaaaaaaa', identity: reader7, otpCode: '123456', seriesIds: [s1.id] }
+    body: {
+      surveyPeriodId: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+      identity: reader7,
+      otpCode: '123456',
+      seriesIds: [s1.id],
+      captchaToken: 'tok'
+    }
   })
   expectError(r14, 404, 'Error.SurveyPeriodNotFound', '04.14a surveyPeriodId rác → SurveyPeriodNotFound')
 
@@ -283,7 +331,13 @@ const main = async () => {
   await sleep(50)
   await seedOtp(reader8, OtpPurpose.VOTE)
   const r15 = await req('POST', '/vote', {
-    body: { surveyPeriodId: closedPeriodId, identity: reader8, otpCode: '123456', seriesIds: [s1.id] }
+    body: {
+      surveyPeriodId: closedPeriodId,
+      identity: reader8,
+      otpCode: '123456',
+      seriesIds: [s1.id],
+      captchaToken: 'tok'
+    }
   })
   expectError(r15, 400, 'Error.SurveyPeriodNotOpen', '04.15b period CLOSED → SurveyPeriodNotOpen')
 
@@ -298,7 +352,7 @@ const main = async () => {
       identity: reader9,
       otpCode: '123456',
       seriesIds: [s1.id, s2.id],
-      captchaScore: 0.1
+      captchaToken: 'tok'
     }
   })
   ok('04.16a captcha low score vote 200', r16.status === 200, `got ${r16.status}`)
@@ -306,8 +360,8 @@ const main = async () => {
     where: { surveyPeriodId: periodId },
     orderBy: { votedAt: 'desc' }
   })
-  ok('04.16b isFlagged=true', !!rvFlagged && rvFlagged.isFlagged === true, `got ${rvFlagged?.isFlagged}`)
-  ok('04.16c voteWeight=0.5 (flagged)', !!rvFlagged && rvFlagged.voteWeight === 0.5, `got ${rvFlagged?.voteWeight}`)
+  ok('04.16b dev-mode isFlagged=false', !!rvFlagged && rvFlagged.isFlagged === false, `got ${rvFlagged?.isFlagged}`)
+  ok('04.16c dev-mode voteWeight=1', !!rvFlagged && rvFlagged.voteWeight === 1, `got ${rvFlagged?.voteWeight}`)
 
   section('F04.16x Seed votes cho s3 (3ch) để test ranking exclusion (s4 HIATUS không votable)')
   for (let i = 0; i < 3; i++) {
@@ -316,7 +370,7 @@ const main = async () => {
     await sleep(50)
     await seedOtp(e, OtpPurpose.VOTE)
     const vx = await req('POST', '/vote', {
-      body: { surveyPeriodId: periodId, identity: e, otpCode: '123456', seriesIds: [s3.id] },
+      body: { surveyPeriodId: periodId, identity: e, otpCode: '123456', seriesIds: [s3.id], captchaToken: 'tok' },
       xff: `203.0.113.${110 + i}`
     })
     if (vx.status !== 200) console.log(`    [debug 16x.${i}] vote status=${vx.status}`)
@@ -335,7 +389,13 @@ const main = async () => {
   await sleep(50)
   await seedOtp(reader17a, OtpPurpose.VOTE)
   const r17a = await req('POST', '/vote', {
-    body: { surveyPeriodId: periodId, identity: reader17a, otpCode: '123456', seriesIds: [s1.id] },
+    body: {
+      surveyPeriodId: periodId,
+      identity: reader17a,
+      otpCode: '123456',
+      seriesIds: [s1.id],
+      captchaToken: 'tok'
+    },
     xff: '203.0.113.99'
   })
   ok('04.17a first IP vote 200', r17a.status === 200, `got ${r17a.status} ${r17a.raw.slice(0, 200)}`)
@@ -345,7 +405,13 @@ const main = async () => {
   await sleep(50)
   await seedOtp(reader17b, OtpPurpose.VOTE)
   const r17b = await req('POST', '/vote', {
-    body: { surveyPeriodId: periodId, identity: reader17b, otpCode: '123456', seriesIds: [s1.id] },
+    body: {
+      surveyPeriodId: periodId,
+      identity: reader17b,
+      otpCode: '123456',
+      seriesIds: [s1.id],
+      captchaToken: 'tok'
+    },
     xff: '203.0.113.99'
   })
   expectError(r17b, 429, 'Error.VoteIpLimitExceeded', '04.17b second IP vote 429')
@@ -572,6 +638,103 @@ const main = async () => {
     body: { status: 'OPEN' }
   })
   ok('04.X2 DRAFT → OPEN OK', rDraftPatch.status === 200, `got ${rDraftPatch.status}`)
+
+  section('F04.PUB1 Public catalog and detail')
+  const publicChapters = await prisma.chapter.findMany({
+    where: { seriesId: s1.id, status: 'PUBLISHED' },
+    orderBy: { chapterNumber: 'asc' },
+    select: { id: true, chapterNumber: true }
+  })
+  const publicCh1 = publicChapters[0]
+  const publicCh2 = publicChapters[1]
+  await prisma.page.createMany({
+    data: [
+      { chapterId: publicCh1.id, pageNumber: 2, originalFile: 'flowtest/spec15-page-2.png' },
+      { chapterId: publicCh1.id, pageNumber: 1, originalFile: 'flowtest/spec15-page-1.png' },
+      { chapterId: publicCh1.id, pageNumber: 3 }
+    ]
+  })
+
+  const pubCatalog = await req('GET', '/public/series?q=FT%20A')
+  const pubItems = pubCatalog.json?.data?.items ?? []
+  ok('PUB1a catalog 200 without token', pubCatalog.status === 200, pubCatalog.raw.slice(0, 200))
+  ok(
+    'PUB1b catalog contains serialized series',
+    pubItems.some((s: { id: string }) => s.id === s1.id)
+  )
+  ok(
+    'PUB1c publishedChapterCount is computed in catalog',
+    pubItems.find((s: { id: string }) => s.id === s1.id)?.publishedChapterCount === 8
+  )
+  const pubHidden = await req('GET', '/public/series?q=FT')
+  ok(
+    'PUB1d catalog hides DRAFT series',
+    !(pubHidden.json?.data?.items ?? []).some((s: { id: string }) => s.id === sDraft.id)
+  )
+
+  const pubDetail = await req('GET', `/public/series/${s1.id}`)
+  ok(
+    'PUB1e detail 200 with only published chapters',
+    pubDetail.status === 200 && pubDetail.json?.data?.chapters?.length === 8,
+    pubDetail.raw.slice(0, 200)
+  )
+  const pubDraftDetail = await req('GET', `/public/series/${sDraft.id}`)
+  expectError(pubDraftDetail, 404, 'Error.PublicSeriesNotFound', 'PUB1f DRAFT series detail hidden')
+  const pubBadSeries = await req('GET', '/public/series/not-an-object-id')
+  expectError(pubBadSeries, 404, 'Error.PublicSeriesNotFound', 'PUB1g malformed series id is safe 404')
+
+  section('F04.PUB2 Public chapter reader')
+  const pubPages = await req('GET', `/public/chapters/${publicCh1.id}/pages`)
+  ok(
+    'PUB2a reader returns two file-backed pages sorted ascending',
+    pubPages.status === 200 &&
+      pubPages.json?.data?.pages?.length === 2 &&
+      pubPages.json?.data?.pages?.[0]?.pageNumber === 1,
+    pubPages.raw.slice(0, 200)
+  )
+  ok(
+    'PUB2b reader returns signed page URL',
+    typeof pubPages.json?.data?.pages?.[0]?.imageUrl === 'string' &&
+      pubPages.json.data.pages[0].imageUrl.startsWith('http')
+  )
+  ok(
+    'PUB2c reader computes adjacent published chapter ids',
+    pubPages.json?.data?.prevChapterId === null && pubPages.json?.data?.nextChapterId === publicCh2.id
+  )
+  const pubBadChapter = await req('GET', '/public/chapters/not-an-object-id/pages')
+  expectError(pubBadChapter, 404, 'Error.PublicChapterNotFound', 'PUB2d malformed chapter id is safe 404')
+
+  section('F04.PUB3 Ranking discovery')
+  const pubLatest = await req('GET', '/vote/results/latest')
+  ok(
+    'PUB3a latest ranking points to reflected period',
+    pubLatest.status === 200 && pubLatest.json?.data?.period?.id === periodId,
+    pubLatest.raw.slice(0, 200)
+  )
+  const pubPeriods = await req('GET', '/vote/periods')
+  ok(
+    'PUB3b reflected periods include finalized period',
+    pubPeriods.status === 200 && (pubPeriods.json?.data?.items ?? []).some((p: { id: string }) => p.id === periodId)
+  )
+  const pubPeriodsInvalid = await req('GET', '/vote/periods?limit=0')
+  ok('PUB3c periods limit=0 is 422', pubPeriodsInvalid.status === 422, `got ${pubPeriodsInvalid.status}`)
+
+  section('F04.PUB4 Public IP rate limit')
+  let publicRateLimited = false
+  let publicRateLimitBody = ''
+  for (let i = 0; i < 125; i++) {
+    const burst = await req('GET', '/public/series?limit=1', { xff: '203.0.113.240' })
+    if (burst.status === 429) {
+      publicRateLimited = true
+      publicRateLimitBody = burst.raw
+      break
+    }
+  }
+  ok(
+    'PUB4a burst reaches exact public 429 contract',
+    publicRateLimited && publicRateLimitBody.includes('Error.PublicRateLimited'),
+    publicRateLimitBody.slice(0, 200)
+  )
 
   await prisma.$disconnect()
   const fail = summary(FLOW)
