@@ -37,7 +37,7 @@ export class ContractService {
     if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
-    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
+    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.ContractAccessDenied()
 
     return contract
   }
@@ -46,7 +46,7 @@ export class ContractService {
     if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
-    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
+    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.ContractAccessDenied()
 
     return this.contractRepo.findVersionsByContractId(contractId)
   }
@@ -55,7 +55,7 @@ export class ContractService {
     if (!OBJECT_ID_RE.test(contractId) || !OBJECT_ID_RE.test(versionId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
-    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.UnauthorizedEditor()
+    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.ContractAccessDenied()
 
     const version = await this.contractRepo.findVersionById(contractId, versionId)
     if (!version) throw ContractErrors.NotFound()
@@ -192,7 +192,7 @@ export class ContractService {
   async mangakaApprove(contractId: string, userId: string) {
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
-    if (contract.mangakaId !== userId) throw ContractErrors.UnauthorizedEditor()
+    if (contract.mangakaId !== userId) throw ContractErrors.NotContractMangaka()
     this.assertTransition(contract.status, ContractStatus.MANGAKA_APPROVED)
 
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.MANGAKA_APPROVED)
@@ -215,7 +215,7 @@ export class ContractService {
     if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
-    if (contract.mangakaId !== userId) throw ContractErrors.UnauthorizedEditor()
+    if (contract.mangakaId !== userId) throw ContractErrors.NotContractMangaka()
     this.assertTransition(contract.status, ContractStatus.NEGOTIATION)
 
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.NEGOTIATION)
@@ -291,7 +291,7 @@ export class ContractService {
 
     // LỚP 1: Kiểm tra xem tài khoản đang đăng nhập có đúng là Mangaka được chỉ định trong hợp đồng này không
     if (contract.mangakaId !== loggedInUserId) {
-      throw ContractErrors.UnauthorizedEditor()
+      throw ContractErrors.NotContractMangaka()
     }
 
     // LỚP 2: Gọi AuthOtpService đối chiếu mã OTP dựa trên Email của người dùng đang đăng nhập
@@ -419,7 +419,7 @@ export class ContractService {
 
     // Chặn Mangaka xem trộm hợp đồng của người khác
     if (currentUserRole === 'MANGAKA' && contract.mangakaId !== currentUserId) {
-      throw ContractErrors.UnauthorizedEditor()
+      throw ContractErrors.NotContractMangaka()
     }
 
     // Kiểm tra quyết định hội đồng đi kèm
