@@ -51,4 +51,26 @@ describe('toSeriesRes', () => {
     expect(res.magazine).toBeNull()
     expect(res.startIssueNumber).toBeNull()
   })
+
+  it('embeds mangaka/editor mini objects when relations are loaded', () => {
+    const res = toSeriesRes({
+      ...baseSeries,
+      mangaka: { id: 'm1', name: 'Real Name', displayName: null, avatar: null },
+      editor: { id: 'e1', name: 'E Name', displayName: 'E Display', avatar: 'a.png' }
+    })
+    expect((res as any).mangaka).toEqual({ id: 'm1', displayName: 'Real Name', avatar: null })
+    expect((res as any).editor).toEqual({ id: 'e1', displayName: 'E Display', avatar: 'a.png' })
+  })
+
+  it('editor relation null (queue) → editor: null; relations absent (mutation path) → fields omitted', () => {
+    const withNullEditor = toSeriesRes({
+      ...baseSeries,
+      mangaka: { id: 'm1', name: 'N', displayName: null, avatar: null },
+      editor: null
+    })
+    expect((withNullEditor as any).editor).toBeNull()
+    const plain = toSeriesRes(baseSeries)
+    expect('mangaka' in plain).toBe(false)
+    expect('editor' in plain).toBe(false)
+  })
 })

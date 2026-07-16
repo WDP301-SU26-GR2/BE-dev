@@ -58,6 +58,8 @@ export const ENUM_DOCS = {
   DecisionType:
     'Board decision type: CONTINUE, CANCEL, HIATUS, ENDING_ALLOWANCE, SERIES_CONTRACT_APPROVAL, SERIALIZATION, CANCELLATION, FORMAT_CHANGE, COMPLETION, REPRINT, TRANSFER, CONTRACT, OTHER',
   BoardSessionStatus: 'Board session status: UPCOMING (chờ tới giờ), ACTIVE (đang họp/vote), CONCLUDED (đã bế mạc)',
+  BoardSessionPhase:
+    'Giai đoạn trong phiên họp Board: PRESENTING (editor trình bày hồ sơ), QA (Board hỏi đáp qua chat), VOTING (chỉ bỏ phiếu — chat bị khóa)',
   ContractType:
     'Loại hợp đồng: FULL_BUYOUT (NXB mua đứt 100%, toàn quyền) | REVENUE_SHARE (ăn chia %, quyết định lớn cần Mangaka đồng ý) — BR-CONTRACT-03',
   ContractStatus:

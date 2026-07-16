@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common'
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
 import type { Request } from 'express'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
@@ -12,6 +12,8 @@ import {
   CreateSurveyPeriodBodyDto,
   GetSeriesTrendQueryDto,
   ImportSurveyDataBodyDto,
+  LatestVoteResultsResDto,
+  LatestVoteResultsQueryDto,
   ReaderVoteBodyDto,
   ReaderVoteResDto,
   RankingRecordListResDto,
@@ -22,6 +24,8 @@ import {
   VotingConfigResDto,
   VoteContextResDto,
   VoteOtpRequestBodyDto,
+  VotePeriodsQueryDto,
+  VotePeriodsResDto,
   VoteResultsQueryDto,
   VoteResultsResDto
 } from './dto/survey.dto'
@@ -42,8 +46,11 @@ import {
   VoteOtpNotFoundException,
   VoteOtpRateLimitException,
   VoteIpLimitExceededException,
-  VotingConfigNotFoundException
+  VotingConfigNotFoundException,
+  CaptchaRejectedException
 } from './errors/survey.errors'
+import { PublicRateLimitGuard } from 'src/core/security/guards/public-rate-limit.guard'
+import { PublicRateLimitedException } from 'src/core/security/errors/public-rate-limit.error'
 
 @ApiTags('survey')
 @ApiBearerAuth()
@@ -54,7 +61,7 @@ export class SurveyController {
   @Post('vote/otp')
   @IsPublic()
   @ApiOperation({ summary: 'Reader yêu cầu OTP cho Guest Voting. Public.' })
-  @ApiErrors(VoteOtpRateLimitException(0))
+  @ApiErrors(VoteOtpRateLimitException(0), CaptchaRejectedException)
   @ZodResponse({ status: 200, type: MessageResDto })
   requestOtp(@Body() body: VoteOtpRequestBodyDto, @Req() req: Request) {
     return this.surveyService.requestOtp(body, req.ip ?? '')
@@ -71,7 +78,8 @@ export class SurveyController {
     VoteIpLimitExceededException,
     TooManySeriesSelectedException,
     DuplicateSeriesInVoteException,
-    SeriesNotVotableException
+    SeriesNotVotableException,
+    CaptchaRejectedException
   )
   @ZodResponse({ status: 200, type: MessageResDto })
   submitVote(@Body() body: ReaderVoteBodyDto, @Req() req: Request) {
@@ -89,6 +97,31 @@ export class SurveyController {
     return this.surveyService.getVoteContext()
   }
 
+  // Spec 15 §3.1 — discover the latest public ranking without a known period id.
+  @Get('vote/results/latest')
+  @IsPublic()
+  @UseGuards(PublicRateLimitGuard)
+  @ApiOperation({
+    summary: 'Public — bảng xếp hạng kỳ REFLECTED mới nhất (period null nếu chưa có kỳ nào chốt)',
+    security: []
+  })
+  @ApiErrors(PublicRateLimitedException(0))
+  @ZodResponse({ status: 200, type: LatestVoteResultsResDto })
+  getLatestVoteResults(@Query() query: LatestVoteResultsQueryDto) {
+    return this.surveyService.getLatestVoteResults(query.publicationType)
+  }
+
+  // Spec 15 §3.2 — reflected-only history for ranking discovery.
+  @Get('vote/periods')
+  @IsPublic()
+  @UseGuards(PublicRateLimitGuard)
+  @ApiOperation({ summary: 'Public — danh sách kỳ REFLECTED (dropdown lịch sử ranking)', security: [] })
+  @ApiErrors(PublicRateLimitedException(0))
+  @ZodResponse({ status: 200, type: VotePeriodsResDto })
+  getVotePeriods(@Query() query: VotePeriodsQueryDto) {
+    return this.surveyService.getReflectedPeriods(query.limit)
+  }
+
   // Fix-1 G-2: Public — kết quả kỳ đã chốt (REFLECTED); ẩn tín hiệu biên tập nội bộ.
   @Get('vote/results')
   @IsPublic()
@@ -98,7 +131,7 @@ export class SurveyController {
   @ApiErrors(SurveyPeriodNotFoundException, SurveyPeriodNotFinalizedException)
   @ZodResponse({ status: 200, type: VoteResultsResDto })
   getVoteResults(@Query() query: VoteResultsQueryDto) {
-    return this.surveyService.getVoteResults(query.surveyPeriodId)
+    return this.surveyService.getVoteResults(query.surveyPeriodId, query.publicationType)
   }
 
   @Get('survey-periods')

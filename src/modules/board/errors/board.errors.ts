@@ -13,7 +13,7 @@ export const SessionAlreadyExistsException = new ConflictException([{ message: E
 export const SessionNotFoundException = new NotFoundException([{ message: E.sessionNotFound, path: 'sessionId' }])
 export const BoardConfigNotFoundException = new NotFoundException([{ message: E.boardConfigNotFound, path: 'config' }])
 export const DecisionNotFoundException = new NotFoundException([{ message: E.decisionNotFound, path: 'decisionId' }])
-export const SessionNotOpenException = new BadRequestException([{ message: E.sessionNotOpen, path: 'status' }])
+export const SessionNotOpenException = new ConflictException([{ message: E.sessionNotOpen, path: 'status' }])
 export const InvalidBoardMembersException = new UnprocessableEntityException([
   { message: E.invalidBoardMembers, path: 'allowedEditorIds' }
 ])
@@ -39,3 +39,10 @@ export const RosterSourceRequiredException = new UnprocessableEntityException([
   { message: E.rosterSourceRequired, path: 'seriesId' }
 ])
 export const SeriesNotFoundException = new NotFoundException([{ message: E.seriesNotFound, path: 'seriesId' }])
+
+// Spec 16 — Board Meeting Room
+export const InvalidPhaseTransitionException = new ConflictException([
+  { message: E.invalidPhaseTransition, path: 'phase' }
+])
+export const VotingNotOpenException = new ConflictException([{ message: E.votingNotOpen, path: 'id' }])
+export const NotSessionParticipantException = new ForbiddenException([{ message: E.notSessionParticipant, path: 'id' }])

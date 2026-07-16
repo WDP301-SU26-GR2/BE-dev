@@ -33,6 +33,7 @@ export const SurveyMessages = {
     tooManySeriesSelected: 'Error.TooManySeriesSelected',
     duplicateSeriesInVote: 'Error.DuplicateSeriesInVote',
     seriesNotVotable: 'Error.SeriesNotVotable',
+    captchaRejected: 'Error.CaptchaRejected',
     rankingAccessDenied: 'Error.RankingAccessDenied',
     seriesNotFoundForRanking: 'Error.SeriesNotFound'
   }

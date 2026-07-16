@@ -21,6 +21,7 @@ import { AuditService } from 'src/modules/audit/audit.service'
 import { BoardSessionStateService } from './board-session-state.service'
 import { BoardRosterService } from './board-roster.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
+import { BoardMeetingService } from './board-meeting.service'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -35,8 +36,49 @@ export class BoardService {
     private readonly eventBus: DomainEventBus,
     private readonly auditService: AuditService,
     private readonly boardSessionStateService: BoardSessionStateService,
-    private readonly boardRosterService: BoardRosterService
+    private readonly boardRosterService: BoardRosterService,
+    private readonly boardMeetingService: BoardMeetingService
   ) {}
+
+  private toUserMini(user: { id: string; name: string; displayName: string | null; avatar: string | null }) {
+    return {
+      id: user.id,
+      displayName: user.displayName ?? user.name,
+      avatar: user.avatar ?? null
+    }
+  }
+
+  private async enrichSessions<T extends { creatorId: string; allowedEditorIds: string[] }>(sessions: T[]) {
+    const userIds = Array.from(new Set(sessions.flatMap((session) => [session.creatorId, ...session.allowedEditorIds])))
+    const users = (await this.boardRepo.findUsersMiniByIds(userIds)) as Array<{
+      id: string
+      name: string
+      displayName: string | null
+      avatar: string | null
+    }>
+    const usersById = new Map(users.map((user) => [user.id, this.toUserMini(user)]))
+
+    return sessions.map((session) => ({
+      ...session,
+      creator: usersById.get(session.creatorId),
+      members: session.allowedEditorIds
+        .map((memberId) => usersById.get(memberId))
+        .filter((member): member is NonNullable<typeof member> => member !== undefined)
+    }))
+  }
+
+  private async enrichDecisions<T extends { targetSeriesId: string | null }>(decisions: T[]) {
+    const seriesIds = Array.from(
+      new Set(decisions.map((decision) => decision.targetSeriesId).filter((id): id is string => id !== null))
+    )
+    const seriesRows = (await this.boardRepo.findSeriesTitlesByIds(seriesIds)) as Array<{ id: string; title: string }>
+    const seriesById = new Map(seriesRows.map((series) => [series.id, { id: series.id, title: series.title }]))
+
+    return decisions.map((decision) => ({
+      ...decision,
+      targetSeries: decision.targetSeriesId ? (seriesById.get(decision.targetSeriesId) ?? null) : null
+    }))
+  }
 
   /**
    * 1. Tạo Session
@@ -138,6 +180,16 @@ export class BoardService {
     return concluded
   }
 
+  async advancePhase(sessionId: string, actorId: string, roleName: string, phase: $Enums.BoardSessionPhase) {
+    const { session, broadcast } = await this.boardMeetingService.advancePhase(sessionId, actorId, roleName, phase)
+    this.boardGateway.broadcastPhaseChanged(broadcast.sessionId, broadcast.phase)
+    return session
+  }
+
+  getSessionMessages(sessionId: string, userId: string, roleName: string, page: { limit: number; offset: number }) {
+    return this.boardMeetingService.listMessages(userId, roleName, sessionId, page)
+  }
+
   /**
    * 2. Lấy cấu hình điều lệ hiện tại
    */
@@ -178,26 +230,34 @@ export class BoardService {
     return decision as unknown as BoardDecisionResDto
   }
 
-  async getSessions() {
-    return this.boardRepo.findManySessions()
+  async getSessions(caller?: { userId: string }, query?: { mine?: boolean; status?: $Enums.BoardSessionStatus }) {
+    const sessions = await this.boardRepo.findManySessions({
+      participantId: query?.mine && caller ? caller.userId : undefined,
+      status: query?.status
+    })
+    return this.enrichSessions(sessions)
   }
 
   async getSessionById(sessionId: string) {
     if (!OBJECT_ID_RE.test(sessionId)) throw Errors.SessionNotFoundException
     const session = await this.boardRepo.findSessionById(sessionId)
     if (!session) throw Errors.SessionNotFoundException
-    return session
+    const [enriched] = await this.enrichSessions([session])
+    return enriched
   }
 
-  async getDecisions() {
-    return (await this.boardRepo.findManyDecisions()) as unknown as BoardDecisionResDto[]
+  async getDecisions(boardSessionId?: string) {
+    if (boardSessionId !== undefined && !OBJECT_ID_RE.test(boardSessionId)) return []
+    const decisions = await this.boardRepo.findManyDecisions(boardSessionId)
+    return (await this.enrichDecisions(decisions)) as unknown as BoardDecisionResDto[]
   }
 
   async getDecisionDetails(decisionId: string) {
     if (!OBJECT_ID_RE.test(decisionId)) throw Errors.DecisionNotFoundException
     const decision = await this.boardRepo.findDecisionById(decisionId)
     if (!decision) throw Errors.DecisionNotFoundException
-    return decision as unknown as BoardDecisionResDto
+    const [enriched] = await this.enrichDecisions([decision])
+    return enriched as unknown as BoardDecisionResDto
   }
 
   async getDecisionVotes(decisionId: string) {
@@ -207,8 +267,10 @@ export class BoardService {
     return (decision.votes ?? []) as unknown as BoardVoteResDto[]
   }
 
-  async getReports() {
-    return this.boardRepo.findManyReports()
+  async getReports(query?: { seriesId?: string; boardDecisionId?: string }) {
+    if (query?.seriesId !== undefined && !OBJECT_ID_RE.test(query.seriesId)) return []
+    if (query?.boardDecisionId !== undefined && !OBJECT_ID_RE.test(query.boardDecisionId)) return []
+    return this.boardRepo.findManyReports(query)
   }
 
   async getReportById(reportId: string) {
@@ -240,6 +302,11 @@ export class BoardService {
     // Bước 4: Kiểm tra quyền danh sách đại biểu
     const isAllowed = session.allowedEditorIds.includes(voterId)
     if (!isAllowed) throw Errors.VoterNotAllowedException
+
+    // Spec 16: this stays after roster authorization so outsiders cannot infer the current meeting phase.
+    if (session.phase !== $Enums.BoardSessionPhase.VOTING) {
+      throw Errors.VotingNotOpenException
+    }
 
     // Bước 5: Chặn Double-voting
     const hasVoted = decision.votes.some((vote) => vote.voterId === voterId)

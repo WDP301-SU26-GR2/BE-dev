@@ -7,7 +7,8 @@ function makeRepo() {
     series: {
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0)
-    }
+    },
+    user: { findMany: jest.fn().mockResolvedValue([]) }
   }
   const repo = new SeriesRepository(prismaService as never)
   return { repo, prismaService }
@@ -38,6 +39,43 @@ describe('SeriesRepository list visibility', () => {
         }
       })
     )
+  })
+
+  it('batch-resolves mangaka and editor for list rows without N+1 queries', async () => {
+    const { repo, prismaService } = makeRepo()
+    prismaService.series.findMany.mockResolvedValue([
+      { id: 's1', mangakaId: 'm1', editorId: 'e1' },
+      { id: 's2', mangakaId: 'm1', editorId: null }
+    ])
+    prismaService.user.findMany.mockResolvedValue([
+      { id: 'm1', name: 'Mangaka', displayName: null, avatar: null },
+      { id: 'e1', name: 'Editor', displayName: 'Editor Display', avatar: 'editor.png' }
+    ])
+
+    const rows = await repo.findSeriesForList({ scope: { kind: 'all' }, status: undefined }, { limit: 20, offset: 0 })
+
+    expect(prismaService.user.findMany).toHaveBeenCalledTimes(1)
+    expect(prismaService.user.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['m1', 'e1'] } },
+      select: { id: true, name: true, displayName: true, avatar: true }
+    })
+    expect(rows[0]).toMatchObject({ mangaka: { id: 'm1' }, editor: { id: 'e1' } })
+    expect(rows[1]).toMatchObject({ mangaka: { id: 'm1' }, editor: null })
+  })
+})
+
+describe('SeriesRepository.findById people enrichment', () => {
+  it('resolves both people in one user query and preserves a null editor queue', async () => {
+    const series = { id: 's1', mangakaId: 'm1', editorId: null }
+    const mangaka = { id: 'm1', name: 'Mangaka', displayName: null, avatar: null }
+    const prismaService = {
+      series: { findUnique: jest.fn().mockResolvedValue(series) },
+      user: { findMany: jest.fn().mockResolvedValue([mangaka]) }
+    }
+    const repo = new SeriesRepository(prismaService as never)
+
+    await expect(repo.findById('s1')).resolves.toEqual({ ...series, mangaka, editor: null })
+    expect(prismaService.user.findMany).toHaveBeenCalledTimes(1)
   })
 })
 

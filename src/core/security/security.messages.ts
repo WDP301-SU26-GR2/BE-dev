@@ -7,5 +7,6 @@ export const SecurityMessages = {
   unauthorized: 'Unauthorized',
   mustChangePassword: 'Error.MustChangePassword',
   otpRateLimited: 'Error.OtpRateLimited',
+  publicRateLimited: 'Error.PublicRateLimited',
   forbiddenResource: 'You do not have permission to access this resource'
 } as const

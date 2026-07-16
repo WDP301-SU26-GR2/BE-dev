@@ -32,6 +32,7 @@ import { AuditModule } from './modules/audit/audit.module'
 import { RevisionModule } from './modules/revision/revision.module'
 import { AppConfigModule } from './modules/app-config/app-config.module'
 import { PublicationModule } from './modules/publication/publication.module'
+import { PublicModule } from './modules/public/public.module'
 
 @Module({
   imports: [
@@ -62,7 +63,8 @@ import { PublicationModule } from './modules/publication/publication.module'
     AuditModule,
     RevisionModule,
     AppConfigModule,
-    PublicationModule
+    PublicationModule,
+    PublicModule
   ],
   controllers: [],
   providers: [

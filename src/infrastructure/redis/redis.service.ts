@@ -43,4 +43,30 @@ export class RedisService implements OnModuleInit {
   async eval(script: string, keys: string[], args: (string | number)[]): Promise<unknown> {
     return await this.client.eval(script, keys.length, ...keys, ...args)
   }
+
+  // Spec 15.1 hardening: atomic INCR + EXPIRE-on-first-incr (Lua) cho quota reservation.
+  // null = Redis lỗi → caller FAIL-OPEN (triết lý AGENTS §10 — Redis blip không được khóa nghiệp vụ).
+  async incrWithTtl(key: string, ttlSec: number): Promise<number | null> {
+    try {
+      const value = (await this.client.eval(
+        "local v = redis.call('INCR', KEYS[1]) if v == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end return v",
+        1,
+        key,
+        ttlSec
+      )) as number
+      return value
+    } catch (error) {
+      this.logger.warn(`Redis INCR (incrWithTtl) failed for key "${key}"`, error)
+      return null
+    }
+  }
+
+  // Refund reservation best-effort — nuốt lỗi (mirror setNxEx): refund fail chỉ làm quota chặt hơn, không vỡ flow.
+  async decrSafe(key: string): Promise<void> {
+    try {
+      await this.client.decr(key)
+    } catch (error) {
+      this.logger.warn(`Redis DECR (decrSafe) failed for key "${key}"`, error)
+    }
+  }
 }

@@ -36,5 +36,6 @@ export const DuplicateSeriesInVoteException = new UnprocessableEntityException([
 export const SeriesNotVotableException = new UnprocessableEntityException([
   { message: E.seriesNotVotable, path: 'seriesIds' }
 ])
+export const CaptchaRejectedException = new ForbiddenException(E.captchaRejected)
 export const RankingAccessDeniedException = new ForbiddenException(E.rankingAccessDenied)
 export const SeriesNotFoundForRankingException = new NotFoundException(E.seriesNotFoundForRanking)

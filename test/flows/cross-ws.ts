@@ -16,7 +16,7 @@ import { wipeDb, seedRolesAndAdmin, makeUser, makeBoardSession, makeBoardDecisio
 import { ok, section, summary, resetCounters, sleep } from './lib/http.js'
 import { login } from './lib/auth.js'
 import { connectBoard, waitConnected, joinSession, waitForEvent } from './lib/ws.js'
-import { BoardSessionStatus, DecisionType, RoleCode } from '@prisma/client'
+import { BoardSessionPhase, BoardSessionStatus, DecisionType, RoleCode } from '@prisma/client'
 
 const FLOW = 'cross-ws'
 
@@ -145,6 +145,7 @@ const main = async () => {
       creatorId: e1.id,
       allowedEditorIds: [b1.id, b2.id, b3.id, e1.id],
       status: BoardSessionStatus.ACTIVE,
+      phase: BoardSessionPhase.VOTING,
       startTime: new Date(Date.now() - 10_000)
     })
     const decision = await makeBoardDecision({
@@ -173,6 +174,56 @@ const main = async () => {
       }
     } else {
       ok('WS6.1 connect', false, c.error ?? 'no connect')
+    }
+    sock.disconnect()
+    await sleep(200)
+  }
+
+  section('WS7 Spec 16: chat + phaseChanged')
+  {
+    const e1 = await makeUser(RoleCode.EDITOR)
+    const b1 = await makeUser(RoleCode.BOARD_MEMBER)
+    const b2 = await makeUser(RoleCode.BOARD_MEMBER)
+    const b3 = await makeUser(RoleCode.BOARD_MEMBER)
+    const e1Tok = await login(e1.email)
+    const b1Tok = await login(b1.email)
+    const session = await makeBoardSession({
+      creatorId: e1.id,
+      allowedEditorIds: [b1.id, b2.id, b3.id],
+      status: BoardSessionStatus.ACTIVE,
+      startTime: new Date(Date.now() - 10_000)
+    })
+    const sock = connectBoard(b1Tok)
+    const c = await waitConnected(sock, 3000)
+    if (c.connected) {
+      const join = await joinSession(sock, session.id, 3000)
+      ok('WS7.1 join', join.status === 'SUCCESS')
+      const waitMsg = waitForEvent<any>(sock, 'messageReceived', 5000).catch(() => null)
+      const ack = (await new Promise((resolve) =>
+        sock.emit('sendMessage', { sessionId: session.id, content: 'hello board' }, resolve)
+      )) as any
+      ok('WS7.2 sendMessage SUCCESS', ack?.status === 'SUCCESS', JSON.stringify(ack)?.slice(0, 120))
+      const msgEv = await waitMsg
+      ok('WS7.3 messageReceived broadcast', msgEv !== null && msgEv.content === 'hello board')
+
+      const waitPhase = waitForEvent<any>(sock, 'phaseChanged', 5000).catch(() => null)
+      const { req } = await import('./lib/http.js')
+      const rPhase = await req('PATCH', `/board/sessions/${session.id}/phase`, {
+        token: e1Tok,
+        body: { phase: 'VOTING' }
+      })
+      ok('WS7.4 PATCH phase 200', rPhase.status === 200, `got ${rPhase.status}`)
+      const phEv = await waitPhase
+      ok('WS7.5 phaseChanged received', phEv !== null && phEv.phase === 'VOTING')
+
+      const ack2 = (await new Promise((resolve) =>
+        sock.emit('sendMessage', { sessionId: session.id, content: 'late chat' }, resolve)
+      )) as any
+      ok('WS7.6 chat during VOTING DENIED', ack2?.status === 'DENIED' && ack2?.reason === 'VOTING_PHASE')
+      const rMsg = await req('GET', `/board/sessions/${session.id}/messages`, { token: b1Tok })
+      ok('WS7.7 GET messages 200 + 1 item', rMsg.status === 200 && rMsg.json.data.total === 1)
+    } else {
+      ok('WS7 connect', false, c.error ?? 'no connect')
     }
     sock.disconnect()
     await sleep(200)

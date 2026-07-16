@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { NotificationType, AuditEntityType } from '@prisma/client'
+import { NotificationType, AuditEntityType, PublicationType } from '@prisma/client'
 import { SurveyRepository } from '../survey.repo'
 import { SurveyMessages } from '../survey.messages'
 import {
@@ -17,7 +17,8 @@ import {
   DuplicateSeriesInVoteException,
   SeriesNotVotableException,
   RankingAccessDeniedException,
-  SeriesNotFoundForRankingException
+  SeriesNotFoundForRankingException,
+  CaptchaRejectedException
 } from '../errors/survey.errors'
 import {
   CreateSurveyPeriodBodyDto,
@@ -31,7 +32,7 @@ import { AuthOtpService } from 'src/modules/auth/services/auth-otp.service'
 import { OtpPurpose } from 'src/modules/auth/auth.constant'
 import { IdentityHashService } from 'src/infrastructure/crypto/identity-hash.service'
 import { RateLimitService } from 'src/core/security/services/rate-limit.service'
-import { SURVEY_CONFIG } from '../survey.constant'
+import { SURVEY_CONFIG, VOTE_IP_QUOTA_TTL_SEC } from '../survey.constant'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { NotificationService } from 'src/modules/notification/notification.service'
@@ -39,6 +40,8 @@ import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { SurveyConfigService } from './survey-config.service'
 import { bottomThirdCount, computeRiskLevel, nextConsecutiveCount } from './ranking-finalize.helpers'
 import { AuditService } from 'src/modules/audit/audit.service'
+import { RecaptchaService } from 'src/infrastructure/captcha/recaptcha.service'
+import { RedisService } from 'src/infrastructure/redis/redis.service'
 
 // B-VOT-07 / Spec 5: per-period reliability threshold uses AppConfig.lowVoteReliabilityThreshold
 // (read at finalize time, not a static constant) — this constant is the SEED default for AppConfig
@@ -60,7 +63,9 @@ export class SurveyService {
     private readonly notificationService: NotificationService,
     private readonly surveyConfigService: SurveyConfigService,
     private readonly appConfigService: AppConfigService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    private readonly recaptchaService: RecaptchaService,
+    private readonly redisService: RedisService
   ) {}
 
   private mapSurveyPeriod(surveyPeriod: {
@@ -162,6 +167,13 @@ export class SurveyService {
       throw VoteOtpRateLimitException(ipLimit.retryAfter)
     }
 
+    // Spec 15 Part C: block invalid/low-score captcha before sending OTP.
+    // score=null is dev/degraded fail-open behavior from RecaptchaService.
+    const captcha = await this.recaptchaService.verify(body.captchaToken, ip)
+    if (!captcha.ok || (captcha.score != null && captcha.score < config.captchaThreshold)) {
+      throw CaptchaRejectedException
+    }
+
     // 3. Tận dụng hàm sendOTPService của AuthOtpService.
     // Vì OtpPurpose.VOTE không nằm trong nhóm kiểm tra User (như REGISTER/FORGOT_PASSWORD),
     // luồng xử lý sẽ đi thẳng vào hàm issueOtp nội bộ và tự động enqueue gửi SMS/Email.
@@ -208,44 +220,68 @@ export class SurveyService {
     const identityHash = this.identityHashService.hash(body.identity)
     const ipHash = this.identityHashService.hash(ip)
 
+    // Lớp 1 (nguồn sự thật steady-state): đếm phiếu ĐÃ GHI trong DB — đúng cả khi Redis flush/restart.
     const ipVotes = await this.surveyRepository.countReaderVotesByPeriodAndIp(body.surveyPeriodId, ipHash)
     if (ipVotes >= config.ipVotesPerPeriod) throw VoteIpLimitExceededException
 
-    const existingVote = await this.surveyRepository.findReaderVoteByPeriodAndIdentity(
-      body.surveyPeriodId,
-      identityHash
-    )
-    if (existingVote) throw ReaderAlreadyVotedException
-
-    try {
-      // Xác thực mã OTP thông qua AuthOtpService công khai
-      await this.authOtpService.validateOtpCode({
-        email: body.identity,
-        code: body.otpCode,
-        purpose: OtpPurpose.VOTE
-      })
-    } catch {
-      // Bọc lại mã lỗi tương ứng theo thiết kế lỗi phân hệ Survey
-      throw VoteOtpNotFoundException
+    // Lớp 2 (Spec 15.1 hardening): count → insert KHÔNG nguyên tử — 2 request song song sát trần cùng
+    // thấy count < cap rồi cùng insert → vượt quota 1 phiếu. Reservation Redis INCR (Lua + TTL) đóng
+    // race này; Redis lỗi → null → FAIL-OPEN về lớp 1 (triết lý AGENTS §10). Refund khi phiếu KHÔNG
+    // ghi được (409/403/OTP sai) để quota giữ ngữ nghĩa cũ: chỉ đếm phiếu ghi thật.
+    const ipQuotaKey = `survey:vote:ipq:${body.surveyPeriodId}:${ipHash}`
+    const reservedCount = await this.redisService.incrWithTtl(ipQuotaKey, VOTE_IP_QUOTA_TTL_SEC)
+    if (reservedCount != null && reservedCount > config.ipVotesPerPeriod) {
+      await this.redisService.decrSafe(ipQuotaKey)
+      throw VoteIpLimitExceededException
     }
 
-    // Hủy OTP ngay lập tức sau khi xác thực thành công (Single-use OTP)
-    await this.authOtpService.burnOtp(body.identity, OtpPurpose.VOTE)
+    try {
+      const existingVote = await this.surveyRepository.findReaderVoteByPeriodAndIdentity(
+        body.surveyPeriodId,
+        identityHash
+      )
+      if (existingVote) throw ReaderAlreadyVotedException
 
-    const isCaptchaFlagged = body.captchaScore != null && body.captchaScore < config.captchaThreshold
-    const weight = isCaptchaFlagged ? SURVEY_CONFIG.voteWeightForFlagged : 1
-    const isFlagged = isCaptchaFlagged
+      // Spec 15 Part C: IP quota has already passed; reject a bad token before OTP validation/burn.
+      const captcha = await this.recaptchaService.verify(body.captchaToken, ip)
+      if (!captcha.ok) throw CaptchaRejectedException
 
-    await this.surveyRepository.createReaderVote({
-      surveyPeriodId: body.surveyPeriodId,
-      seriesIds: body.seriesIds,
-      identityHash,
-      authMethod: 'EMAIL_OTP',
-      ipHash,
-      captchaScore: body.captchaScore,
-      voteWeight: weight,
-      isFlagged
-    })
+      try {
+        // Xác thực mã OTP thông qua AuthOtpService công khai
+        await this.authOtpService.validateOtpCode({
+          email: body.identity,
+          code: body.otpCode,
+          purpose: OtpPurpose.VOTE
+        })
+      } catch {
+        // Bọc lại mã lỗi tương ứng theo thiết kế lỗi phân hệ Survey
+        throw VoteOtpNotFoundException
+      }
+
+      // Hủy OTP ngay lập tức sau khi xác thực thành công (Single-use OTP)
+      await this.authOtpService.burnOtp(body.identity, OtpPurpose.VOTE)
+
+      // Low score remains a valid but down-weighted vote. Google outage fails open and is flagged for review;
+      // local dev (score null, not degraded) preserves the pre-Spec-15 behavior.
+      const lowScore = captcha.score != null && captcha.score < config.captchaThreshold
+      const weight = lowScore ? SURVEY_CONFIG.voteWeightForFlagged : 1
+      const isFlagged = lowScore || captcha.degraded
+
+      await this.surveyRepository.createReaderVote({
+        surveyPeriodId: body.surveyPeriodId,
+        seriesIds: body.seriesIds,
+        identityHash,
+        authMethod: 'EMAIL_OTP',
+        ipHash,
+        captchaScore: captcha.score,
+        voteWeight: weight,
+        isFlagged
+      })
+    } catch (error) {
+      // Refund reservation — phiếu không ghi được thì không được chiếm quota.
+      if (reservedCount != null) await this.redisService.decrSafe(ipQuotaKey)
+      throw error
+    }
 
     return { message: SurveyMessages.response.voteSubmitted }
   }
@@ -618,27 +654,71 @@ export class SurveyService {
     }
   }
 
+  // Spec 15 §3.1 — public discovery without requiring a known surveyPeriodId.
+  async getLatestVoteResults(publicationType?: PublicationType) {
+    const period = await this.surveyRepository.findLatestReflectedPeriod()
+    if (!period) return { period: null, results: [] }
+    const base = await this.getVoteResults(period.id, publicationType)
+    return {
+      period: {
+        id: period.id,
+        issueNumber: period.issueNumber ?? null,
+        reflectedIssueNumber: period.reflectedIssueNumber ?? null,
+        startDate: period.startDate?.toISOString() ?? null,
+        endDate: period.endDate?.toISOString() ?? null
+      },
+      results: base.results
+    }
+  }
+
+  // Spec 15 §3.2 — expose reflected history only, never operational periods.
+  async getReflectedPeriods(limit: number) {
+    const rows = await this.surveyRepository.findReflectedPeriods(limit)
+    return {
+      items: rows.map((period) => ({
+        id: period.id,
+        issueNumber: period.issueNumber ?? null,
+        reflectedIssueNumber: period.reflectedIssueNumber ?? null,
+        startDate: period.startDate?.toISOString() ?? null,
+        endDate: period.endDate?.toISOString() ?? null
+      }))
+    }
+  }
+
   // Fix-1 G-2 (Req 2.5#3): kết quả public — chỉ sau khi kỳ REFLECTED; ẩn tín hiệu biên tập nội bộ.
-  async getVoteResults(surveyPeriodId: string) {
+  // Spec 15.2: filter optional theo publicationType (bảng con WEEKLY/MONTHLY) — rankPosition GIỮ NGUYÊN
+  // vị trí trên bảng tổng (1 kỳ = 1 bảng xếp hạng chung, đúng mô hình tạp chí); FE tự đánh số thứ tự
+  // trong bảng con theo index nếu muốn hiển thị 1..N.
+  async getVoteResults(surveyPeriodId: string, publicationType?: PublicationType) {
     if (!OBJECT_ID_RE.test(surveyPeriodId)) throw SurveyPeriodNotFoundException
     const period = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
     if (!period) throw SurveyPeriodNotFoundException
     if (period.status !== 'REFLECTED') throw SurveyPeriodNotFinalizedException
     const records = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
     const titles = await this.surveyRepository.findSeriesTitlesByIds(records.map((r) => r.seriesId))
-    const titleById = new Map<string, string>(
-      titles.map((t: { id: string; title: string }) => [t.id, t.title] as [string, string])
+    const seriesById = new Map<string, { title: string; publicationType: PublicationType | null }>(
+      titles.map(
+        (t: { id: string; title: string; publicationType: PublicationType | null }) =>
+          [t.id, { title: t.title, publicationType: t.publicationType ?? null }] as [
+            string,
+            { title: string; publicationType: PublicationType | null }
+          ]
+      )
     )
-    return {
-      surveyPeriodId,
-      issueNumber: period.issueNumber ?? null,
-      results: records.map((r) => ({
+    const results = records
+      .map((r) => ({
         rankPosition: r.rankPosition ?? null,
         seriesId: r.seriesId,
-        seriesTitle: titleById.get(r.seriesId) ?? null,
+        seriesTitle: seriesById.get(r.seriesId)?.title ?? null,
+        publicationType: seriesById.get(r.seriesId)?.publicationType ?? null,
         voteCount: r.voteCount,
         rankChange: r.rankChange ?? null
       }))
+      .filter((r) => !publicationType || r.publicationType === publicationType)
+    return {
+      surveyPeriodId,
+      issueNumber: period.issueNumber ?? null,
+      results
     }
   }
 }
