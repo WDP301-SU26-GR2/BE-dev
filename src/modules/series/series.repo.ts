@@ -17,6 +17,9 @@ import { SERIES_PROPOSAL_CAS_MAX_ATTEMPTS } from './series.constant'
 // Trạng thái series "đang chờ editor pick-up" (chưa gán editor) — hàng đợi review của Editor.
 const REVIEW_QUEUE_STATES: SeriesStatus[] = [SeriesStatus.IN_REVIEW]
 const BOARD_HIDDEN_STATES: SeriesStatus[] = [SeriesStatus.DRAFT, SeriesStatus.WITHDRAWN]
+// Spec 16: select tối thiểu cho mini object hiển thị (list + detail).
+const USER_MINI_FIELDS = { id: true, name: true, displayName: true, avatar: true } as const
+type UserMiniRow = { id: string; name: string; displayName: string | null; avatar: string | null }
 
 export type SeriesListScope = { kind: 'mangaka'; userId: string } | { kind: 'editor'; userId: string } | { kind: 'all' }
 
@@ -129,7 +132,10 @@ export class SeriesRepository {
   }
 
   async findById(seriesId: string) {
-    return await this.prismaService.series.findUnique({ where: { id: seriesId } })
+    const series = await this.prismaService.series.findUnique({ where: { id: seriesId } })
+    if (!series) return null
+    const people = await this.findUserMinisByIds([series.mangakaId, ...(series.editorId ? [series.editorId] : [])])
+    return this.withPeople(series, people)
   }
 
   async updateProposalContent(seriesId: string, body: UpdateProposalBodyType) {
@@ -369,17 +375,40 @@ export class SeriesRepository {
 
   async findSeriesForList(filter: SeriesListFilter, page: { limit: number; offset: number }) {
     const where = this.buildSeriesListWhere(filter)
-    return await this.prismaService.series.findMany({
+    const rows = await this.prismaService.series.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip: page.offset,
       take: page.limit
     })
+    if (rows.length === 0) return []
+    const people = await this.findUserMinisByIds(
+      rows.flatMap((series) => [series.mangakaId, ...(series.editorId ? [series.editorId] : [])])
+    )
+    return rows.map((series) => this.withPeople(series, people))
   }
 
   async countSeriesForList(filter: SeriesListFilter): Promise<number> {
     const where = this.buildSeriesListWhere(filter)
     return await this.prismaService.series.count({ where })
+  }
+
+  private async findUserMinisByIds(ids: string[]) {
+    const uniqueIds = [...new Set(ids)]
+    const rows = await this.prismaService.user.findMany({
+      where: { id: { in: uniqueIds } },
+      select: USER_MINI_FIELDS
+    })
+    return new Map(rows.map((user) => [user.id, user] as const))
+  }
+
+  private withPeople(series: Series, people: Map<string, UserMiniRow>) {
+    const mangaka = people.get(series.mangakaId)
+    return {
+      ...series,
+      ...(mangaka ? { mangaka } : {}),
+      editor: series.editorId ? (people.get(series.editorId) ?? null) : null
+    }
   }
 
   // Spec 2: HIATUS timestamp — set when entering hiatus, null when resumed.

@@ -15,6 +15,7 @@ import { TokenService } from 'src/infrastructure/token/token.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { corsOrigins } from 'src/core/config/cors'
 import { BoardRepository } from './board.repo'
+import { BoardMeetingService } from './services/board-meeting.service'
 import type { Redis } from 'ioredis'
 
 // Fix-1 G-9: guard sessionId (Prisma ObjectId) — chặn query thừa với input rác.
@@ -33,7 +34,8 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
   constructor(
     @Inject(REDIS_WS_CONNECTION) private readonly wsRedis: Redis,
     private readonly tokenService: TokenService,
-    private readonly boardRepo: BoardRepository
+    private readonly boardRepo: BoardRepository,
+    private readonly boardMeetingService: BoardMeetingService
   ) {}
 
   afterInit() {
@@ -88,6 +90,55 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
     await client.join(roomName)
     this.logger.log(`[Socket] Client ${client.id} đã vào phòng: ${roomName}`)
     return { status: 'SUCCESS', message: `Đã kết nối vào phòng ${data.sessionId}` }
+  }
+
+  @SubscribeMessage('sendMessage')
+  async handleSendMessage(
+    @MessageBody() data: { sessionId: string; content: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const { userId, roleName } = client.data as { userId?: string; roleName?: string }
+    if (!userId) {
+      client.disconnect(true)
+      return { status: 'DENIED', reason: 'NOT_PARTICIPANT' }
+    }
+
+    try {
+      const result = await this.boardMeetingService.sendMessage(
+        userId,
+        roleName,
+        data?.sessionId ?? '',
+        data?.content ?? ''
+      )
+      if (result.status !== 'SUCCESS') return result
+
+      const message = { ...result.message, createdAt: result.message.createdAt.toISOString() }
+      this.broadcastMessageReceived(message.sessionId, message)
+      return { status: 'SUCCESS', message }
+    } catch (error) {
+      this.logger.error(`[Socket] sendMessage failed — ${error instanceof Error ? error.message : String(error)}`)
+      return { status: 'ERROR' }
+    }
+  }
+
+  broadcastPhaseChanged(sessionId: string, phase: string) {
+    try {
+      this.server.to(`session_${sessionId}`).emit('phaseChanged', { sessionId, phase })
+    } catch (error) {
+      this.logger.error(
+        `[Realtime] phaseChanged broadcast thất bại session ${sessionId} — ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }
+
+  broadcastMessageReceived(sessionId: string, message: unknown) {
+    try {
+      this.server.to(`session_${sessionId}`).emit('messageReceived', message)
+    } catch (error) {
+      this.logger.error(
+        `[Realtime] messageReceived broadcast thất bại session ${sessionId} — ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
   }
 
   // Realtime hardening (audit 2026-07-11): broadcast là side-effect SAU khi vote đã ghi DB —

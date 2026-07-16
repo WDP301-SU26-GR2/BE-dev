@@ -73,11 +73,21 @@ export const ReasonBodySchema = extendApi(z.object({ reason: z.string().min(1).m
   description: 'Lý do (revision/reject/withdraw)'
 })
 
+const UserMiniSchema = z.object({
+  id: z.string(),
+  displayName: z.string().describe('displayName ?? name'),
+  avatar: z.string().nullable()
+})
+
 export const SeriesResSchema = extendApi(
   z.object({
     id: z.string(),
     mangakaId: z.string().describe('Chủ sở hữu series (Mangaka tạo proposal)'),
     editorId: z.string().nullable().describe('Editor phụ trách; null = đang ở hàng đợi review chưa ai nhận'),
+    mangaka: UserMiniSchema.optional().describe('Thông tin hiển thị chủ series — CÓ ở GET /series + GET /series/:id'),
+    editor: UserMiniSchema.nullable()
+      .optional()
+      .describe('Thông tin hiển thị editor; null = hàng đợi — CÓ ở GET /series + GET /series/:id'),
     coOwnerId: z.string().nullable().describe('Đồng sở hữu sau PARTIAL_TRANSFER (BE-B); null nếu không có'),
     parentSeriesId: z.string().nullable().describe('Series gốc nếu là kế nhiệm (sequel/spinoff)'),
     title: z.string(),

@@ -1,6 +1,16 @@
 import { Series } from '@prisma/client'
 
-export function toSeriesRes(series: Series) {
+// Spec 16: mini object hiển thị người dùng — CHỈ có khi repository đính kèm rows người dùng.
+type UserMiniRow = { id: string; name: string; displayName: string | null; avatar: string | null }
+type SeriesWithPeople = Series & { mangaka?: UserMiniRow; editor?: UserMiniRow | null }
+
+const toUserMini = (user: UserMiniRow) => ({
+  id: user.id,
+  displayName: user.displayName ?? user.name,
+  avatar: user.avatar ?? null
+})
+
+export function toSeriesRes(series: SeriesWithPeople) {
   return {
     id: series.id,
     mangakaId: series.mangakaId,
@@ -39,6 +49,9 @@ export function toSeriesRes(series: Series) {
           status: series.proposal.status,
           createdAt: series.proposal.createdAt.toISOString()
         }
-      : null
+      : null,
+    // Spec 16 — absent khi caller không include relation (mutation path) → serializer bỏ qua (schema .optional()).
+    ...(series.mangaka !== undefined ? { mangaka: toUserMini(series.mangaka) } : {}),
+    ...(series.editor !== undefined ? { editor: series.editor ? toUserMini(series.editor) : null } : {})
   }
 }

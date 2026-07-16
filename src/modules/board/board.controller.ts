@@ -14,7 +14,13 @@ import {
   SeriesReportResDto,
   BoardConfigResDto,
   SuggestBoardMembersQueryDto,
-  SuggestBoardMembersResDto
+  SuggestBoardMembersResDto,
+  AdvancePhaseBodyDto,
+  ListBoardSessionsQueryDto,
+  ListBoardDecisionsQueryDto,
+  ListBoardReportsQueryDto,
+  ListBoardMessagesQueryDto,
+  BoardMessageListResDto
 } from './dto/board.dto'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
@@ -39,7 +45,10 @@ import {
   NotSessionCreatorException,
   SeriesNotFoundException,
   NotEnoughBoardMembersException,
-  RosterSourceRequiredException
+  RosterSourceRequiredException,
+  InvalidPhaseTransitionException,
+  NotSessionParticipantException,
+  VotingNotOpenException
 } from './errors/board.errors'
 
 @ApiTags('board')
@@ -76,8 +85,8 @@ export class BoardController {
   @Get('sessions')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: [BoardSessionResDto] })
-  getSessions() {
-    return this.boardService.getSessions()
+  getSessions(@ActiveUser() user: JwtAccessTokenPayload, @Query() query: ListBoardSessionsQueryDto) {
+    return this.boardService.getSessions({ userId: user.userId }, query)
   }
 
   @ApiOperation({ summary: 'Chi tiết phiên họp Hội đồng' })
@@ -107,6 +116,35 @@ export class BoardController {
     return this.boardService.concludeSession(id, user.userId, user.roleName)
   }
 
+  @ApiOperation({
+    summary: 'Creator chuyển giai đoạn phiên họp: PRESENTING → QA → VOTING (forward-only, cho nhảy cóc)'
+  })
+  @ApiErrors(
+    SessionNotFoundException,
+    NotSessionCreatorException,
+    SessionNotOpenException,
+    InvalidPhaseTransitionException
+  )
+  @Patch('sessions/:id/phase')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 200, type: BoardSessionResDto })
+  advancePhase(@Param('id') id: string, @ActiveUser() user: JwtAccessTokenPayload, @Body() dto: AdvancePhaseBodyDto) {
+    return this.boardService.advancePhase(id, user.userId, user.roleName, dto.phase)
+  }
+
+  @ApiOperation({ summary: 'Lịch sử chat Q&A của phiên họp (creator/roster/Super Admin)' })
+  @ApiErrors(SessionNotFoundException, NotSessionParticipantException)
+  @Get('sessions/:id/messages')
+  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
+  @ZodResponse({ status: 200, type: BoardMessageListResDto })
+  getSessionMessages(
+    @Param('id') id: string,
+    @ActiveUser() user: JwtAccessTokenPayload,
+    @Query() query: ListBoardMessagesQueryDto
+  ) {
+    return this.boardService.getSessionMessages(id, user.userId, user.roleName, query)
+  }
+
   @ApiOperation({ summary: 'Xem cấu hình biểu quyết Hội đồng hiện tại' })
   @Get('config')
   @Roles(RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER, RoleName.EDITOR)
@@ -128,8 +166,8 @@ export class BoardController {
   @Get('decisions')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: [BoardDecisionResDto] })
-  getDecisions() {
-    return this.boardService.getDecisions()
+  getDecisions(@Query() query: ListBoardDecisionsQueryDto) {
+    return this.boardService.getDecisions(query.boardSessionId)
   }
 
   @ApiOperation({ summary: 'Chi tiết quyết định Hội đồng' })
@@ -155,6 +193,7 @@ export class BoardController {
     DecisionNotFoundException,
     SessionNotFoundException,
     SessionNotOpenException,
+    VotingNotOpenException,
     VoterNotAllowedException,
     VoterAlreadyVotedException
   )
@@ -169,8 +208,8 @@ export class BoardController {
   @Get('reports')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: [SeriesReportResDto] })
-  getReports() {
-    return this.boardService.getReports()
+  getReports(@Query() query: ListBoardReportsQueryDto) {
+    return this.boardService.getReports(query)
   }
 
   @ApiOperation({ summary: 'Chi tiết báo cáo Hội đồng' })

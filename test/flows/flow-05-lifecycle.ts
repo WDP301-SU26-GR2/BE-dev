@@ -85,6 +85,7 @@ const main = async () => {
     const sessionId = rs.json.data.id as string
     await prisma.boardSession.update({ where: { id: sessionId }, data: { startTime: new Date(Date.now() - 5_000) } })
     await req('PATCH', `/board/sessions/${sessionId}/start`, { token: e1Tok })
+    await req('PATCH', `/board/sessions/${sessionId}/phase`, { token: e1Tok, body: { phase: 'VOTING' } })
     const rd = await req('POST', '/board/decisions', {
       token: e1Tok,
       body: {

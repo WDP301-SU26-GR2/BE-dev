@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-16T12:47:59.821Z — 249 routes.
+// Sinh lúc: 2026-07-16T20:20:18.084Z — 251 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -125,6 +125,18 @@ export const ROUTE_RULES: RouteRule[] = [
   {
     method: 'PATCH',
     path: '/board/sessions/:id/conclude',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN]
+  },
+  {
+    method: 'GET',
+    path: '/board/sessions/:id/messages',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN, RoleCode.BOARD_MEMBER]
+  },
+  {
+    method: 'PATCH',
+    path: '/board/sessions/:id/phase',
     access: 'ROLES',
     allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN]
   },

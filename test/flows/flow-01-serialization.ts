@@ -71,7 +71,7 @@ const createSessionWithDecision = async (
       /* ignore — concurrent update elsewhere */
     })
   await req('PATCH', `/board/sessions/${sessionId}/start`, { token: creatorTok })
-  void 0
+  await req('PATCH', `/board/sessions/${sessionId}/phase`, { token: creatorTok, body: { phase: 'VOTING' } })
   const dec = await req('POST', '/board/decisions', {
     token: creatorTok,
     body: {
@@ -587,7 +587,7 @@ const main = async () => {
       decisionType: DecisionType.SERIALIZATION,
       targetSeriesId: pre.seriesId,
       allowedEditorIds: [b1.id, b2.id, b3.id],
-      details: {}
+      details: { magazine: 'Up Mag', startIssueNumber: 1, publicationType: 'WEEKLY' }
     }
   })
   ok('01.7c decision on UPCOMING session tạo được', rDecUp.status === 201, `got ${rDecUp.status}`)
@@ -619,6 +619,24 @@ const main = async () => {
   expectError(rOutsiderVote, 403, 'Error.VoterNotAllowed', '01.7f voter ngoài roster → VoterNotAllowed')
 
   // Vote 2 lần cùng 1 board member → VoterAlreadyVoted
+  const rVotePresenting = await req('POST', `/board/decisions/${upDecisionId}/vote`, {
+    token: b1Tok,
+    body: { voteValue: 'APPROVE' }
+  })
+  expectError(rVotePresenting, 409, 'Error.VotingNotOpen', '01.7f2 vote khi PRESENTING → VotingNotOpen')
+
+  const rPhaseByOtherEditor = await req('PATCH', `/board/sessions/${upSessionId}/phase`, {
+    token: e2Tok,
+    body: { phase: 'VOTING' }
+  })
+  expectError(rPhaseByOtherEditor, 403, 'Error.NotSessionCreator', '01.7f3 non-creator editor phase → 403')
+
+  const rPhaseVoting = await req('PATCH', `/board/sessions/${upSessionId}/phase`, {
+    token: saTok,
+    body: { phase: 'VOTING' }
+  })
+  ok('01.7f4 creator phase → VOTING', rPhaseVoting.status === 200, `got ${rPhaseVoting.status}`)
+
   await req('POST', `/board/decisions/${upDecisionId}/vote`, { token: b1Tok, body: { voteValue: 'ABSTAIN' } })
   const rVoteDup = await req('POST', `/board/decisions/${upDecisionId}/vote`, {
     token: b1Tok,

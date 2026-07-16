@@ -7,6 +7,7 @@ import { NotificationModule } from '../notification/notification.module'
 import { BoardSessionStateService } from './services/board-session-state.service'
 import { BoardSchedulerService } from './services/board-scheduler.service'
 import { BoardRosterService } from './services/board-roster.service'
+import { BoardMeetingService } from './services/board-meeting.service'
 
 @Module({
   imports: [NotificationModule],
@@ -17,7 +18,8 @@ import { BoardRosterService } from './services/board-roster.service'
     BoardGateway,
     BoardSessionStateService,
     BoardSchedulerService,
-    BoardRosterService
+    BoardRosterService,
+    BoardMeetingService
   ],
   exports: [BoardService] // Xuất BoardService ra ngoài nếu các module khác (như Contract) cần inject để dùng chung
 })

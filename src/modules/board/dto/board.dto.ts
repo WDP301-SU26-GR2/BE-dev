@@ -12,7 +12,13 @@ import {
   SeriesReportResSchema,
   BoardConfigResSchema,
   SuggestBoardMembersQuerySchema,
-  SuggestBoardMembersResSchema
+  SuggestBoardMembersResSchema,
+  AdvancePhaseBodySchema,
+  ListBoardSessionsQuerySchema,
+  ListBoardDecisionsQuerySchema,
+  ListBoardReportsQuerySchema,
+  ListBoardMessagesQuerySchema,
+  BoardMessageListResSchema
 } from '../schemas/board-schema'
 
 export class CreateBoardSessionBodyDto extends createZodDto(CreateBoardSessionBodySchema) {}
@@ -28,3 +34,9 @@ export class SeriesReportResDto extends createZodDto(SeriesReportResSchema) {}
 export class BoardConfigResDto extends createZodDto(BoardConfigResSchema) {}
 export class SuggestBoardMembersQueryDto extends createZodDto(SuggestBoardMembersQuerySchema) {}
 export class SuggestBoardMembersResDto extends createZodDto(SuggestBoardMembersResSchema) {}
+export class AdvancePhaseBodyDto extends createZodDto(AdvancePhaseBodySchema) {}
+export class ListBoardSessionsQueryDto extends createZodDto(ListBoardSessionsQuerySchema) {}
+export class ListBoardDecisionsQueryDto extends createZodDto(ListBoardDecisionsQuerySchema) {}
+export class ListBoardReportsQueryDto extends createZodDto(ListBoardReportsQuerySchema) {}
+export class ListBoardMessagesQueryDto extends createZodDto(ListBoardMessagesQuerySchema) {}
+export class BoardMessageListResDto extends createZodDto(BoardMessageListResSchema) {}
