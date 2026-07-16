@@ -71,6 +71,7 @@ export class ContractController {
   @ApiOperation({ summary: 'Chi tiết hợp đồng' })
   @Get(':id')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.ContractAccessDenied())
   @ZodResponse({ status: 200, type: ContractResDto })
   getContractById(
     @Param('id') id: string,
@@ -83,6 +84,7 @@ export class ContractController {
   @ApiOperation({ summary: 'Danh sách phiên bản hợp đồng' })
   @Get(':id/versions')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.ContractAccessDenied())
   @ZodResponse({ status: 200, type: [ContractVersionResDto] })
   getContractVersions(
     @Param('id') id: string,
@@ -95,6 +97,7 @@ export class ContractController {
   @ApiOperation({ summary: 'Chi tiết một phiên bản hợp đồng' })
   @Get(':id/versions/:versionId')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.ContractAccessDenied())
   @ZodResponse({ status: 200, type: ContractVersionResDto })
   getContractVersionById(
     @Param('id') id: string,
@@ -130,6 +133,12 @@ export class ContractController {
   @ApiOperation({ summary: 'Editor/Mangaka cập nhật trạng thái hợp đồng theo workflow' })
   @Patch(':id/status')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA)
+  @ApiErrors(
+    ContractErrors.NotFound(),
+    ContractErrors.UnauthorizedEditor(),
+    ContractErrors.NotContractMangaka(),
+    ContractErrors.InvalidContractTransition()
+  )
   @ZodResponse({ status: 200, type: ContractResDto })
   updateStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body('status') status: ContractStatus) {
     if (status === ContractStatus.MANGAKA_REVIEW) {
@@ -144,7 +153,7 @@ export class ContractController {
   @ApiOperation({ summary: 'B-CON-02: Mangaka yêu cầu chỉnh sửa điều khoản → NEGOTIATION' })
   @Post(':id/request-changes')
   @Roles(RoleName.MANGAKA)
-  @ApiErrors(ContractErrors.NotFound(), ContractErrors.UnauthorizedEditor(), ContractErrors.InvalidContractTransition())
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.NotContractMangaka(), ContractErrors.InvalidContractTransition())
   @ZodResponse({ status: 201, type: ContractResDto })
   requestChanges(@Param('id') id: string, @ActiveUser('userId') userId: string) {
     return this.contractService.mangakaRequestChanges(id, userId)
@@ -171,7 +180,12 @@ export class ContractController {
   @ApiOperation({ summary: 'Mangaka ký hợp đồng bằng OTP' })
   @Post(':id/signatures/mangaka')
   @Roles(RoleName.MANGAKA)
-  @ApiErrors(ContractErrors.NotFound(), ContractErrors.AlreadySigned(), ContractErrors.NotSignableYet())
+  @ApiErrors(
+    ContractErrors.NotFound(),
+    ContractErrors.AlreadySigned(),
+    ContractErrors.NotSignableYet(),
+    ContractErrors.NotContractMangaka()
+  )
   @ZodResponse({ status: 201, type: ContractResDto })
   signMangaka(
     @Param('id') id: string,
@@ -220,6 +234,7 @@ export class ContractController {
   }
 
   @ApiOperation({ summary: 'Xem trạng thái hợp đồng và tiến độ ký' })
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.NotContractMangaka())
   @Get(':id/status')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: ContractStatusProgressResDto })
@@ -316,6 +331,7 @@ export class ContractController {
   @ApiOperation({ summary: 'Danh sách phụ lục của hợp đồng' })
   @Get(':contractId/amendments')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.ContractAccessDenied())
   @ZodResponse({ status: 200, type: [AmendmentResDto] })
   listAmendments(
     @Param('contractId') contractId: string,
@@ -326,7 +342,7 @@ export class ContractController {
   }
 
   @ApiOperation({ summary: 'Chi tiết một phụ lục' })
-  @ApiErrors(ContractErrors.AmendmentNotFound())
+  @ApiErrors(ContractErrors.AmendmentNotFound(), ContractErrors.ContractAccessDenied())
   @Get(':contractId/amendments/:id')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: AmendmentResDto })
@@ -378,7 +394,7 @@ export class ContractController {
   @ApiErrors(
     ContractErrors.AmendmentNotPendingSignatures(),
     ContractErrors.MangakaSignNotRequired(),
-    ContractErrors.UnauthorizedEditor()
+    ContractErrors.NotContractMangaka()
   )
   @Post(':contractId/amendments/:id/sign/mangaka')
   @Roles(RoleName.MANGAKA)
@@ -416,7 +432,7 @@ export class ContractController {
   @ApiErrors(
     ContractErrors.AmendmentNotPendingSignatures(),
     ContractErrors.MangakaSignNotRequired(),
-    ContractErrors.UnauthorizedEditor()
+    ContractErrors.NotContractMangaka()
   )
   @Post(':contractId/amendments/:id/reject')
   @Roles(RoleName.MANGAKA)

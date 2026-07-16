@@ -298,7 +298,10 @@ describe('ContractAmendmentService', () => {
       contractRepo.findById.mockResolvedValue(makeContract())
       await expect(
         service.signMangaka(CONTRACT, '64a000000000000000000003', 'intruder000000000000', 'i@x.com', '123456')
-      ).rejects.toThrow(/ONLY_ASSIGNED_EDITOR_CAN_EDIT/)
+      ).rejects.toMatchObject({
+        status: 403,
+        response: { message: [{ message: 'Error.NotContractMangaka', path: 'mangakaId' }] }
+      })
     })
 
     it('REVENUE_SHARE: mangaka sign alone does NOT execute (board pending)', async () => {

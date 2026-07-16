@@ -174,6 +174,10 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.EditorNotInvited': 'caller is not in session.allowedEditorIds for report submission',
   'Error.InvalidBoardSessionTransition': 'board session status transition is not allowed by BOARD_SESSION_TRANSITIONS',
   'Error.NotSessionCreator': 'only the board session creator or a Super Admin can conclude the session',
+  'Error.NotContractMangaka':
+    'caller is not the mangaka of this contract (approve / request-changes / sign / signing progress)',
+  'Error.ContractAccessDenied':
+    'contract is outside the caller view scope (mangaka: own, editor: assigned, board: all)',
   'Error.InvalidPhaseTransition': 'session phase only moves forward: PRESENTING -> QA -> VOTING (skipping allowed)',
   'Error.VotingNotOpen': 'castVote requires session.phase = VOTING - the session creator must advance the phase first',
   'Error.NotSessionParticipant': 'only the session creator, roster members, or a Super Admin can read meeting messages',

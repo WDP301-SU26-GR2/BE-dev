@@ -112,7 +112,7 @@ export class ContractAmendmentService {
     if (roleName === RoleName.BOARD_MEMBER) return
     if (roleName === RoleName.EDITOR && contract.editorId === userId) return
     if (roleName === RoleName.MANGAKA && contract.mangakaId === userId) return
-    throw ContractErrors.UnauthorizedEditor()
+    throw ContractErrors.ContractAccessDenied()
   }
 
   // Load amendment + gate editor + đúng contract. Trả {contract, amendment}.
@@ -214,7 +214,7 @@ export class ContractAmendmentService {
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
     if (contract.contractType === 'FULL_BUYOUT') throw ContractErrors.MangakaSignNotRequired()
-    if (contract.mangakaId !== userId) throw ContractErrors.UnauthorizedEditor()
+    if (contract.mangakaId !== userId) throw ContractErrors.NotContractMangaka()
 
     await this.authOtpService.validateOtpCode({ email, code: otpCode, purpose: 'SIGNING_CONTRACT' })
     await this.amendmentRepo.update(id, { mangakaSignedAt: new Date() })
@@ -260,7 +260,7 @@ export class ContractAmendmentService {
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
     if (contract.contractType === 'FULL_BUYOUT') throw ContractErrors.MangakaSignNotRequired()
-    if (contract.mangakaId !== userId) throw ContractErrors.UnauthorizedEditor()
+    if (contract.mangakaId !== userId) throw ContractErrors.NotContractMangaka()
     const updated = await this.amendmentRepo.update(id, { status: 'DRAFT', reason })
     await this.amendmentRepo.clearSignatures(id)
     void amendment

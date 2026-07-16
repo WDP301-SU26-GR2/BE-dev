@@ -42,10 +42,13 @@ function makeService(m: Mocks) {
 }
 
 describe('ContractService.mangakaApprove (B-CON-02 auth)', () => {
-  it('403 when caller is not the contract mangaka', async () => {
+  it('403 Error.NotContractMangaka when caller is not the contract mangaka (semantic-correct code)', async () => {
     const m = makeMocks()
     m.contractRepo.findById.mockResolvedValue({ id: 'c1', mangakaId: 'm1', editorId: 'e1' })
-    await expect(makeService(m).mangakaApprove('c1', 'other')).rejects.toMatchObject({ status: 403 })
+    await expect(makeService(m).mangakaApprove('c1', 'other')).rejects.toMatchObject({
+      status: 403,
+      response: { message: [{ message: 'Error.NotContractMangaka', path: 'mangakaId' }] }
+    })
     expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
   })
 
