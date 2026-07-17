@@ -41,7 +41,7 @@ const createProposal = async (token: string, body: Record<string, unknown>) => {
   return { seriesId: s.id as string, proposalId: s.id as string, nameId: s.proposal?.nameId as string }
 }
 
-// 3 board member vote APPROVE trên decision SERIALIZATION, trả decision result text.
+// Vote tới khi APPROVED (roster 3, quorum 2: phiếu 2 chốt; phiếu 3 trả 409, helper không assert).
 const approveDecision = async (decisionId: string, boardTokens: string[]) => {
   for (const t of boardTokens) {
     await req('POST', `/board/decisions/${decisionId}/vote`, { token: t, body: { voteValue: 'APPROVE' } })
@@ -644,7 +644,7 @@ const main = async () => {
   })
   expectError(rVoteDup, 409, 'Error.VoterAlreadyVoted', '01.7g vote 2 lần cùng 1 người')
 
-  // Quorum met: 2/3 vote APPROVE → decision PENDING_QUORUM (cần 3 theo default quorumMin)
+  // Roster 3, quorum ceil(2/3 · 3) = 2; b1 ABSTAIN + b2 APPROVE = PENDING, b3 APPROVE → APPROVED.
   await req('POST', `/board/decisions/${upDecisionId}/vote`, { token: b2Tok, body: { voteValue: 'APPROVE' } })
   await req('POST', `/board/decisions/${upDecisionId}/vote`, { token: b3Tok, body: { voteValue: 'APPROVE' } })
   await sleep(400)
@@ -656,6 +656,12 @@ const main = async () => {
   )
   const preAfter = await prisma.series.findUnique({ where: { id: pre.seriesId } })
   ok('01.7i series → SERIALIZED', preAfter?.status === SeriesStatus.SERIALIZED, `got ${preAfter?.status}`)
+
+  const rReVoteFinalized = await req('POST', `/board/decisions/${upDecisionId}/vote`, {
+    token: b2Tok,
+    body: { voteValue: 'REJECT' }
+  })
+  expectError(rReVoteFinalized, 409, 'Error.DecisionAlreadyFinalized', '01.7m re-vote sau khi APPROVED → 409')
 
   // Conclude session (session ACTIVE → CONCLUDED)
   const rConclude = await req('PATCH', `/board/sessions/${upSessionId}/conclude`, { token: saTok })
@@ -685,20 +691,20 @@ const main = async () => {
   await approveDecision(cancelDecision, [b1Tok, b2Tok, b3Tok])
   await sleep(500)
   const sc = await prisma.series.findUnique({ where: { id: pre.seriesId } })
-  ok('01.7m CANCELLATION → series CANCELLING', sc?.status === SeriesStatus.CANCELLING, `got ${sc?.status}`)
-  ok('01.7n endingChapterAllowance set', sc?.endingChapterAllowance === 3, `got ${sc?.endingChapterAllowance}`)
+  ok('01.7n CANCELLATION → series CANCELLING', sc?.status === SeriesStatus.CANCELLING, `got ${sc?.status}`)
+  ok('01.7o endingChapterAllowance set', sc?.endingChapterAllowance === 3, `got ${sc?.endingChapterAllowance}`)
   ok(
-    '01.7o chapterCountAtCancelling snapshot',
+    '01.7p chapterCountAtCancelling snapshot',
     sc?.chapterCountAtCancelling === 0,
     `got ${sc?.chapterCountAtCancelling}`
   )
 
   // force-cancel
   const rFCancel = await req('POST', `/series/${pre.seriesId}/force-cancel`, { token: e1Tok })
-  ok('01.7p force-cancel → 200/201', rFCancel.status === 200 || rFCancel.status === 201, `got ${rFCancel.status}`)
+  ok('01.7q force-cancel → 200/201', rFCancel.status === 200 || rFCancel.status === 201, `got ${rFCancel.status}`)
   await sleep(300)
   ok(
-    '01.7q series.status = CANCELLED',
+    '01.7r series.status = CANCELLED',
     (await prisma.series.findUnique({ where: { id: pre.seriesId } }))?.status === SeriesStatus.CANCELLED
   )
 
@@ -707,7 +713,7 @@ const main = async () => {
     token: e1Tok,
     body: { reason: 'try' }
   })
-  expectError(rHiatusOnCancelled, 409, 'Error.InvalidSeriesTransition', '01.7r hiatus khi CANCELLED')
+  expectError(rHiatusOnCancelled, 409, 'Error.InvalidSeriesTransition', '01.7s hiatus khi CANCELLED')
 
   // ═════════════ 01.8 — FRANCHISE / CO-OWNER ═════════════════════════════════════════════
   const rMetadataCancelled = await req('PATCH', `/series/${pre.seriesId}`, {

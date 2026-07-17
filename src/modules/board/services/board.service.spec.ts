@@ -53,8 +53,13 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
   }
 
   it('emits once when result flips PENDING_QUORUM → APPROVED', async () => {
-    const { service, eventBus } = makeService('PENDING_QUORUM', [], [{ voterId: 'b1', voteValue: 'APPROVE' }])
-    await service.castVote('012345678901234567890124', 'b1', { voteValue: 'APPROVE' } as never)
+    const preVotes = [
+      { voterId: 'b1', voteValue: 'APPROVE' },
+      { voterId: 'b2', voteValue: 'APPROVE' }
+    ]
+    const pushedVotes = [...preVotes, { voterId: 'b3', voteValue: 'APPROVE' }]
+    const { service, eventBus } = makeService('PENDING_QUORUM', preVotes, pushedVotes)
+    await service.castVote('012345678901234567890124', 'b3', { voteValue: 'APPROVE' } as never)
     expect(eventBus.emit).toHaveBeenCalledTimes(1)
     expect(eventBus.emit).toHaveBeenCalledWith(
       DomainEvent.BoardDecisionFinalized,
@@ -75,7 +80,9 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
     ]
     const pushedVotes = [...preVotes, { voterId: 'b4', voteValue: 'APPROVE' }]
     const { service, eventBus } = makeService('APPROVED', preVotes, pushedVotes)
-    await service.castVote('012345678901234567890124', 'b4', { voteValue: 'APPROVE' } as never)
+    await expect(
+      service.castVote('012345678901234567890124', 'b4', { voteValue: 'APPROVE' } as never)
+    ).rejects.toMatchObject({ status: 409 })
     expect(eventBus.emit).not.toHaveBeenCalled()
   })
 })
@@ -300,8 +307,10 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
   })
 
   it('castVote: flip PENDING_QUORUM → APPROVED records audit DECISION_FINALIZED', async () => {
-    const { service, audit } = makeService('PENDING_QUORUM', [], [{ voterId: 'b1', voteValue: 'APPROVE' }])
-    await service.castVote('012345678901234567890124', 'b1', { voteValue: 'APPROVE' } as never)
+    const preVotes = [{ voterId: 'b1', voteValue: 'APPROVE' }]
+    const pushedVotes = [...preVotes, { voterId: 'b2', voteValue: 'APPROVE' }]
+    const { service, audit } = makeService('PENDING_QUORUM', preVotes, pushedVotes)
+    await service.castVote('012345678901234567890124', 'b2', { voteValue: 'APPROVE' } as never)
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'DECISION_FINALIZED',
@@ -310,6 +319,29 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
         entityId: '012345678901234567890124'
       })
     )
+  })
+
+  it.each(['APPROVED', 'REJECTED', 'EXPIRED'])(
+    'castVote: terminal result %s → 409 before pushing a vote',
+    async (result) => {
+      const previousVote = { voterId: 'b1', voteValue: 'APPROVE' }
+      const { service, boardRepo } = makeService(result, [previousVote], [previousVote])
+
+      await expect(service.castVote('012345678901234567890124', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toBe(
+        Errors.DecisionAlreadyFinalizedException
+      )
+      expect(boardRepo.pushVoteToDecision).not.toHaveBeenCalled()
+    }
+  )
+
+  it('castVote checks phase before terminal state', async () => {
+    const { service, boardRepo } = makeService('APPROVED', [], [{ voterId: 'b1', voteValue: 'APPROVE' }])
+    boardRepo.findSessionById.mockResolvedValue({ ...activeSession, phase: 'PRESENTING' })
+
+    await expect(service.castVote('012345678901234567890124', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toBe(
+      Errors.VotingNotOpenException
+    )
+    expect(boardRepo.pushVoteToDecision).not.toHaveBeenCalled()
   })
 
   it('castVote rejects an ACTIVE roster member before VOTING without writing a vote', async () => {
@@ -404,6 +436,94 @@ describe('BoardService read response enrichment (Spec 16)', () => {
     expect(decisions[0].targetSeries).toEqual({ id: SERIES_ID, title: 'Series Title' })
     expect(detail.targetSeries).toEqual({ id: SERIES_ID, title: 'Series Title' })
     expect(withoutTarget.targetSeries).toBeNull()
+  })
+
+  it('passes both decision filters to the repository', async () => {
+    const { service, boardRepo } = makeReadService()
+
+    await service.getDecisions({ boardSessionId: SESSION_ID, targetSeriesId: SERIES_ID })
+
+    expect(boardRepo.findManyDecisions).toHaveBeenCalledWith({
+      boardSessionId: SESSION_ID,
+      targetSeriesId: SERIES_ID
+    })
+  })
+
+  it('returns an empty list for malformed targetSeriesId without calling the repository', async () => {
+    const { service, boardRepo } = makeReadService()
+
+    const result = await service.getDecisions({ targetSeriesId: 'garbage' })
+
+    expect(result).toEqual([])
+    expect(boardRepo.findManyDecisions).not.toHaveBeenCalled()
+  })
+})
+
+describe('BoardService.castVote quorum by session roster (Spec 17)', () => {
+  const DECISION_ID = '012345678901234567890124'
+  const SESSION_ID = '012345678901234567890123'
+
+  function makeVote(value: 'APPROVE' | 'REJECT' | 'ABSTAIN', index: number) {
+    return { voterId: `b${index + 1}`, voteValue: value }
+  }
+
+  function makeService(rosterSize: number, voteValues: Array<'APPROVE' | 'REJECT' | 'ABSTAIN'>) {
+    const pushedVotes = voteValues.map(makeVote)
+    const preVotes = pushedVotes.slice(0, -1)
+    const voterId = pushedVotes.at(-1)!.voterId
+    const decision = {
+      id: DECISION_ID,
+      boardSessionId: SESSION_ID,
+      decisionType: 'SERIALIZATION',
+      targetSeriesId: 'ser1',
+      details: null,
+      result: 'PENDING',
+      votes: preVotes
+    }
+    const boardRepo = {
+      findDecisionById: jest.fn().mockResolvedValue(decision),
+      findSessionById: jest.fn().mockResolvedValue({
+        id: SESSION_ID,
+        status: 'ACTIVE',
+        phase: 'VOTING',
+        allowedEditorIds: Array.from({ length: rosterSize }, (_, index) => `b${index + 1}`)
+      }),
+      pushVoteToDecision: jest.fn().mockResolvedValue({ votes: pushedVotes }),
+      getActiveConfig: jest.fn().mockResolvedValue({ quorumMin: 99, approveMajorityRatio: 0.5 }),
+      updateDecisionCounters: jest
+        .fn()
+        .mockImplementation((_id, counters) => Promise.resolve({ id: DECISION_ID, ...counters }))
+    }
+    const service = new BoardService(
+      boardRepo as never,
+      { broadcastVoteProgress: jest.fn() } as never,
+      { notifySafe: jest.fn() } as never,
+      { emit: jest.fn() } as never,
+      { record: jest.fn() } as never,
+      boardSessionStateService as never,
+      boardRosterService as never,
+      boardMeetingService as never
+    )
+    return { service, boardRepo, voterId, voteValue: pushedVotes.at(-1)!.voteValue }
+  }
+
+  it.each([
+    { rosterSize: 3, votes: ['APPROVE', 'APPROVE'], expected: 'APPROVED' },
+    { rosterSize: 3, votes: ['APPROVE', 'REJECT'], expected: 'PENDING' },
+    { rosterSize: 3, votes: ['REJECT', 'REJECT'], expected: 'REJECTED' },
+    { rosterSize: 3, votes: ['APPROVE', 'REJECT', 'ABSTAIN'], expected: 'REJECTED' },
+    { rosterSize: 5, votes: ['APPROVE', 'APPROVE', 'APPROVE', 'REJECT'], expected: 'APPROVED' },
+    { rosterSize: 5, votes: ['APPROVE', 'APPROVE', 'REJECT', 'REJECT'], expected: 'PENDING' },
+    { rosterSize: 5, votes: ['APPROVE', 'REJECT', 'REJECT', 'REJECT'], expected: 'REJECTED' }
+  ] as const)('roster $rosterSize with $votes → $expected', async ({ rosterSize, votes, expected }) => {
+    const { service, boardRepo, voterId, voteValue } = makeService(rosterSize, [...votes])
+
+    await service.castVote(DECISION_ID, voterId, { voteValue })
+
+    expect(boardRepo.updateDecisionCounters).toHaveBeenCalledWith(
+      DECISION_ID,
+      expect.objectContaining({ result: expected })
+    )
   })
 })
 
