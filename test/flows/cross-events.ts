@@ -13,7 +13,7 @@
  * EV-07 series.cancelling → payment engine terminate contract
  * EV-08 series hiatus/resume → TIME_BOUND pause (DISABLED) → resume (PENDING)
  * EV-09 RankingFinalized → payload rankings[] không rỗng (RankingRecord được tạo)
- * EV-10 BoardDecisionFinalized flip-terminal → vote muộn KHÔNG re-emit (series không transition lần 2)
+ * EV-10 quorum 2/3 roster + DecisionAlreadyFinalized → vote muộn 409, KHÔNG re-emit
  */
 
 import {
@@ -60,6 +60,7 @@ const main = async () => {
   console.log(`\n##### ${FLOW} #####`)
   await wipeDb()
   await seedRolesAndAdmin()
+  // quorumMin chỉ là roster-default; quorum vote thực tế luôn là ceil(2/3 roster của session).
   await setBoardConfig({ boardTotalMembers: 3, quorumMin: 3, approveMajorityRatio: 0.5 })
 
   const m1 = await makeUser(RoleCode.MANGAKA)
@@ -72,6 +73,7 @@ const main = async () => {
   const e1Tok = await login(e1.email)
   const boardToks = [await login(b1.email), await login(b2.email), await login(b3.email)]
 
+  // Helper vote đến khi decision terminal; phiếu thừa sau khi chốt có thể trả 409 và được bỏ qua.
   const boardDecide = async (
     decisionType: DecisionType,
     targetSeriesId: string,
@@ -210,17 +212,19 @@ const main = async () => {
     `got ${rDraftAfter.status} ${rDraftAfter.raw.slice(0, 140)}`
   )
 
-  // ── EV-10 flip-terminal: vote muộn KHÔNG re-emit ──
-  section('EV-10 BoardDecisionFinalized flip-terminal guard')
+  // ── EV-10 quorum 2/3 roster + late-vote khóa sổ (Spec 17) ──
+  section('EV-10 quorum 2/3 + DecisionAlreadyFinalized')
   const b4 = await makeUser(RoleCode.BOARD_MEMBER)
+  const b5 = await makeUser(RoleCode.BOARD_MEMBER)
   const b4Tok = await login(b4.email)
+  const b5Tok = await login(b5.email)
   const sFlip = await makeSeriesAt(SeriesStatus.PITCHED, { mangakaId: m1.id, editorId: e1.id })
   const rsFlip = await req('POST', '/board/sessions', {
     token: e1Tok,
     body: {
       title: `EV flip ${Date.now()}`,
       startTime: new Date(Date.now() + 60_000).toISOString(),
-      allowedEditorIds: [b1.id, b2.id, b3.id, b4.id, m1.id] // 5 = lẻ
+      allowedEditorIds: [b1.id, b2.id, b3.id, b4.id, b5.id] // 5 board members, lẻ
     }
   })
   const flipSession = rsFlip.json.data.id as string
@@ -233,7 +237,7 @@ const main = async () => {
       boardSessionId: flipSession,
       decisionType: DecisionType.SERIALIZATION,
       targetSeriesId: sFlip.id,
-      allowedEditorIds: [b1.id, b2.id, b3.id, b4.id, m1.id],
+      allowedEditorIds: [b1.id, b2.id, b3.id, b4.id, b5.id],
       details: { magazine: 'Flip', startIssueNumber: 2, publicationType: 'WEEKLY' }
     }
   })
@@ -241,20 +245,45 @@ const main = async () => {
   for (const t of boardToks) {
     await req('POST', `/board/decisions/${flipDecision}/vote`, { token: t, body: { voteValue: 'APPROVE' } })
   }
-  await sleep(900)
-  const rLateVote = await req('POST', `/board/decisions/${flipDecision}/vote`, {
+  await sleep(400)
+  const dec3 = await prisma.boardDecision.findUnique({ where: { id: flipDecision } })
+  const sMid = await prisma.series.findUnique({ where: { id: sFlip.id } })
+  ok(
+    'EV-10a 3/5 phiếu → PENDING_QUORUM, series vẫn PITCHED',
+    dec3?.result === 'PENDING_QUORUM' && sMid?.status === SeriesStatus.PITCHED,
+    `result=${dec3?.result} series=${sMid?.status}`
+  )
+
+  await req('POST', `/board/decisions/${flipDecision}/vote`, {
     token: b4Tok,
     body: { voteValue: 'APPROVE' }
   })
+  await sleep(900)
   await sleep(900)
   const sFlipAfter = await prisma.series.findUnique({ where: { id: sFlip.id } })
   const serializedEntries = (sFlipAfter?.statusHistory ?? []).filter(
     (h) => (h as unknown as { toStatus?: string }).toStatus === SeriesStatus.SERIALIZED
   )
   ok(
-    'EV-10 vote đến SAU khi decision terminal → KHÔNG re-emit (statusHistory chỉ 1 entry SERIALIZED)',
+    'EV-10b phiếu 4 → APPROVED → series SERIALIZED (1 entry)',
     sFlipAfter?.status === SeriesStatus.SERIALIZED && serializedEntries.length === 1,
-    `lateVote=${rLateVote.status} entries=${serializedEntries.length}`
+    `status=${sFlipAfter?.status} entries=${serializedEntries.length}`
+  )
+
+  const rLateVote = await req('POST', `/board/decisions/${flipDecision}/vote`, {
+    token: b5Tok,
+    body: { voteValue: 'APPROVE' }
+  })
+  await sleep(400)
+  const serializedEntries2 = (
+    (await prisma.series.findUnique({ where: { id: sFlip.id } }))?.statusHistory ?? []
+  ).filter((h) => (h as unknown as { toStatus?: string }).toStatus === SeriesStatus.SERIALIZED)
+  ok(
+    'EV-10c vote sau terminal → 409 DecisionAlreadyFinalized, vẫn 1 entry',
+    rLateVote.status === 409 &&
+      rLateVote.raw.includes('Error.DecisionAlreadyFinalized') &&
+      serializedEntries2.length === 1,
+    `lateVote=${rLateVote.status} body=${rLateVote.raw.slice(0, 120)} entries=${serializedEntries2.length}`
   )
 
   // ── EV-03 ContractAmendmentRequested (từ CHANGE_FORMAT) ──

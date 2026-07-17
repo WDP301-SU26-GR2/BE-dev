@@ -246,9 +246,10 @@ export class BoardService {
     return enriched
   }
 
-  async getDecisions(boardSessionId?: string) {
-    if (boardSessionId !== undefined && !OBJECT_ID_RE.test(boardSessionId)) return []
-    const decisions = await this.boardRepo.findManyDecisions(boardSessionId)
+  async getDecisions(query?: { boardSessionId?: string; targetSeriesId?: string }) {
+    if (query?.boardSessionId !== undefined && !OBJECT_ID_RE.test(query.boardSessionId)) return []
+    if (query?.targetSeriesId !== undefined && !OBJECT_ID_RE.test(query.targetSeriesId)) return []
+    const decisions = await this.boardRepo.findManyDecisions(query)
     return (await this.enrichDecisions(decisions)) as unknown as BoardDecisionResDto[]
   }
 
@@ -308,6 +309,12 @@ export class BoardService {
       throw Errors.VotingNotOpenException
     }
 
+    // Spec 17: once finalized, the tally is immutable. Keep this after authorization and phase guards
+    // so callers cannot use terminal state to infer meeting details they are not allowed to see.
+    if (decision.result === 'APPROVED' || decision.result === 'REJECTED' || decision.result === 'EXPIRED') {
+      throw Errors.DecisionAlreadyFinalizedException
+    }
+
     // Bước 5: Chặn Double-voting
     const hasVoted = decision.votes.some((vote) => vote.voterId === voterId)
     if (hasVoted) throw Errors.VoterAlreadyVotedException
@@ -322,7 +329,11 @@ export class BoardService {
     const updatedDecision = await this.boardRepo.pushVoteToDecision(decisionId, newVote)
 
     // Bước 7: Tái tính toán kết quả tự động (Nhận về Promise<BoardDecisionDataType> sạch lỗi ESLint)
-    const finalDecision = await this.recalculateDecisionResult(decisionId, updatedDecision.votes)
+    const finalDecision = await this.recalculateDecisionResult(
+      decisionId,
+      updatedDecision.votes,
+      session.allowedEditorIds.length
+    )
     // Bước 8: 🌟 PHÁT SÓNG REALTIME SỐ LIỆU ĐẾN PHÒNG HỌP TỔNG
     this.boardGateway.broadcastVoteProgress(decision.boardSessionId, {
       decisionId: finalDecision.id,
@@ -340,10 +351,13 @@ export class BoardService {
    * 5. Hàm nội bộ tính toán kết quả vote
    * 🛡️ Kiểm soát chặt chẽ kiểu trả về Promise<BoardDecisionDataType> để diệt lỗi unsafe-return
    */
-  private async recalculateDecisionResult(decisionId: string, currentVotes: any[]): Promise<BoardDecisionDataType> {
+  private async recalculateDecisionResult(
+    decisionId: string,
+    currentVotes: any[],
+    rosterSize: number
+  ): Promise<BoardDecisionDataType> {
     // 🌟 Khai báo kiểu trả về cụ thể
     const config = await this.boardRepo.getActiveConfig()
-    const quorumMin = config?.quorumMin ?? 1
     const majorityRatio = config?.approveMajorityRatio ?? 0.5
 
     // Đọc trạng thái TRƯỚC update để chống re-emit: chỉ phát event khi flip non-terminal → terminal.
@@ -355,16 +369,16 @@ export class BoardService {
     const rejectCount = currentVotes.filter((v) => v.voteValue === 'REJECT').length
     const totalVotes = currentVotes.length
 
-    const quorumMet = totalVotes >= quorumMin
+    const quorum = Math.ceil((rosterSize * 2) / 3)
+    const quorumMet = totalVotes >= quorum
+    const winThreshold = rosterSize * majorityRatio
     let result: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PENDING_QUORUM' = 'PENDING'
 
     if (!quorumMet) {
       result = 'PENDING_QUORUM'
-    } else {
-      const winThreshold = totalVotes * majorityRatio
-      if (approveCount > winThreshold) result = 'APPROVED'
-      else if (rejectCount >= totalVotes - winThreshold) result = 'REJECTED'
-    }
+    } else if (approveCount > winThreshold) result = 'APPROVED'
+    else if (rejectCount >= rosterSize - winThreshold) result = 'REJECTED'
+    else if (totalVotes >= rosterSize) result = 'REJECTED'
 
     // 🌟 ĐỊNH NGHĨA RÕ RÀNG: Tạo biến decidedAt tách biệt để tái sử dụng an toàn
     const decidedAt = result === 'APPROVED' || result === 'REJECTED' ? new Date() : null

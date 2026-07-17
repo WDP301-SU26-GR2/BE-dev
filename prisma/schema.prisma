@@ -1569,7 +1569,7 @@ model BoardConfig {
   updatedBy String? @db.ObjectId
 
   boardTotalMembers    Int      @default(0)
-  quorumMin            Int      @default(0)
+  quorumMin            Int      @default(3)
   approveMajorityRatio Float    @default(0.5)
   isDefault            Boolean  @default(true)
   updatedAt            DateTime @updatedAt

@@ -162,6 +162,9 @@ export const UpdateBoardConfigBodySchema = extendApi(
     createdAt: true,
     updatedAt: true
   })
+    .extend({
+      quorumMin: z.number().describe('Sĩ số roster mặc định khi auto-assign; KHÔNG phải quorum đếm phiếu')
+    })
     .strict()
     .superRefine(({ boardTotalMembers, quorumMin }, ctx) => {
       if (boardTotalMembers % 2 === 0) {
@@ -175,7 +178,7 @@ export const UpdateBoardConfigBodySchema = extendApi(
       if (quorumMin > boardTotalMembers) {
         ctx.addIssue({
           code: 'custom',
-          message: 'Số thành viên tham gia họp tối thiểu (Quorum) không được vượt quá tổng sĩ số ban đại biểu',
+          message: 'Sĩ số roster mặc định khi auto-assign không được vượt quá tổng sĩ số ban đại biểu',
           path: ['quorumMin']
         })
       }
@@ -263,7 +266,7 @@ export const BoardConfigResSchema = extendApi(
     id: z.string(),
     updatedBy: z.string().nullable().optional(),
     boardTotalMembers: z.number(),
-    quorumMin: z.number(),
+    quorumMin: z.number().describe('Sĩ số roster mặc định khi auto-assign; KHÔNG phải quorum đếm phiếu'),
     approveMajorityRatio: z.number(),
     isDefault: z.boolean().optional(),
     updatedAt: zDateField()
@@ -298,7 +301,12 @@ export const ListBoardSessionsQuerySchema = extendApi(
 )
 
 export const ListBoardDecisionsQuerySchema = extendApi(
-  z.object({ boardSessionId: z.string().optional().describe('Lọc decision theo phiên họp') }).strict(),
+  z
+    .object({
+      boardSessionId: z.string().optional().describe('Lọc decision theo phiên họp'),
+      targetSeriesId: z.string().optional().describe('Lọc decision theo series mục tiêu')
+    })
+    .strict(),
   { title: 'ListBoardDecisionsQuery', description: 'Filter danh sách quyết định' }
 )
 
