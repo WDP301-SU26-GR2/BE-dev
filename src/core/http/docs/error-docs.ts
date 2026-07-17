@@ -180,6 +180,7 @@ export const ERROR_HINTS: Record<string, string> = {
     'contract is outside the caller view scope (mangaka: own, editor: assigned, board: all)',
   'Error.InvalidPhaseTransition': 'session phase only moves forward: PRESENTING -> QA -> VOTING (skipping allowed)',
   'Error.VotingNotOpen': 'castVote requires session.phase = VOTING - the session creator must advance the phase first',
+  'Error.DecisionAlreadyFinalized': 'decision already APPROVED/REJECTED/EXPIRED — voting closed',
   'Error.NotSessionParticipant': 'only the session creator, roster members, or a Super Admin can read meeting messages',
   'Error.NotEnoughBoardMembers': 'fewer than 3 active board members exist — cannot form a valid session',
   'Error.RosterSourceRequired': 'provide allowedEditorIds, or seriesId so the roster can be auto-assigned',

@@ -45,4 +45,7 @@ export const InvalidPhaseTransitionException = new ConflictException([
   { message: E.invalidPhaseTransition, path: 'phase' }
 ])
 export const VotingNotOpenException = new ConflictException([{ message: E.votingNotOpen, path: 'id' }])
+export const DecisionAlreadyFinalizedException = new ConflictException([
+  { message: E.decisionAlreadyFinalized, path: 'id' }
+])
 export const NotSessionParticipantException = new ForbiddenException([{ message: E.notSessionParticipant, path: 'id' }])

@@ -1,7 +1,10 @@
 import {
+  BoardConfigResSchema,
   CreateBoardDecisionBodySchema,
   CreateBoardSessionBodySchema,
-  ListBoardSessionsQuerySchema
+  ListBoardDecisionsQuerySchema,
+  ListBoardSessionsQuerySchema,
+  UpdateBoardConfigBodySchema
 } from './board-schema'
 
 describe('CreateBoardSessionBodySchema endTime (Fix-2)', () => {
@@ -87,5 +90,21 @@ describe('ListBoardSessionsQuerySchema mine parsing (Spec 16)', () => {
 
   it('rejects non-boolean query strings', () => {
     expect(ListBoardSessionsQuerySchema.safeParse({ mine: '1' }).success).toBe(false)
+  })
+})
+
+describe('Board API contracts (Spec 17)', () => {
+  it('accepts targetSeriesId alone or combined with boardSessionId', () => {
+    expect(ListBoardDecisionsQuerySchema.parse({ targetSeriesId: 'a'.repeat(24) })).toEqual({
+      targetSeriesId: 'a'.repeat(24)
+    })
+    expect(
+      ListBoardDecisionsQuerySchema.parse({ boardSessionId: 'b'.repeat(24), targetSeriesId: 'a'.repeat(24) })
+    ).toEqual({ boardSessionId: 'b'.repeat(24), targetSeriesId: 'a'.repeat(24) })
+  })
+
+  it('documents quorumMin as the default roster size instead of vote quorum', () => {
+    expect(UpdateBoardConfigBodySchema.shape.quorumMin.description).toContain('roster')
+    expect(BoardConfigResSchema.shape.quorumMin.description).toContain('roster')
   })
 })

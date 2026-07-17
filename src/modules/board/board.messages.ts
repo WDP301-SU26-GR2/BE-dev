@@ -28,6 +28,7 @@ export const BoardMessages = {
     seriesNotFound: 'Error.SeriesNotFound',
     invalidPhaseTransition: 'Error.InvalidPhaseTransition',
     votingNotOpen: 'Error.VotingNotOpen',
+    decisionAlreadyFinalized: 'Error.DecisionAlreadyFinalized',
     notSessionParticipant: 'Error.NotSessionParticipant'
   }
 } as const

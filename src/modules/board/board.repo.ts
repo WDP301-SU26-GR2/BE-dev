@@ -38,9 +38,12 @@ export class BoardRepository {
     })
   }
 
-  async findManyDecisions(boardSessionId?: string) {
+  async findManyDecisions(filter?: { boardSessionId?: string; targetSeriesId?: string }) {
     return this.prisma.boardDecision.findMany({
-      where: boardSessionId ? { boardSessionId } : {},
+      where: {
+        ...(filter?.boardSessionId ? { boardSessionId: filter.boardSessionId } : {}),
+        ...(filter?.targetSeriesId ? { targetSeriesId: filter.targetSeriesId } : {})
+      },
       orderBy: { id: 'desc' }
     })
   }
@@ -185,7 +188,17 @@ export class BoardRepository {
   }
 
   async getActiveConfig() {
-    return this.prisma.boardConfig.findFirst()
+    const existing = await this.prisma.boardConfig.findFirst()
+    if (existing) return existing
+
+    return this.prisma.boardConfig.create({
+      data: {
+        boardTotalMembers: 5,
+        quorumMin: 3,
+        approveMajorityRatio: 0.5,
+        isDefault: true
+      }
+    })
   }
 
   // ================= AUTO-ASSIGN ROSTER (Spec 12 / PB-05) =================
