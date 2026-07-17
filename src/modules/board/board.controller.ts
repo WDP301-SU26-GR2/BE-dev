@@ -48,7 +48,8 @@ import {
   RosterSourceRequiredException,
   InvalidPhaseTransitionException,
   NotSessionParticipantException,
-  VotingNotOpenException
+  VotingNotOpenException,
+  DecisionAlreadyFinalizedException
 } from './errors/board.errors'
 
 @ApiTags('board')
@@ -167,7 +168,7 @@ export class BoardController {
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: [BoardDecisionResDto] })
   getDecisions(@Query() query: ListBoardDecisionsQueryDto) {
-    return this.boardService.getDecisions(query.boardSessionId)
+    return this.boardService.getDecisions(query)
   }
 
   @ApiOperation({ summary: 'Chi tiết quyết định Hội đồng' })
@@ -194,6 +195,7 @@ export class BoardController {
     SessionNotFoundException,
     SessionNotOpenException,
     VotingNotOpenException,
+    DecisionAlreadyFinalizedException,
     VoterNotAllowedException,
     VoterAlreadyVotedException
   )

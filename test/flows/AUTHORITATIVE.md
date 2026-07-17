@@ -364,13 +364,15 @@ GET    /ranking/series/:seriesId/history
 GET    /ranking/periods/:id/risks           thấp/SEVERE
 
 # Board
+Quorum vote = `ceil(2/3 × session.allowedEditorIds.length)`; majority tính trên toàn roster. `BoardConfig.quorumMin` chỉ là sĩ số mặc định cho auto-assign roster.
 POST   /board/sessions
 GET    /board/sessions
 GET    /board/sessions/:id
 PATCH  /board/sessions/:id
 POST   /board/sessions/:id/start            UPCOMING → ACTIVE (chỉ creator)
 POST   /board/sessions/:id/conclude         ACTIVE → CONCLUDED (chỉ creator)
-POST   /board/decisions                     body: { sessionId, decisionType, targetSeriesId?, endingChapterAllowance?, details? }
+POST   /board/decisions                     body: { boardSessionId, decisionType, targetSeriesId?, endingChapterAllowance?, details? }
+GET    /board/decisions                     query: { boardSessionId?, targetSeriesId? }
 GET    /board/decisions/:id
 POST   /board/decisions/:id/vote            body: { voteValue: 'APPROVE'|'REJECT'|'ABSTAIN', note? }
 POST   /board/decisions/:id/conclude        → APPROVED|REJECTED|EXPIRED

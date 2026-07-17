@@ -61,8 +61,8 @@ const main = async () => {
   const b3Tok = await login(b3.email)
   const boardToks = [b1Tok, b2Tok, b3Tok]
 
-  // BoardConfig PHẢI seed: không có row thì board.service fallback quorumMin=1 → 1 phiếu cũng
-  // đủ quorum (F05-033 không test được gì). Sĩ số lẻ 3 + quorum 3 + đa số > 50%.
+  // BoardConfig seed ở flow này chỉ để cố định roster-default/majorityRatio.
+  // Quorum thực tế luôn là ceil(2/3 roster): roster 3 cần 2 phiếu; đa số tính trên toàn roster.
   await setBoardConfig({ boardTotalMembers: 3, quorumMin: 3, approveMajorityRatio: 0.5 })
 
   // Board session + decision qua API THẬT (roster lẻ = 3).
