@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
-import { TransferMessages } from './transfer.message'
+import { TransferMessages } from '../transfer.messages'
 
 const E = TransferMessages.error
 

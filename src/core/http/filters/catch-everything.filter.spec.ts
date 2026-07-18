@@ -1,6 +1,6 @@
 import {
   ArgumentsHost,
-  ForbiddenException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Logger,
@@ -28,9 +28,9 @@ function createFilter() {
 }
 
 describe('CatchEverythingFilter', () => {
-  it('moves field issues into errors[] and uses the single issue message as message', () => {
+  it('translates a single domain field issue and keeps its stable code', () => {
     const { filter, reply } = createFilter()
-    const exception = new UnprocessableEntityException([{ message: 'Error.EmailNotFound', path: 'email' }])
+    const exception = new UnprocessableEntityException([{ message: 'Error.TasksNotAllApproved', path: 'chapterId' }])
 
     filter.catch(exception, createHost())
 
@@ -39,16 +39,23 @@ describe('CatchEverythingFilter', () => {
     expect(body).toEqual({
       success: false,
       statusCode: 422,
-      message: 'Error.EmailNotFound',
-      errors: [{ message: 'Error.EmailNotFound', path: 'email' }]
+      code: 'Error.TasksNotAllApproved',
+      message: 'Còn công việc chưa được duyệt — duyệt hoặc huỷ hết task trước khi nộp',
+      errors: [
+        {
+          code: 'Error.TasksNotAllApproved',
+          message: 'Còn công việc chưa được duyệt — duyệt hoặc huỷ hết task trước khi nộp',
+          path: 'chapterId'
+        }
+      ]
     })
   })
 
   it('uses a generic message when there are multiple field issues', () => {
     const { filter, reply } = createFilter()
     const exception = new UnprocessableEntityException([
-      { message: 'Invalid email address', path: 'email' },
-      { message: 'Password too short', path: 'password' }
+      { message: 'Địa chỉ email không hợp lệ', path: 'email' },
+      { message: 'Mật khẩu quá ngắn', path: 'password' }
     ])
 
     filter.catch(exception, createHost())
@@ -57,21 +64,44 @@ describe('CatchEverythingFilter', () => {
     expect(body).toEqual({
       success: false,
       statusCode: 422,
-      message: 'Validation failed',
+      code: 'Error.ValidationFailed',
+      message: 'Dữ liệu không hợp lệ',
       errors: [
-        { message: 'Invalid email address', path: 'email' },
-        { message: 'Password too short', path: 'password' }
+        { code: null, message: 'Địa chỉ email không hợp lệ', path: 'email' },
+        { code: null, message: 'Mật khẩu quá ngắn', path: 'password' }
       ]
     })
   })
 
-  it('keeps a string message (no errors[]) for a simple HttpException', () => {
+  it('translates a simple domain code without adding errors[]', () => {
     const { filter, reply } = createFilter()
 
-    filter.catch(new ForbiddenException('Error.EmailNotVerified'), createHost())
+    filter.catch(new ConflictException('Error.SeriesAlreadyClaimed'), createHost())
 
     const [, body] = reply.mock.calls[0]
-    expect(body).toEqual({ success: false, statusCode: 403, message: 'Error.EmailNotVerified' })
+    expect(body).toEqual({
+      success: false,
+      statusCode: 409,
+      code: 'Error.SeriesAlreadyClaimed',
+      message: 'Series này đã có Editor khác nhận'
+    })
+  })
+
+  it('falls back to the untranslated code and warns once when the registry misses a code', () => {
+    const { filter, reply } = createFilter()
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+
+    filter.catch(new ConflictException('Error.Spec21MissingTranslation'), createHost())
+    filter.catch(new ConflictException('Error.Spec21MissingTranslation'), createHost())
+
+    expect(reply.mock.calls[0][1]).toEqual({
+      success: false,
+      statusCode: 409,
+      code: 'Error.Spec21MissingTranslation',
+      message: 'Error.Spec21MissingTranslation'
+    })
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    warnSpy.mockRestore()
   })
 
   it('preserves explicit HttpException metadata such as rate-limit retryAfter', () => {
@@ -88,8 +118,8 @@ describe('CatchEverythingFilter', () => {
     expect(body).toEqual({
       success: false,
       statusCode: 429,
-      message: 'Error.OtpRateLimited',
       code: 'AUTH_OTP_RATE_LIMITED',
+      message: 'Bạn thao tác quá nhanh — vui lòng thử lại sau',
       retryAfter: 60
     })
   })
@@ -102,7 +132,12 @@ describe('CatchEverythingFilter', () => {
 
     const [, body, status] = reply.mock.calls[0]
     expect(status).toBe(409)
-    expect(body).toEqual({ success: false, statusCode: 409, message: 'Record already exists' })
+    expect(body).toEqual({
+      success: false,
+      statusCode: 409,
+      code: 'Error.RecordAlreadyExists',
+      message: 'Dữ liệu đã tồn tại'
+    })
   })
 
   it('maps unknown errors to 500 without leaking internals', () => {
@@ -114,6 +149,11 @@ describe('CatchEverythingFilter', () => {
 
     const [, body, status] = reply.mock.calls[0]
     expect(status).toBe(500)
-    expect(body).toEqual({ success: false, statusCode: 500, message: 'Internal server error' })
+    expect(body).toEqual({
+      success: false,
+      statusCode: 500,
+      code: 'Error.Internal',
+      message: 'Lỗi hệ thống, vui lòng thử lại'
+    })
   })
 })

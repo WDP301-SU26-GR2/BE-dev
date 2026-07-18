@@ -12,6 +12,7 @@ import {
   SeriesStatus
 } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { UserMiniSchema } from 'src/core/models/user-mini.model'
 
 const NamePageSchema = z.object({ pageNumber: z.number().int().min(1), fileUrl: z.string().min(1) })
 
@@ -71,12 +72,6 @@ export const UpdateSeriesMetadataBodySchema = extendApi(
 export const ReasonBodySchema = extendApi(z.object({ reason: z.string().min(1).max(1000) }).strict(), {
   title: 'ReasonBody',
   description: 'Lý do (revision/reject/withdraw)'
-})
-
-const UserMiniSchema = z.object({
-  id: z.string(),
-  displayName: z.string().describe('displayName ?? name'),
-  avatar: z.string().nullable()
 })
 
 export const SeriesResSchema = extendApi(

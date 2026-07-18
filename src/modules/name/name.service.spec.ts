@@ -93,7 +93,7 @@ describe('NameService — lifecycle (MOVE từ series)', () => {
       type: NotificationType.REVIEW,
       referenceId: NAME_ID,
       referenceType: 'NAME_RESUBMITTED',
-      content: 'Name resubmitted (round 2)'
+      content: 'Đã nộp lại name (vòng 2)'
     })
   })
 
@@ -107,7 +107,7 @@ describe('NameService — lifecycle (MOVE từ series)', () => {
       type: NotificationType.REVIEW,
       referenceId: NAME_ID,
       referenceType: 'NAME_LOOP_WARNING',
-      content: 'Name review loop has reached 4 rounds'
+      content: 'Quá trình duyệt name đã đạt 4 vòng'
     })
   })
 
@@ -185,7 +185,7 @@ describe('NameService — lifecycle (MOVE từ series)', () => {
         recipientId: 'm1',
         referenceId: NAME_ID,
         referenceType: 'NAME_REVISION_REQUESTED',
-        content: 'Name needs revision (round 2): fix pacing'
+        content: 'Name cần chỉnh sửa (vòng 2): fix pacing'
       })
     )
   })

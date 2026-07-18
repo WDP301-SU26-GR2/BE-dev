@@ -7,5 +7,10 @@ export const AnnotationMessages = {
     annotationNotFound: 'Error.AnnotationNotFound',
     annotationForbidden: 'Error.AnnotationForbidden',
     targetNotFound: 'Error.AnnotationTargetNotFound'
+  },
+  errorText: {
+    'Error.AnnotationNotFound': 'Không tìm thấy ghi chú',
+    'Error.AnnotationForbidden': 'Bạn không có quyền thao tác với ghi chú này',
+    'Error.AnnotationTargetNotFound': 'Không tìm thấy đối tượng được ghi chú'
   }
 } as const

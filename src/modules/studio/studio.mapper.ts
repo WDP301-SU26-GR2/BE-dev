@@ -1,7 +1,14 @@
 import { CollaborationInvite, StudioAssignment } from '@prisma/client'
 import { AssignmentResType, InviteResType } from './schemas/studio-schemas'
+import { SeriesMiniType, UserMiniType } from 'src/core/models/user-mini.model'
 
-export function toInviteRes(i: CollaborationInvite): InviteResType {
+type StudioPeople = {
+  mangaka?: UserMiniType | null
+  assistant?: UserMiniType | null
+  series?: SeriesMiniType | null
+}
+
+export function toInviteRes(i: CollaborationInvite & StudioPeople): InviteResType {
   return {
     id: i.id,
     mangakaId: i.mangakaId,
@@ -11,7 +18,10 @@ export function toInviteRes(i: CollaborationInvite): InviteResType {
     hireEnd: i.hireEnd ? i.hireEnd.toISOString() : null,
     taskTypes: i.taskTypes,
     status: i.status,
-    createdAt: i.createdAt.toISOString()
+    createdAt: i.createdAt.toISOString(),
+    ...(i.mangaka !== undefined ? { mangaka: i.mangaka } : {}),
+    ...(i.assistant !== undefined ? { assistant: i.assistant } : {}),
+    ...(i.series !== undefined ? { series: i.series } : {})
   }
 }
 
@@ -20,7 +30,7 @@ export function isAssignmentActiveNow(a: StudioAssignment, at: Date = new Date()
   return a.status === 'ACTIVE' && a.hireStart != null && a.hireEnd != null && a.hireStart <= at && a.hireEnd >= at
 }
 
-export function toAssignmentRes(a: StudioAssignment, at: Date = new Date()): AssignmentResType {
+export function toAssignmentRes(a: StudioAssignment & StudioPeople, at: Date = new Date()): AssignmentResType {
   return {
     id: a.id,
     mangakaId: a.mangakaId,
@@ -32,6 +42,9 @@ export function toAssignmentRes(a: StudioAssignment, at: Date = new Date()): Ass
     status: a.status,
     terminatedReason: a.terminatedReason ?? null,
     activeNow: isAssignmentActiveNow(a, at),
-    createdAt: a.createdAt.toISOString()
+    createdAt: a.createdAt.toISOString(),
+    ...(a.mangaka !== undefined ? { mangaka: a.mangaka } : {}),
+    ...(a.assistant !== undefined ? { assistant: a.assistant } : {}),
+    ...(a.series !== undefined ? { series: a.series } : {})
   }
 }

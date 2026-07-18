@@ -36,5 +36,24 @@ export const SurveyMessages = {
     captchaRejected: 'Error.CaptchaRejected',
     rankingAccessDenied: 'Error.RankingAccessDenied',
     seriesNotFoundForRanking: 'Error.SeriesNotFound'
+  },
+  errorText: {
+    'Error.SurveyPeriodNotFound': 'Không tìm thấy kỳ bình chọn',
+    'Error.SurveyPeriodNotOpen': 'Kỳ bình chọn hiện chưa mở',
+    'Error.SurveyPeriodAlreadyFinalized': 'Kỳ bình chọn đã được chốt',
+    'Error.SurveyPeriodNotFinalized': 'Kỳ bình chọn chưa được chốt',
+    'Error.ReaderAlreadyVoted': 'Bạn đã bình chọn trong kỳ này',
+    'Error.VoteOtpNotFound': 'Không tìm thấy mã OTP bình chọn',
+    'Error.VoteOtpRateLimit': 'Bạn thao tác quá nhanh — vui lòng thử lại sau',
+    'Error.VoteIpLimitExceeded': 'Thiết bị này đã vượt quá số lượt bình chọn cho phép',
+    'Error.SurveyDataImportNotAllowed': 'Không thể nhập dữ liệu ở trạng thái hiện tại',
+    'Error.RankingFinalizeNotAllowed': 'Chưa thể chốt xếp hạng ở trạng thái hiện tại',
+    'Error.VotingConfigNotFound': 'Không tìm thấy cấu hình bình chọn',
+    'Error.TooManySeriesSelected': 'Bạn đã chọn quá số series cho phép',
+    'Error.DuplicateSeriesInVote': 'Danh sách bình chọn có series bị trùng',
+    'Error.SeriesNotVotable': 'Series này không đủ điều kiện bình chọn',
+    'Error.CaptchaRejected': 'Không thể xác minh captcha — vui lòng thử lại',
+    'Error.RankingAccessDenied': 'Bạn không có quyền truy cập dữ liệu xếp hạng này',
+    'Error.SeriesNotFound': 'Không tìm thấy series'
   }
 } as const

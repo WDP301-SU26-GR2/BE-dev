@@ -4,6 +4,7 @@ import { CreateContractBodyType } from './schemas/contract-schema'
 import type { Contract, ContractVersion } from '@prisma/client'
 import { ContractStatus, Prisma } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
+import { USER_MINI_FIELDS, toUserMini } from 'src/core/models/user-mini.model'
 
 @Injectable()
 export class ContractRepo {
@@ -27,21 +28,44 @@ export class ContractRepo {
   }
 
   // 2. Tìm kiếm hợp đồng kèm theo toàn bộ lịch sử các phiên bản (versions)
-  findById(id: string): Promise<(Contract & { versions: ContractVersion[] }) | null> {
-    return this.prisma.contract.findUnique({
+  async findById(id: string) {
+    const contract = await this.prisma.contract.findUnique({
       where: { id },
-      include: { versions: true }
+      include: {
+        versions: true,
+        series: { select: { id: true, title: true } },
+        mangaka: { select: USER_MINI_FIELDS },
+        editor: { select: USER_MINI_FIELDS }
+      }
     })
+    if (!contract) return null
+    return {
+      ...contract,
+      series: { id: contract.series.id, title: contract.series.title },
+      mangaka: toUserMini(contract.mangaka),
+      editor: contract.editor ? toUserMini(contract.editor) : null
+    }
   }
 
-  findManyByViewer(userId: string, roleName: string): Promise<Contract[]> {
+  async findManyByViewer(userId: string, roleName: string) {
     const where =
       roleName === RoleName.EDITOR ? { editorId: userId } : roleName === RoleName.MANGAKA ? { mangakaId: userId } : {}
 
-    return this.prisma.contract.findMany({
+    const rows = await this.prisma.contract.findMany({
       where,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      include: {
+        series: { select: { id: true, title: true } },
+        mangaka: { select: USER_MINI_FIELDS },
+        editor: { select: USER_MINI_FIELDS }
+      }
     })
+    return rows.map((contract) => ({
+      ...contract,
+      series: { id: contract.series.id, title: contract.series.title },
+      mangaka: toUserMini(contract.mangaka),
+      editor: contract.editor ? toUserMini(contract.editor) : null
+    }))
   }
 
   findVersionsByContractId(contractId: string): Promise<ContractVersion[]> {

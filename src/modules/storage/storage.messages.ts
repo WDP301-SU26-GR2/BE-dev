@@ -8,5 +8,11 @@ export const StorageMessages = {
     fileTooLarge: 'Error.FileTooLarge',
     assetNotFound: 'Error.AssetNotFound',
     downloadForbidden: 'Error.DownloadForbidden'
+  },
+  errorText: {
+    'Error.UnsupportedFileType': 'Định dạng tệp không được hỗ trợ',
+    'Error.FileTooLarge': 'Tệp vượt quá dung lượng cho phép',
+    'Error.AssetNotFound': 'Không tìm thấy tệp tài nguyên',
+    'Error.DownloadForbidden': 'Bạn không có quyền tải tệp này'
   }
 } as const

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { PAYMENT_CONDITION_STATUS } from './transfer.constant'
 import { $Enums, TransferContractSignature } from '@prisma/client'
+import { fetchSeriesMiniMap, fetchUserMiniMap } from 'src/core/models/user-mini.model'
 
 @Injectable()
 export class TransferRepo {
@@ -48,31 +49,35 @@ export class TransferRepo {
 
   // Tìm chi tiết một hồ sơ TransferRequest
   async findTransferRequestById(id: string) {
-    return this.prisma.transferRequest.findUnique({
+    const request = await this.prisma.transferRequest.findUnique({
       where: { id },
       include: {
         boardDecision: true,
         originalContract: true
       }
     })
+    if (!request) return null
+    return (await this.attachTransferRequestPeople([request]))[0]
   }
 
   // Tìm danh sách hồ sơ chuyển nhượng thuộc về một Mangaka cụ thể
   async findTransferRequestsByMangaka(mangakaId: string) {
-    return this.prisma.transferRequest.findMany({
+    const requests = await this.prisma.transferRequest.findMany({
       where: {
         OR: [{ requestingMangakaId: mangakaId }, { originalMangakaId: mangakaId }]
       },
       orderBy: { createdAt: 'desc' }
     })
+    return this.attachTransferRequestPeople(requests)
   }
 
   // Tìm danh sách hồ sơ đang chờ Hội đồng (Board) chấm điểm sàng lọc
   async findPendingBoardRequests() {
-    return this.prisma.transferRequest.findMany({
+    const requests = await this.prisma.transferRequest.findMany({
       where: { status: 'SUBMITTED' },
       orderBy: { createdAt: 'asc' }
     })
+    return this.attachTransferRequestPeople(requests)
   }
 
   // Cập nhật trạng thái và thông tin liên quan của TransferRequest
@@ -175,12 +180,60 @@ export class TransferRepo {
 
   // Tìm chi tiết hợp đồng chuyển nhượng kèm danh sách các chữ ký hiện có
   async findTransferContractById(id: string) {
-    return this.prisma.transferContract.findUnique({
+    const contract = await this.prisma.transferContract.findUnique({
       where: { id },
       include: {
         signatures: true
       }
     })
+    if (!contract) return null
+    return (await this.attachTransferContractPeople([contract]))[0]
+  }
+
+  private async attachTransferRequestPeople<
+    T extends {
+      seriesId?: string | null
+      requestingMangakaId?: string | null
+      originalMangakaId?: string | null
+    }
+  >(rows: T[]) {
+    const [users, series] = await Promise.all([
+      fetchUserMiniMap(
+        this.prisma,
+        rows.flatMap((row) => [row.requestingMangakaId, row.originalMangakaId])
+      ),
+      fetchSeriesMiniMap(
+        this.prisma,
+        rows.map((row) => row.seriesId)
+      )
+    ])
+    return rows.map((row) => ({
+      ...row,
+      series: row.seriesId ? (series.get(row.seriesId) ?? null) : null,
+      requestingMangaka: row.requestingMangakaId ? (users.get(row.requestingMangakaId) ?? null) : null,
+      originalMangaka: row.originalMangakaId ? (users.get(row.originalMangakaId) ?? null) : null
+    }))
+  }
+
+  private async attachTransferContractPeople<
+    T extends { seriesId?: string | null; fromMangakaId?: string | null; toMangakaId?: string | null }
+  >(rows: T[]) {
+    const [users, series] = await Promise.all([
+      fetchUserMiniMap(
+        this.prisma,
+        rows.flatMap((row) => [row.fromMangakaId, row.toMangakaId])
+      ),
+      fetchSeriesMiniMap(
+        this.prisma,
+        rows.map((row) => row.seriesId)
+      )
+    ])
+    return rows.map((row) => ({
+      ...row,
+      series: row.seriesId ? (series.get(row.seriesId) ?? null) : null,
+      fromMangaka: row.fromMangakaId ? (users.get(row.fromMangakaId) ?? null) : null,
+      toMangaka: row.toMangakaId ? (users.get(row.toMangakaId) ?? null) : null
+    }))
   }
 
   // Cập nhật trạng thái tiến độ hợp đồng 3 bên

@@ -3,6 +3,7 @@ import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
+import { UserMiniSchema } from 'src/core/models/user-mini.model'
 
 // Body chung cho create/patch: các typed term optional (null/omit = không đổi).
 const amendmentTermFields = {
@@ -109,6 +110,7 @@ export const AmendmentResSchema = extendApi(
     fullyExecutedAt: zDateField().nullable(),
     voidReason: z.string().nullable(),
     createdBy: z.string().nullable(),
+    creator: UserMiniSchema.nullable().optional(),
     createdAt: zDateField(),
     signatures: z.array(AmendmentSignatureResSchema).optional()
   }),

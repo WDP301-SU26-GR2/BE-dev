@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
 
 // ---- CollaborationInvite ----
 export const CreateInviteBodySchema = extendApi(
@@ -30,7 +31,10 @@ export const InviteResSchema = extendApi(
     hireEnd: z.string().nullable(),
     taskTypes: z.array(zEnum($Enums.Specialization, 'Specialization')),
     status: zEnum($Enums.CollaborationInviteStatus, 'CollaborationInviteStatus'),
-    createdAt: z.string()
+    createdAt: z.string(),
+    mangaka: UserMiniSchema.nullable().optional().describe('Mangaka — có ở GET list/detail'),
+    assistant: UserMiniSchema.nullable().optional().describe('Trợ lý — có ở GET list/detail'),
+    series: SeriesMiniSchema.nullable().optional().describe('Series — có ở GET list/detail')
   }),
   { title: 'CollaborationInviteRes', description: 'Một lời mời cộng tác' }
 )
@@ -64,7 +68,10 @@ export const AssignmentResSchema = extendApi(
     status: zEnum($Enums.StudioAssignmentStatus, 'StudioAssignmentStatus'),
     terminatedReason: z.string().nullable(),
     activeNow: z.boolean().describe('true = status ACTIVE và thời điểm hiện tại trong [hireStart, hireEnd] (lazy)'),
-    createdAt: z.string()
+    createdAt: z.string(),
+    mangaka: UserMiniSchema.nullable().optional().describe('Mangaka — có ở GET list/detail'),
+    assistant: UserMiniSchema.nullable().optional().describe('Trợ lý — có ở GET list/detail'),
+    series: SeriesMiniSchema.nullable().optional().describe('Series — có ở GET list/detail')
   }),
   { title: 'StudioAssignmentRes', description: 'Một hợp tác studio' }
 )

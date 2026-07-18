@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import type { ContractAmendment, ContractAmendmentStatus, Prisma } from '@prisma/client'
+import { fetchUserMiniMap } from 'src/core/models/user-mini.model'
 
 const NON_TERMINAL: ContractAmendmentStatus[] = ['DRAFT', 'PENDING_SIGNATURES']
 
@@ -12,19 +13,33 @@ export class ContractAmendmentRepo {
     return this.prisma.contractAmendment.create({ data })
   }
 
-  findById(id: string) {
-    return this.prisma.contractAmendment.findUnique({
+  async findById(id: string) {
+    const amendment = await this.prisma.contractAmendment.findUnique({
       where: { id },
       include: { signatures: true }
     })
+    if (!amendment) return null
+    const creators = await fetchUserMiniMap(this.prisma, [amendment.createdBy])
+    return {
+      ...amendment,
+      creator: amendment.createdBy ? (creators.get(amendment.createdBy) ?? null) : null
+    }
   }
 
-  findManyByContract(contractId: string) {
-    return this.prisma.contractAmendment.findMany({
+  async findManyByContract(contractId: string) {
+    const amendments = await this.prisma.contractAmendment.findMany({
       where: { contractId },
       orderBy: { createdAt: 'desc' },
       include: { signatures: true }
     })
+    const creators = await fetchUserMiniMap(
+      this.prisma,
+      amendments.map((amendment) => amendment.createdBy)
+    )
+    return amendments.map((amendment) => ({
+      ...amendment,
+      creator: amendment.createdBy ? (creators.get(amendment.createdBy) ?? null) : null
+    }))
   }
 
   // Guard "1 amendment non-terminal / contract"

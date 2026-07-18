@@ -2,12 +2,12 @@
 // Plain strings only (no NestJS imports). HTTP status + path live in errors/task.errors.ts.
 export const TaskMessages = {
   notification: {
-    taskAssigned: 'You have been assigned a new task',
-    taskSubmittedForReview: (version: number) => `A task was submitted for your review (version ${version})`,
-    taskRevisionRequested: (round: number, note: string) => `Revision requested on your task (round ${round}): ${note}`,
-    taskApproved: 'Your task was approved',
-    taskCancelled: 'Your task was cancelled',
-    taskReassigned: 'Your task was reassigned to another assistant'
+    taskAssigned: 'Bạn được giao một công việc mới',
+    taskSubmittedForReview: (version: number) => `Có công việc được gửi để bạn duyệt (phiên bản ${version})`,
+    taskRevisionRequested: (round: number, note: string) => `Công việc của bạn cần chỉnh sửa (vòng ${round}): ${note}`,
+    taskApproved: 'Công việc của bạn đã được duyệt',
+    taskCancelled: 'Công việc của bạn đã bị huỷ',
+    taskReassigned: 'Công việc đã được giao lại cho trợ lý khác'
   },
   reason: {
     regionDeleted: 'Region deleted',
@@ -28,5 +28,20 @@ export const TaskMessages = {
     chapterOnHold: 'Error.ChapterOnHold',
     pageNotEditable: 'Error.PageNotEditable',
     invalidTaskTransition: 'Error.InvalidTaskTransition'
+  },
+  errorText: {
+    'Error.PageNotFound': 'Không tìm thấy trang',
+    'Error.RegionNotFound': 'Không tìm thấy vùng làm việc',
+    'Error.TaskNotFound': 'Không tìm thấy công việc',
+    'Error.NotSeriesOwner': 'Bạn không phải chủ sở hữu series này',
+    'Error.NotTaskAssignee': 'Bạn không phải người được giao công việc này',
+    'Error.AssistantNotHired': 'Trợ lý chưa có hợp tác hiệu lực với Mangaka',
+    'Error.AssetNotFound': 'Không tìm thấy tệp tài nguyên',
+    'Error.TaskNotReassignable': 'Công việc hiện không thể giao lại',
+    'Error.TaskNotCancellable': 'Công việc hiện không thể huỷ',
+    'Error.RegionHasApprovedTasks': 'Vùng này có công việc đã được duyệt nên không thể xoá',
+    'Error.ChapterOnHold': 'Chương đang tạm dừng sản xuất',
+    'Error.PageNotEditable': 'Trang đang được Editor duyệt, không thể chỉnh sửa',
+    'Error.InvalidTaskTransition': 'Không thể chuyển công việc sang trạng thái này'
   }
 } as const

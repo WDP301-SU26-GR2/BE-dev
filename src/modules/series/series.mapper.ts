@@ -1,14 +1,8 @@
 import { Series } from '@prisma/client'
+import { toUserMini, type UserMiniRow } from 'src/core/models/user-mini.model'
 
 // Spec 16: mini object hiển thị người dùng — CHỈ có khi repository đính kèm rows người dùng.
-type UserMiniRow = { id: string; name: string; displayName: string | null; avatar: string | null }
 type SeriesWithPeople = Series & { mangaka?: UserMiniRow; editor?: UserMiniRow | null }
-
-const toUserMini = (user: UserMiniRow) => ({
-  id: user.id,
-  displayName: user.displayName ?? user.name,
-  avatar: user.avatar ?? null
-})
 
 export function toSeriesRes(series: SeriesWithPeople) {
   return {

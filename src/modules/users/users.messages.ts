@@ -3,14 +3,14 @@
 // `errors/users.errors.ts`, which references the `error` codes below.
 export const UsersMessages = {
   response: {
-    userStatusUpdated: 'User status updated successfully',
-    userDeleted: 'User deleted successfully',
-    userRestored: 'User restored successfully'
+    userStatusUpdated: 'Cập nhật trạng thái người dùng thành công',
+    userDeleted: 'Xoá người dùng thành công',
+    userRestored: 'Khôi phục người dùng thành công'
   },
   notification: {
-    banned: (reason?: string) => `Your account has been banned${reason ? `: ${reason}` : ''}`,
-    blocked: (reason?: string) => `Your account has been blocked${reason ? `: ${reason}` : ''}`,
-    reactivated: 'Your account has been reactivated'
+    banned: (reason?: string) => `Tài khoản của bạn đã bị cấm${reason ? `: ${reason}` : ''}`,
+    blocked: (reason?: string) => `Tài khoản của bạn đã bị khoá${reason ? `: ${reason}` : ''}`,
+    reactivated: 'Tài khoản của bạn đã được kích hoạt lại'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/users.errors.ts.
   error: {
@@ -20,5 +20,13 @@ export const UsersMessages = {
     cannotModifyAdminUser: 'Error.CannotModifyAdminUser',
     userAlreadyDeleted: 'Error.UserAlreadyDeleted',
     userNotDeleted: 'Error.UserNotDeleted'
+  },
+  errorText: {
+    'Error.EmailAlreadyExists': 'Email này đã được đăng ký',
+    'Error.ProfileNotFound': 'Không tìm thấy hồ sơ người dùng',
+    'Error.UserNotFound': 'Không tìm thấy người dùng',
+    'Error.CannotModifyAdminUser': 'Không thể thay đổi tài khoản quản trị viên',
+    'Error.UserAlreadyDeleted': 'Người dùng này đã bị xoá',
+    'Error.UserNotDeleted': 'Người dùng này chưa bị xoá'
   }
 } as const

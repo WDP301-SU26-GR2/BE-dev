@@ -3,12 +3,18 @@
 // `errors/publication.errors.ts`, which references the `error` codes below.
 export const PublicationMessages = {
   response: {
-    deleted: 'Publication version deleted'
+    deleted: 'Đã xóa phiên bản xuất bản'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/publication.errors.ts.
   error: {
     notFound: 'Error.PublicationVersionNotFound',
     seriesNotFound: 'Error.SeriesNotFound',
     accessDenied: 'Error.SeriesAccessDenied'
+  },
+  errorText: {
+    'Error.PublicationVersionNotFound': 'Không tìm thấy phiên bản xuất bản',
+    'Error.SeriesNotFound': 'Không tìm thấy series',
+    'Error.SeriesAccessDenied': 'Bạn không có quyền truy cập series này',
+    'Error.InvalidVersionType': 'Loại phiên bản xuất bản không hợp lệ'
   }
 } as const

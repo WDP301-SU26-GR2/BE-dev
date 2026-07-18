@@ -1,6 +1,7 @@
 import { Annotation } from '@prisma/client'
+import { UserMiniType } from 'src/core/models/user-mini.model'
 
-export function toAnnotationRes(a: Annotation) {
+export function toAnnotationRes(a: Annotation & { author?: UserMiniType | null }) {
   return {
     id: a.id,
     taskId: a.taskId ?? null,
@@ -14,6 +15,7 @@ export function toAnnotationRes(a: Annotation) {
     content: a.content ?? null,
     isResolved: a.isResolved,
     resolvedAt: a.resolvedAt ? a.resolvedAt.toISOString() : null,
-    createdAt: a.createdAt.toISOString()
+    createdAt: a.createdAt.toISOString(),
+    ...(a.author !== undefined ? { author: a.author } : {})
   }
 }
