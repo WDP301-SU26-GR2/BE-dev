@@ -47,4 +47,8 @@ export class RevisionRepository {
   count(where: RevisionListWhere) {
     return this.prismaService.revisionRequest.count({ where })
   }
+
+  countOpenForRecipient(recipientId: string) {
+    return this.prismaService.revisionRequest.count({ where: { recipientId, isResolved: false } })
+  }
 }

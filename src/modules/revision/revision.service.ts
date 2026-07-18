@@ -56,6 +56,11 @@ export class RevisionService {
     return { round }
   }
 
+  /** Số vòng yêu cầu sửa còn mở (chưa resolve) mà user là người phải sửa — dùng cho dashboard badge. */
+  countOpenForRecipient(userId: string): Promise<number> {
+    return this.revisionRepository.countOpenForRecipient(userId)
+  }
+
   async currentRound(targetType: RevisionTargetType, targetId: string): Promise<number> {
     try {
       return await this.revisionRepository.countByTarget(targetType, targetId)

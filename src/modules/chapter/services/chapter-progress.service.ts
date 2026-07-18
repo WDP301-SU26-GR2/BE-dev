@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { NameStatus, PageStatus, TaskStatus } from '@prisma/client'
+import { $Enums, NameStatus, PageStatus, TaskStatus } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { ChapterRepository } from '../chapter.repo'
 import { computeWarningLevel, WARNING_LEVEL, WarningLevel } from '../chapter.constant'
@@ -84,6 +84,18 @@ export class ChapterProgressService {
 
   async overviewForMangaka(mangakaId: string) {
     const { series, chapters } = await this.chapterRepository.findActiveChaptersForMangaka(mangakaId)
+    return this.buildOverview(series, chapters)
+  }
+
+  async overviewForEditor(editorId: string) {
+    const { series, chapters } = await this.chapterRepository.findActiveChaptersForEditor(editorId)
+    return this.buildOverview(series, chapters)
+  }
+
+  private async buildOverview(
+    series: Array<{ id: string; title: string; publicationType: $Enums.PublicationType | null }>,
+    chapters: Awaited<ReturnType<ChapterRepository['findActiveChaptersForMangaka']>>['chapters']
+  ) {
     const seriesById = new Map(series.map((item) => [item.id, item]))
     const chapterIds = chapters.map((chapter) => chapter.id)
     const [pageRows, taskRows] = await Promise.all([
