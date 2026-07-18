@@ -70,6 +70,15 @@ export class RevisionService {
     }
   }
 
+  async hasOpenRequest(targetType: RevisionTargetType, targetId: string): Promise<boolean> {
+    try {
+      return (await this.revisionRepository.countOpenByTarget(targetType, targetId)) > 0
+    } catch (error) {
+      this.logger.error(`countOpenByTarget failed (${targetType}/${targetId}): ${String(error)}`)
+      return false
+    }
+  }
+
   async resolve(userId: string, id: string) {
     if (!OBJECT_ID_RE.test(id)) throw RevisionRequestNotFoundException
 

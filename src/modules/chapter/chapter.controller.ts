@@ -37,11 +37,13 @@ import {
   DuplicateChapterNumberException,
   EndingAllowanceExceededException,
   InvalidManuscriptTransitionException,
-  InvalidPageTransitionException,
+  NoPagesToSubmitException,
   NotSeriesEditorException,
   NotSeriesOwnerException,
   PageNotFoundException,
-  PagesNotAllCompletedException,
+  PageNotEditableException,
+  RevisionNotResolvedException,
+  TasksNotAllApprovedException,
   SeriesNotSerializedException,
   NotCoOwnerException,
   CoOwnerApprovalNotPendingException,
@@ -163,7 +165,7 @@ export class ChapterController {
   }
 
   @Post('chapters/:id/pages')
-  @ApiOperation({ summary: 'Mangaka upload trang (pencil/ink) → tạo Page (NOT_STARTED)' })
+  @ApiOperation({ summary: 'Mangaka upload trang (pencil/ink) → tạo Page (DRAFT)' })
   @ApiErrors(NotSeriesOwnerException, ChapterNotFoundException, ChapterOnHoldException, ChapterNameNotApprovedException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: PageResDto })
@@ -179,27 +181,12 @@ export class ChapterController {
   }
 
   @Patch('pages/:pageId')
-  @ApiOperation({ summary: 'Mangaka cập nhật trang (file/status: NOT_STARTED→IN_PROGRESS→COMPOSITE_READY→COMPLETED)' })
-  @ApiErrors(NotSeriesOwnerException, PageNotFoundException, InvalidPageTransitionException, ChapterOnHoldException)
+  @ApiOperation({ summary: 'Mangaka cập nhật file trang; trạng thái do backend lifecycle quản lý' })
+  @ApiErrors(NotSeriesOwnerException, PageNotFoundException, PageNotEditableException, ChapterOnHoldException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: PageResDto })
   updatePage(@Param('pageId') pageId: string, @Body() body: UpdatePageBodyDto, @ActiveUser('userId') userId: string) {
     return this.chapterService.updatePage(userId, pageId, body)
-  }
-
-  @Post('chapters/:id/manuscript/mark-composite-ready')
-  @ApiOperation({ summary: 'Mangaka chốt composite (cần tất cả trang COMPLETED) → Manuscript sang COMPOSITE_REVIEW' })
-  @ApiErrors(
-    NotSeriesOwnerException,
-    ChapterNotFoundException,
-    PagesNotAllCompletedException,
-    InvalidManuscriptTransitionException,
-    ChapterOnHoldException
-  )
-  @Roles(RoleName.MANGAKA)
-  @ZodResponse({ status: 201, type: ChapterResDto })
-  markCompositeReady(@Param('id') id: string, @ActiveUser('userId') userId: string) {
-    return this.chapterService.markCompositeReady(userId, id)
   }
 
   @Post('chapters/:id/manuscript/submit')
@@ -208,7 +195,9 @@ export class ChapterController {
     NotSeriesOwnerException,
     ChapterNotFoundException,
     InvalidManuscriptTransitionException,
-    ChapterOnHoldException
+    ChapterOnHoldException,
+    NoPagesToSubmitException,
+    TasksNotAllApprovedException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
@@ -222,7 +211,10 @@ export class ChapterController {
     NotSeriesEditorException,
     ChapterNotFoundException,
     InvalidManuscriptTransitionException,
-    ChapterOnHoldException
+    ChapterOnHoldException,
+    NoPagesToSubmitException,
+    TasksNotAllApprovedException,
+    RevisionNotResolvedException
   )
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ChapterResDto })

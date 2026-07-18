@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common'
 import { NotificationType, RevisionTargetType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { PAGE_EDITABLE_STATUSES } from 'src/modules/chapter/chapter.constant'
 import { RevisionService } from 'src/modules/revision/revision.service'
 import {
+  ChapterOnHoldTaskException,
   NotSeriesOwnerException,
   NotTaskAssigneeException,
+  PageNotEditableTaskException,
   PageNotFoundException,
   TaskNotFoundException
 } from '../errors/task.errors'
 import { TaskRepository } from '../task.repo'
 import { TaskStateService } from './task-state.service'
-import { TaskCascadeService } from './task-cascade.service'
 import { toTaskRes } from '../task.mapper'
 import { RequestRevisionBodyType, SubmitTaskBodyType } from '../schemas/task-schemas'
 import { TaskMessages } from '../task.messages'
@@ -22,7 +24,6 @@ export class TaskReviewService {
   constructor(
     private readonly taskRepository: TaskRepository,
     private readonly taskStateService: TaskStateService,
-    private readonly taskCascadeService: TaskCascadeService,
     private readonly notificationService: NotificationService,
     private readonly revisionService: RevisionService
   ) {}
@@ -34,10 +35,20 @@ export class TaskReviewService {
     return task
   }
 
+  private async requireEditablePage(pageId: string) {
+    const page = await this.taskRepository.findPageWithOwner(pageId)
+    if (!page) throw PageNotFoundException
+    if (page.chapter.hold) throw ChapterOnHoldTaskException
+    if (!PAGE_EDITABLE_STATUSES.includes(page.status)) throw PageNotEditableTaskException
+    return page
+  }
+
   private async requireOwner(mangakaId: string, pageId: string) {
     const page = await this.taskRepository.findPageWithOwner(pageId)
     if (!page) throw PageNotFoundException
     if (page.chapter.series.mangakaId !== mangakaId) throw NotSeriesOwnerException
+    if (page.chapter.hold) throw ChapterOnHoldTaskException
+    if (!PAGE_EDITABLE_STATUSES.includes(page.status)) throw PageNotEditableTaskException
     return page
   }
 
@@ -62,6 +73,7 @@ export class TaskReviewService {
   async start(assistantId: string, taskId: string) {
     const task = await this.requireTask(taskId)
     if (task.assistantId !== assistantId) throw NotTaskAssigneeException
+    await this.requireEditablePage(task.pageId)
     await this.taskStateService.transition(taskId, 'IN_PROGRESS', undefined, assistantId)
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
@@ -71,21 +83,19 @@ export class TaskReviewService {
   async submit(assistantId: string, taskId: string, body: SubmitTaskBodyType) {
     const task = await this.requireTask(taskId)
     if (task.assistantId !== assistantId) throw NotTaskAssigneeException
+    const page = await this.requireEditablePage(task.pageId)
     await this.taskStateService.transition(taskId, 'SUBMITTED', undefined, assistantId)
     const versionNumber = (task.versions?.length ?? 0) + 1
     await this.taskRepository.pushTaskVersion(taskId, { submittedBy: assistantId, versionNumber, file: body.file })
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
-    await this.taskCascadeService.fireOnSubmitted(updated, updated.assistantId ?? assistantId)
-    const page = await this.taskRepository.findPageWithOwner(task.pageId)
-    if (page)
-      await this.notify(
-        page.chapter.series.mangakaId,
-        NotificationType.REVIEW,
-        'TASK_SUBMITTED',
-        taskId,
-        TaskMessages.notification.taskSubmittedForReview(versionNumber)
-      )
+    await this.notify(
+      page.chapter.series.mangakaId,
+      NotificationType.REVIEW,
+      'TASK_SUBMITTED',
+      taskId,
+      TaskMessages.notification.taskSubmittedForReview(versionNumber)
+    )
     return toTaskRes(updated)
   }
 

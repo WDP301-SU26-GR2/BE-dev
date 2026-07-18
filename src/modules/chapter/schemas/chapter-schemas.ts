@@ -40,10 +40,8 @@ export const CreatePageBodySchema = extendApi(
 )
 
 export const UpdatePageBodySchema = extendApi(
-  z
-    .object({ compositeFile: z.string().min(1).optional(), status: zEnum(PageStatus, 'PageStatus').optional() })
-    .strict(),
-  { title: 'UpdatePageBody', description: 'Cập nhật composite key / chuyển page status' }
+  z.object({ compositeFile: z.string().min(1).nullish().describe('Object key bản tổng hợp (A7)') }).strict(),
+  { title: 'UpdatePageBody', description: 'Cập nhật composite key; trạng thái Page do backend quản lý' }
 )
 
 export const ReasonBodySchema = extendApi(z.object({ reason: z.string().max(1000).optional() }).strict(), {
@@ -143,9 +141,8 @@ export const ChapterProgressResSchema = extendApi(
     chapterId: z.string(),
     nameStatus: zEnum(NameStatus, 'NameStatus').nullable().describe('null = chapter không gắn Name'),
     totalPages: z.number(),
-    pagesCompleted: z.number(),
-    pagesInProgress: z.number(),
-    pagesNotStarted: z.number(),
+    pagesReady: z.number().describe('Số trang đã hết task mở (sẵn sàng nộp)'),
+    pagesPending: z.number().describe('Số trang còn task đang mở'),
     taskBreakdown: z.object({
       assigned: z.number(),
       inProgress: z.number(),
@@ -177,7 +174,8 @@ export const StudioOverviewItemSchema = z.object({
   progressPct: z.number(),
   warningLevel: zEnum(WARNING_LEVEL, 'WarningLevel'),
   onHold: z.boolean(),
-  pagesCompleted: z.number(),
+  pagesReady: z.number().describe('Số trang đã hết task mở (sẵn sàng nộp)'),
+  pagesPending: z.number().describe('Số trang còn task đang mở'),
   totalPages: z.number(),
   openTasks: z.number()
 })

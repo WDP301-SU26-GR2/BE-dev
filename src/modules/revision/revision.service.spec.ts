@@ -36,6 +36,7 @@ const makeDeps = () => ({
   repo: {
     create: jest.fn().mockResolvedValue(row),
     countByTarget: jest.fn().mockResolvedValue(0),
+    countOpenByTarget: jest.fn().mockResolvedValue(0),
     findById: jest.fn().mockResolvedValueOnce(row).mockResolvedValue(resolvedRow),
     markResolvedIfOpen: jest.fn().mockResolvedValue({ count: 1 }),
     findMany: jest.fn().mockResolvedValue([row]),
@@ -96,6 +97,26 @@ describe('RevisionService.currentRound', () => {
     deps.repo.countByTarget.mockRejectedValue(new Error('mongo down'))
 
     await expect(make(deps).currentRound(RevisionTargetType.NAME, TARGET)).resolves.toBe(0)
+  })
+})
+
+describe('RevisionService.hasOpenRequest', () => {
+  it('returns true when the repository counts open requests', async () => {
+    const deps = makeDeps()
+    deps.repo.countOpenByTarget.mockResolvedValue(2)
+    await expect(make(deps).hasOpenRequest(RevisionTargetType.MANUSCRIPT, TARGET)).resolves.toBe(true)
+    expect(deps.repo.countOpenByTarget).toHaveBeenCalledWith(RevisionTargetType.MANUSCRIPT, TARGET)
+  })
+
+  it('returns false when there are no open requests', async () => {
+    const deps = makeDeps()
+    await expect(make(deps).hasOpenRequest(RevisionTargetType.MANUSCRIPT, TARGET)).resolves.toBe(false)
+  })
+
+  it('fails open when the repository throws', async () => {
+    const deps = makeDeps()
+    deps.repo.countOpenByTarget.mockRejectedValue(new Error('db down'))
+    await expect(make(deps).hasOpenRequest(RevisionTargetType.MANUSCRIPT, TARGET)).resolves.toBe(false)
   })
 })
 
