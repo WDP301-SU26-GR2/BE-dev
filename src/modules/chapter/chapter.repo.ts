@@ -182,6 +182,20 @@ export class ChapterRepository {
     return { series, chapters }
   }
 
+  async findActiveChaptersForEditor(editorId: string) {
+    const series = await this.prismaService.series.findMany({
+      where: { editorId },
+      select: { id: true, title: true, publicationType: true }
+    })
+    if (series.length === 0) return { series, chapters: [] }
+    const chapters = await this.prismaService.chapter.findMany({
+      where: { seriesId: { in: series.map((item) => item.id) }, status: { not: ChapterStatus.PUBLISHED } },
+      include: { manuscript: true, schedule: true },
+      take: 200
+    })
+    return { series, chapters }
+  }
+
   async groupPagesByChapter(chapterIds: string[]) {
     return await this.prismaService.page.groupBy({
       by: ['chapterId', 'status'],

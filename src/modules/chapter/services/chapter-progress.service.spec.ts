@@ -14,6 +14,7 @@ function makeService() {
     findNameStatus: jest.fn().mockResolvedValue(null),
     findScheduleByChapterId: jest.fn().mockResolvedValue(null),
     findActiveChaptersForMangaka: jest.fn(),
+    findActiveChaptersForEditor: jest.fn(),
     groupPagesByChapter: jest.fn().mockResolvedValue([]),
     groupTasksByChapter: jest.fn().mockResolvedValue([])
   }
@@ -171,5 +172,41 @@ describe('ChapterProgressService.overviewForMangaka', () => {
     const res = await service.overviewForMangaka(MID)
     expect(res.items).toEqual([])
     expect(repo.groupPagesByChapter).not.toHaveBeenCalled()
+  })
+})
+
+describe('ChapterProgressService.overviewForEditor', () => {
+  it('loads the assigned editor series and builds the shared overview shape', async () => {
+    const { service, repo } = makeService()
+    repo.findActiveChaptersForEditor.mockResolvedValue({
+      series: [{ id: 's1', title: 'Series One', publicationType: 'WEEKLY' }],
+      chapters: [
+        {
+          id: 'c-editor',
+          seriesId: 's1',
+          chapterNumber: 1,
+          title: 'Editor chapter',
+          hold: null,
+          manuscript: { status: 'IN_PRODUCTION' },
+          schedule: null
+        }
+      ]
+    })
+
+    const res = await service.overviewForEditor(EID)
+
+    expect(repo.findActiveChaptersForEditor).toHaveBeenCalledWith(EID)
+    expect(res).toEqual({
+      items: [
+        expect.objectContaining({
+          chapterId: 'c-editor',
+          seriesId: 's1',
+          seriesTitle: 'Series One',
+          warningLevel: 'NONE',
+          totalPages: 0,
+          openTasks: 0
+        })
+      ]
+    })
   })
 })
