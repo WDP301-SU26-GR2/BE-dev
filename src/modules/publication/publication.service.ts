@@ -10,6 +10,7 @@ import {
   SeriesNotFoundException
 } from './errors/publication.errors'
 import { AuditService } from 'src/modules/audit/audit.service'
+import { PublicationMessages } from './publication.messages'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -93,6 +94,6 @@ export class PublicationService {
       entityId: id,
       action: 'DELETE'
     })
-    return { message: 'Publication version deleted' }
+    return { message: PublicationMessages.response.deleted }
   }
 }

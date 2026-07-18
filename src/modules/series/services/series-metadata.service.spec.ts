@@ -97,7 +97,7 @@ describe('SeriesMetadataService.update', () => {
       type: 'SYSTEM',
       referenceId: SERIES_ID,
       referenceType: 'SERIES_METADATA_UPDATED',
-      content: 'Series metadata updated: synopsis'
+      content: 'Đã cập nhật thông tin series: synopsis'
     })
   })
 
@@ -112,7 +112,7 @@ describe('SeriesMetadataService.update', () => {
     await make(deps).update({ userId: MANGAKA, roleName: 'MANGAKA' }, SERIES_ID, { coverImage: '' })
 
     expect(deps.notification.notifySafe).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientId: EDITOR, content: 'Series metadata updated: coverImage' })
+      expect.objectContaining({ recipientId: EDITOR, content: 'Đã cập nhật thông tin series: coverImage' })
     )
   })
 

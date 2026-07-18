@@ -1,5 +1,5 @@
 export const BoardMessages = {
-  response: { voteCast: 'Vote cast successfully' },
+  response: { voteCast: 'Đã ghi nhận phiếu biểu quyết' },
   notification: {
     sessionCreated: (title: string) => `Phiên họp Hội đồng "${title}" đã được tạo và đang chờ triển khai.`,
     decisionCreated: 'Một quyết định mới đã được tạo cho phiên họp Hội đồng.',
@@ -30,5 +30,29 @@ export const BoardMessages = {
     votingNotOpen: 'Error.VotingNotOpen',
     decisionAlreadyFinalized: 'Error.DecisionAlreadyFinalized',
     notSessionParticipant: 'Error.NotSessionParticipant'
+  },
+  errorText: {
+    'Error.BoardSessionAlreadyExists': 'Phiên họp Hội đồng này đã tồn tại',
+    'Error.BoardSessionNotFound': 'Không tìm thấy phiên họp Hội đồng',
+    'Error.BoardConfigNotFound': 'Không tìm thấy cấu hình Hội đồng',
+    'Error.BoardDecisionNotFound': 'Không tìm thấy quyết định Hội đồng',
+    'Error.BoardSessionNotOpen': 'Phiên họp Hội đồng hiện chưa mở',
+    'Error.InvalidBoardMembers': 'Danh sách thành viên Hội đồng không hợp lệ',
+    'Error.InvalidQuorum': 'Số lượng thành viên biểu quyết không hợp lệ',
+    'Error.VoterNotAllowed': 'Bạn không được phép biểu quyết quyết định này',
+    'Error.VoterAlreadyVoted': 'Bạn đã biểu quyết quyết định này',
+    'Error.BoardConfigLocked': 'Cấu hình Hội đồng hiện không thể chỉnh sửa',
+    'Error.BoardSessionClosedReport': 'Không thể tạo báo cáo cho phiên họp đã đóng',
+    'Error.BoardReportNotFound': 'Không tìm thấy báo cáo Hội đồng',
+    'Error.EditorNotInvited': 'Editor không có trong danh sách được mời',
+    'Error.InvalidBoardSessionTransition': 'Không thể chuyển phiên họp sang trạng thái này',
+    'Error.NotSessionCreator': 'Chỉ người tạo phiên họp mới được thực hiện thao tác này',
+    'Error.NotEnoughBoardMembers': 'Không đủ thành viên phù hợp để tạo phiên họp',
+    'Error.RosterSourceRequired': 'Cần cung cấp series hoặc danh sách thành viên cho phiên họp',
+    'Error.SeriesNotFound': 'Không tìm thấy series',
+    'Error.InvalidPhaseTransition': 'Không thể chuyển phiên họp sang giai đoạn này',
+    'Error.VotingNotOpen': 'Phiên biểu quyết hiện chưa mở',
+    'Error.DecisionAlreadyFinalized': 'Quyết định này đã được chốt',
+    'Error.NotSessionParticipant': 'Bạn không phải thành viên của phiên họp này'
   }
 } as const

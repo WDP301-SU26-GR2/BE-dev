@@ -79,7 +79,7 @@ describe('TaskReviewService', () => {
         recipientId: 'm',
         type: 'REVIEW',
         referenceType: 'TASK_SUBMITTED',
-        content: 'A task was submitted for your review (version 1)'
+        content: 'Có công việc được gửi để bạn duyệt (phiên bản 1)'
       })
     )
   })
@@ -127,7 +127,7 @@ describe('TaskReviewService', () => {
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({
         referenceType: 'TASK_SUBMITTED',
-        content: 'A task was submitted for your review (version 2)'
+        content: 'Có công việc được gửi để bạn duyệt (phiên bản 2)'
       })
     )
   })
@@ -191,7 +191,7 @@ describe('TaskReviewService', () => {
         recipientId: 'a',
         type: 'TASK',
         referenceType: 'TASK_REVISION_REQUESTED',
-        content: 'Revision requested on your task (round 2): fix tone'
+        content: 'Công việc của bạn cần chỉnh sửa (vòng 2): fix tone'
       })
     )
   })

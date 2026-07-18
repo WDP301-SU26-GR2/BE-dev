@@ -142,6 +142,12 @@ const main = async () => {
   })
   ok('F03-003 M mời A1 → 201', rInv.status === 201, `got ${rInv.status} ${rInv.raw.slice(0, 160)}`)
   const invId = rInv.json?.data?.id as string
+  const rInvDetail = await req('GET', `/collaboration-invites/${invId}`, { token: m1Tok })
+  ok(
+    'F03-EMB invite detail embeds assistant',
+    rInvDetail.status === 200 && rInvDetail.json?.data?.assistant?.displayName?.length > 0,
+    `got ${rInvDetail.status} ${rInvDetail.raw.slice(0, 180)}`
+  )
 
   const rInvBadPeriod = await req('POST', '/collaboration-invites', {
     token: m1Tok,
@@ -667,6 +673,11 @@ const main = async () => {
     'F03-054 GET /tasks/:id kèm versions[]',
     rTaskDetail.status === 200 && detailVersions.length === 2,
     `got ${rTaskDetail.status} versions=${detailVersions.length}`
+  )
+  ok(
+    'F03-EMB task detail embeds assistant',
+    rTaskDetail.status === 200 && rTaskDetail.json?.data?.assistant?.displayName?.length > 0,
+    `got ${rTaskDetail.status} ${rTaskDetail.raw.slice(0, 180)}`
   )
 
   // Task trên chapter đang HOLD → chặn

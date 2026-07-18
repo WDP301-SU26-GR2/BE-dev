@@ -3,6 +3,7 @@ import { extendApi } from '@anatine/zod-openapi'
 import { PaymentRecordStatus, PaymentType, PaymentSource } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { PaymentRecordModelSchema } from './payment.model'
+import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
 
 // ============================================================================
 // 1. REQUEST SCHEMAS (Dữ liệu đầu vào)
@@ -88,14 +89,21 @@ export const CreatePaymentInternalSchema = extendApi(
 // 2. RESPONSE SCHEMAS (Dữ liệu đầu ra - Đã chuyển từ DTO sang đây)
 // ============================================================================
 
-export const PaymentRecordResSchema = extendApi(PaymentRecordModelSchema, {
-  title: 'PaymentRecordRes',
-  description: 'Chi tiết một payment record'
-})
+export const PaymentRecordResSchema = extendApi(
+  PaymentRecordModelSchema.extend({
+    series: SeriesMiniSchema.nullable().optional(),
+    receiver: UserMiniSchema.optional(),
+    approver: UserMiniSchema.nullable().optional().describe('Nguoi duyet chi (approvedBy); null neu chua duyet')
+  }),
+  {
+    title: 'PaymentRecordRes',
+    description: 'Chi tiết một payment record'
+  }
+)
 
 export const PaymentRecordListSchema = extendApi(
   z.object({
-    data: z.array(PaymentRecordModelSchema)
+    data: z.array(PaymentRecordResSchema)
   }),
   {
     title: 'PaymentRecordList',

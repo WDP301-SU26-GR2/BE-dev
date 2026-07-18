@@ -32,5 +32,16 @@ export const ReprintRequestMessages = {
     reprintNotWithRevision: 'Error.ReprintNotWithRevision',
     reviserOnlyForFullBuyout: 'Error.ReviserOnlyForFullBuyout',
     reviserMangakaNotFound: 'Error.ReviserMangakaNotFound'
+  },
+  errorText: {
+    'Error.ReprintRequestNotFound': 'Không tìm thấy yêu cầu tái bản',
+    'Error.ActiveContractNotFound': 'Không tìm thấy hợp đồng đang có hiệu lực cho series',
+    'Error.OriginalChaptersNotFound': 'Không tìm thấy các chương gốc cần tái bản',
+    'Error.ReprintChapterNotFound': 'Không tìm thấy chương tái bản',
+    'Error.InvalidReprintTransition': 'Không thể chuyển yêu cầu tái bản sang trạng thái này',
+    'Error.ReprintActionNotAllowed': 'Bạn không được phép thực hiện thao tác tái bản này',
+    'Error.ReprintNotWithRevision': 'Yêu cầu tái bản này không bao gồm chỉnh sửa nội dung',
+    'Error.ReviserOnlyForFullBuyout': 'Chỉ hợp đồng mua đứt mới được chỉ định người chỉnh sửa',
+    'Error.ReviserMangakaNotFound': 'Không tìm thấy Mangaka được chỉ định chỉnh sửa'
   }
 } as const

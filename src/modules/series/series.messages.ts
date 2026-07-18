@@ -3,7 +3,7 @@
 // `errors/series.errors.ts`, which references the `error` codes below.
 export const SeriesMessages = {
   response: {
-    proposalDeleted: 'Proposal deleted'
+    proposalDeleted: 'Đã xoá bản đề xuất'
   },
   // Internal reasons stored on Series.statusHistory (audit trail). Keep English so logs/audits are
   // scannable; user-facing copy lives in `notification` / `response`.
@@ -12,11 +12,11 @@ export const SeriesMessages = {
   },
   // In-app notification content (notification layer).
   notification: {
-    seriesMetadataUpdated: (fields: string) => `Series metadata updated: ${fields}`,
-    proposalRevision: (round: number, reason: string) => `Proposal needs revision (round ${round}): ${reason}`,
-    proposalResubmitted: (round: number) => `Proposal resubmitted (round ${round})`,
-    proposalApproved: 'Proposal approved',
-    proposalRejected: (reason: string) => `Proposal rejected: ${reason}`,
+    seriesMetadataUpdated: (fields: string) => `Đã cập nhật thông tin series: ${fields}`,
+    proposalRevision: (round: number, reason: string) => `Bản đề xuất cần chỉnh sửa (vòng ${round}): ${reason}`,
+    proposalResubmitted: (round: number) => `Đã nộp lại bản đề xuất (vòng ${round})`,
+    proposalApproved: 'Bản đề xuất đã được duyệt',
+    proposalRejected: (reason: string) => `Bản đề xuất bị từ chối: ${reason}`,
     seriesCancelling: (allowance: number | null) =>
       allowance != null
         ? `Hội đồng đã quyết định huỷ series. Bạn được cấp ${allowance} chương để kết thúc.`
@@ -63,5 +63,27 @@ export const SeriesMessages = {
     franchiseConsentRequired: 'Error.FranchiseConsentRequired',
     notOriginalMangaka: 'Error.NotOriginalMangaka',
     notFranchiseConsentTarget: 'Error.NotFranchiseConsentTarget'
+  },
+  errorText: {
+    'Error.SeriesNotFound': 'Không tìm thấy series',
+    'Error.SeriesNotEditable': 'Series hiện không thể chỉnh sửa',
+    'Error.SeriesMetadataConflict': 'Thông tin series đã thay đổi — vui lòng tải lại và thử lại',
+    'Error.NotSeriesOwner': 'Bạn không phải chủ sở hữu series này',
+    'Error.ProposalNotEditable': 'Bản đề xuất hiện không thể chỉnh sửa',
+    'Error.InvalidSeriesTransition': 'Không thể chuyển series sang trạng thái này',
+    'Error.InvalidProposalState': 'Trạng thái bản đề xuất không hợp lệ',
+    'Error.SeriesNotReadyToPitch': 'Series chưa sẵn sàng để gửi đề xuất',
+    'Error.ParentSeriesNotFound': 'Không tìm thấy series gốc',
+    'Error.SeriesAccessDenied': 'Bạn không có quyền truy cập series này',
+    'Error.SeriesAlreadyClaimed': 'Series này đã có Editor khác nhận',
+    'Error.ReviewAlreadyStarted': 'Quá trình duyệt đã bắt đầu',
+    'Error.NotAssignedEditor': 'Bạn không phải Editor được phân công cho series này',
+    'Error.ProposalNotDeletable': 'Bản đề xuất hiện không thể xoá',
+    'Error.SeriesNotInEndingState': 'Series chưa ở trạng thái kết thúc',
+    'Error.SeriesNotProposableForCompletion': 'Series hiện không thể đề xuất hoàn thành',
+    'Error.SeriesNotInCancellingState': 'Series chưa ở trạng thái đang huỷ',
+    'Error.FranchiseConsentRequired': 'Cần sự đồng ý của Mangaka sở hữu series gốc',
+    'Error.NotOriginalMangaka': 'Bạn không phải Mangaka sở hữu series gốc',
+    'Error.NotFranchiseConsentTarget': 'Yêu cầu đồng ý này không dành cho bạn'
   }
 } as const

@@ -3,10 +3,14 @@
 // `errors/tankobon.errors.ts`, which references the `error` codes below.
 export const TankobonMessages = {
   response: {
-    salesRecorded: 'Tankobon sales recorded'
+    salesRecorded: 'Đã ghi nhận doanh số tankobon'
   },
   error: {
     seriesNotFound: 'Error.SeriesNotFound',
     dashboardAccessDenied: 'Error.DefenseDashboardAccessDenied'
+  },
+  errorText: {
+    'Error.SeriesNotFound': 'Không tìm thấy series',
+    'Error.DefenseDashboardAccessDenied': 'Bạn không có quyền truy cập bảng điều hành bảo vệ series'
   }
 } as const

@@ -4,6 +4,7 @@ import { $Enums, Genre } from '@prisma/client'
 import { BoardDecisionSchema, BoardConfigSchema, SeriesReportSchema } from './board.model'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
+import { UserMiniSchema } from 'src/core/models/user-mini.model'
 
 export const CreateBoardSessionBodySchema = extendApi(
   z
@@ -195,12 +196,6 @@ export const BoardVoteResSchema = extendApi(
   }),
   { title: 'BoardVoteRes', description: 'Một phiếu biểu quyết của quyết định Hội đồng' }
 )
-
-export const UserMiniSchema = z.object({
-  id: z.string(),
-  displayName: z.string().describe('displayName ?? name — tên hiển thị'),
-  avatar: z.string().nullable()
-})
 
 export const BoardSessionResSchema = extendApi(
   z.object({

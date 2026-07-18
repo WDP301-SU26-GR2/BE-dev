@@ -8,7 +8,7 @@ export type UserStatusType = $Enums.UserStatus
 
 export const PhoneNumberE164Schema = z
   .string()
-  .regex(/^\+[1-9]\d{1,14}$/, 'Phone number must be E.164 format (e.g. +84912345678)')
+  .regex(/^\+[1-9]\d{1,14}$/, 'Số điện thoại phải đúng định dạng E.164 (ví dụ: +84912345678)')
   .describe('E.164 format, e.g. +84912345678')
 
 export const UserSchema = z.object({

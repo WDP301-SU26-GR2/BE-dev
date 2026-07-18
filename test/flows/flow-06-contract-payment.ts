@@ -148,6 +148,15 @@ const main = async () => {
   const happy = await setupSeriesAndDraftContract(m1, e1, b1, sa, ContractType.REVENUE_SHARE)
   const { contractId: cHappy } = happy
 
+  const rHappyDetail = await req('GET', `/contracts/${cHappy}`, { token: e1Tok })
+  ok(
+    'F06-EMB contract detail embeds mangaka and series',
+    rHappyDetail.status === 200 &&
+      rHappyDetail.json?.data?.mangaka?.displayName?.length > 0 &&
+      rHappyDetail.json?.data?.series?.title === happy.series.title,
+    `got ${rHappyDetail.status} ${rHappyDetail.raw.slice(0, 200)}`
+  )
+
   ok(
     '06.1a contract created DRAFT',
     (await prisma.contract.findUnique({ where: { id: cHappy } }))?.status === ContractStatus.DRAFT

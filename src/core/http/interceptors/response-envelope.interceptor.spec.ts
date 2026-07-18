@@ -22,16 +22,16 @@ describe('ResponseEnvelopeInterceptor', () => {
 
   it('uses a default message and wraps the whole object as data when there is no message', async () => {
     const result = await run({ accessToken: 'a', refreshToken: 'b' })
-    expect(result).toEqual({ success: true, message: 'Success', data: { accessToken: 'a', refreshToken: 'b' } })
+    expect(result).toEqual({ success: true, message: 'Thành công', data: { accessToken: 'a', refreshToken: 'b' } })
   })
 
   it('wraps arrays as data without treating them as message-carrying objects', async () => {
     const result = await run([1, 2, 3])
-    expect(result).toEqual({ success: true, message: 'Success', data: [1, 2, 3] })
+    expect(result).toEqual({ success: true, message: 'Thành công', data: [1, 2, 3] })
   })
 
   it('normalizes null payloads to data=null', async () => {
     const result = await run(null)
-    expect(result).toEqual({ success: true, message: 'Success', data: null })
+    expect(result).toEqual({ success: true, message: 'Thành công', data: null })
   })
 })
