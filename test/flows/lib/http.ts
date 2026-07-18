@@ -62,6 +62,14 @@ export const expectStatus = (r: Res, status: number, name: string) =>
 export const expectError = (r: Res, status: number, code: string, name: string) => {
   const top = typeof r.json?.message === 'string' ? r.json.message : ''
   const arr = Array.isArray(r.json?.errors) ? (r.json.errors as unknown[]) : []
+  const codes = [
+    typeof r.json?.code === 'string' ? r.json.code : '',
+    ...arr.map((e) =>
+      e && typeof e === 'object' && typeof (e as { code?: unknown }).code === 'string'
+        ? (e as { code: string }).code
+        : ''
+    )
+  ].filter((value): value is string => Boolean(value))
   const fieldMsgs = arr
     .map((e) =>
       e && typeof e === 'object' && typeof (e as { message?: unknown }).message === 'string'
@@ -69,7 +77,7 @@ export const expectError = (r: Res, status: number, code: string, name: string) 
         : ''
     )
     .filter((m): m is string => Boolean(m))
-  const msgs = [top, ...fieldMsgs]
+  const msgs = [...codes, top, ...fieldMsgs]
   ok(
     name,
     r.status === status && msgs.includes(code),

@@ -109,6 +109,12 @@ const main = async () => {
     `got ${r1.json?.data?.originalContractType ?? r1.json?.originalContractType}`
   )
   const transferId = r1.json?.data?.id ?? r1.json?.id
+  const r1Detail = await req('GET', `/transfers/requests/${transferId}`, { token: b1Tok })
+  ok(
+    'F08-EMB transfer detail embeds requesting mangaka',
+    r1Detail.status === 200 && r1Detail.json?.data?.requestingMangaka?.displayName?.length > 0,
+    `got ${r1Detail.status} ${r1Detail.raw.slice(0, 200)}`
+  )
 
   // ─── Section 8.2 — RBAC: request bởi EDITOR → 403 ──────────────────────────
   section('8.2 RBAC: tạo transfer bởi EDITOR → 403')
@@ -225,7 +231,7 @@ const main = async () => {
       conditions: [{ description: 'test', type: 'RECURRING_CHAPTER', value: 100 }]
     }
   })
-  expectError(r10, 422, 'VALUATION_MUST_BE_POSITIVE', '8.10a valuation 0 → Zod rejects với VALUATION_MUST_BE_POSITIVE')
+  expectError(r10, 422, 'Error.ValidationFailed', '8.10a valuation 0 → Zod validation fail')
 
   // ─── Section 8.11 — assign-full-buyout trên RS → OnlyAppliesToFullBuyout ─
   section('8.11 assign-full-buyout trên gốc REVENUE_SHARE → 400 OnlyAppliesToFullBuyout')

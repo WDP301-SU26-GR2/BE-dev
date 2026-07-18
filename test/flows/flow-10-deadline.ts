@@ -65,6 +65,12 @@ const main = async () => {
   ok('DL1.1b status=PROPOSED', dr?.status === DeadlineRequestStatus.PROPOSED)
   ok('DL1.1c affectsSlot=false (within grace)', dr?.affectsSlot === false)
   ok('DL1.1d lastProposedBy=MANGAKA', dr?.lastProposedBy === 'MANGAKA')
+  const r1Detail = await req('GET', `/deadline-requests/${dr.id}`, { token: mTok })
+  ok(
+    'F10-EMB deadline detail embeds chapter context',
+    r1Detail.status === 200 && r1Detail.json?.data?.chapter?.chapterNumber === 1,
+    `got ${r1Detail.status} ${r1Detail.raw.slice(0, 200)}`
+  )
 
   section('DL2 Counter-propose flow')
   // Counter schema: requestedDeadline + reason (strict)

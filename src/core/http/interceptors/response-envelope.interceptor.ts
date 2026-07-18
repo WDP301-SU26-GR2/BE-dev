@@ -1,6 +1,7 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common'
 import { Observable } from 'rxjs'
 import { map } from 'rxjs/operators'
+import { HttpMessages } from '../http.messages'
 
 export interface ResponseEnvelope<T = unknown> {
   success: true
@@ -8,7 +9,7 @@ export interface ResponseEnvelope<T = unknown> {
   data: T
 }
 
-const DEFAULT_MESSAGE = 'Success'
+const DEFAULT_MESSAGE = HttpMessages.response.success
 
 // Bọc MỌI response thành công về một envelope nhất quán: { success, message, data }.
 // Nếu payload là object có field `message` (string) → nâng lên top-level, phần còn lại làm `data`

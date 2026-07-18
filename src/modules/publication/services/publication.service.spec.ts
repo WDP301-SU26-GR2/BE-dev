@@ -124,7 +124,7 @@ describe('PublicationService (B-PUB-01)', () => {
     const { svc, repo } = make()
     const result = await svc.remove('admin-1', RoleName.SUPER_ADMIN, VER_ID)
     expect(repo.delete).toHaveBeenCalledWith(VER_ID)
-    expect(result.message).toBe('Publication version deleted')
+    expect(result.message).toBe('Đã xóa phiên bản xuất bản')
   })
 
   it('remove: MANGAKA of series OK (controller @Roles blocks, but service permits owner)', async () => {

@@ -4,19 +4,19 @@
 export const ChapterMessages = {
   // In-app notification content (notification layer).
   notification: {
-    awaitingCoOwnerApproval: 'Chapter awaiting co-owner approval',
-    chapterPublished: 'Chapter published',
-    deadlineWarning: (chapterId: string) => `Chapter ${chapterId} is approaching its deadline`,
-    taskDeadlineWarning: (taskId: string) => `Task ${taskId} is approaching its deadline`,
-    manuscriptSubmitted: 'Manuscript submitted for review',
-    editorRequestedRevision: (round: number, reason: string) => `Editor requested revision (round ${round}): ${reason}`,
-    manuscriptResubmitted: (round: number) => `Manuscript resubmitted (round ${round})`,
-    manuscriptApproved: 'Manuscript approved (ready for print)',
-    chapterHeld: (reason: string) => `Chapter production is on hold: ${reason}`,
-    chapterResumed: 'Chapter production has resumed',
-    coOwnerApproved: 'Co-owner approved the chapter — published',
-    coOwnerRejected: (reason: string) => `Co-owner requested revision: ${reason}`,
-    coOwnerApprovalEscalated: 'Co-owner approval overdue — escalated to the Board'
+    awaitingCoOwnerApproval: 'Chương đang chờ đồng sở hữu duyệt',
+    chapterPublished: 'Chương đã được xuất bản',
+    deadlineWarning: (chapterId: string) => `Chương ${chapterId} sắp đến hạn`,
+    taskDeadlineWarning: (taskId: string) => `Công việc ${taskId} sắp đến hạn`,
+    manuscriptSubmitted: 'Bản thảo đã được gửi duyệt',
+    editorRequestedRevision: (round: number, reason: string) => `Editor yêu cầu chỉnh sửa (vòng ${round}): ${reason}`,
+    manuscriptResubmitted: (round: number) => `Đã nộp lại bản thảo (vòng ${round})`,
+    manuscriptApproved: 'Bản thảo đã được duyệt và sẵn sàng in',
+    chapterHeld: (reason: string) => `Quá trình sản xuất chương đang tạm dừng: ${reason}`,
+    chapterResumed: 'Quá trình sản xuất chương đã tiếp tục',
+    coOwnerApproved: 'Đồng sở hữu đã duyệt chương — chương đã được xuất bản',
+    coOwnerRejected: (reason: string) => `Đồng sở hữu yêu cầu chỉnh sửa: ${reason}`,
+    coOwnerApprovalEscalated: 'Đồng sở hữu duyệt quá hạn — đã chuyển lên Hội đồng'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/chapter.errors.ts.
   error: {
@@ -51,6 +51,37 @@ export const ChapterMessages = {
     endingAllowanceExceeded: 'Error.EndingAllowanceExceeded'
   },
   response: {
-    chapterDeleted: 'Chapter deleted'
+    chapterDeleted: 'Đã xoá chương'
+  },
+  errorText: {
+    'Error.ChapterNotFound': 'Không tìm thấy chương',
+    'Error.NotSeriesOwner': 'Bạn không phải chủ sở hữu series này',
+    'Error.NotSeriesEditor': 'Bạn không phải Editor của series này',
+    'Error.InvalidManuscriptTransition': 'Không thể chuyển bản thảo sang trạng thái này',
+    'Error.InvalidPageTransition': 'Không thể chuyển trang sang trạng thái này',
+    'Error.NoPagesToSubmit': 'Chương chưa có trang để nộp',
+    'Error.TasksNotAllApproved': 'Còn công việc chưa được duyệt — duyệt hoặc huỷ hết task trước khi nộp',
+    'Error.RevisionNotResolved': 'Vẫn còn yêu cầu chỉnh sửa chưa hoàn tất',
+    'Error.PageNotEditable': 'Trang đang được Editor duyệt, không thể chỉnh sửa',
+    'Error.DuplicateChapterNumber': 'Số chương này đã tồn tại trong series',
+    'Error.PageNotFound': 'Không tìm thấy trang',
+    'Error.NameNotApproved': 'Name chưa được duyệt',
+    'Error.NameNotInSeries': 'Name không thuộc series này',
+    'Error.NameNotChapterKind': 'Name này không dành cho chương',
+    'Error.SeriesNotSerialized': 'Series chưa được duyệt để phát hành dài kỳ',
+    'Error.ContractNotExecuted': 'Series chưa có hợp đồng hiệu lực nên chưa thể xuất bản',
+    'Error.ChapterAccessDenied': 'Bạn không có quyền truy cập chương này',
+    'Error.ChapterNotHoldable': 'Chương hiện không thể tạm dừng sản xuất',
+    'Error.ChapterAlreadyOnHold': 'Chương đã được tạm dừng',
+    'Error.ChapterNotOnHold': 'Chương hiện không bị tạm dừng',
+    'Error.ChapterOnHold': 'Chương đang tạm dừng sản xuất',
+    'Error.NotCoOwner': 'Bạn không phải đồng sở hữu của chương này',
+    'Error.CoOwnerApprovalNotPending': 'Yêu cầu duyệt của đồng sở hữu không còn chờ xử lý',
+    'Error.CoOwnerApprovalNotFound': 'Không tìm thấy yêu cầu duyệt của đồng sở hữu',
+    'Error.ChapterNameNotApproved': 'Name của chương chưa được duyệt',
+    'Error.ChapterNotEditable': 'Chương hiện không thể chỉnh sửa',
+    'Error.ChapterNumberLocked': 'Số chương đã bị khoá và không thể thay đổi',
+    'Error.ChapterNotDeletable': 'Chương hiện không thể xoá',
+    'Error.EndingAllowanceExceeded': 'Số chương kết thúc đã vượt quá giới hạn được duyệt'
   }
 } as const

@@ -1,10 +1,22 @@
 import { Injectable } from '@nestjs/common'
 import { AnnotationTargetType, AnnotationType, Prisma, ReviewStage } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import { fetchUserMiniMap } from 'src/core/models/user-mini.model'
 
 @Injectable()
 export class AnnotationRepository {
   constructor(private readonly prismaService: PrismaService) {}
+
+  private async attachAuthors<T extends { authorId: string | null }>(rows: T[]) {
+    const users = await fetchUserMiniMap(
+      this.prismaService,
+      rows.map((row) => row.authorId)
+    )
+    return rows.map((row) => ({
+      ...row,
+      author: row.authorId ? (users.get(row.authorId) ?? null) : null
+    }))
+  }
 
   create(data: {
     authorId: string
@@ -32,15 +44,18 @@ export class AnnotationRepository {
     })
   }
 
-  findById(id: string) {
-    return this.prismaService.annotation.findUnique({ where: { id } })
+  async findById(id: string) {
+    const row = await this.prismaService.annotation.findUnique({ where: { id } })
+    if (!row) return null
+    return (await this.attachAuthors([row]))[0]
   }
 
-  findByTarget(targetType: AnnotationTargetType, targetId: string) {
-    return this.prismaService.annotation.findMany({
+  async findByTarget(targetType: AnnotationTargetType, targetId: string) {
+    const rows = await this.prismaService.annotation.findMany({
       where: { targetType, targetId },
       orderBy: { createdAt: 'asc' }
     })
+    return this.attachAuthors(rows)
   }
 
   async targetExists(targetType: AnnotationTargetType, targetId: string): Promise<boolean> {

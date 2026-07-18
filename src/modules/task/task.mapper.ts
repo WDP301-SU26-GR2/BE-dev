@@ -1,4 +1,5 @@
 import { Region, Task } from '@prisma/client'
+import { UserMiniType } from 'src/core/models/user-mini.model'
 
 export function toRegionRes(r: Region) {
   return {
@@ -14,7 +15,12 @@ export function toRegionRes(r: Region) {
   }
 }
 
-export function toTaskRes(t: Task) {
+type TaskWithPeople = Omit<Task, 'versions'> & {
+  assistant?: UserMiniType | null
+  versions: Array<Task['versions'][number] & { submitter?: UserMiniType | null }>
+}
+
+export function toTaskRes(t: TaskWithPeople) {
   return {
     id: t.id,
     pageId: t.pageId,
@@ -32,8 +38,10 @@ export function toTaskRes(t: Task) {
       file: v.file ?? null,
       reviewStatus: v.reviewStatus,
       reviewerNote: v.reviewerNote ?? null,
-      submittedAt: v.submittedAt.toISOString()
+      submittedAt: v.submittedAt.toISOString(),
+      ...(v.submitter !== undefined ? { submitter: v.submitter } : {})
     })),
-    createdAt: t.createdAt.toISOString()
+    createdAt: t.createdAt.toISOString(),
+    ...(t.assistant !== undefined ? { assistant: t.assistant } : {})
   }
 }

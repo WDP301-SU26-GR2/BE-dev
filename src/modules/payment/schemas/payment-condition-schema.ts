@@ -27,10 +27,7 @@ export const CreatePaymentConditionBodySchema = extendApi(
       }
 
       if (data.conditionType === ConditionType.CHAPTER_MILESTONE) {
-        const result = z
-          .object({ chapter: z.number().int().positive({ message: 'chapter must be > 0' }) })
-          .strict()
-          .safeParse(data.thresholdConfig)
+        const result = z.object({ chapter: z.number().int().positive() }).strict().safeParse(data.thresholdConfig)
         if (!result.success) {
           ctx.addIssue({
             code: 'custom',
@@ -41,10 +38,7 @@ export const CreatePaymentConditionBodySchema = extendApi(
       }
 
       if (data.conditionType === ConditionType.RECURRING_CHAPTER) {
-        const result = z
-          .object({ every: z.number().int().positive({ message: 'every must be > 0' }) })
-          .strict()
-          .safeParse(data.thresholdConfig)
+        const result = z.object({ every: z.number().int().positive() }).strict().safeParse(data.thresholdConfig)
         if (!result.success) {
           ctx.addIssue({
             code: 'custom',
@@ -55,17 +49,14 @@ export const CreatePaymentConditionBodySchema = extendApi(
         if (!data.isRecurring) {
           ctx.addIssue({
             code: 'custom',
-            message: 'RECURRING_CHAPTER_REQUIRES_IS_RECURRING_TRUE',
+            message: 'Điều kiện theo chu kỳ chương phải được đánh dấu là định kỳ',
             path: ['isRecurring']
           })
         }
       }
 
       if (data.conditionType === ConditionType.RANKING_MILESTONE) {
-        const result = z
-          .object({ topRank: z.number().int().positive({ message: 'topRank must be > 0' }) })
-          .strict()
-          .safeParse(data.thresholdConfig)
+        const result = z.object({ topRank: z.number().int().positive() }).strict().safeParse(data.thresholdConfig)
         if (!result.success) {
           ctx.addIssue({
             code: 'custom',
@@ -80,7 +71,7 @@ export const CreatePaymentConditionBodySchema = extendApi(
           .object({
             deadline: z
               .string()
-              .min(1, { message: 'deadline is required' })
+              .min(1)
               .regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'deadline phải có định dạng YYYY-MM-DD' })
           })
           .strict()

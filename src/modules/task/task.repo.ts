@@ -1,12 +1,28 @@
 import { Injectable } from '@nestjs/common'
 import { Prisma, Region, Specialization, Task, TaskStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import { fetchUserMiniMap } from 'src/core/models/user-mini.model'
 
 export type TaskListWhere = Prisma.TaskWhereInput
 
 @Injectable()
 export class TaskRepository {
   constructor(private readonly prismaService: PrismaService) {}
+
+  private async attachPeople<T extends Pick<Task, 'assistantId' | 'versions'>>(rows: T[]) {
+    const users = await fetchUserMiniMap(
+      this.prismaService,
+      rows.flatMap((row) => [row.assistantId, ...row.versions.map((version) => version.submittedBy)])
+    )
+    return rows.map((row) => ({
+      ...row,
+      assistant: row.assistantId ? (users.get(row.assistantId) ?? null) : null,
+      versions: row.versions.map((version) => ({
+        ...version,
+        submitter: version.submittedBy ? (users.get(version.submittedBy) ?? null) : null
+      }))
+    }))
+  }
 
   // ---- Read-only precondition (KHÔNG ghi status A3) ----
   async findPageWithOwner(pageId: string) {
@@ -142,8 +158,10 @@ export class TaskRepository {
     )
   }
 
-  async findTaskById(id: string): Promise<Task | null> {
-    return await this.prismaService.task.findUnique({ where: { id } })
+  async findTaskById(id: string) {
+    const row = await this.prismaService.task.findUnique({ where: { id } })
+    if (!row) return null
+    return (await this.attachPeople([row]))[0]
   }
 
   // single-writer status (gọi từ TaskStateService)
@@ -192,13 +210,14 @@ export class TaskRepository {
     return await this.prismaService.task.update({ where: { id }, data: { versions: { set: versions } } })
   }
 
-  async listTasks(where: TaskListWhere, page: { limit: number; offset: number }): Promise<Task[]> {
-    return await this.prismaService.task.findMany({
+  async listTasks(where: TaskListWhere, page: { limit: number; offset: number }) {
+    const rows = await this.prismaService.task.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip: page.offset,
       take: page.limit
     })
+    return this.attachPeople(rows)
   }
 
   async countTasks(where: TaskListWhere): Promise<number> {

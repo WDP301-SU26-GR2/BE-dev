@@ -2,12 +2,13 @@ import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { z } from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { ChapterMiniSchema, SeriesMiniSchema } from 'src/core/models/user-mini.model'
 
 const zFutureDeadline = z
   .string()
   .datetime({ offset: true })
   .refine((value) => new Date(value).getTime() > Date.now(), {
-    message: 'Deadline must be in the future'
+    message: 'Deadline phải ở trong tương lai'
   })
 
 export const CreateDeadlineRequestBodySchema = extendApi(
@@ -76,7 +77,9 @@ export const DeadlineRequestResSchema = extendApi(
     status: zEnum($Enums.DeadlineRequestStatus, 'DeadlineRequestStatus'),
     boardReviewedBy: z.string().nullable(),
     resolvedAt: z.string().nullable(),
-    createdAt: z.string()
+    createdAt: z.string(),
+    series: SeriesMiniSchema.nullable().optional().describe('Thông tin series — có ở GET list/detail'),
+    chapter: ChapterMiniSchema.nullable().optional().describe('Thông tin chương — có ở GET list/detail')
   }),
   { title: 'DeadlineRequestRes', description: 'Deadline request view' }
 )

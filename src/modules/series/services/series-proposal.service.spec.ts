@@ -173,7 +173,7 @@ describe('SeriesProposalService', () => {
       expect.objectContaining({
         recipientId: 'm1',
         referenceType: 'PROPOSAL_REVISION_REQUESTED',
-        content: 'Proposal needs revision (round 2): needs work'
+        content: 'Bản đề xuất cần chỉnh sửa (vòng 2): needs work'
       })
     )
   })
@@ -193,7 +193,7 @@ describe('SeriesProposalService', () => {
       expect.objectContaining({
         recipientId: 'editor1',
         referenceType: 'PROPOSAL_RESUBMITTED',
-        content: 'Proposal resubmitted (round 2)'
+        content: 'Đã nộp lại bản đề xuất (vòng 2)'
       })
     )
   })

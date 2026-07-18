@@ -732,7 +732,7 @@ const main = async () => {
   }
   ok(
     'PUB4a burst reaches exact public 429 contract',
-    publicRateLimited && publicRateLimitBody.includes('Error.PublicRateLimited'),
+    publicRateLimited && publicRateLimitBody.includes('PUBLIC_RATE_LIMITED'),
     publicRateLimitBody.slice(0, 200)
   )
 

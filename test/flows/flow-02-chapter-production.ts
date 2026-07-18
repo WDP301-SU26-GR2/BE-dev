@@ -260,6 +260,36 @@ const main = async () => {
     `got ${manuscriptRevisions.status} ${manuscriptRevisions.raw.slice(0, 200)}`
   )
   const manuscriptRevisionId = manuscriptRevisionItems[0]?.id as string
+  ok(
+    'F02-EMB revision list embeds requester',
+    manuscriptRevisions.status === 200 &&
+      ((manuscriptRevisionItems[0]?.requester as { displayName?: string } | undefined)?.displayName?.length ?? 0) > 0,
+    `got ${manuscriptRevisions.status} ${manuscriptRevisions.raw.slice(0, 200)}`
+  )
+  const createManuscriptAnnotation = await req('POST', '/annotations', {
+    token: s.tokens.e1,
+    body: {
+      targetType: 'MANUSCRIPT',
+      targetId: ms1e!.id,
+      annotationType: 'TEXT',
+      content: 'fix panel 3'
+    }
+  })
+  ok(
+    'F02-EMB annotation fixture created through API',
+    createManuscriptAnnotation.status === 201,
+    `got ${createManuscriptAnnotation.status} ${createManuscriptAnnotation.raw.slice(0, 200)}`
+  )
+  const manuscriptAnnotations = await req('GET', `/annotations?targetType=MANUSCRIPT&targetId=${ms1e!.id}`, {
+    token: s.tokens.mA
+  })
+  const manuscriptAnnotationItems = (manuscriptAnnotations.json?.data?.items ?? []) as Array<Record<string, unknown>>
+  ok(
+    'F02-EMB annotation list embeds author',
+    manuscriptAnnotations.status === 200 &&
+      ((manuscriptAnnotationItems[0]?.author as { displayName?: string } | undefined)?.displayName?.length ?? 0) > 0,
+    `got ${manuscriptAnnotations.status} ${manuscriptAnnotations.raw.slice(0, 200)}`
+  )
 
   const blockedResubmit = await req('POST', `/chapters/${c1.id}/manuscript/resubmit`, { token: s.tokens.mA })
   expectError(blockedResubmit, 409, 'Error.RevisionNotResolved', 'F02-RV2b resubmit with open revision')
@@ -648,7 +678,7 @@ const main = async () => {
   const c11pub2 = await req('POST', `/chapters/${c11forPub.id}/publish`, { token: s.tokens.e1 })
   ok(
     'F02-038 publish w/ terminated contract → 409 ContractNotExecuted',
-    c11pub2.status === 409 && c11pub2.json?.message === 'Error.ContractNotExecuted',
+    c11pub2.status === 409 && c11pub2.json?.code === 'Error.ContractNotExecuted',
     `got ${c11pub2.status} ${c11pub2.raw.slice(0, 200)}`
   )
   // restore contract for later tests

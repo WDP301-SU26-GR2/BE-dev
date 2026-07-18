@@ -4,12 +4,12 @@
 export const AuthMessages = {
   // Success messages returned to the client (response layer).
   response: {
-    otpSent: 'OTP sent successfully',
-    registered: 'Registered. Please verify your email with the OTP sent.',
-    emailVerified: 'Email verified. Your account is now active.',
-    passwordReset: 'Password reset successfully',
-    passwordChanged: 'Password changed successfully',
-    loggedOut: 'Logout successfully'
+    otpSent: 'Đã gửi mã OTP',
+    registered: 'Đăng ký thành công — vui lòng xác thực email bằng mã OTP đã gửi',
+    emailVerified: 'Xác thực email thành công — tài khoản đã được kích hoạt',
+    passwordReset: 'Đặt lại mật khẩu thành công',
+    passwordChanged: 'Đổi mật khẩu thành công',
+    loggedOut: 'Đăng xuất thành công'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/auth.errors.ts.
   error: {
@@ -33,5 +33,27 @@ export const AuthMessages = {
     totpNotEnabled: 'Error.TOTPNotEnabled',
     invalidTotp: 'Error.InvalidTOTP',
     invalidTotpAndCode: 'Error.InvalidTOTPAndCode'
+  },
+  errorText: {
+    'Error.InvalidOTP': 'Mã OTP không đúng',
+    'Error.OTPExpired': 'Mã OTP đã hết hạn — vui lòng xin mã mới',
+    'Error.OTPLocked': 'Mã OTP đã bị khoá do nhập sai quá nhiều lần',
+    'Error.FailedToSendOTP': 'Không thể gửi mã OTP — vui lòng thử lại',
+    'Error.EmailAlreadyExists': 'Email này đã được đăng ký',
+    'Error.EmailNotFound': 'Không tìm thấy tài khoản với email này',
+    'Error.EmailAlreadyVerified': 'Email này đã được xác thực',
+    'Error.EmailNotVerified': 'Tài khoản chưa xác thực email',
+    'Error.InvalidPassword': 'Mật khẩu không đúng',
+    'Error.RefreshTokenAlreadyUsed': 'Phiên đăng nhập đã được sử dụng — vui lòng đăng nhập lại',
+    'Error.UnauthorizedAccess': 'Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn',
+    'Error.AccountBanned': 'Tài khoản đã bị cấm',
+    'Error.InvalidGoogleToken': 'Thông tin đăng nhập Google không hợp lệ',
+    'Error.GoogleEmailNotVerified': 'Email Google chưa được xác thực',
+    'Error.GoogleAccountNotRegistered': 'Tài khoản Google này chưa được đăng ký',
+    'Error.GoogleAccountMismatch': 'Tài khoản Google không khớp với tài khoản hiện tại',
+    'Error.TOTPAlreadyEnabled': 'Xác thực hai bước đã được bật',
+    'Error.TOTPNotEnabled': 'Xác thực hai bước chưa được bật',
+    'Error.InvalidTOTP': 'Mã xác thực hai bước không đúng',
+    'Error.InvalidTOTPAndCode': 'Mã xác thực hai bước và mã dự phòng không đúng'
   }
 } as const

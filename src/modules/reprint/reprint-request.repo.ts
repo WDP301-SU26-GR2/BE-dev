@@ -1,10 +1,29 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { $Enums } from '@prisma/client'
+import { fetchSeriesMiniMap, fetchUserMiniMap } from 'src/core/models/user-mini.model'
 
 @Injectable()
 export class ReprintRequestRepo {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async attachPeople<T extends { seriesId: string | null; requestedBy: string | null }>(rows: T[]) {
+    const [users, series] = await Promise.all([
+      fetchUserMiniMap(
+        this.prisma,
+        rows.map((row) => row.requestedBy)
+      ),
+      fetchSeriesMiniMap(
+        this.prisma,
+        rows.map((row) => row.seriesId)
+      )
+    ])
+    return rows.map((row) => ({
+      ...row,
+      series: row.seriesId ? (series.get(row.seriesId) ?? null) : null,
+      requester: row.requestedBy ? (users.get(row.requestedBy) ?? null) : null
+    }))
+  }
 
   async create(data: any) {
     return this.prisma.reprintRequest.create({
@@ -20,9 +39,11 @@ export class ReprintRequestRepo {
   }
 
   async findById(id: string) {
-    return this.prisma.reprintRequest.findUnique({
+    const row = await this.prisma.reprintRequest.findUnique({
       where: { id }
     })
+    if (!row) return null
+    return (await this.attachPeople([row]))[0]
   }
 
   // Spec 3 §4.4 + Spec 9 Part 4: MANGAKA chỉ thấy reprint của series mình (series.mangakaId===userId);
@@ -45,7 +66,8 @@ export class ReprintRequestRepo {
       if (ids.length === 0) return []
       where.seriesId = params.seriesId && ids.includes(params.seriesId) ? params.seriesId : { in: ids }
     }
-    return this.prisma.reprintRequest.findMany({ where, orderBy: { createdAt: 'desc' } })
+    const rows = await this.prisma.reprintRequest.findMany({ where, orderBy: { createdAt: 'desc' } })
+    return this.attachPeople(rows)
   }
 
   // Lấy hợp đồng mới nhất đang có hiệu lực thi hành đầy đủ (FULLY_EXECUTED) để xác định Ownership (B-RPT-02)

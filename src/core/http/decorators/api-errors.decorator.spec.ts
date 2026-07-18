@@ -43,6 +43,17 @@ describe('buildApiErrorSpecs', () => {
     )
   })
 
+  it('adds the stable code and Vietnamese message to the Swagger example', () => {
+    const [spec] = buildApiErrorSpecs([new NotFoundException('Error.ChapterNotFound')])
+
+    expect(spec.content['application/json'].example).toEqual({
+      success: false,
+      statusCode: 404,
+      code: 'Error.ChapterNotFound',
+      message: 'Không tìm thấy chương'
+    })
+  })
+
   it('creates one spec for each distinct status', () => {
     const specs = buildApiErrorSpecs([
       new ForbiddenException('Error.NotSeriesOwner'),

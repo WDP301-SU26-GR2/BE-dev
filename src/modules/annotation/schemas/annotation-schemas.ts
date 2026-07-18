@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { AnnotationTargetType, AnnotationType, ReviewStage } from '@prisma/client'
 import { ENUM_DOCS, zEnum } from 'src/core/http/docs/enum-docs'
+import { UserMiniSchema } from 'src/core/models/user-mini.model'
 
 export const CreateAnnotationBodySchema = extendApi(
   z
@@ -32,7 +33,8 @@ export const AnnotationResSchema = extendApi(
     content: z.string().nullable(),
     isResolved: z.boolean(),
     resolvedAt: z.string().nullable(),
-    createdAt: z.string()
+    createdAt: z.string(),
+    author: UserMiniSchema.nullable().optional().describe('Người tạo annotation — có ở GET list/detail')
   }),
   { title: 'AnnotationRes', description: 'Annotation view' }
 )

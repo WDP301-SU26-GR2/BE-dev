@@ -2,6 +2,7 @@ import { extendApi } from '@anatine/zod-openapi'
 import { RevisionTargetType } from '@prisma/client'
 import { z } from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
 
 const IsResolvedQuerySchema = z
   .enum(['true', 'false'])
@@ -37,7 +38,10 @@ export const RevisionRequestResSchema = extendApi(
     isResolved: z.boolean(),
     resolvedAt: z.string().nullable(),
     resolvedBy: z.string().nullable(),
-    createdAt: z.string()
+    createdAt: z.string(),
+    requester: UserMiniSchema.nullable().optional().describe('Người yêu cầu sửa — có ở GET list/detail'),
+    recipient: UserMiniSchema.nullable().optional().describe('Người nhận yêu cầu — có ở GET list/detail'),
+    series: SeriesMiniSchema.nullable().optional().describe('Series — có ở GET list/detail')
   }),
   { title: 'RevisionRequestRes', description: 'Một vòng yêu cầu sửa' }
 )
