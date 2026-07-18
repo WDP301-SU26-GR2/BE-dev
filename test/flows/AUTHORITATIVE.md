@@ -27,30 +27,75 @@
 ## 1. Các enums cần biết (lấy từ `@prisma/client`)
 
 ```ts
-import { RoleCode, UserStatus, RegistrationType, OtpPurpose,
-  SeriesStatus, ProposalStatus, ChapterStatus, ManuscriptStatus, PageStatus,
-  NameStatus, NameKind, TaskStatus,
-  ContractStatus, ContractType, ConditionType, PaymentConditionStatus, PaymentRecordStatus, PaymentType, PaymentSource,
-  ContractAmendmentStatus, AmendmentTrigger,
-  ReprintRequestStatus, ReprintRevisionMode, ReviserType, ReprintChapterStatus,
-  TransferRequestStatus, TransferType, TransferContractStatus,
-  DeadlineRequestStatus, BoardSessionStatus, BoardDecisionResult, DecisionType, VoteValue,
-  PublicationType, RelationshipType, FranchiseConsentStatus,
-  SurveyStatus, RiskLevel, ReaderAuthMethod, VotingAuthMode, AuditEntityType,
-  CoOwnerApprovalStatus, AnnotationType, AnnotationTargetType, ReviewStage,
-  AssetType, NotificationType, AvailabilityStatus, Specialization,
-  AiJobStatus, AiJobType, CollaborationInviteStatus, StudioAssignmentStatus,
-  Genre, Demographic, ConditionGuard } from '@prisma/client'
+import {
+  RoleCode,
+  UserStatus,
+  RegistrationType,
+  OtpPurpose,
+  SeriesStatus,
+  ProposalStatus,
+  ChapterStatus,
+  ManuscriptStatus,
+  PageStatus,
+  NameStatus,
+  NameKind,
+  TaskStatus,
+  ContractStatus,
+  ContractType,
+  ConditionType,
+  PaymentConditionStatus,
+  PaymentRecordStatus,
+  PaymentType,
+  PaymentSource,
+  ContractAmendmentStatus,
+  AmendmentTrigger,
+  ReprintRequestStatus,
+  ReprintRevisionMode,
+  ReviserType,
+  ReprintChapterStatus,
+  TransferRequestStatus,
+  TransferType,
+  TransferContractStatus,
+  DeadlineRequestStatus,
+  BoardSessionStatus,
+  BoardDecisionResult,
+  DecisionType,
+  VoteValue,
+  PublicationType,
+  RelationshipType,
+  FranchiseConsentStatus,
+  SurveyStatus,
+  RiskLevel,
+  ReaderAuthMethod,
+  VotingAuthMode,
+  AuditEntityType,
+  CoOwnerApprovalStatus,
+  AnnotationType,
+  AnnotationTargetType,
+  ReviewStage,
+  AssetType,
+  NotificationType,
+  AvailabilityStatus,
+  Specialization,
+  AiJobStatus,
+  AiJobType,
+  CollaborationInviteStatus,
+  StudioAssignmentStatus,
+  Genre,
+  Demographic,
+  ConditionGuard
+} from '@prisma/client'
 ```
 
 Đặc biệt giá trị thường gặp:
+
 - `RoleCode.MANGAKA | ASSISTANT | EDITOR | BOARD_MEMBER | SUPER_ADMIN`
 - `UserStatus.ACTIVE | INACTIVE | BANNED | BLOCKED`
 - `RegistrationType.SELF_REGISTERED | ADMIN_CREATED`
 - `OtpPurpose.REGISTER | FORGOT_PASSWORD | SIGNING_CONTRACT | VOTE`
 - `SeriesStatus.DRAFT | IN_REVIEW | READY_TO_PITCH | PITCHED | SERIALIZED | HIATUS | COMPLETING | CANCELLING | COMPLETED | CANCELLED | REJECTED | ABANDONED | WITHDRAWN`
-- `ManuscriptStatus.DRAFT | IN_PRODUCTION | COMPOSITE_REVIEW | EDITOR_REVIEW | EDITOR_REVISION | READY_FOR_PRINT | AWAITING_CO_OWNER_APPROVAL | PUBLISHED`
-- `PageStatus.NOT_STARTED | IN_PROGRESS | COMPOSITE_READY | COMPLETED`
+- `ManuscriptStatus.DRAFT | IN_PRODUCTION | EDITOR_REVIEW | EDITOR_REVISION | READY_FOR_PRINT | AWAITING_CO_OWNER_APPROVAL | PUBLISHED`
+- `PageStatus.DRAFT | COMPLETED | REVISING`
 - `ContractType.FULL_BUYOUT | REVENUE_SHARE`
 - `ContractStatus.DRAFT | MANGAKA_REVIEW | MANGAKA_APPROVED | BOARD_APPROVED | NEGOTIATION | MANGAKA_SIGNED | FULLY_EXECUTED | FULFILLED | TERMINATED | TERMINATED_BY_BREACH | EXPIRED | VOIDED`
 - `DeadlineRequestStatus.PROPOSED | COUNTER_PROPOSED | AGREED_BY_PARTIES | BOARD_REVIEW | ESCALATED | APPROVED | REJECTED`
@@ -78,13 +123,14 @@ SERIES: DRAFT→{IN_REVIEW, WITHDRAWN}; IN_REVIEW→{READY_TO_PITCH, ABANDONED, 
         COMPLETING→{COMPLETED}; CANCELLING→{CANCELLED}; *→{}
         File: src/modules/series/series.constant.ts (SERIES_TRANSITIONS)
 
-MANUSCRIPT: DRAFT→IN_PRODUCTION→COMPOSITE_REVIEW→EDITOR_REVIEW
+MANUSCRIPT: DRAFT→IN_PRODUCTION→EDITOR_REVIEW
             →{EDITOR_REVISION, READY_FOR_PRINT}; EDITOR_REVISION→EDITOR_REVIEW
             READY_FOR_PRINT→{PUBLISHED, AWAITING_CO_OWNER_APPROVAL}
             AWAITING_CO_OWNER_APPROVAL→{PUBLISHED, EDITOR_REVISION}
             File: src/modules/chapter/chapter.constant.ts
 
-PAGE: NOT_STARTED→IN_PROGRESS→COMPOSITE_READY→{COMPLETED, IN_PROGRESS}; *→{}
+PAGE: DRAFT→COMPLETED→REVISING→COMPLETED. Backend bulk-transitions pages with the manuscript;
+      clients never PATCH Page status. DRAFT and REVISING are editable; COMPLETED is read-only.
 
 TASK: ASSIGNED→{IN_PROGRESS, ON_HOLD, CANCELLED}
       IN_PROGRESS→{SUBMITTED, ON_HOLD, ASSIGNED, CANCELLED}
@@ -122,6 +168,7 @@ NAME: DRAFT→SUBMITTED→IN_REVIEW→APPROVED; IN_REVIEW→REVISION→IN_REVIEW
 
 Chi tiết xem source: `<module>/<module>.messages.ts` hoặc `<module>/errors/<module>.errors.ts`.
 Đường dẫn đã verify:
+
 - `src/modules/auth/auth.messages.ts` + `auth.errors.ts`
 - `src/modules/users/users.messages.ts` + `errors/users.errors.ts`
 - `src/modules/series/series.messages.ts` + `errors/series.errors.ts`
@@ -150,8 +197,9 @@ Chi tiết xem source: `<module>/<module>.messages.ts` hoặc `<module>/errors/<
 - `src/core/security/errors/rate-limit.errors.ts`
 
 Frequency table (chi tiết đầy đủ trong source):
+
 - `Error.SeriesNotFound, Error.NotSeriesOwner, Error.ProposalNotEditable, Error.InvalidSeriesTransition, Error.SeriesNotReadyToPitch`
-- `Error.ChapterNotFound, Error.NotSeriesEditor, Error.InvalidManuscriptTransition, Error.InvalidPageTransition, Error.PagesNotAllCompleted, Error.DuplicateChapterNumber, Error.NameNotApproved, Error.ContractNotExecuted, Error.ChapterNotHoldable, Error.ChapterAlreadyOnHold, Error.ChapterNotOnHold, Error.EndingAllowanceExceeded, Error.ChapterNumberLocked`
+- `Error.ChapterNotFound, Error.NotSeriesEditor, Error.InvalidManuscriptTransition, Error.NoPagesToSubmit, Error.TasksNotAllApproved, Error.RevisionNotResolved, Error.PageNotEditable, Error.DuplicateChapterNumber, Error.NameNotApproved, Error.ContractNotExecuted, Error.ChapterNotHoldable, Error.ChapterAlreadyOnHold, Error.ChapterNotOnHold, Error.EndingAllowanceExceeded, Error.ChapterNumberLocked`
 - `Error.TaskNotFound, Error.NotTaskAssignee, Error.AssistantNotHired, Error.AssetNotFound, Error.TaskNotReassignable, Error.TaskNotCancellable, Error.RegionHasApprovedTasks, Error.ChapterOnHold, Error.InvalidTaskTransition`
 - `Error.ContractNotFound, Error.ContractNotSignableYet, Error.InvalidContractTransition, CONTRACT_NOT_FOUND, Error.AmendmentNotFound, Error.AmendmentNotVoidable`
 - `PAYMENT_RECORD_NOT_FOUND, INVALID_STATUS_FOR_PAYMENT_EXPECTED_APPROVED, PAYMENT_CONDITION_NOT_FOUND`
@@ -426,6 +474,7 @@ events: 'joinSession' (ack), 'voteProgressUpdated' (broadcast), 'sessionClosed' 
 ```
 
 > Lưu ý: route CUỐI CÙNG — verify trước khi dùng:
+>
 > - `curl http://localhost:4100/api-json | jq '.paths | keys'`
 
 ---

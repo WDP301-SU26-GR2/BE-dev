@@ -18,7 +18,6 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 const HOLDABLE_MANUSCRIPT_STATUSES: ManuscriptStatus[] = [
   ManuscriptStatus.IN_PRODUCTION,
-  ManuscriptStatus.COMPOSITE_REVIEW,
   ManuscriptStatus.EDITOR_REVIEW,
   ManuscriptStatus.EDITOR_REVISION,
   ManuscriptStatus.READY_FOR_PRINT

@@ -5,19 +5,19 @@ import {
   ChapterNotFoundException,
   ChapterOnHoldException,
   NotSeriesOwnerException,
+  PageNotEditableException,
   PageNotFoundException
 } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
+import { PAGE_EDITABLE_STATUSES } from '../chapter.constant'
 import { CreatePageBodyType, UpdatePageBodyType } from '../schemas/chapter-schemas'
 import { ManuscriptStateService } from './manuscript-state.service'
-import { PageStateService } from './page-state.service'
 
 @Injectable()
 export class PageService {
   constructor(
     private readonly chapterRepository: ChapterRepository,
-    private readonly manuscriptStateService: ManuscriptStateService,
-    private readonly pageStateService: PageStateService
+    private readonly manuscriptStateService: ManuscriptStateService
   ) {}
 
   private async requireOwner(userId: string, chapterId: string) {
@@ -51,11 +51,9 @@ export class PageService {
     const page = await this.chapterRepository.findPageById(pageId)
     if (!page) throw PageNotFoundException
     await this.requireOwner(userId, page.chapterId)
-    if (body.compositeFile !== undefined) {
+    if (!PAGE_EDITABLE_STATUSES.includes(page.status)) throw PageNotEditableException
+    if (body.compositeFile != null) {
       await this.chapterRepository.updatePage(pageId, { compositeFile: body.compositeFile })
-    }
-    if (body.status !== undefined) {
-      return this.pageStateService.transition(pageId, body.status, userId)
     }
     return this.chapterRepository.findPageById(pageId)
   }

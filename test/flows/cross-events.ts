@@ -322,7 +322,7 @@ const main = async () => {
     chapterNumber: 2,
     manuscriptStatus: ManuscriptStatus.IN_PRODUCTION
   })
-  const pgTask = await makePageAt({ chapterId: chTask.id, pageNumber: 1, status: PageStatus.IN_PROGRESS })
+  const pgTask = await makePageAt({ chapterId: chTask.id, pageNumber: 1, status: PageStatus.DRAFT })
   await makeStudioAssignment({ mangakaId: m1.id, assistantId: a1.id, seriesId: sSer.id })
   const tHold = await makeTaskAt({ pageId: pgTask.id, assistantId: a1.id, status: TaskStatus.IN_PROGRESS })
   await req('PUT', '/me/assistant-profile', {

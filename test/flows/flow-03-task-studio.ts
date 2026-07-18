@@ -60,7 +60,7 @@ const main = async () => {
     chapterNumber: 1,
     manuscriptStatus: ManuscriptStatus.IN_PRODUCTION
   })
-  const page = await makePageAt({ chapterId: chapter.id, pageNumber: 1, status: PageStatus.IN_PROGRESS })
+  const page = await makePageAt({ chapterId: chapter.id, pageNumber: 1, status: PageStatus.DRAFT })
 
   // ══════════════ S1 — STUDIO DIRECTORY + INVITE (14) ══════════════
   section('S1 Danh bạ trợ lý + CollaborationInvite → StudioAssignment (Flow 9)')
@@ -325,7 +325,7 @@ const main = async () => {
   const pageWithFile = await makePageAt({
     chapterId: chapter.id,
     pageNumber: 9,
-    status: PageStatus.IN_PROGRESS,
+    status: PageStatus.DRAFT,
     originalFile: 'r2/page9.png'
   })
   const rSeg = await req('POST', `/pages/${pageWithFile.id}/segment`, { token: m1Tok, body: { mode: 'MODEL' } })
@@ -497,33 +497,6 @@ const main = async () => {
     409,
     'Error.InvalidTaskTransition',
     'F03-036 submit khi ASSIGNED (chưa start) → 409 InvalidTaskTransition'
-  )
-
-  // Cascade A4→A3: page RIÊNG, mọi task SUBMITTED → Page COMPOSITE_READY + Manuscript COMPOSITE_REVIEW
-  const chapCas = await makeChapterAt({
-    seriesId: series.id,
-    chapterNumber: 2,
-    manuscriptStatus: ManuscriptStatus.IN_PRODUCTION
-  })
-  const pageCas = await makePageAt({ chapterId: chapCas.id, pageNumber: 1, status: PageStatus.IN_PROGRESS })
-  const rCas = await req('POST', '/tasks', {
-    token: m1Tok,
-    body: { pageId: pageCas.id, assistantId: a1.id, taskType: Spec.INKING }
-  })
-  const casTaskId = rCas.json?.data?.id as string
-  await req('POST', `/tasks/${casTaskId}/start`, { token: a1Tok, body: {} })
-  await req('POST', `/tasks/${casTaskId}/submit`, { token: a1Tok, body: { file: 'cas.png' } })
-  await sleep(800)
-  ok(
-    'F03-037 cascade: mọi task của page SUBMITTED → Page COMPOSITE_READY',
-    (await prisma.page.findUnique({ where: { id: pageCas.id } }))?.status === PageStatus.COMPOSITE_READY,
-    `page=${String((await prisma.page.findUnique({ where: { id: pageCas.id } }))?.status)}`
-  )
-  ok(
-    'F03-038 cascade: mọi task của chapter SUBMITTED + Manuscript IN_PRODUCTION → COMPOSITE_REVIEW',
-    (await prisma.manuscript.findFirst({ where: { chapterId: chapCas.id } }))?.status ===
-      ManuscriptStatus.COMPOSITE_REVIEW,
-    `ms=${String((await prisma.manuscript.findFirst({ where: { chapterId: chapCas.id } }))?.status)}`
   )
 
   const tCancel = await mkTask(a1.id)
@@ -704,7 +677,7 @@ const main = async () => {
     holdComposite: true,
     heldBy: e1.id
   })
-  const pageHold = await makePageAt({ chapterId: chHold.id, pageNumber: 1, status: PageStatus.IN_PROGRESS })
+  const pageHold = await makePageAt({ chapterId: chHold.id, pageNumber: 1, status: PageStatus.DRAFT })
   const rTaskHold = await req('POST', '/tasks', {
     token: m1Tok,
     body: { pageId: pageHold.id, assistantId: a2.id, taskType: Spec.INKING }

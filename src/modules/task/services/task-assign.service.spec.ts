@@ -3,6 +3,7 @@ import {
   AssetNotFoundException,
   AssistantNotHiredException,
   NotSeriesOwnerException,
+  PageNotEditableTaskException,
   TaskNotCancellableException,
   TaskNotReassignableException
 } from '../errors/task.errors'
@@ -11,7 +12,7 @@ import { TaskMessages } from '../task.messages'
 const PAGE = {
   id: 'a'.repeat(24),
   chapterId: 'c',
-  status: 'IN_PROGRESS',
+  status: 'DRAFT',
   chapter: { seriesId: 's', series: { mangakaId: 'm' } }
 }
 const ID = 'a'.repeat(24)
@@ -71,6 +72,21 @@ describe('TaskAssignService', () => {
         assetIds: ['k1']
       } as never)
     ).rejects.toBe(AssetNotFoundException)
+  })
+
+  it('rejects task creation on a COMPLETED page before checking hire', async () => {
+    repo.findPageWithOwner.mockResolvedValue({ ...PAGE, status: 'COMPLETED' })
+    await expect(
+      service.create('m', { pageId: ID, assistantId: ID, taskType: 'BACKGROUND', priority: 0, assetIds: [] } as never)
+    ).rejects.toBe(PageNotEditableTaskException)
+    expect(studio.findActiveForPair).not.toHaveBeenCalled()
+  })
+
+  it('rejects task cancellation on a COMPLETED page', async () => {
+    repo.findTaskById.mockResolvedValue({ id: ID, pageId: ID, status: 'ASSIGNED', assistantId: ID })
+    repo.findPageWithOwner.mockResolvedValue({ ...PAGE, status: 'COMPLETED' })
+    await expect(service.cancel('m', ID, {})).rejects.toBe(PageNotEditableTaskException)
+    expect(taskState.transition).not.toHaveBeenCalled()
   })
 
   it('creates task ASSIGNED + notifies', async () => {

@@ -1,11 +1,17 @@
 import { RegionService } from './region.service'
-import { NotSeriesOwnerException, PageNotFoundException, RegionHasApprovedTasksException } from '../errors/task.errors'
+import {
+  ChapterOnHoldTaskException,
+  NotSeriesOwnerException,
+  PageNotEditableTaskException,
+  PageNotFoundException,
+  RegionHasApprovedTasksException
+} from '../errors/task.errors'
 import { AuditEntityType } from '@prisma/client'
 
 const PAGE = {
   id: 'a'.repeat(24),
   chapterId: 'c',
-  status: 'IN_PROGRESS',
+  status: 'DRAFT',
   chapter: { seriesId: 's', series: { mangakaId: 'm' } }
 }
 
@@ -109,6 +115,34 @@ describe('RegionService', () => {
     const page = { ...PAGE, originalFile: 'uploads/x.png' }
     repo.findPageWithOwner.mockResolvedValue(page)
     await expect(service.assertPageOwner('m', VALID_PAGE_ID)).resolves.toBe(page)
+  })
+
+  it('assertPageOwner checks authorization and hold before editable status', async () => {
+    repo.findPageWithOwner.mockResolvedValue({ ...PAGE, status: 'COMPLETED' })
+    await expect(service.assertPageOwner('OTHER', VALID_PAGE_ID)).rejects.toBe(NotSeriesOwnerException)
+
+    repo.findPageWithOwner.mockResolvedValue({
+      ...PAGE,
+      status: 'COMPLETED',
+      chapter: { ...PAGE.chapter, hold: { reason: 'paused' } }
+    })
+    await expect(service.assertPageOwner('m', VALID_PAGE_ID)).rejects.toBe(ChapterOnHoldTaskException)
+  })
+
+  it('assertPageOwner throws PageNotEditable for COMPLETED and allows DRAFT/REVISING', async () => {
+    repo.findPageWithOwner.mockResolvedValue({ ...PAGE, status: 'COMPLETED' })
+    await expect(service.assertPageOwner('m', VALID_PAGE_ID)).rejects.toBe(PageNotEditableTaskException)
+
+    for (const status of ['DRAFT', 'REVISING']) {
+      repo.findPageWithOwner.mockResolvedValue({ ...PAGE, status })
+      await expect(service.assertPageOwner('m', VALID_PAGE_ID)).resolves.toBeDefined()
+    }
+  })
+
+  it('listByPage remains readable for COMPLETED pages', async () => {
+    repo.findPageWithOwner.mockResolvedValue({ ...PAGE, status: 'COMPLETED' })
+    repo.listRegionsByPage.mockResolvedValue([])
+    await expect(service.listByPage('m', VALID_PAGE_ID)).resolves.toEqual({ items: [] })
   })
 
   it('applyAiRegions deletes bare AI regions and skips confirmed/task-linked regions', async () => {

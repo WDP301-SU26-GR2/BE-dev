@@ -1,44 +1,61 @@
-import { AuditEntityType, PageStatus } from '@prisma/client'
+import { PageStatus } from '@prisma/client'
+import { InvalidPageTransitionException } from '../errors/chapter.errors'
 import { PageStateService } from './page-state.service'
 
-function makeRepo(page: unknown) {
-  return {
-    findPageById: jest.fn().mockResolvedValue(page),
-    updatePageStatus: jest.fn().mockImplementation((id, status) => Promise.resolve({ id, status }))
-  }
-}
+describe('PageStateService (Spec 18)', () => {
+  const repo = {
+    findPageById: jest.fn(),
+    updatePageStatus: jest.fn(),
+    findPagesByChapterId: jest.fn()
+  } as any
+  const audit = { record: jest.fn() } as any
+  const service = new PageStateService(repo, audit)
 
-function makeAudit() {
-  return { record: jest.fn().mockResolvedValue(undefined) }
-}
+  beforeEach(() => jest.clearAllMocks())
 
-describe('PageStateService.transition', () => {
-  it('allows a valid transition', async () => {
-    const repo = makeRepo({ id: 'p1', status: PageStatus.NOT_STARTED })
-    const audit = makeAudit()
-    const svc = new PageStateService(repo as never, audit as never)
-    await svc.transition('p1', PageStatus.IN_PROGRESS, 'u1')
-    expect(repo.updatePageStatus).toHaveBeenCalledWith('p1', PageStatus.IN_PROGRESS)
-    expect(audit.record).toHaveBeenCalledWith({
-      actorId: 'u1',
-      entityType: AuditEntityType.PAGE,
-      entityId: 'p1',
-      action: 'TRANSITION',
-      fromState: PageStatus.NOT_STARTED,
-      toState: PageStatus.IN_PROGRESS
-    })
+  it.each([
+    [PageStatus.DRAFT, PageStatus.COMPLETED],
+    [PageStatus.COMPLETED, PageStatus.REVISING],
+    [PageStatus.REVISING, PageStatus.COMPLETED]
+  ])('allows %s -> %s', async (from, to) => {
+    repo.findPageById.mockResolvedValue({ id: 'p1', status: from })
+    repo.updatePageStatus.mockResolvedValue({ id: 'p1', status: to })
+    await service.transition('p1', to, 'u1')
+    expect(repo.updatePageStatus).toHaveBeenCalledWith('p1', to)
   })
 
-  it('rejects an invalid transition with 409', async () => {
-    const repo = makeRepo({ id: 'p1', status: PageStatus.NOT_STARTED })
-    const svc = new PageStateService(repo as never, makeAudit() as never)
-    await expect(svc.transition('p1', PageStatus.COMPLETED)).rejects.toBeDefined()
-    expect(repo.updatePageStatus).not.toHaveBeenCalled()
+  it('rejects DRAFT -> REVISING', async () => {
+    repo.findPageById.mockResolvedValue({ id: 'p1', status: PageStatus.DRAFT })
+    await expect(service.transition('p1', PageStatus.REVISING, 'u1')).rejects.toBe(InvalidPageTransitionException)
   })
 
-  it('throws when page not found', async () => {
-    const repo = makeRepo(null)
-    const svc = new PageStateService(repo as never, makeAudit() as never)
-    await expect(svc.transition('pX', PageStatus.IN_PROGRESS)).rejects.toBeDefined()
+  it('transitionAllInChapter flips only pages in the from set and returns count', async () => {
+    repo.findPagesByChapterId.mockResolvedValue([
+      { id: 'p1', status: PageStatus.REVISING },
+      { id: 'p2', status: PageStatus.DRAFT },
+      { id: 'p3', status: PageStatus.COMPLETED }
+    ])
+    repo.findPageById.mockImplementation((id: string) =>
+      Promise.resolve(
+        {
+          p1: { id: 'p1', status: PageStatus.REVISING },
+          p2: { id: 'p2', status: PageStatus.DRAFT },
+          p3: { id: 'p3', status: PageStatus.COMPLETED }
+        }[id]
+      )
+    )
+    repo.updatePageStatus.mockResolvedValue({})
+
+    const count = await service.transitionAllInChapter(
+      'c1',
+      [PageStatus.REVISING, PageStatus.DRAFT],
+      PageStatus.COMPLETED,
+      'u1'
+    )
+
+    expect(count).toBe(2)
+    expect(repo.updatePageStatus).toHaveBeenCalledWith('p1', PageStatus.COMPLETED)
+    expect(repo.updatePageStatus).toHaveBeenCalledWith('p2', PageStatus.COMPLETED)
+    expect(repo.updatePageStatus).not.toHaveBeenCalledWith('p3', PageStatus.COMPLETED)
   })
 })
