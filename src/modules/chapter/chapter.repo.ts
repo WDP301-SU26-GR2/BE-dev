@@ -15,6 +15,11 @@ import { deriveChapterStatus } from './chapter.constant'
 export class ChapterRepository {
   constructor(private readonly prismaService: PrismaService) {}
 
+  /** Transaction-scoped repository used by state services for multi-collection transitions. */
+  withTransaction<T>(work: (repository: ChapterRepository) => Promise<T>): Promise<T> {
+    return this.prismaService.$transaction((tx) => work(new ChapterRepository(tx as unknown as PrismaService)))
+  }
+
   // ----- read-only cross-entity (precondition) -----
   findSeriesById(seriesId: string) {
     return this.prismaService.series.findUnique({ where: { id: seriesId } })
@@ -223,6 +228,36 @@ export class ChapterRepository {
     }))
   }
 
+  async groupTasksByPageForChapter(
+    chapterId: string
+  ): Promise<{ pageId: string; status: TaskStatus; count: number }[]> {
+    const rows = await this.groupTasksByPageForChapters([chapterId])
+    return rows.map(({ pageId, status, count }) => ({ pageId, status, count }))
+  }
+
+  async groupTasksByPageForChapters(
+    chapterIds: string[]
+  ): Promise<{ chapterId: string; pageId: string; status: TaskStatus; count: number }[]> {
+    if (chapterIds.length === 0) return []
+    const pages = await this.prismaService.page.findMany({
+      where: { chapterId: { in: chapterIds } },
+      select: { id: true, chapterId: true }
+    })
+    if (pages.length === 0) return []
+    const rows = await this.prismaService.task.groupBy({
+      by: ['pageId', 'status'],
+      where: { pageId: { in: pages.map((page) => page.id) } },
+      _count: { _all: true }
+    })
+    const pageToChapter = new Map(pages.map((page) => [page.id, page.chapterId]))
+    return rows.map((row) => ({
+      chapterId: pageToChapter.get(row.pageId) as string,
+      pageId: row.pageId,
+      status: row.status,
+      count: row._count._all
+    }))
+  }
+
   async findTasksNearDeadline(now: Date, before: Date) {
     const tasks = await this.prismaService.task.findMany({
       where: {
@@ -322,7 +357,7 @@ export class ChapterRepository {
   // ----- pages -----
   createPage(chapterId: string, data: { pageNumber: number; originalFile: string }) {
     return this.prismaService.page.create({
-      data: { chapterId, pageNumber: data.pageNumber, originalFile: data.originalFile, status: PageStatus.NOT_STARTED }
+      data: { chapterId, pageNumber: data.pageNumber, originalFile: data.originalFile, status: PageStatus.DRAFT }
     })
   }
   findPageById(id: string) {
@@ -337,10 +372,6 @@ export class ChapterRepository {
   updatePageStatus(id: string, status: PageStatus) {
     return this.prismaService.page.update({ where: { id }, data: { status } })
   }
-  countIncompletePages(chapterId: string) {
-    return this.prismaService.page.count({ where: { chapterId, status: { not: PageStatus.COMPLETED } } })
-  }
-
   // ----- co-owner approval (A-CHP-06 / B-TRF-05) -----
   createCoOwnerApproval(data: { chapterId: string; coOwnerId: string; deadline: Date }) {
     return this.prismaService.chapterCoOwnerApproval.create({

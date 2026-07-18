@@ -13,7 +13,14 @@ export const CoOwnerApprovalNotPendingException = new ConflictException([
   { message: E.coOwnerApprovalNotPending, path: 'status' }
 ])
 export const CoOwnerApprovalNotFoundException = new NotFoundException(E.coOwnerApprovalNotFound)
-export const PagesNotAllCompletedException = new ConflictException(E.pagesNotAllCompleted)
+export const NoPagesToSubmitException = new ConflictException([{ message: E.noPagesToSubmit, path: 'chapterId' }])
+export const TasksNotAllApprovedException = new ConflictException([
+  { message: E.tasksNotAllApproved, path: 'chapterId' }
+])
+export const RevisionNotResolvedException = new ConflictException([
+  { message: E.revisionNotResolved, path: 'chapterId' }
+])
+export const PageNotEditableException = new ConflictException([{ message: E.pageNotEditable, path: 'pageId' }])
 export const DuplicateChapterNumberException = new ConflictException(E.duplicateChapterNumber)
 export const PageNotFoundException = new NotFoundException(E.pageNotFound)
 export const ChapterAccessDeniedException = new ForbiddenException([{ message: E.chapterAccessDenied, path: 'id' }])

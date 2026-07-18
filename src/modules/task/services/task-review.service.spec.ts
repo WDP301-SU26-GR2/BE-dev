@@ -1,10 +1,10 @@
 import { TaskReviewService } from './task-review.service'
-import { NotSeriesOwnerException, NotTaskAssigneeException } from '../errors/task.errors'
+import { NotSeriesOwnerException, NotTaskAssigneeException, PageNotEditableTaskException } from '../errors/task.errors'
 
 const PAGE = {
   id: 'a'.repeat(24),
   chapterId: 'c',
-  status: 'IN_PROGRESS',
+  status: 'DRAFT',
   chapter: { seriesId: 's', series: { mangakaId: 'm' } }
 }
 const ID = 'a'.repeat(24)
@@ -17,21 +17,15 @@ describe('TaskReviewService', () => {
     setLatestVersionReview: jest.fn()
   }
   const taskState = { transition: jest.fn() }
-  const cascade = { fireOnSubmitted: jest.fn() }
   const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const revision = {
     openSafe: jest.fn().mockResolvedValue({ round: 1 }),
     currentRound: jest.fn().mockResolvedValue(1)
   }
-  const service = new TaskReviewService(
-    repo as never,
-    taskState as never,
-    cascade as never,
-    notification as never,
-    revision as never
-  )
+  const service = new TaskReviewService(repo as never, taskState as never, notification as never, revision as never)
   beforeEach(() => {
     jest.clearAllMocks()
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
     revision.openSafe.mockResolvedValue({ round: 1 })
     revision.currentRound.mockResolvedValue(1)
   })
@@ -63,7 +57,7 @@ describe('TaskReviewService', () => {
     await expect(service.submit('me', ID, { file: 'k' })).rejects.toBe(NotTaskAssigneeException)
   })
 
-  it('submit assignee: transition SUBMITTED + push version + cascade', async () => {
+  it('submit assignee: transition SUBMITTED + push version', async () => {
     repo.findTaskById
       .mockResolvedValueOnce({ id: 't', pageId: 'a'.repeat(24), assistantId: 'me', versions: [] })
       .mockResolvedValue({
@@ -80,7 +74,6 @@ describe('TaskReviewService', () => {
     await service.submit('me', ID, { file: 'k' })
     expect(taskState.transition).toHaveBeenCalledWith(ID, 'SUBMITTED', undefined, 'me')
     expect(repo.pushTaskVersion).toHaveBeenCalledWith(ID, { submittedBy: 'me', versionNumber: 1, file: 'k' })
-    expect(cascade.fireOnSubmitted).toHaveBeenCalled()
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({
         recipientId: 'm',
@@ -89,6 +82,20 @@ describe('TaskReviewService', () => {
         content: 'A task was submitted for your review (version 1)'
       })
     )
+  })
+
+  it('start rejects a COMPLETED page after assignee authorization', async () => {
+    repo.findTaskById.mockResolvedValue({ id: ID, pageId: ID, assistantId: 'me', status: 'ASSIGNED', versions: [] })
+    repo.findPageWithOwner.mockResolvedValue({ ...PAGE, status: 'COMPLETED' })
+    await expect(service.start('me', ID)).rejects.toBe(PageNotEditableTaskException)
+    expect(taskState.transition).not.toHaveBeenCalled()
+  })
+
+  it('approve rejects a COMPLETED page after owner authorization', async () => {
+    repo.findTaskById.mockResolvedValue({ id: ID, pageId: ID, assistantId: 'a', status: 'SUBMITTED', versions: [] })
+    repo.findPageWithOwner.mockResolvedValue({ ...PAGE, status: 'COMPLETED' })
+    await expect(service.approve('m', ID)).rejects.toBe(PageNotEditableTaskException)
+    expect(taskState.transition).not.toHaveBeenCalled()
   })
 
   it('puts the version number in TASK_SUBMITTED content so later submissions are not deduped away', async () => {

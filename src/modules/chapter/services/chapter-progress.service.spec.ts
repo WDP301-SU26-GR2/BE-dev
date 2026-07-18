@@ -9,7 +9,10 @@ function makeService() {
   const repo = {
     findChapterById: jest.fn(),
     findSeriesById: jest.fn(),
-    countPagesByStatus: jest.fn().mockResolvedValue({}),
+    findPagesByChapterId: jest.fn().mockResolvedValue([]),
+    findManuscriptByChapterId: jest.fn().mockResolvedValue(null),
+    groupTasksByPageForChapter: jest.fn().mockResolvedValue([]),
+    groupTasksByPageForChapters: jest.fn().mockResolvedValue([]),
     countTasksByStatusForChapter: jest.fn().mockResolvedValue({}),
     findNameStatus: jest.fn().mockResolvedValue(null),
     findScheduleByChapterId: jest.fn().mockResolvedValue(null),
@@ -59,7 +62,13 @@ describe('ChapterProgressService.getProgress', () => {
     const { service, repo } = makeService()
     repo.findChapterById.mockResolvedValue({ ...baseChapter, nameId: 'n1', hold: { reason: 'x' } })
     repo.findSeriesById.mockResolvedValue(baseSeries)
-    repo.countPagesByStatus.mockResolvedValue({ COMPLETED: 1, IN_PROGRESS: 1, COMPOSITE_READY: 1, NOT_STARTED: 1 })
+    repo.findPagesByChapterId.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }, { id: 'p4' }])
+    repo.groupTasksByPageForChapter.mockResolvedValue([
+      { pageId: 'p1', status: 'APPROVED', count: 1 },
+      { pageId: 'p2', status: 'IN_PROGRESS', count: 1 },
+      { pageId: 'p3', status: 'CANCELLED', count: 1 }
+    ])
+    repo.findManuscriptByChapterId.mockResolvedValue({ status: 'IN_PRODUCTION' })
     repo.countTasksByStatusForChapter.mockResolvedValue({ ASSIGNED: 2, APPROVED: 1, CANCELLED: 3 })
     repo.findNameStatus.mockResolvedValue('APPROVED')
     repo.findScheduleByChapterId.mockResolvedValue({ currentDeadline: new Date(Date.now() + 20 * 3600 * 1000) })
@@ -67,10 +76,9 @@ describe('ChapterProgressService.getProgress', () => {
     const res = await service.getProgress({ userId: EID, roleName: 'EDITOR' }, CID)
 
     expect(res.totalPages).toBe(4)
-    expect(res.pagesCompleted).toBe(1)
-    expect(res.pagesInProgress).toBe(2) // IN_PROGRESS + COMPOSITE_READY
-    expect(res.pagesNotStarted).toBe(1)
-    expect(res.progressPct).toBe(0.25)
+    expect(res.pagesReady).toBe(3) // approved, cancelled-only and zero-task pages
+    expect(res.pagesPending).toBe(1)
+    expect(res.progressPct).toBe(0.75)
     expect(res.taskBreakdown).toEqual({
       assigned: 2,
       inProgress: 0,
@@ -85,6 +93,36 @@ describe('ChapterProgressService.getProgress', () => {
     expect(res.warningLevel).toBe('RED') // weekly, còn ~20h, 25% < 90%
     expect(res.remainingHours).toBeGreaterThan(19)
     expect(res.onHold).toBe(true)
+  })
+
+  it('forces progressPct to 1 for an explicitly completed manuscript state', async () => {
+    const { service, repo } = makeService()
+    repo.findChapterById.mockResolvedValue(baseChapter)
+    repo.findSeriesById.mockResolvedValue(baseSeries)
+    repo.findPagesByChapterId.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }])
+    repo.groupTasksByPageForChapter.mockResolvedValue([{ pageId: 'p1', status: 'IN_PROGRESS', count: 1 }])
+    repo.findManuscriptByChapterId.mockResolvedValue({ status: 'EDITOR_REVIEW' })
+
+    const res = await service.getProgress({ userId: MID, roleName: 'MANGAKA' }, CID)
+
+    expect(res.pagesReady).toBe(1)
+    expect(res.pagesPending).toBe(1)
+    expect(res.progressPct).toBe(1)
+  })
+
+  it('computes EDITOR_REVISION progress from tasks instead of treating it as done', async () => {
+    const { service, repo } = makeService()
+    repo.findChapterById.mockResolvedValue(baseChapter)
+    repo.findSeriesById.mockResolvedValue(baseSeries)
+    repo.findPagesByChapterId.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }])
+    repo.groupTasksByPageForChapter.mockResolvedValue([{ pageId: 'p1', status: 'REVISION_REQUESTED', count: 1 }])
+    repo.findManuscriptByChapterId.mockResolvedValue({ status: 'EDITOR_REVISION' })
+
+    const res = await service.getProgress({ userId: MID, roleName: 'MANGAKA' }, CID)
+
+    expect(res.pagesReady).toBe(1)
+    expect(res.pagesPending).toBe(1)
+    expect(res.progressPct).toBe(0.5)
   })
 
   it('totalPages=0 → progressPct 0; no deadline → warningLevel NONE + null remainingHours', async () => {
@@ -149,6 +187,11 @@ describe('ChapterProgressService.overviewForMangaka', () => {
       { chapterId: 'c-red', status: 'CANCELLED', count: 5 }, // không tính vào openTasks
       { chapterId: 'c-none', status: 'APPROVED', count: 1 } // không tính vào openTasks
     ])
+    repo.groupTasksByPageForChapters.mockResolvedValue([
+      { chapterId: 'c-red', pageId: 'p-red-1', status: 'ASSIGNED', count: 1 },
+      { chapterId: 'c-red', pageId: 'p-red-1', status: 'APPROVED', count: 1 },
+      { chapterId: 'c-none', pageId: 'p-none-1', status: 'APPROVED', count: 1 }
+    ])
 
     const res = await service.overviewForMangaka(MID)
 
@@ -157,10 +200,14 @@ describe('ChapterProgressService.overviewForMangaka', () => {
     expect(red.warningLevel).toBe('RED')
     expect(red.openTasks).toBe(2)
     expect(red.seriesTitle).toBe('Series One')
-    expect(red.progressPct).toBe(0)
+    expect(red.progressPct).toBe(0.5)
+    expect(red.pagesReady).toBe(1)
+    expect(red.pagesPending).toBe(1)
     const none = res.items[1]
     expect(none.warningLevel).toBe('NONE')
     expect(none.progressPct).toBe(1)
+    expect(none.pagesReady).toBe(2)
+    expect(none.pagesPending).toBe(0)
     expect(none.openTasks).toBe(0)
     expect(res.items[2].onHold).toBe(true)
     expect(res.items[2].deadline).toBeNull()
@@ -172,6 +219,7 @@ describe('ChapterProgressService.overviewForMangaka', () => {
     const res = await service.overviewForMangaka(MID)
     expect(res.items).toEqual([])
     expect(repo.groupPagesByChapter).not.toHaveBeenCalled()
+    expect(repo.groupTasksByPageForChapters).not.toHaveBeenCalled()
   })
 })
 
@@ -204,6 +252,8 @@ describe('ChapterProgressService.overviewForEditor', () => {
           seriesTitle: 'Series One',
           warningLevel: 'NONE',
           totalPages: 0,
+          pagesReady: 0,
+          pagesPending: 0,
           openTasks: 0
         })
       ]

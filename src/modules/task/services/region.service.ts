@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common'
 import { AuditEntityType, NotificationType, RegionType, TaskStatus } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
+import { PAGE_EDITABLE_STATUSES } from 'src/modules/chapter/chapter.constant'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import {
   NotSeriesOwnerException,
+  PageNotEditableTaskException,
   PageNotFoundException,
   ChapterOnHoldTaskException,
   RegionHasApprovedTasksException,
@@ -34,12 +36,19 @@ export class RegionService {
     private readonly auditService: AuditService
   ) {}
 
-  async assertPageOwner(mangakaId: string, pageId: string, opts: { checkHold?: boolean } = {}) {
+  async assertPageOwner(
+    mangakaId: string,
+    pageId: string,
+    opts: { checkHold?: boolean; checkEditable?: boolean } = {}
+  ) {
     if (!OBJECT_ID_RE.test(pageId)) throw PageNotFoundException
     const page = await this.taskRepository.findPageWithOwner(pageId)
     if (!page) throw PageNotFoundException
     if (page.chapter.series.mangakaId !== mangakaId) throw NotSeriesOwnerException
     if (opts.checkHold !== false && page.chapter.hold) throw ChapterOnHoldTaskException
+    if (opts.checkEditable !== false && !PAGE_EDITABLE_STATUSES.includes(page.status)) {
+      throw PageNotEditableTaskException
+    }
     return page
   }
 
@@ -54,7 +63,7 @@ export class RegionService {
   }
 
   async listByPage(mangakaId: string, pageId: string) {
-    await this.assertPageOwner(mangakaId, pageId, { checkHold: false })
+    await this.assertPageOwner(mangakaId, pageId, { checkHold: false, checkEditable: false })
     const rows = await this.taskRepository.listRegionsByPage(pageId)
     return { items: rows.map(toRegionRes) }
   }

@@ -51,4 +51,8 @@ export class RevisionRepository {
   countOpenForRecipient(recipientId: string) {
     return this.prismaService.revisionRequest.count({ where: { recipientId, isResolved: false } })
   }
+
+  countOpenByTarget(targetType: RevisionTargetType, targetId: string) {
+    return this.prismaService.revisionRequest.count({ where: { targetType, targetId, isResolved: false } })
+  }
 }

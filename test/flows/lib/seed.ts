@@ -375,7 +375,7 @@ export const makePageAt = async (o: {
     data: {
       chapterId: o.chapterId,
       pageNumber: o.pageNumber,
-      status: o.status ?? PageStatus.NOT_STARTED,
+      status: o.status ?? PageStatus.DRAFT,
       originalFile: o.originalFile ?? null,
       compositeFile: null
     }

@@ -25,13 +25,13 @@ describe('extractCode', () => {
 describe('buildApiErrorSpecs', () => {
   it('groups exceptions with the same status into one spec', () => {
     const specs = buildApiErrorSpecs([
-      new ConflictException('Error.PagesNotAllCompleted'),
+      new ConflictException('Error.TasksNotAllApproved'),
       new ConflictException('Error.InvalidManuscriptTransition')
     ])
 
     expect(specs).toHaveLength(1)
     expect(specs[0].status).toBe(409)
-    expect(specs[0].description).toContain('Error.PagesNotAllCompleted')
+    expect(specs[0].description).toContain('Error.TasksNotAllApproved')
     expect(specs[0].description).toContain(' | ')
   })
 

@@ -74,7 +74,9 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 !/scripts/
 /scripts/*
 !/scripts/migrate-notification-dedupe.mjs
+!/scripts/migrate-page-status.mjs
 !/scripts/smoke-spec13.mjs
+!/scripts/smoke-spec19.mjs
 
 # ---- AI service (Python) — runtime/generated, never commit ----
 ai-service/.venv/

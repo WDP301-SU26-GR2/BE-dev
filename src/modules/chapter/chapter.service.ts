@@ -102,10 +102,6 @@ export class ChapterService {
     return toPageRes(page!)
   }
 
-  async markCompositeReady(userId: string, chapterId: string) {
-    await this.reviewService.markCompositeReady(userId, chapterId)
-    return this.getOne(chapterId)
-  }
   async submit(userId: string, chapterId: string) {
     await this.reviewService.submit(userId, chapterId)
     return this.getOne(chapterId)

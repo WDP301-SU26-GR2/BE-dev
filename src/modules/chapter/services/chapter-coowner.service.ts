@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { CoOwnerApprovalStatus, ManuscriptStatus, NotificationType } from '@prisma/client'
+import { CoOwnerApprovalStatus, ManuscriptStatus, NotificationType, PageStatus } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
@@ -51,15 +51,20 @@ export class ChapterCoOwnerService {
   async reject(userId: string, chapterId: string, reason: string) {
     const { series, approval } = await this.loadPending(userId, chapterId)
 
+    await this.manuscriptStateService.assertCanTransition(chapterId, ManuscriptStatus.EDITOR_REVISION)
+
     await this.chapterRepository.updateCoOwnerApproval(approval.id, {
       status: CoOwnerApprovalStatus.REJECTED,
       decisionAt: new Date(),
       rejectReason: reason
     })
-    const res = await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.EDITOR_REVISION, {
-      changedBy: userId,
-      reason
-    })
+    const res = await this.manuscriptStateService.transitionWithPages(
+      chapterId,
+      ManuscriptStatus.EDITOR_REVISION,
+      { changedBy: userId, reason },
+      [PageStatus.COMPLETED],
+      PageStatus.REVISING
+    )
     await this.notifyOwners(
       series,
       chapterId,

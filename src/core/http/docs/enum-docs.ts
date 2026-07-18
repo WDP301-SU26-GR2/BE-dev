@@ -25,8 +25,20 @@ export const ENUM_DOCS = {
   NameStatus: 'Name/chapter-name review status',
   NameKind: 'Name storyboard kind: PROPOSAL (proposal chapter-sample) or CHAPTER (per-chapter storyboard)',
   ChapterStatus: 'Chapter production status',
-  ManuscriptStatus: 'Manuscript production status',
-  PageStatus: 'Page production status',
+  ManuscriptStatus: {
+    DRAFT: 'Chapter mới tạo, chưa có trang (đang ở khâu Name).',
+    IN_PRODUCTION: 'Đang sản xuất trang.',
+    EDITOR_REVIEW: 'Đã nộp, Editor đang duyệt.',
+    EDITOR_REVISION: 'Editor yêu cầu sửa.',
+    READY_FOR_PRINT: 'Editor đã duyệt, sẵn sàng xuất bản.',
+    AWAITING_CO_OWNER_APPROVAL: 'Chờ đồng sở hữu duyệt (PARTIAL_TRANSFER).',
+    PUBLISHED: 'Đã xuất bản.'
+  },
+  PageStatus: {
+    DRAFT: 'Đang làm — Mangaka vẽ / giao task cho Assistant. Sửa được.',
+    COMPLETED: 'Đã nộp, đang ở tay Editor. KHÔNG sửa được.',
+    REVISING: 'Editor (hoặc co-owner) yêu cầu sửa — mở khoá sửa lại.'
+  },
   AnnotationTargetType: 'Annotation target: PAGE, REGION, TASK, MANUSCRIPT, NAME',
   AnnotationType: 'Annotation type: TEXT, HIGHLIGHT, DRAWING',
   ReviewStage: 'Review stage: ASSISTANT, MANGAKA, EDITOR',
@@ -93,7 +105,14 @@ type EnumDocKey = keyof typeof ENUM_DOCS
 
 const describeEnum = <T extends EnumLike>(enumObject: T, key: string) => {
   const values = valuesOf(enumObject)
-  return `${ENUM_DOCS[key as EnumDocKey] ?? `Allowed values: ${values.join(', ')}`}. Values: ${values.join(', ')}`
+  const documentation = ENUM_DOCS[key as EnumDocKey]
+  const description =
+    documentation && typeof documentation === 'object'
+      ? values
+          .map((value) => `${value}: ${(documentation as Readonly<Record<string, string>>)[value] ?? ''}`)
+          .join(' | ')
+      : documentation
+  return `${description ?? `Allowed values: ${values.join(', ')}`}. Values: ${values.join(', ')}`
 }
 
 export function zEnum<T extends EnumLike>(enumObject: T, key: string) {

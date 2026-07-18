@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { NotificationType, TaskStatus } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { PAGE_EDITABLE_STATUSES } from 'src/modules/chapter/chapter.constant'
 import { StudioAssignmentService } from 'src/modules/studio/services/studio-assignment.service'
 import { StorageRepository } from 'src/modules/storage/storage.repo'
 import {
@@ -8,6 +9,7 @@ import {
   AssistantNotHiredException,
   ChapterOnHoldTaskException,
   NotSeriesOwnerException,
+  PageNotEditableTaskException,
   PageNotFoundException,
   TaskNotFoundException,
   TaskNotCancellableException,
@@ -43,6 +45,7 @@ export class TaskAssignService {
     if (!page) throw PageNotFoundException
     if (page.chapter.series.mangakaId !== mangakaId) throw NotSeriesOwnerException
     if (opts.checkHold !== false && page.chapter.hold) throw ChapterOnHoldTaskException
+    if (!PAGE_EDITABLE_STATUSES.includes(page.status)) throw PageNotEditableTaskException
     return page
   }
 

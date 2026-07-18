@@ -28,7 +28,6 @@ describe('ChapterHoldService', () => {
 
   it.each([
     ManuscriptStatus.IN_PRODUCTION,
-    ManuscriptStatus.COMPOSITE_REVIEW,
     ManuscriptStatus.EDITOR_REVIEW,
     ManuscriptStatus.EDITOR_REVISION,
     ManuscriptStatus.READY_FOR_PRINT

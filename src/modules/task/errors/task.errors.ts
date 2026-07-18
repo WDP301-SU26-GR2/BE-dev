@@ -16,6 +16,7 @@ export const AssetNotFoundException = new UnprocessableEntityException([{ messag
 export const TaskNotReassignableException = new ConflictException([{ message: E.taskNotReassignable, path: 'id' }])
 export const TaskNotCancellableException = new ConflictException([{ message: E.taskNotCancellable, path: 'id' }])
 export const ChapterOnHoldTaskException = new ConflictException([{ message: E.chapterOnHold, path: 'pageId' }])
+export const PageNotEditableTaskException = new ConflictException([{ message: E.pageNotEditable, path: 'pageId' }])
 export const InvalidTaskTransitionException = new ConflictException([
   { message: E.invalidTaskTransition, path: 'status' }
 ])
