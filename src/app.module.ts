@@ -33,6 +33,7 @@ import { RevisionModule } from './modules/revision/revision.module'
 import { AppConfigModule } from './modules/app-config/app-config.module'
 import { PublicationModule } from './modules/publication/publication.module'
 import { PublicModule } from './modules/public/public.module'
+import { DashboardModule } from './modules/dashboard/dashboard.module'
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { PublicModule } from './modules/public/public.module'
     RevisionModule,
     AppConfigModule,
     PublicationModule,
+    DashboardModule,
     PublicModule
   ],
   controllers: [],

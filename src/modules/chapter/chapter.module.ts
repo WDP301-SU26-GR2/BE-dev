@@ -38,6 +38,6 @@ import { StudioOverviewController } from './studio-overview.controller'
     DeadlineWarningCron,
     CoOwnerEscalationCron
   ],
-  exports: [PageStateService, ManuscriptStateService, ScheduleService]
+  exports: [PageStateService, ManuscriptStateService, ScheduleService, ChapterProgressService]
 })
 export class ChapterModule {}
