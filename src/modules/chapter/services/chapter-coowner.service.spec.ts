@@ -14,7 +14,9 @@ function makeMocks() {
       updateCoOwnerApproval: jest.fn().mockResolvedValue({})
     },
     manuscriptStateService: {
-      transition: jest.fn().mockResolvedValue({ publishedAt: new Date('2026-07-07T00:00:00Z') })
+      assertCanTransition: jest.fn().mockResolvedValue(undefined),
+      transition: jest.fn().mockResolvedValue({ publishedAt: new Date('2026-07-07T00:00:00Z') }),
+      transitionWithPages: jest.fn().mockResolvedValue({ status: ManuscriptStatus.EDITOR_REVISION })
     },
     eventBus: { emit: jest.fn() },
     notificationService: { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -57,10 +59,12 @@ describe('ChapterCoOwnerService (A-CHP-06 / B-TRF-05)', () => {
       'ap1',
       expect.objectContaining({ status: 'REJECTED', rejectReason: 'fix panel 3' })
     )
-    expect(m.manuscriptStateService.transition).toHaveBeenCalledWith(
+    expect(m.manuscriptStateService.transitionWithPages).toHaveBeenCalledWith(
       CHAPTER_ID,
       ManuscriptStatus.EDITOR_REVISION,
-      expect.anything()
+      expect.objectContaining({ changedBy: 'coA', reason: 'fix panel 3' }),
+      ['COMPLETED'],
+      'REVISING'
     )
     expect(m.eventBus.emit.mock.calls.find(([e]: any[]) => e === DomainEvent.ChapterPublished)).toBeUndefined()
   })
@@ -69,6 +73,7 @@ describe('ChapterCoOwnerService (A-CHP-06 / B-TRF-05)', () => {
     const m = makeMocks()
     await expect(make(m).approve('someoneElse', CHAPTER_ID)).rejects.toBe(NotCoOwnerException)
     expect(m.manuscriptStateService.transition).not.toHaveBeenCalled()
+    expect(m.manuscriptStateService.transitionWithPages).not.toHaveBeenCalled()
   })
 
   it('rejects when approval record is not PENDING (409)', async () => {
@@ -76,5 +81,6 @@ describe('ChapterCoOwnerService (A-CHP-06 / B-TRF-05)', () => {
     m.chapterRepository.findCoOwnerApprovalByChapterId.mockResolvedValue({ id: 'ap1', status: 'APPROVED' })
     await expect(make(m).approve('coA', CHAPTER_ID)).rejects.toBe(CoOwnerApprovalNotPendingException)
     expect(m.manuscriptStateService.transition).not.toHaveBeenCalled()
+    expect(m.manuscriptStateService.transitionWithPages).not.toHaveBeenCalled()
   })
 })

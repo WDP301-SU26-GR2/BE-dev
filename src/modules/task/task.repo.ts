@@ -22,13 +22,6 @@ export class TaskRepository {
     })
   }
 
-  async findManuscriptStatusByChapter(chapterId: string) {
-    return await this.prismaService.manuscript.findFirst({
-      where: { chapterId },
-      select: { status: true }
-    })
-  }
-
   // ---- Region (A-TSK-01/02) ----
   async createRegion(data: {
     pageId: string
@@ -212,23 +205,7 @@ export class TaskRepository {
     return await this.prismaService.task.count({ where })
   }
 
-  // ---- Cascade + listener aggregations ----
-  async findTaskStatusesByPage(pageId: string): Promise<TaskStatus[]> {
-    const rows = await this.prismaService.task.findMany({ where: { pageId }, select: { status: true } })
-    return rows.map((r) => r.status)
-  }
-
-  async findTaskStatusesByChapter(chapterId: string): Promise<TaskStatus[]> {
-    const pages = await this.prismaService.page.findMany({ where: { chapterId }, select: { id: true } })
-    const pageIds = pages.map((p) => p.id)
-    if (pageIds.length === 0) return []
-    const rows = await this.prismaService.task.findMany({
-      where: { pageId: { in: pageIds } },
-      select: { status: true }
-    })
-    return rows.map((r) => r.status)
-  }
-
+  // ---- Listener aggregations ----
   async findTasksByAssistantInStatuses(assistantId: string, statuses: TaskStatus[]): Promise<Task[]> {
     return await this.prismaService.task.findMany({ where: { assistantId, status: { in: statuses } } })
   }

@@ -29,6 +29,7 @@ import {
   InvalidTaskTransitionException,
   NotSeriesOwnerException,
   NotTaskAssigneeException,
+  PageNotEditableTaskException,
   PageNotFoundException,
   RegionHasApprovedTasksException,
   RegionNotFoundException,
@@ -48,7 +49,7 @@ export class TaskController {
   @Post('pages/:id/regions')
   @ApiOperation({ summary: 'Mangaka khoanh vùng manual trên trang → Region' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(PageNotFoundException, NotSeriesOwnerException, ChapterOnHoldTaskException)
+  @ApiErrors(PageNotFoundException, NotSeriesOwnerException, ChapterOnHoldTaskException, PageNotEditableTaskException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: RegionResDto })
   createRegion(
@@ -74,7 +75,7 @@ export class TaskController {
   @Patch('regions/:id')
   @ApiOperation({ summary: 'Sửa vùng (partial)' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(RegionNotFoundException, NotSeriesOwnerException, ChapterOnHoldTaskException)
+  @ApiErrors(RegionNotFoundException, NotSeriesOwnerException, ChapterOnHoldTaskException, PageNotEditableTaskException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: RegionResDto })
   updateRegion(
@@ -93,7 +94,8 @@ export class TaskController {
     RegionNotFoundException,
     NotSeriesOwnerException,
     RegionHasApprovedTasksException,
-    ChapterOnHoldTaskException
+    ChapterOnHoldTaskException,
+    PageNotEditableTaskException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: DeleteRegionResDto })
@@ -113,7 +115,8 @@ export class TaskController {
     NotSeriesOwnerException,
     AssistantNotHiredException,
     AssetNotFoundException,
-    ChapterOnHoldTaskException
+    ChapterOnHoldTaskException,
+    PageNotEditableTaskException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TaskResDto })
@@ -132,7 +135,8 @@ export class TaskController {
     NotSeriesOwnerException,
     AssistantNotHiredException,
     AssetNotFoundException,
-    ChapterOnHoldTaskException
+    ChapterOnHoldTaskException,
+    PageNotEditableTaskException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TaskListResDto })
@@ -146,7 +150,13 @@ export class TaskController {
   @Patch('tasks/:id')
   @ApiOperation({ summary: 'Sửa task (assetIds/deadline/priority)' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(TaskNotFoundException, NotSeriesOwnerException, AssetNotFoundException, ChapterOnHoldTaskException)
+  @ApiErrors(
+    TaskNotFoundException,
+    NotSeriesOwnerException,
+    AssetNotFoundException,
+    ChapterOnHoldTaskException,
+    PageNotEditableTaskException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: TaskResDto })
   updateTask(
@@ -185,7 +195,14 @@ export class TaskController {
   // ---- Review (A-TSK-04) ----
   @Post('tasks/:id/start')
   @ApiOperation({ summary: 'Assistant bắt đầu xử lý task → IN_PROGRESS (SRS §2.2a)' })
-  @ApiErrors(TaskNotFoundException, NotTaskAssigneeException, InvalidTaskTransitionException)
+  @ApiErrors(
+    TaskNotFoundException,
+    PageNotFoundException,
+    NotTaskAssigneeException,
+    ChapterOnHoldTaskException,
+    PageNotEditableTaskException,
+    InvalidTaskTransitionException
+  )
   @Roles(RoleName.ASSISTANT)
   @ZodResponse({ status: 201, type: TaskResDto })
   startTask(@Param('id') id: string, @ActiveUser('userId') userId: string): Promise<InstanceType<typeof TaskResDto>> {
@@ -193,9 +210,16 @@ export class TaskController {
   }
 
   @Post('tasks/:id/submit')
-  @ApiOperation({ summary: 'Assistant nộp kết quả → SUBMITTED + TaskVersion + cascade' })
+  @ApiOperation({ summary: 'Assistant nộp kết quả → SUBMITTED + TaskVersion' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(TaskNotFoundException, NotTaskAssigneeException, InvalidTaskTransitionException)
+  @ApiErrors(
+    TaskNotFoundException,
+    PageNotFoundException,
+    NotTaskAssigneeException,
+    ChapterOnHoldTaskException,
+    PageNotEditableTaskException,
+    InvalidTaskTransitionException
+  )
   @Roles(RoleName.ASSISTANT)
   @ZodResponse({ status: 201, type: TaskResDto })
   submitTask(
@@ -208,7 +232,14 @@ export class TaskController {
 
   @Post('tasks/:id/approve')
   @ApiOperation({ summary: 'Mangaka duyệt task → APPROVED' })
-  @ApiErrors(TaskNotFoundException, NotSeriesOwnerException, InvalidTaskTransitionException)
+  @ApiErrors(
+    TaskNotFoundException,
+    PageNotFoundException,
+    NotSeriesOwnerException,
+    ChapterOnHoldTaskException,
+    PageNotEditableTaskException,
+    InvalidTaskTransitionException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TaskResDto })
   approveTask(@Param('id') id: string, @ActiveUser('userId') userId: string): Promise<InstanceType<typeof TaskResDto>> {
@@ -218,7 +249,14 @@ export class TaskController {
   @Post('tasks/:id/request-revision')
   @ApiOperation({ summary: 'Mangaka yêu cầu sửa → REVISION_REQUESTED (markup riêng qua /annotations)' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(TaskNotFoundException, NotSeriesOwnerException, InvalidTaskTransitionException)
+  @ApiErrors(
+    TaskNotFoundException,
+    PageNotFoundException,
+    NotSeriesOwnerException,
+    ChapterOnHoldTaskException,
+    PageNotEditableTaskException,
+    InvalidTaskTransitionException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TaskResDto })
   requestRevision(
@@ -232,7 +270,7 @@ export class TaskController {
   @Post('tasks/:id/cancel')
   @ApiOperation({ summary: 'Mangaka cancels a non-terminal task -> CANCELLED and notifies assigned Assistant' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(TaskNotFoundException, NotSeriesOwnerException, TaskNotCancellableException)
+  @ApiErrors(TaskNotFoundException, NotSeriesOwnerException, PageNotEditableTaskException, TaskNotCancellableException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TaskResDto })
   cancelTask(
@@ -254,7 +292,8 @@ export class TaskController {
     NotSeriesOwnerException,
     TaskNotReassignableException,
     AssistantNotHiredException,
-    ChapterOnHoldTaskException
+    ChapterOnHoldTaskException,
+    PageNotEditableTaskException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: TaskResDto })

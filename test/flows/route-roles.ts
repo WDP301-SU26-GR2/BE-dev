@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-18T04:32:19.587Z — 257 routes.
+// Sinh lúc: 2026-07-18T09:44:10.773Z — 256 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -156,12 +156,6 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'POST', path: '/chapters/:id/co-owner-reject', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/chapters/:id/hold', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/chapters/:id/manuscript/approve', access: 'ROLES', allowed: [RoleCode.EDITOR] },
-  {
-    method: 'POST',
-    path: '/chapters/:id/manuscript/mark-composite-ready',
-    access: 'ROLES',
-    allowed: [RoleCode.MANGAKA]
-  },
   { method: 'POST', path: '/chapters/:id/manuscript/request-revision', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/chapters/:id/manuscript/resubmit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/chapters/:id/manuscript/submit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },

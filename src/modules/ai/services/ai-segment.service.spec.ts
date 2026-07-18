@@ -116,6 +116,13 @@ describe('AiSegmentService.getJob / applyJob', () => {
     expect(region.applyAiRegions).toHaveBeenCalledWith(PID, successJob.proposedRegions, { aiModelVersion: 'x@1' })
     expect(repo.markApplied).toHaveBeenCalledWith(JID)
     expect(result).toMatchObject({ created: 2, removed: 1, skipped: 0, message: expect.any(String) })
+    expect(region.assertPageOwner).toHaveBeenCalledWith(MID, PID)
+  })
+
+  it('listJobs opts out of editability because it is read-only', async () => {
+    const { service, region } = makeService()
+    await expect(service.listJobs(MID, PID, {})).resolves.toEqual({ items: [] })
+    expect(region.assertPageOwner).toHaveBeenCalledWith(MID, PID, { checkHold: false, checkEditable: false })
   })
 
   it('applyJob returns 409 when job is not SUCCEEDED', async () => {

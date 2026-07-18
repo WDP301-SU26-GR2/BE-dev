@@ -1,17 +1,20 @@
 import { Injectable } from '@nestjs/common'
-import { ManuscriptStatus, NotificationType, RevisionTargetType } from '@prisma/client'
+import { ManuscriptStatus, NotificationType, PageStatus, RevisionTargetType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { RevisionService } from 'src/modules/revision/revision.service'
+import { BLOCKING_TASK_STATUSES } from '../chapter.constant'
+import { ChapterMessages } from '../chapter.messages'
+import { ChapterRepository } from '../chapter.repo'
 import {
   ChapterNotFoundException,
   ChapterOnHoldException,
+  NoPagesToSubmitException,
   NotSeriesEditorException,
   NotSeriesOwnerException,
-  PagesNotAllCompletedException
+  RevisionNotResolvedException,
+  TasksNotAllApprovedException
 } from '../errors/chapter.errors'
-import { ChapterRepository } from '../chapter.repo'
 import { ManuscriptStateService } from './manuscript-state.service'
-import { ChapterMessages } from '../chapter.messages'
 
 @Injectable()
 export class ManuscriptReviewService {
@@ -22,7 +25,7 @@ export class ManuscriptReviewService {
     private readonly revisionService: RevisionService
   ) {}
 
-  private async loadOwned(userId: string, chapterId: string) {
+  private async loadOwned(chapterId: string) {
     const chapter = await this.chapterRepository.findChapterById(chapterId)
     if (!chapter) throw ChapterNotFoundException
     const series = await this.chapterRepository.findSeriesById(chapter.seriesId)
@@ -30,30 +33,32 @@ export class ManuscriptReviewService {
     return { chapter, series }
   }
 
-  // PA-04: check hold SAU owner/editor check — người ngoài cuộc nhận 403, không lộ trạng thái hold (409).
   private assertNotOnHold(chapter: { hold: unknown }) {
     if (chapter.hold) throw ChapterOnHoldException
   }
 
-  // A4-INTEGRATION: WIRED — IN_PRODUCTION→COMPOSITE_REVIEW auto khi mọi Task SUBMITTED (task-cascade.service).
-  // Route manual này GIỮ làm fallback.
-  async markCompositeReady(userId: string, chapterId: string) {
-    const { chapter, series } = await this.loadOwned(userId, chapterId)
-    if (series.mangakaId !== userId) throw NotSeriesOwnerException
-    this.assertNotOnHold(chapter)
-    return this.manuscriptStateService.transition(chapterId, ManuscriptStatus.COMPOSITE_REVIEW, { changedBy: userId })
+  private async assertReadyForEditor(chapterId: string) {
+    const pages = await this.chapterRepository.findPagesByChapterId(chapterId)
+    if (pages.length === 0) throw NoPagesToSubmitException
+    const counts = await this.chapterRepository.countTasksByStatusForChapter(chapterId)
+    const blocking = BLOCKING_TASK_STATUSES.reduce((sum, status) => sum + (counts[status] ?? 0), 0)
+    if (blocking > 0) throw TasksNotAllApprovedException
   }
 
-  // COMPOSITE_REVIEW→EDITOR_REVIEW — yêu cầu mọi Page = COMPLETED
   async submit(userId: string, chapterId: string) {
-    const { chapter, series } = await this.loadOwned(userId, chapterId)
+    const { chapter, series } = await this.loadOwned(chapterId)
     if (series.mangakaId !== userId) throw NotSeriesOwnerException
     this.assertNotOnHold(chapter)
-    const incomplete = await this.chapterRepository.countIncompletePages(chapterId)
-    if (incomplete > 0) throw PagesNotAllCompletedException
-    const res = await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.EDITOR_REVIEW, {
-      changedBy: userId
-    })
+    await this.manuscriptStateService.assertCanTransition(chapterId, ManuscriptStatus.EDITOR_REVIEW)
+    await this.assertReadyForEditor(chapterId)
+
+    const result = await this.manuscriptStateService.transitionWithPages(
+      chapterId,
+      ManuscriptStatus.EDITOR_REVIEW,
+      { changedBy: userId },
+      [PageStatus.DRAFT],
+      PageStatus.COMPLETED
+    )
     if (series.editorId) {
       await this.notificationService.notifySafe({
         recipientId: series.editorId,
@@ -63,19 +68,22 @@ export class ManuscriptReviewService {
         content: ChapterMessages.notification.manuscriptSubmitted
       })
     }
-    return res
+    return result
   }
 
-  // EDITOR_REVIEW→EDITOR_REVISION (annotation markup tạo riêng qua module annotation)
   async requestRevision(userId: string, chapterId: string, reason: string) {
-    const { chapter, series } = await this.loadOwned(userId, chapterId)
+    const { chapter, series } = await this.loadOwned(chapterId)
     if (series.editorId !== userId) throw NotSeriesEditorException
     this.assertNotOnHold(chapter)
-    const res = await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.EDITOR_REVISION, {
-      changedBy: userId,
-      reason
-    })
+    await this.manuscriptStateService.assertCanTransition(chapterId, ManuscriptStatus.EDITOR_REVISION)
 
+    const result = await this.manuscriptStateService.transitionWithPages(
+      chapterId,
+      ManuscriptStatus.EDITOR_REVISION,
+      { changedBy: userId, reason },
+      [PageStatus.COMPLETED],
+      PageStatus.REVISING
+    )
     const { round } = await this.revisionService.openSafe({
       targetType: RevisionTargetType.MANUSCRIPT,
       targetId: chapterId,
@@ -84,7 +92,6 @@ export class ManuscriptReviewService {
       requestedBy: userId,
       recipientId: series.mangakaId
     })
-
     await this.notificationService.notifySafe({
       recipientId: series.mangakaId,
       type: NotificationType.REVIEW,
@@ -92,17 +99,26 @@ export class ManuscriptReviewService {
       referenceType: 'MANUSCRIPT_REVISION_REQUESTED',
       content: ChapterMessages.notification.editorRequestedRevision(round, reason)
     })
-    return res
+    return result
   }
 
-  // EDITOR_REVISION→EDITOR_REVIEW
   async resubmit(userId: string, chapterId: string) {
-    const { chapter, series } = await this.loadOwned(userId, chapterId)
+    const { chapter, series } = await this.loadOwned(chapterId)
     if (series.mangakaId !== userId) throw NotSeriesOwnerException
     this.assertNotOnHold(chapter)
-    const res = await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.EDITOR_REVIEW, {
-      changedBy: userId
-    })
+    await this.manuscriptStateService.assertCanTransition(chapterId, ManuscriptStatus.EDITOR_REVIEW)
+    if (await this.revisionService.hasOpenRequest(RevisionTargetType.MANUSCRIPT, chapterId)) {
+      throw RevisionNotResolvedException
+    }
+    await this.assertReadyForEditor(chapterId)
+
+    const result = await this.manuscriptStateService.transitionWithPages(
+      chapterId,
+      ManuscriptStatus.EDITOR_REVIEW,
+      { changedBy: userId },
+      [PageStatus.REVISING, PageStatus.DRAFT],
+      PageStatus.COMPLETED
+    )
     if (series.editorId) {
       const round = await this.revisionService.currentRound(RevisionTargetType.MANUSCRIPT, chapterId)
       await this.notificationService.notifySafe({
@@ -113,15 +129,14 @@ export class ManuscriptReviewService {
         content: ChapterMessages.notification.manuscriptResubmitted(round)
       })
     }
-    return res
+    return result
   }
 
-  // EDITOR_REVIEW→READY_FOR_PRINT
   async approve(userId: string, chapterId: string) {
-    const { chapter, series } = await this.loadOwned(userId, chapterId)
+    const { chapter, series } = await this.loadOwned(chapterId)
     if (series.editorId !== userId) throw NotSeriesEditorException
     this.assertNotOnHold(chapter)
-    const res = await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.READY_FOR_PRINT, {
+    const result = await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.READY_FOR_PRINT, {
       changedBy: userId
     })
     await this.notificationService.notifySafe({
@@ -131,6 +146,6 @@ export class ManuscriptReviewService {
       referenceType: 'MANUSCRIPT_APPROVED',
       content: ChapterMessages.notification.manuscriptApproved
     })
-    return res
+    return result
   }
 }

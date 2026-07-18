@@ -1,7 +1,24 @@
-import { wipeDb, seedRolesAndAdmin, prisma, makeUser, makeSeriesAt, makeContractAt, makeNameAt } from './lib/seed.js'
+import {
+  wipeDb,
+  seedRolesAndAdmin,
+  prisma,
+  makeUser,
+  makeSeriesAt,
+  makeContractAt,
+  makeNameAt,
+  makeTaskAt
+} from './lib/seed.js'
 import { req, ok, section, summary, expectError, resetCounters, sleep } from './lib/http.js'
 import { login } from './lib/auth.js'
-import { SeriesStatus, ManuscriptStatus, NameStatus, NameKind, PageStatus, ContractStatus } from '@prisma/client'
+import {
+  SeriesStatus,
+  ManuscriptStatus,
+  NameStatus,
+  NameKind,
+  PageStatus,
+  ContractStatus,
+  TaskStatus
+} from '@prisma/client'
 
 const FLOW = 'flow-02-chapter-production.ts'
 
@@ -173,6 +190,7 @@ const main = async () => {
   })
   ok('F02-004 page upload 201', p1Res.status === 201, `got ${p1Res.status} ${p1Res.raw.slice(0, 200)}`)
   const p1 = p1Res.json?.data ?? p1Res.json
+  ok('F02-004a page born DRAFT', p1.status === PageStatus.DRAFT, `got ${String(p1.status)}`)
   await sleep(300)
   const ms1b = await prisma.manuscript.findFirst({ where: { chapterId: c1.id } })
   ok(
@@ -181,51 +199,27 @@ const main = async () => {
     `got ${ms1b?.status}`
   )
 
-  // F02-005 — PATCH page → COMPOSITE_READY (manual fallback per AUTHORITATIVE §4 / §7)
-  // Note: per spec flow PATCH `pages/:pageId` with `status: COMPOSITE_READY` is allowed.
-  // Page state machine: NOT_STARTED → IN_PROGRESS → COMPOSITE_READY → COMPLETED. Need both intermediate steps.
-  const p1inProgRes = await req('PATCH', `/pages/${p1.id}`, {
-    token: s.tokens.mA,
-    body: { status: 'IN_PROGRESS' }
-  })
-  ok(
-    'F02-005a page → IN_PROGRESS 200',
-    p1inProgRes.status === 200,
-    `got ${p1inProgRes.status} ${p1inProgRes.raw.slice(0, 200)}`
-  )
-  const p1updRes = await req('PATCH', `/pages/${p1.id}`, {
-    token: s.tokens.mA,
-    body: { status: 'COMPOSITE_READY' }
-  })
-  ok(
-    'F02-005 page → COMPOSITE_READY 200',
-    p1updRes.status === 200,
-    `got ${p1updRes.status} ${p1updRes.raw.slice(0, 200)}`
-  )
-  const p1DB = await prisma.page.findUnique({ where: { id: p1.id } })
-  ok('F02-005b page.status=COMPOSITE_READY', p1DB?.status === PageStatus.COMPOSITE_READY, `got ${p1DB?.status}`)
-
-  // F02-006 — M mark-composite-ready → Manuscript COMPOSITE_REVIEW
-  // Note: per chapter.controller.ts this is `/chapters/:id/manuscript/mark-composite-ready`
-  const crRes = await req('POST', `/chapters/${c1.id}/manuscript/mark-composite-ready`, {
-    token: s.tokens.mA
-  })
-  ok('F02-006 mark-composite-ready 201', crRes.status === 201, `got ${crRes.status} ${crRes.raw.slice(0, 200)}`)
-  const ms1c = await prisma.manuscript.findFirst({ where: { chapterId: c1.id } })
-  ok('F02-006b Manuscript=COMPOSITE_REVIEW', ms1c?.status === ManuscriptStatus.COMPOSITE_REVIEW, `got ${ms1c?.status}`)
-
-  // Need all pages COMPLETED before submit. Page currently COMPOSITE_READY; move to COMPLETED.
-  const p1cRes = await req('PATCH', `/pages/${p1.id}`, {
-    token: s.tokens.mA,
-    body: { status: 'COMPLETED' }
-  })
-  ok('F02-006c page → COMPLETED 200', p1cRes.status === 200, `got ${p1cRes.status} ${p1cRes.raw.slice(0, 200)}`)
-
   // F02-007 — M submit manuscript → EDITOR_REVIEW
   const subRes = await req('POST', `/chapters/${c1.id}/manuscript/submit`, { token: s.tokens.mA })
   ok('F02-007 manuscript submit 201', subRes.status === 201, `got ${subRes.status} ${subRes.raw.slice(0, 200)}`)
   const ms1d = await prisma.manuscript.findFirst({ where: { chapterId: c1.id } })
   ok('F02-007b Manuscript=EDITOR_REVIEW', ms1d?.status === ManuscriptStatus.EDITOR_REVIEW, `got ${ms1d?.status}`)
+  const p1Submitted = await prisma.page.findUnique({ where: { id: p1.id } })
+  ok('F02-007c submit auto-flips page to COMPLETED', p1Submitted?.status === PageStatus.COMPLETED)
+  const completedPageMutation = await req('PATCH', `/pages/${p1.id}`, {
+    token: s.tokens.mA,
+    body: { compositeFile: 'r2://locked.png' }
+  })
+  expectError(completedPageMutation, 409, 'Error.PageNotEditable', 'F02-007d completed page is read-only')
+  const clientStatusMutation = await req('PATCH', `/pages/${p1.id}`, {
+    token: s.tokens.mA,
+    body: { status: 'REVISING' }
+  })
+  ok('F02-007e client cannot PATCH page status → 422', clientStatusMutation.status === 422)
+  const removedCompositeRoute = await req('POST', `/chapters/${c1.id}/manuscript/mark-composite-ready`, {
+    token: s.tokens.mA
+  })
+  ok('F02-007f removed mark-composite-ready route → 404', removedCompositeRoute.status === 404)
 
   // F02-008 — E request-revision → EDITOR_REVISION + annotation (we just check state + annotation row)
   const noRevisionReason = await req('POST', `/chapters/${c1.id}/manuscript/request-revision`, {
@@ -245,6 +239,13 @@ const main = async () => {
   ok('F02-008 request-revision 201', revRes.status === 201, `got ${revRes.status} ${revRes.raw.slice(0, 200)}`)
   const ms1e = await prisma.manuscript.findFirst({ where: { chapterId: c1.id } })
   ok('F02-008b Manuscript=EDITOR_REVISION', ms1e?.status === ManuscriptStatus.EDITOR_REVISION, `got ${ms1e?.status}`)
+  const p1Revising = await prisma.page.findUnique({ where: { id: p1.id } })
+  ok('F02-008c request-revision auto-flips page to REVISING', p1Revising?.status === PageStatus.REVISING)
+  const revisingPageMutation = await req('PATCH', `/pages/${p1.id}`, {
+    token: s.tokens.mA,
+    body: { compositeFile: 'r2://revision-v2.png' }
+  })
+  ok('F02-008d REVISING page is editable', revisingPageMutation.status === 200)
 
   const manuscriptRevisions = await req('GET', `/revision-requests?targetType=MANUSCRIPT&targetId=${c1.id}`, {
     token: s.tokens.mA
@@ -259,6 +260,9 @@ const main = async () => {
     `got ${manuscriptRevisions.status} ${manuscriptRevisions.raw.slice(0, 200)}`
   )
   const manuscriptRevisionId = manuscriptRevisionItems[0]?.id as string
+
+  const blockedResubmit = await req('POST', `/chapters/${c1.id}/manuscript/resubmit`, { token: s.tokens.mA })
+  expectError(blockedResubmit, 409, 'Error.RevisionNotResolved', 'F02-RV2b resubmit with open revision')
 
   const requestedByList = await req('GET', `/revision-requests?targetType=MANUSCRIPT&targetId=${c1.id}`, {
     token: s.tokens.e1
@@ -299,6 +303,8 @@ const main = async () => {
   ok('F02-009 resubmit 201', resubRes.status === 201, `got ${resubRes.status} ${resubRes.raw.slice(0, 200)}`)
   const ms1f = await prisma.manuscript.findFirst({ where: { chapterId: c1.id } })
   ok('F02-009b Manuscript=EDITOR_REVIEW again', ms1f?.status === ManuscriptStatus.EDITOR_REVIEW, `got ${ms1f?.status}`)
+  const p1Resubmitted = await prisma.page.findUnique({ where: { id: p1.id } })
+  ok('F02-009c resubmit auto-flips page to COMPLETED', p1Resubmitted?.status === PageStatus.COMPLETED)
 
   // F02-010 — E approve → READY_FOR_PRINT
   const apprRes = await req('POST', `/chapters/${c1.id}/manuscript/approve`, { token: s.tokens.e1 })
@@ -344,6 +350,12 @@ const main = async () => {
   ok('F02-014 progress 200', progRes.status === 200, `got ${progRes.status} ${progRes.raw.slice(0, 200)}`)
   const progData = progRes.json?.data ?? progRes.json
   ok('F02-014b progress.totalPages=1', progData?.totalPages === 1, `got ${JSON.stringify(progData)}`)
+  ok('F02-014b2 progress.pagesReady=1', progData?.pagesReady === 1, `got ${JSON.stringify(progData)}`)
+  ok('F02-014b3 progress.pagesPending=0', progData?.pagesPending === 0, `got ${JSON.stringify(progData)}`)
+  ok(
+    'F02-014b4 legacy page progress fields removed',
+    !('pagesCompleted' in progData) && !('pagesInProgress' in progData) && !('pagesNotStarted' in progData)
+  )
   ok('F02-014c progress.taskBreakdown present', !!progData?.taskBreakdown)
   ok('F02-014d progress.warningLevel present', !!progData?.warningLevel)
   ok('F02-014e progress.onHold=false', progData?.onHold === false)
@@ -408,7 +420,7 @@ const main = async () => {
   const c4name = (c4nRes.json?.data ?? c4nRes.json) as { id: string }
   await req('POST', `/chapters/${c4.id}/names/${c4name.id}/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c4.id}/names/${c4name.id}/approve`, { token: s.tokens.e1 })
-  await req('POST', `/chapters/${c4.id}/pages`, {
+  const p4Res = await req('POST', `/chapters/${c4.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
@@ -419,24 +431,21 @@ const main = async () => {
   })
   expectError(nDupRes, 409, 'Error.ChapterNotDraftForName', 'F02-019 Name after IN_PRODUCTION')
 
-  // F02-020 — Manuscript submit khi page chưa COMPLETED hết → PagesNotAllCompleted
-  // c4 only has 1 page NOT_STARTED — submit is the actual gate, mark-composite-ready only transitions.
-  await req('POST', `/chapters/${c4.id}/manuscript/mark-composite-ready`, { token: s.tokens.mA })
+  // F02-020 — Manuscript submit khi còn Task chưa APPROVED → TasksNotAllApproved.
+  const gateAssistant = await makeUser('ASSISTANT')
+  const p4Id = (p4Res.json?.data ?? p4Res.json).id as string
+  await makeTaskAt({ pageId: p4Id, assistantId: gateAssistant.id, status: TaskStatus.ASSIGNED })
   const cr2Res = await req('POST', `/chapters/${c4.id}/manuscript/submit`, { token: s.tokens.mA })
-  expectError(cr2Res, 409, 'Error.PagesNotAllCompleted', 'F02-020 submit with incomplete pages')
+  expectError(cr2Res, 409, 'Error.TasksNotAllApproved', 'F02-020 submit with blocking task')
 
   // F02-021 — Approve manuscript khi EDITOR_REVISION → InvalidManuscriptTransition
   // c1 is currently PUBLISHED so we need a fresh chapter.
   // Setup: c5 with name APPROVED + page COMPLETED, then request-revision, then try approve.
   const c5Setup = await createChapterWithApprovedName(s, s.seriesA.id, 5, 'Ch5')
   const c5 = c5Setup.chapter
-  const p5Res = await req('POST', `/chapters/${c5.id}/pages`, {
+  await req('POST', `/chapters/${c5.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
-  })
-  await req('PATCH', `/pages/${(p5Res.json?.data ?? p5Res.json).id}`, {
-    token: s.tokens.mA,
-    body: { status: 'COMPLETED' }
   })
   await req('POST', `/chapters/${c5.id}/manuscript/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c5.id}/manuscript/request-revision`, {
@@ -465,13 +474,9 @@ const main = async () => {
   const c6name = (c6nRes.json?.data ?? c6nRes.json) as { id: string }
   await req('POST', `/chapters/${c6.id}/names/${c6name.id}/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c6.id}/names/${c6name.id}/approve`, { token: s.tokens.e1 })
-  const p6Res = await req('POST', `/chapters/${c6.id}/pages`, {
+  await req('POST', `/chapters/${c6.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
-  })
-  await req('PATCH', `/pages/${(p6Res.json?.data ?? p6Res.json).id}`, {
-    token: s.tokens.mA,
-    body: { status: 'COMPLETED' }
   })
   await req('POST', `/chapters/${c6.id}/manuscript/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c6.id}/manuscript/approve`, { token: s.tokens.e1 })
@@ -632,11 +637,7 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
-  const c11p1Id = (c11p1.json?.data ?? c11p1.json)?.id as string
-  await req('PATCH', `/pages/${c11p1Id}`, { token: s.tokens.mA, body: { status: 'IN_PROGRESS' } })
-  await req('PATCH', `/pages/${c11p1Id}`, { token: s.tokens.mA, body: { status: 'COMPOSITE_READY' } })
-  await req('PATCH', `/pages/${c11p1Id}`, { token: s.tokens.mA, body: { status: 'COMPLETED' } })
-  await req('POST', `/chapters/${c11forPub.id}/manuscript/mark-composite-ready`, { token: s.tokens.mA })
+  ok('F02-038a setup page created', c11p1.status === 201)
   await req('POST', `/chapters/${c11forPub.id}/manuscript/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c11forPub.id}/manuscript/approve`, { token: s.tokens.e1 })
   // Now terminate contract
@@ -696,13 +697,9 @@ const main = async () => {
   // c1 đã PUBLISHED; tạo c8 rồi push nó READY_FOR_PRINT trước khi e2 publish.
   const c8Setup = await createChapterWithApprovedName(s, s.seriesA.id, 8, 'Ch8')
   const c8 = c8Setup.chapter
-  const p8Res = await req('POST', `/chapters/${c8.id}/pages`, {
+  await req('POST', `/chapters/${c8.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
-  })
-  await req('PATCH', `/pages/${(p8Res.json?.data ?? p8Res.json).id}`, {
-    token: s.tokens.mA,
-    body: { status: 'COMPLETED' }
   })
   await req('POST', `/chapters/${c8.id}/manuscript/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c8.id}/manuscript/approve`, { token: s.tokens.e1 })
@@ -748,7 +745,7 @@ const main = async () => {
   // F02-047 — PATCH /pages/:pageId id rác → 404
   const badPageRes = await req('PATCH', '/pages/aaaaaaaaaaaaaaaaaaaaaaaa', {
     token: s.tokens.mA,
-    body: { status: 'COMPLETED' }
+    body: { compositeFile: 'r2://composite.png' }
   })
   ok(
     'F02-047 PATCH page rác → 404',
@@ -790,11 +787,7 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
-  const p9Id = (p9Res.json?.data ?? p9Res.json)?.id as string
-  await req('PATCH', `/pages/${p9Id}`, { token: s.tokens.mA, body: { status: 'IN_PROGRESS' } })
-  await req('PATCH', `/pages/${p9Id}`, { token: s.tokens.mA, body: { status: 'COMPOSITE_READY' } })
-  await req('PATCH', `/pages/${p9Id}`, { token: s.tokens.mA, body: { status: 'COMPLETED' } })
-  await req('POST', `/chapters/${c9.id}/manuscript/mark-composite-ready`, { token: s.tokens.mA })
+  ok('F02-051a setup page created', p9Res.status === 201)
   await req('POST', `/chapters/${c9.id}/manuscript/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c9.id}/manuscript/approve`, { token: s.tokens.e1 })
   const pubCoRes = await req('POST', `/chapters/${c9.id}/publish`, { token: s.tokens.e1 })
@@ -827,11 +820,7 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
-  const p10Id = (p10Res.json?.data ?? p10Res.json)?.id as string
-  await req('PATCH', `/pages/${p10Id}`, { token: s.tokens.mA, body: { status: 'IN_PROGRESS' } })
-  await req('PATCH', `/pages/${p10Id}`, { token: s.tokens.mA, body: { status: 'COMPOSITE_READY' } })
-  await req('PATCH', `/pages/${p10Id}`, { token: s.tokens.mA, body: { status: 'COMPLETED' } })
-  await req('POST', `/chapters/${c10.id}/manuscript/mark-composite-ready`, { token: s.tokens.mA })
+  ok('F02-054a setup page created', p10Res.status === 201)
   await req('POST', `/chapters/${c10.id}/manuscript/submit`, { token: s.tokens.mA })
   await req('POST', `/chapters/${c10.id}/manuscript/approve`, { token: s.tokens.e1 })
   await req('POST', `/chapters/${c10.id}/publish`, { token: s.tokens.e1 })
@@ -842,6 +831,8 @@ const main = async () => {
   ok('F02-054 co-owner-reject 201', coRejRes.status === 201, `got ${coRejRes.status} ${coRejRes.raw.slice(0, 200)}`)
   const ms10 = await prisma.manuscript.findFirst({ where: { chapterId: c10.id } })
   ok('F02-054b Manuscript=EDITOR_REVISION', ms10?.status === ManuscriptStatus.EDITOR_REVISION, `got ${ms10?.status}`)
+  const p10Revising = await prisma.page.findUnique({ where: { id: (p10Res.json?.data ?? p10Res.json).id } })
+  ok('F02-054c co-owner reject auto-flips page to REVISING', p10Revising?.status === PageStatus.REVISING)
 
   // ──────────────────────────────────────────────────────────────────────────
   // §3.6  NAME LIFECYCLE (additional to spec matrix — name-proposal kind + chapter-name kind)

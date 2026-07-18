@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common'
-import { $Enums, NameStatus, PageStatus, TaskStatus } from '@prisma/client'
+import { $Enums, ManuscriptStatus, NameStatus, TaskStatus } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { ChapterRepository } from '../chapter.repo'
-import { computeWarningLevel, WARNING_LEVEL, WarningLevel } from '../chapter.constant'
+import {
+  BLOCKING_TASK_STATUSES,
+  computeWarningLevel,
+  PROGRESS_DONE_STATUSES,
+  WARNING_LEVEL,
+  WarningLevel
+} from '../chapter.constant'
 import { ChapterAccessDeniedException, ChapterNotFoundException } from '../errors/chapter.errors'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
@@ -26,6 +32,34 @@ const OPEN_TASK_STATUSES: TaskStatus[] = [
 const roundHours = (deadline: Date | null, now: Date) =>
   deadline ? Math.round(((deadline.getTime() - now.getTime()) / 3_600_000) * 10) / 10 : null
 
+type PageTaskRow = { pageId: string; status: TaskStatus; count: number }
+
+const countBlockedPages = (taskRows: PageTaskRow[]) =>
+  new Set(
+    taskRows.filter((row) => BLOCKING_TASK_STATUSES.includes(row.status) && row.count > 0).map((row) => row.pageId)
+  ).size
+
+/** A page is ready when it has no blocking task; pages without tasks are therefore ready. */
+export function computeReadyPages(pageIds: string[], taskRows: PageTaskRow[]): number {
+  const pageIdSet = new Set(pageIds)
+  const blockedPages = new Set(
+    taskRows
+      .filter((row) => pageIdSet.has(row.pageId) && BLOCKING_TASK_STATUSES.includes(row.status) && row.count > 0)
+      .map((row) => row.pageId)
+  )
+  return pageIds.filter((id) => !blockedPages.has(id)).length
+}
+
+export function computeProgressPct(
+  manuscriptStatus: ManuscriptStatus | null,
+  totalPages: number,
+  readyPages: number
+): number {
+  if (manuscriptStatus && PROGRESS_DONE_STATUSES.includes(manuscriptStatus)) return 1
+  if (totalPages === 0) return 0
+  return readyPages / totalPages
+}
+
 @Injectable()
 export class ChapterProgressService {
   constructor(private readonly chapterRepository: ChapterRepository) {}
@@ -44,26 +78,30 @@ export class ChapterProgressService {
       user.roleName === RoleName.SUPER_ADMIN
     if (!allowed) throw ChapterAccessDeniedException
 
-    const [pageCounts, taskCounts, nameStatus, schedule] = await Promise.all([
-      this.chapterRepository.countPagesByStatus(chapterId),
+    const [pages, pageTaskRows, manuscript, taskCounts, nameStatus, schedule] = await Promise.all([
+      this.chapterRepository.findPagesByChapterId(chapterId),
+      this.chapterRepository.groupTasksByPageForChapter(chapterId),
+      this.chapterRepository.findManuscriptByChapterId(chapterId),
       this.chapterRepository.countTasksByStatusForChapter(chapterId),
       chapter.nameId
         ? this.chapterRepository.findNameStatus(chapter.nameId)
         : Promise.resolve(null as NameStatus | null),
       this.chapterRepository.findScheduleByChapterId(chapterId)
     ])
-    const totalPages = Object.values(pageCounts).reduce((sum, count) => sum + (count ?? 0), 0)
-    const pagesCompleted = pageCounts.COMPLETED ?? 0
-    const progressPct = totalPages === 0 ? 0 : pagesCompleted / totalPages
+    const totalPages = pages.length
+    const pagesReady = computeReadyPages(
+      pages.map((page) => page.id),
+      pageTaskRows
+    )
+    const progressPct = computeProgressPct(manuscript?.status ?? null, totalPages, pagesReady)
     const deadline = schedule?.currentDeadline ?? null
     const now = new Date()
     return {
       chapterId,
       nameStatus,
       totalPages,
-      pagesCompleted,
-      pagesInProgress: (pageCounts.IN_PROGRESS ?? 0) + (pageCounts.COMPOSITE_READY ?? 0),
-      pagesNotStarted: pageCounts.NOT_STARTED ?? 0,
+      pagesReady,
+      pagesPending: totalPages - pagesReady,
       taskBreakdown: {
         assigned: taskCounts.ASSIGNED ?? 0,
         inProgress: taskCounts.IN_PROGRESS ?? 0,
@@ -98,21 +136,23 @@ export class ChapterProgressService {
   ) {
     const seriesById = new Map(series.map((item) => [item.id, item]))
     const chapterIds = chapters.map((chapter) => chapter.id)
-    const [pageRows, taskRows] = await Promise.all([
+    const [pageRows, taskRows, pageTaskRows] = await Promise.all([
       chapterIds.length ? this.chapterRepository.groupPagesByChapter(chapterIds) : Promise.resolve([]),
-      chapterIds.length ? this.chapterRepository.groupTasksByChapter(chapterIds) : Promise.resolve([])
+      chapterIds.length ? this.chapterRepository.groupTasksByChapter(chapterIds) : Promise.resolve([]),
+      chapterIds.length ? this.chapterRepository.groupTasksByPageForChapters(chapterIds) : Promise.resolve([])
     ])
     const now = new Date()
     const items = chapters.map((chapter) => {
       const seriesItem = seriesById.get(chapter.seriesId)
       const pages = pageRows.filter((row) => row.chapterId === chapter.id)
       const totalPages = pages.reduce((sum, row) => sum + row._count._all, 0)
-      const pagesCompleted = pages.find((row) => row.status === PageStatus.COMPLETED)?._count._all ?? 0
+      const chapterPageTaskRows = pageTaskRows.filter((row) => row.chapterId === chapter.id)
+      const pagesReady = totalPages - countBlockedPages(chapterPageTaskRows)
       const openTasks = taskRows
         .filter((row) => row.chapterId === chapter.id && OPEN_TASK_STATUSES.includes(row.status))
         .reduce((sum, row) => sum + row.count, 0)
       const deadline = chapter.schedule?.currentDeadline ?? null
-      const progressPct = totalPages === 0 ? 0 : pagesCompleted / totalPages
+      const progressPct = computeProgressPct(chapter.manuscript?.status ?? null, totalPages, pagesReady)
       const warningLevel = computeWarningLevel(seriesItem?.publicationType ?? null, deadline, progressPct, now)
       return {
         chapterId: chapter.id,
@@ -126,7 +166,8 @@ export class ChapterProgressService {
         progressPct,
         warningLevel,
         onHold: chapter.hold != null,
-        pagesCompleted,
+        pagesReady,
+        pagesPending: totalPages - pagesReady,
         totalPages,
         openTasks
       }

@@ -26,6 +26,7 @@ export const TaskMessages = {
     taskNotCancellable: 'Error.TaskNotCancellable',
     regionHasApprovedTasks: 'Error.RegionHasApprovedTasks',
     chapterOnHold: 'Error.ChapterOnHold',
+    pageNotEditable: 'Error.PageNotEditable',
     invalidTaskTransition: 'Error.InvalidTaskTransition'
   }
 } as const

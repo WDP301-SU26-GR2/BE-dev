@@ -280,7 +280,6 @@ enum TaskStatus {
 enum ManuscriptStatus {
   DRAFT
   IN_PRODUCTION
-  COMPOSITE_REVIEW
   EDITOR_REVIEW
   EDITOR_REVISION
   READY_FOR_PRINT
@@ -376,12 +375,11 @@ enum ProposalStatus {
   WITHDRAWN
 }
 
-// REVIEW: inferred — A3 reconcile: NOT_STARTED/IN_PROGRESS/COMPOSITE_READY/COMPLETED (SRS §4.2.5)
+// Spec 18: backend-driven page lifecycle.
 enum PageStatus {
-  NOT_STARTED
-  IN_PROGRESS
-  COMPOSITE_READY
+  DRAFT
   COMPLETED
+  REVISING
 }
 
 // REVIEW: inferred
@@ -934,7 +932,7 @@ model Page {
   pageNumber    Int
   originalFile  String?
   compositeFile String?
-  status        PageStatus @default(NOT_STARTED)
+  status        PageStatus @default(DRAFT)
   createdAt     DateTime   @default(now())
 
   regions Region[]
