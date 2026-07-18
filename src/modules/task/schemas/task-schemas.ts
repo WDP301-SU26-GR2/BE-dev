@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { UserMiniSchema } from 'src/core/models/user-mini.model'
 
 const CoordinatesSchema = z
   .object({
@@ -120,7 +121,8 @@ export const TaskVersionResSchema = z.object({
   file: z.string().nullable(),
   reviewStatus: zEnum($Enums.TaskVersionReviewStatus, 'TaskVersionReviewStatus'),
   reviewerNote: z.string().nullable(),
-  submittedAt: z.string()
+  submittedAt: z.string(),
+  submitter: UserMiniSchema.nullable().optional().describe('Người nộp phiên bản — có ở GET list/detail')
 })
 
 export const TaskResSchema = extendApi(
@@ -136,7 +138,8 @@ export const TaskResSchema = extendApi(
     deadline: z.string().nullable(),
     assetIds: z.array(z.string()),
     versions: z.array(TaskVersionResSchema),
-    createdAt: z.string()
+    createdAt: z.string(),
+    assistant: UserMiniSchema.nullable().optional().describe('Trợ lý được giao — có ở GET list/detail')
   }),
   { title: 'TaskRes', description: 'Một task production' }
 )

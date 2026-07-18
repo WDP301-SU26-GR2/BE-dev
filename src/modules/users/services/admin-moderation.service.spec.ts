@@ -103,7 +103,7 @@ describe('AdminModerationService.updateStatus', () => {
       type: NotificationType.SYSTEM,
       referenceId: UID,
       referenceType: 'USER_BANNED',
-      content: 'Your account has been banned: spam'
+      content: 'Tài khoản của bạn đã bị cấm: spam'
     })
     expect(res.status).toBe($Enums.UserStatus.BANNED)
     expect(res.createdAt).toBe('2026-07-01T00:00:00.000Z')
@@ -170,7 +170,7 @@ describe('AdminModerationService.deleteUser', () => {
 
     expect(usersRepository.softDeleteUser).toHaveBeenCalledWith(UID, expect.any(Date))
     expect(usersRepository.revokeRefreshTokensByUserId).toHaveBeenCalledWith(UID)
-    expect(res).toEqual({ message: 'User deleted successfully' })
+    expect(res).toEqual({ message: 'Xoá người dùng thành công' })
     expect(audit.record).toHaveBeenCalledWith({
       actorId: ADMIN_ID,
       entityType: AuditEntityType.USER,

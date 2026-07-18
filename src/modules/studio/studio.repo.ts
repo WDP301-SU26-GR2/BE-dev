@@ -1,12 +1,32 @@
 import { Injectable } from '@nestjs/common'
 import { CollaborationInvite, Prisma, Specialization, StudioAssignment } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import { fetchSeriesMiniMap, fetchUserMiniMap } from 'src/core/models/user-mini.model'
 
 export type AssignmentListWhere = Prisma.StudioAssignmentWhereInput
 
 @Injectable()
 export class StudioRepository {
   constructor(private readonly prismaService: PrismaService) {}
+
+  private async attachPeople<T extends { mangakaId: string; assistantId: string; seriesId: string | null }>(rows: T[]) {
+    const [users, series] = await Promise.all([
+      fetchUserMiniMap(
+        this.prismaService,
+        rows.flatMap((row) => [row.mangakaId, row.assistantId])
+      ),
+      fetchSeriesMiniMap(
+        this.prismaService,
+        rows.map((row) => row.seriesId)
+      )
+    ])
+    return rows.map((row) => ({
+      ...row,
+      mangaka: users.get(row.mangakaId) ?? null,
+      assistant: users.get(row.assistantId) ?? null,
+      series: row.seriesId ? (series.get(row.seriesId) ?? null) : null
+    }))
+  }
 
   // ---- User lookup (validate target assistant; KHÔNG import users module) ----
   // Gotcha §10: lọc chưa-xoá-mềm bằng isSet:false.
@@ -29,8 +49,10 @@ export class StudioRepository {
     return await this.prismaService.collaborationInvite.create({ data: { ...data, status: 'PENDING' } })
   }
 
-  async findInviteById(id: string): Promise<CollaborationInvite | null> {
-    return await this.prismaService.collaborationInvite.findUnique({ where: { id } })
+  async findInviteById(id: string) {
+    const row = await this.prismaService.collaborationInvite.findUnique({ where: { id } })
+    if (!row) return null
+    return (await this.attachPeople([row]))[0]
   }
 
   async findPendingInviteForPair(mangakaId: string, assistantId: string): Promise<CollaborationInvite | null> {
@@ -44,12 +66,13 @@ export class StudioRepository {
   }
 
   async listInvites(where: Prisma.CollaborationInviteWhereInput, page: { limit: number; offset: number }) {
-    return await this.prismaService.collaborationInvite.findMany({
+    const rows = await this.prismaService.collaborationInvite.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip: page.offset,
       take: page.limit
     })
+    return this.attachPeople(rows)
   }
 
   async countInvites(where: Prisma.CollaborationInviteWhereInput): Promise<number> {
@@ -96,8 +119,10 @@ export class StudioRepository {
   }
 
   // ---- StudioAssignment ----
-  async findAssignmentById(id: string): Promise<StudioAssignment | null> {
-    return await this.prismaService.studioAssignment.findUnique({ where: { id } })
+  async findAssignmentById(id: string) {
+    const row = await this.prismaService.studioAssignment.findUnique({ where: { id } })
+    if (!row) return null
+    return (await this.attachPeople([row]))[0]
   }
 
   async findActiveAssignmentForPair(
@@ -120,12 +145,13 @@ export class StudioRepository {
   }
 
   async listAssignments(where: AssignmentListWhere, page: { limit: number; offset: number }) {
-    return await this.prismaService.studioAssignment.findMany({
+    const rows = await this.prismaService.studioAssignment.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip: page.offset,
       take: page.limit
     })
+    return this.attachPeople(rows)
   }
 
   async countAssignments(where: AssignmentListWhere): Promise<number> {

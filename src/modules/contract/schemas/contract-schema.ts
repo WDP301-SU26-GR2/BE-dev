@@ -3,6 +3,7 @@ import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
+import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
 
 // 1. Schema phục vụ API tạo bản thảo hợp đồng mới (POST /contracts)
 export const CreateContractBodySchema = extendApi(
@@ -118,6 +119,9 @@ export const ContractResSchema = extendApi(
     seriesId: z.string(),
     mangakaId: z.string(),
     editorId: z.string().nullable(),
+    series: SeriesMiniSchema.optional().describe('Thông tin hiển thị — CÓ ở GET list/detail'),
+    mangaka: UserMiniSchema.optional().describe('Thông tin hiển thị — CÓ ở GET list/detail'),
+    editor: UserMiniSchema.nullable().optional().describe('null = chưa gán; absent ở mutation path'),
     boardDecisionId: z.string().nullable(),
     sourceTransferRequestId: z.string().nullable().optional(),
     contractType: zEnum($Enums.ContractType, 'ContractType'),

@@ -1,6 +1,7 @@
 ﻿import { applyDecorators, HttpException } from '@nestjs/common'
 import { ApiResponse } from '@nestjs/swagger'
 import { ERROR_HINTS } from '../docs/error-docs'
+import { translateErrorCode } from '../docs/error-text.registry'
 
 //Đây là file Swagger helper, không xử lý runtime error.
 
@@ -20,10 +21,18 @@ export function extractCode(exc: HttpException): string {
   return typeof message === 'string' ? message : exc.message
 }
 
-export type ApiErrorSpec = { status: number; description: string }
+export type ApiErrorSpec = {
+  status: number
+  description: string
+  content: {
+    'application/json': {
+      example: { success: false; statusCode: number; code: string; message: string }
+    }
+  }
+}
 
 export function buildApiErrorSpecs(exceptions: HttpException[]): ApiErrorSpec[] {
-  const byStatus = new Map<number, string[]>()
+  const byStatus = new Map<number, { descriptions: string[]; code: string }>()
 
   for (const exception of exceptions) {
     const status = exception.getStatus()
@@ -31,15 +40,25 @@ export function buildApiErrorSpecs(exceptions: HttpException[]): ApiErrorSpec[] 
     const bareCode = code.split(' ')[0]
     const hint = ERROR_HINTS[bareCode]
     const text = hint ? `${code} - ${hint}` : code
-    const descriptions = byStatus.get(status) ?? []
+    const current = byStatus.get(status) ?? { descriptions: [], code: bareCode }
 
-    if (!descriptions.includes(text)) descriptions.push(text)
-    byStatus.set(status, descriptions)
+    if (!current.descriptions.includes(text)) current.descriptions.push(text)
+    byStatus.set(status, current)
   }
 
-  return [...byStatus.entries()].map(([status, descriptions]) => ({
+  return [...byStatus.entries()].map(([status, { descriptions, code }]) => ({
     status,
-    description: descriptions.join(' | ')
+    description: descriptions.join(' | '),
+    content: {
+      'application/json': {
+        example: {
+          success: false,
+          statusCode: status,
+          code,
+          message: translateErrorCode(code)
+        }
+      }
+    }
   }))
 }
 

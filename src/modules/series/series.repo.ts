@@ -10,6 +10,7 @@ import {
   SeriesStatus
 } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import { USER_MINI_FIELDS, type UserMiniRow } from 'src/core/models/user-mini.model'
 import { SeriesNotFoundException } from './errors/series.errors'
 import { CreateProposalBodyType, UpdateProposalBodyType, UpdateSeriesMetadataBodyType } from './schemas/series-schemas'
 import { SERIES_PROPOSAL_CAS_MAX_ATTEMPTS } from './series.constant'
@@ -18,8 +19,6 @@ import { SERIES_PROPOSAL_CAS_MAX_ATTEMPTS } from './series.constant'
 const REVIEW_QUEUE_STATES: SeriesStatus[] = [SeriesStatus.IN_REVIEW]
 const BOARD_HIDDEN_STATES: SeriesStatus[] = [SeriesStatus.DRAFT, SeriesStatus.WITHDRAWN]
 // Spec 16: select tối thiểu cho mini object hiển thị (list + detail).
-const USER_MINI_FIELDS = { id: true, name: true, displayName: true, avatar: true } as const
-type UserMiniRow = { id: string; name: string; displayName: string | null; avatar: string | null }
 
 export type SeriesListScope = { kind: 'mangaka'; userId: string } | { kind: 'editor'; userId: string } | { kind: 'all' }
 

@@ -56,9 +56,13 @@ export { prisma }
 // Tiny helper cho các file test cần Reject để assert message.
 export const expectError = (r: Res, status: number, code: string, name: string) => {
   const msgs: string[] = []
-  if (typeof r.json?.message === 'string') msgs.push(r.json.message)
+  if (typeof r.json?.code === 'string') msgs.push(r.json.code as string)
+  if (typeof r.json?.message === 'string') msgs.push(r.json.message as string)
   if (Array.isArray(r.json?.errors)) {
     for (const e of r.json.errors) {
+      if (e && typeof e === 'object' && typeof (e as { code?: unknown }).code === 'string') {
+        msgs.push((e as { code: string }).code)
+      }
       if (e && typeof e === 'object' && typeof (e as { message?: unknown }).message === 'string') {
         msgs.push((e as { message: string }).message)
       }

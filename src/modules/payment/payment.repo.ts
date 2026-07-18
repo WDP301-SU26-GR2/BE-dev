@@ -8,6 +8,7 @@ import {
   PaymentType
 } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import { USER_MINI_FIELDS, fetchSeriesMiniMap, fetchUserMiniMap, toUserMini } from 'src/core/models/user-mini.model'
 
 @Injectable()
 export class PaymentRecordRepo {
@@ -27,9 +28,21 @@ export class PaymentRecordRepo {
   }
 
   async findById(id: string) {
-    return this.prisma.paymentRecord.findUnique({
-      where: { id }
+    const record = await this.prisma.paymentRecord.findUnique({
+      where: { id },
+      include: { receiver: { select: USER_MINI_FIELDS } }
     })
+    if (!record) return null
+    const [approvers, series] = await Promise.all([
+      fetchUserMiniMap(this.prisma, [record.approvedBy]),
+      fetchSeriesMiniMap(this.prisma, [record.seriesId])
+    ])
+    return {
+      ...record,
+      receiver: toUserMini(record.receiver),
+      approver: record.approvedBy ? (approvers.get(record.approvedBy) ?? null) : null,
+      series: record.seriesId ? (series.get(record.seriesId) ?? null) : null
+    }
   }
 
   async findUserById(userId: string) {
@@ -55,10 +68,26 @@ export class PaymentRecordRepo {
     if (params.paymentType) where.paymentType = params.paymentType
     if (params.paymentSource) where.paymentSource = params.paymentSource
 
-    return this.prisma.paymentRecord.findMany({
+    const records = await this.prisma.paymentRecord.findMany({
       where,
       orderBy: { createdAt: 'desc' }
     })
+    const [users, series] = await Promise.all([
+      fetchUserMiniMap(
+        this.prisma,
+        records.flatMap((record) => [record.receiverId, record.approvedBy])
+      ),
+      fetchSeriesMiniMap(
+        this.prisma,
+        records.map((record) => record.seriesId)
+      )
+    ])
+    return records.map((record) => ({
+      ...record,
+      receiver: users.get(record.receiverId),
+      approver: record.approvedBy ? (users.get(record.approvedBy) ?? null) : null,
+      series: record.seriesId ? (series.get(record.seriesId) ?? null) : null
+    }))
   }
 
   findEligibleContracts(seriesId: string) {

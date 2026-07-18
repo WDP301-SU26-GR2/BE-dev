@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { TransferRepo } from '../transfer.repo'
 import { AuthOtpService } from 'src/modules/auth/services/auth-otp.service'
 import { OtpPurpose } from 'src/modules/auth/auth.constant'
-import { TransferMessages } from '../errors/transfer.message'
+import { TransferMessages } from '../transfer.messages'
 import {
   NoActiveContractFoundException,
   TransferRequestNotFoundException,

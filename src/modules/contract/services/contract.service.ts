@@ -395,7 +395,7 @@ export class ContractService {
 
       return {
         status: 'COMPLETED',
-        message: 'Toàn bộ thành viên Hội đồng Ban giám đốc đã ký kết thành công!',
+        message: ContractMessages.response.boardSignaturesCompleted,
         contract: result
       }
     } else {
@@ -404,7 +404,7 @@ export class ContractService {
 
       return {
         status: 'PENDING_MORE_SIGNATURES',
-        message: `Ghi nhận chữ ký thành công. Đang chờ các thành viên khác trong Hội đồng ký kết (${newTotalSigns}/${totalRequiredSigns})`,
+        message: ContractMessages.response.boardSignatureRecorded(newTotalSigns, totalRequiredSigns),
         contract: result
       }
     }
@@ -499,6 +499,6 @@ export class ContractService {
       action: 'REVENUE_REPORTED',
       reason: `revenue=${body.revenue} period=${body.period}`
     })
-    return { message: 'Đã ghi nhận doanh thu, hệ thống đang chia theo hợp đồng.' }
+    return { message: ContractMessages.response.revenueRecorded }
   }
 }

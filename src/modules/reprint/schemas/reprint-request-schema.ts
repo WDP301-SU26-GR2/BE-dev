@@ -3,6 +3,7 @@ import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { ReprintChapterSchema } from './reprint-request.model'
 import { zDateField } from 'src/core/http/docs/date-docs'
+import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
 
 // B-RPT-01: Payload tạo yêu cầu tái bản ban đầu từ Board/Editor
 export const CreateReprintRequestBodySchema = extendApi(
@@ -95,7 +96,9 @@ export const ReprintRequestResSchema = extendApi(
     boardApprovedAt: zDateField().nullable(),
     publishedAt: zDateField().nullable(),
     createdAt: zDateField(),
-    chapters: z.array(ReprintChapterSchema)
+    chapters: z.array(ReprintChapterSchema),
+    series: SeriesMiniSchema.nullable().optional().describe('Thông tin hiển thị — có ở GET list/detail'),
+    requester: UserMiniSchema.nullable().optional().describe('Người yêu cầu — có ở GET list/detail')
   }),
   {
     title: 'ReprintRequestRes',

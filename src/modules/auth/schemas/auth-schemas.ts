@@ -16,7 +16,7 @@ export const RegisterBodySchema = extendApi(
   })
     .extend({
       phoneNumber: PhoneNumberE164Schema,
-      password: z.string().regex(PASSWORD_PATTERN, 'Password must be =8 chars with upper, lower and a digit'),
+      password: z.string().regex(PASSWORD_PATTERN, 'Mật khẩu phải có 8–100 ký tự, gồm chữ hoa, chữ thường và số'),
       displayName: z.string().min(2).max(100),
       confirm_password: z.string().min(8).max(100),
       type: zRoleSubset([RoleCode.MANGAKA, RoleCode.ASSISTANT])
@@ -26,7 +26,7 @@ export const RegisterBodySchema = extendApi(
       if (password !== confirm_password) {
         ctx.addIssue({
           code: 'custom',
-          message: 'Passwords do not match',
+          message: 'Mật khẩu xác nhận không khớp',
           path: ['confirm_password']
         })
       }
@@ -58,14 +58,14 @@ export const SendOtpBodySchema = extendApi(
       if (email === '') {
         ctx.addIssue({
           code: 'custom',
-          message: 'Email is required',
+          message: 'Email là bắt buộc',
           path: ['email']
         })
       }
       if (!purpose) {
         ctx.addIssue({
           code: 'custom',
-          message: 'Purpose is required',
+          message: 'Mục đích gửi OTP là bắt buộc',
           path: ['purpose']
         })
       }
@@ -130,7 +130,7 @@ export const ForgotPasswordBodySchema = extendApi(
     .object({
       email: z.string().email(),
       code: z.string().length(6),
-      newPassword: z.string().regex(PASSWORD_PATTERN, 'Password must be =8 chars with upper, lower and a digit'),
+      newPassword: z.string().regex(PASSWORD_PATTERN, 'Mật khẩu phải có 8–100 ký tự, gồm chữ hoa, chữ thường và số'),
       confirmNewPassword: z.string().min(8).max(100)
     })
     .strict()
@@ -138,7 +138,7 @@ export const ForgotPasswordBodySchema = extendApi(
       if (newPassword !== confirmNewPassword) {
         ctx.addIssue({
           code: 'custom',
-          message: 'New passwords and confirm passwords do not match',
+          message: 'Mật khẩu mới và mật khẩu xác nhận không khớp',
           path: ['confirmNewPassword']
         })
       }
@@ -154,7 +154,7 @@ export const ChangePasswordBodySchema = extendApi(
   z
     .object({
       currentPassword: z.string().min(6).max(100),
-      newPassword: z.string().regex(PASSWORD_PATTERN, 'Password must be =8 chars with upper, lower and a digit'),
+      newPassword: z.string().regex(PASSWORD_PATTERN, 'Mật khẩu phải có 8–100 ký tự, gồm chữ hoa, chữ thường và số'),
       confirmNewPassword: z.string().min(8).max(100)
     })
     .strict()
@@ -162,7 +162,7 @@ export const ChangePasswordBodySchema = extendApi(
       if (newPassword !== confirmNewPassword) {
         ctx.addIssue({
           code: 'custom',
-          message: 'New passwords and confirm passwords do not match',
+          message: 'Mật khẩu mới và mật khẩu xác nhận không khớp',
           path: ['confirmNewPassword']
         })
       }

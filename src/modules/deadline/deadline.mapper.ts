@@ -1,9 +1,15 @@
 import { DeadlineRequest } from '@prisma/client'
 import { DeadlineRequestResType } from './schemas/deadline-schemas'
+import { ChapterMiniType, SeriesMiniType } from 'src/core/models/user-mini.model'
 
 const iso = (date: Date | null | undefined) => (date ? date.toISOString() : null)
 
-export function toDeadlineRequestRes(deadlineRequest: DeadlineRequest): DeadlineRequestResType {
+type DeadlineRequestWithContext = DeadlineRequest & {
+  series?: SeriesMiniType | null
+  chapter?: ChapterMiniType | null
+}
+
+export function toDeadlineRequestRes(deadlineRequest: DeadlineRequestWithContext): DeadlineRequestResType {
   return {
     id: deadlineRequest.id,
     scheduleId: deadlineRequest.scheduleId,
@@ -18,6 +24,8 @@ export function toDeadlineRequestRes(deadlineRequest: DeadlineRequest): Deadline
     status: deadlineRequest.status,
     boardReviewedBy: deadlineRequest.boardReviewedBy,
     resolvedAt: iso(deadlineRequest.resolvedAt),
-    createdAt: deadlineRequest.createdAt.toISOString()
+    createdAt: deadlineRequest.createdAt.toISOString(),
+    ...(deadlineRequest.series !== undefined ? { series: deadlineRequest.series } : {}),
+    ...(deadlineRequest.chapter !== undefined ? { chapter: deadlineRequest.chapter } : {})
   }
 }

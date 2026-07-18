@@ -19,5 +19,8 @@
 export const NotificationMessages = {
   error: {
     notificationNotFound: 'Error.NotificationNotFound'
+  },
+  errorText: {
+    'Error.NotificationNotFound': 'Không tìm thấy thông báo'
   }
 } as const
