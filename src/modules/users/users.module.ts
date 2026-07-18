@@ -29,6 +29,6 @@ import { UsersService } from './users.service'
     AssistantDirectoryService,
     StaffProfileService
   ],
-  exports: [MangakaProfileService, AssistantProfileService, StaffProfileService]
+  exports: [AdminStatsService, MangakaProfileService, AssistantProfileService, StaffProfileService]
 })
 export class UsersModule {}

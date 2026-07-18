@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-16T20:20:18.084Z — 251 routes.
+// Sinh lúc: 2026-07-18T04:32:19.587Z — 257 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -306,6 +306,12 @@ export const ROUTE_RULES: RouteRule[] = [
     allowed: [RoleCode.EDITOR, RoleCode.MANGAKA, RoleCode.BOARD_MEMBER]
   },
   { method: 'GET', path: '/contracts/health', access: 'AUTH', allowed: [] },
+  { method: 'GET', path: '/dashboard/admin', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
+  { method: 'GET', path: '/dashboard/assistant', access: 'ROLES', allowed: [RoleCode.ASSISTANT] },
+  { method: 'GET', path: '/dashboard/board', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER] },
+  { method: 'GET', path: '/dashboard/editor', access: 'ROLES', allowed: [RoleCode.EDITOR] },
+  { method: 'GET', path: '/dashboard/mangaka', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'GET', path: '/dashboard/mangaka/earnings', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   {
     method: 'GET',
     path: '/deadline-requests',

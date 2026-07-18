@@ -53,6 +53,11 @@ export class NotificationService {
     }
   }
 
+  /** Số thông báo chưa đọc của user (badge / dashboard). */
+  countUnread(recipientId: string): Promise<number> {
+    return this.notificationRepository.countUnread(recipientId)
+  }
+
   async notifySafe(input: NotifyInput): Promise<void> {
     try {
       await this.notify(input)
