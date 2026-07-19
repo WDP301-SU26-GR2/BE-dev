@@ -13,6 +13,8 @@
 //   POST   /series/:id/proposal/approve              → PROPOSAL_APPROVED
 //   POST   /series/:id/reject              body { reason } → ABANDONED
 //   POST   /series/:id/withdraw            body { reason } → WITHDRAWN
+//   POST   /series/:id/reopen                        → DRAFT
+//   POST   /series/:id/reopen-review       body { reason } → IN_REVIEW
 //   POST   /series/:id/pitch                          → PITCHED
 //   POST   /series/:id/names/:nameId/approve          Name PROPOSAL → APPROVED
 //   POST   /series/:id/hiatus             body { reason }
@@ -26,10 +28,10 @@
 //   POST   /board/decisions       + POST /board/decisions/:id/vote
 //   POST   /admin/users/:id/reset-password
 //   GET    /mangakas/:userId
-import { wipeDb, seedRolesAndAdmin, prisma, makeUser, makeSeriesAt } from './lib/seed.js'
+import { wipeDb, seedRolesAndAdmin, prisma, makeUser, makeSeriesAt, makeNameAt } from './lib/seed.js'
 import { req, ok, section, summary, expectError, resetCounters, sleep } from './lib/http.js'
 import { login } from './lib/auth.js'
-import { SeriesStatus, DecisionType, BoardDecisionResult } from '@prisma/client'
+import { SeriesStatus, DecisionType, BoardDecisionResult, NameStatus, ProposalStatus } from '@prisma/client'
 
 const FLOW = 'flow-01-serialization'
 
@@ -39,6 +41,33 @@ const createProposal = async (token: string, body: Record<string, unknown>) => {
   if (r.status !== 201) throw new Error(`createProposal failed: ${r.status} ${r.raw.slice(0, 200)}`)
   const s = r.json?.data?.series
   return { seriesId: s.id as string, proposalId: s.id as string, nameId: s.proposal?.nameId as string }
+}
+
+// makeSeriesAt intentionally leaves proposal.nameId null. Spec 22 reopen/re-pitch needs a real linked
+// proposal-Name, so seed both records and replace the complete embedded proposal (never partial-write it).
+const makeProposalSeriesAt = async (
+  status: SeriesStatus,
+  input: {
+    mangakaId: string
+    editorId?: string
+    title: string
+    proposalStatus: ProposalStatus
+    nameStatus: NameStatus
+  }
+) => {
+  const series = await makeSeriesAt(status, {
+    mangakaId: input.mangakaId,
+    ...(input.editorId ? { editorId: input.editorId } : {}),
+    title: input.title,
+    proposalStatus: input.proposalStatus
+  })
+  if (!series.proposal) throw new Error(`makeProposalSeriesAt: ${series.id} has no proposal`)
+  const name = await makeNameAt({ seriesId: series.id, status: input.nameStatus })
+  const linked = await prisma.series.update({
+    where: { id: series.id },
+    data: { proposal: { set: { ...series.proposal, nameId: name.id } } }
+  })
+  return { series: linked, name }
 }
 
 // Vote tới khi APPROVED (roster 3, quorum 2: phiếu 2 chốt; phiếu 3 trả 409, helper không assert).
@@ -961,6 +990,176 @@ const main = async () => {
   // F01-085 — GET /board/suggest-members bởi BOARD_MEMBER → 403
   const sugDeniedRes = await req('GET', `/board/suggest-members?seriesId=${autoSer.id}`, { token: b1Tok })
   ok('F01-085 suggest-members (BOARD_MEMBER) → 403', sugDeniedRes.status === 403, `got ${sugDeniedRes.status}`)
+
+  // ══════════════ Spec 22 — REOPEN / RE-PITCH ═══════════════════════════════════════════════════════
+  section('F01-R1..R5 Series reopen / re-pitch (Spec 22)')
+
+  // F01-R1 — ABANDONED → DRAFT, then submit again into the unassigned Editor queue.
+  const reopenSeed = await makeProposalSeriesAt(SeriesStatus.ABANDONED, {
+    mangakaId: m1.id,
+    title: 'FT S22 Reopen Queue',
+    proposalStatus: ProposalStatus.REJECTED,
+    nameStatus: NameStatus.APPROVED
+  })
+  const reopenRes = await req('POST', `/series/${reopenSeed.series.id}/reopen`, { token: m1Tok })
+  ok('F01-R1a Mangaka reopens ABANDONED → DRAFT (201)', reopenRes.status === 201, reopenRes.raw.slice(0, 200))
+
+  const reopenDetail = await req('GET', `/series/${reopenSeed.series.id}`, { token: m1Tok })
+  const reopenDetailData = reopenDetail.json?.data ?? reopenDetail.json
+  const reopenedDb = await prisma.series.findUnique({ where: { id: reopenSeed.series.id } })
+  const reopenedNameDb = await prisma.name.findUnique({ where: { id: reopenSeed.name.id } })
+  ok(
+    'F01-R1b reopened detail/DB has Series DRAFT + proposal DRAFT + Name DRAFT',
+    reopenDetail.status === 200 &&
+      reopenDetailData?.status === SeriesStatus.DRAFT &&
+      reopenedDb?.proposal?.status === ProposalStatus.DRAFT &&
+      reopenedNameDb?.status === NameStatus.DRAFT,
+    `detail=${reopenDetailData?.status} proposal=${reopenedDb?.proposal?.status} name=${reopenedNameDb?.status}`
+  )
+
+  const reopenSubmit = await req('POST', `/series/${reopenSeed.series.id}/submit`, { token: m1Tok })
+  ok('F01-R1c reopened Series submits again (201)', reopenSubmit.status === 201, reopenSubmit.raw.slice(0, 200))
+  const editorQueue = await req('GET', '/series', { token: e2Tok })
+  const editorQueueItems = (editorQueue.json?.data?.items ?? []) as Array<{ id?: string }>
+  ok(
+    'F01-R1d resubmitted Series appears in another Editor queue',
+    editorQueue.status === 200 && editorQueueItems.some((series) => series.id === reopenSeed.series.id),
+    `status=${editorQueue.status} ids=${editorQueueItems.map((series) => series.id).join(',')}`
+  )
+
+  // F01-R2 — a different Editor can claim the reopened Series.
+  const reclaimRes = await req('POST', `/series/${reopenSeed.series.id}/claim`, { token: e2Tok })
+  ok('F01-R2 another Editor claims reopened Series (201)', reclaimRes.status === 201, reclaimRes.raw.slice(0, 200))
+  ok(
+    'F01-R2b DB stores the new Editor assignment',
+    (await prisma.series.findUnique({ where: { id: reopenSeed.series.id } }))?.editorId === e2.id
+  )
+
+  // F01-R3 — Board-rejected Series keeps its Editor, reopens revision, and pitches a second time.
+  // Ground truth: Board rejection changes Series.status only; proposal remains PITCHED and Name remains APPROVED.
+  const rePitchSeed = await makeProposalSeriesAt(SeriesStatus.REJECTED, {
+    mangakaId: m1.id,
+    editorId: e1.id,
+    title: 'FT S22 Board Re-pitch',
+    proposalStatus: ProposalStatus.PITCHED,
+    nameStatus: NameStatus.APPROVED
+  })
+  const reopenReviewRes = await req('POST', `/series/${rePitchSeed.series.id}/reopen-review`, {
+    token: e1Tok,
+    body: { reason: 'Hội đồng yêu cầu chỉnh lại pitch' }
+  })
+  ok(
+    'F01-R3a assigned Editor reopens REJECTED → IN_REVIEW (201)',
+    reopenReviewRes.status === 201,
+    reopenReviewRes.raw.slice(0, 200)
+  )
+  const rePitchDetail = await req('GET', `/series/${rePitchSeed.series.id}`, { token: m1Tok })
+  const rePitchDetailData = rePitchDetail.json?.data ?? rePitchDetail.json
+  ok(
+    'F01-R3b reopen-review sets PROPOSAL_REVISION and keeps assigned Editor',
+    rePitchDetail.status === 200 &&
+      rePitchDetailData?.status === SeriesStatus.IN_REVIEW &&
+      rePitchDetailData?.proposal?.status === ProposalStatus.PROPOSAL_REVISION &&
+      rePitchDetailData?.editorId === e1.id,
+    rePitchDetail.raw.slice(0, 300)
+  )
+
+  const rePitchUpdate = await req('PUT', `/series/proposals/${rePitchSeed.series.id}`, {
+    token: m1Tok,
+    body: { synopsis: 'Pitch đã chỉnh sửa sau phản hồi của hội đồng' }
+  })
+  ok('F01-R3c Mangaka updates reopened proposal (200)', rePitchUpdate.status === 200, rePitchUpdate.raw.slice(0, 200))
+  const rePitchResubmit = await req('POST', `/series/${rePitchSeed.series.id}/proposal/resubmit`, { token: m1Tok })
+  ok('F01-R3d Mangaka resubmits proposal (201)', rePitchResubmit.status === 201, rePitchResubmit.raw.slice(0, 200))
+  const rePitchApprove = await req('POST', `/series/${rePitchSeed.series.id}/proposal/approve`, { token: e1Tok })
+  ok('F01-R3e Editor approves revised proposal (201)', rePitchApprove.status === 201, rePitchApprove.raw.slice(0, 200))
+  await sleep(300)
+  const readyToRepitch = await prisma.series.findUnique({ where: { id: rePitchSeed.series.id } })
+  ok(
+    'F01-R3f approved proposal + existing approved Name → READY_TO_PITCH',
+    readyToRepitch?.status === SeriesStatus.READY_TO_PITCH,
+    `got ${readyToRepitch?.status}`
+  )
+  const secondPitch = await req('POST', `/series/${rePitchSeed.series.id}/pitch`, { token: e1Tok })
+  ok(
+    'F01-R3g Editor pitches the Series a second time (201 PITCHED)',
+    secondPitch.status === 201 && (secondPitch.json?.data?.status ?? secondPitch.json?.status) === SeriesStatus.PITCHED,
+    secondPitch.raw.slice(0, 200)
+  )
+
+  // F01-R4 — both explicit exits from REJECTED remain available.
+  const rejectedWithdraw = await makeProposalSeriesAt(SeriesStatus.REJECTED, {
+    mangakaId: m1.id,
+    editorId: e1.id,
+    title: 'FT S22 Reject Withdraw',
+    proposalStatus: ProposalStatus.PITCHED,
+    nameStatus: NameStatus.APPROVED
+  })
+  const rejectedWithdrawRes = await req('POST', `/series/${rejectedWithdraw.series.id}/withdraw`, {
+    token: m1Tok,
+    body: { reason: 'Mangaka dừng concept sau quyết định hội đồng' }
+  })
+  ok(
+    'F01-R4a Mangaka withdraws REJECTED → WITHDRAWN (201)',
+    rejectedWithdrawRes.status === 201 &&
+      (rejectedWithdrawRes.json?.data?.status ?? rejectedWithdrawRes.json?.status) === SeriesStatus.WITHDRAWN,
+    rejectedWithdrawRes.raw.slice(0, 200)
+  )
+
+  const rejectedAbandon = await makeProposalSeriesAt(SeriesStatus.REJECTED, {
+    mangakaId: m1.id,
+    editorId: e1.id,
+    title: 'FT S22 Reject Abandon',
+    proposalStatus: ProposalStatus.PITCHED,
+    nameStatus: NameStatus.APPROVED
+  })
+  const rejectedAbandonRes = await req('POST', `/series/${rejectedAbandon.series.id}/reject`, {
+    token: e1Tok,
+    body: { reason: 'Editor quyết định buông concept' }
+  })
+  ok(
+    'F01-R4b assigned Editor rejects REJECTED → ABANDONED (201)',
+    rejectedAbandonRes.status === 201 &&
+      (rejectedAbandonRes.json?.data?.status ?? rejectedAbandonRes.json?.status) === SeriesStatus.ABANDONED,
+    rejectedAbandonRes.raw.slice(0, 200)
+  )
+
+  // F01-R5 — invalid state, route-role, and ownership boundaries.
+  const reopenPitched = await req('POST', `/series/${rePitchSeed.series.id}/reopen`, { token: m1Tok })
+  expectError(reopenPitched, 409, 'Error.InvalidSeriesTransition', 'F01-R5a PITCHED cannot reopen')
+
+  const alreadyInReview = await makeProposalSeriesAt(SeriesStatus.IN_REVIEW, {
+    mangakaId: m1.id,
+    editorId: e1.id,
+    title: 'FT S22 Already In Review',
+    proposalStatus: ProposalStatus.PROPOSAL_REVIEW,
+    nameStatus: NameStatus.SUBMITTED
+  })
+  const reopenAlreadyInReview = await req('POST', `/series/${alreadyInReview.series.id}/reopen-review`, {
+    token: e1Tok,
+    body: { reason: 'Không thể mở lại trạng thái đang mở' }
+  })
+  expectError(reopenAlreadyInReview, 409, 'Error.InvalidSeriesTransition', 'F01-R5b IN_REVIEW cannot reopen-review')
+
+  const roleGuardSeed = await makeProposalSeriesAt(SeriesStatus.ABANDONED, {
+    mangakaId: m1.id,
+    title: 'FT S22 Role Guard',
+    proposalStatus: ProposalStatus.REJECTED,
+    nameStatus: NameStatus.APPROVED
+  })
+  const editorCallsReopen = await req('POST', `/series/${roleGuardSeed.series.id}/reopen`, { token: e1Tok })
+  ok('F01-R5c Editor calling Mangaka reopen route → 403', editorCallsReopen.status === 403, editorCallsReopen.raw)
+  const mangakaCallsReopenReview = await req('POST', `/series/${alreadyInReview.series.id}/reopen-review`, {
+    token: m1Tok,
+    body: { reason: 'Sai vai trò' }
+  })
+  ok(
+    'F01-R5d Mangaka calling Editor reopen-review route → 403',
+    mangakaCallsReopenReview.status === 403,
+    mangakaCallsReopenReview.raw
+  )
+  const otherMangakaReopen = await req('POST', `/series/${roleGuardSeed.series.id}/reopen`, { token: m2Tok })
+  expectError(otherMangakaReopen, 403, 'Error.NotSeriesOwner', 'F01-R5e non-owner Mangaka cannot reopen')
 
   await prisma.$disconnect()
   const fail = summary(FLOW)

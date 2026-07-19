@@ -179,6 +179,28 @@ export class SeriesController {
     return this.seriesService.withdraw(userId, id, body.reason)
   }
 
+  @Post(':id/reopen')
+  @ApiOperation({
+    summary: 'Mangaka mở lại hồ sơ đã ABANDONED/WITHDRAWN (Series → DRAFT, về hàng đợi khi nộp lại)'
+  })
+  @ApiErrors(NotSeriesOwnerException, SeriesNotFoundException, InvalidSeriesTransitionException)
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 201, type: SeriesResDto })
+  reopen(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.seriesService.reopen(userId, id)
+  }
+
+  @Post(':id/reopen-review')
+  @ApiOperation({
+    summary: 'Editor mở lại vòng chỉnh sửa sau khi Board từ chối (REJECTED → IN_REVIEW, giữ editor)'
+  })
+  @ApiErrors(NotAssignedEditorException, SeriesNotFoundException, InvalidSeriesTransitionException)
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 201, type: SeriesResDto })
+  reopenReview(@Param('id') id: string, @Body() body: ReasonBodyDto, @ActiveUser('userId') userId: string) {
+    return this.seriesService.reopenForReview(userId, id, body.reason)
+  }
+
   @Post(':id/franchise-consent')
   @ApiOperation({
     summary: 'Mangaka gốc đồng ý/từ chối series phái sinh (A-SER-06). REJECTED chỉ block submit.'

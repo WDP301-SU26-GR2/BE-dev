@@ -13,9 +13,9 @@ export const SERIES_TRANSITIONS: Record<SeriesStatus, SeriesStatus[]> = {
   CANCELLING: [SeriesStatus.CANCELLED],
   COMPLETED: [],
   CANCELLED: [],
-  REJECTED: [],
-  ABANDONED: [],
-  WITHDRAWN: []
+  REJECTED: [SeriesStatus.IN_REVIEW, SeriesStatus.WITHDRAWN, SeriesStatus.ABANDONED],
+  ABANDONED: [SeriesStatus.DRAFT],
+  WITHDRAWN: [SeriesStatus.DRAFT]
 }
 
 // Metadata của hồ sơ series đã đóng không còn chỉnh sửa được. Dùng chung ở service guard

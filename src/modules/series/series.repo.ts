@@ -321,6 +321,17 @@ export class SeriesRepository {
     return result.count
   }
 
+  // Spec 22: state service has already moved ABANDONED/WITHDRAWN → DRAFT. Truly unset the old
+  // assignment so Mongo's `isSet:false` review-queue filter can see this series, then reset the
+  // optional proposal composite through the bounded CAS path (full set preserves every field).
+  async reopenSeriesToDraft(seriesId: string) {
+    await this.prismaService.series.update({
+      where: { id: seriesId },
+      data: { editorId: { unset: true }, reviewStartedAt: { unset: true } }
+    })
+    return await this.updateProposalStatus(seriesId, ProposalStatus.DRAFT)
+  }
+
   async markReviewStarted(seriesId: string): Promise<void> {
     await this.prismaService.series.updateMany({
       where: { id: seriesId, reviewStartedAt: { isSet: false } },

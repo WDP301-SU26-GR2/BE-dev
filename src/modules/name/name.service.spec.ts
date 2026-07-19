@@ -1,6 +1,7 @@
 import { NameKind, NameStatus, NotificationType, SeriesStatus } from '@prisma/client'
 import { NameService } from './name.service'
 import { DomainEvent } from 'src/core/events/domain-events'
+import { InvalidNameStateException } from './errors/name.errors'
 
 const SERIES_ID = '507f1f77bcf86cd799439011'
 const NAME_ID = '507f1f77bcf86cd799439012'
@@ -188,6 +189,38 @@ describe('NameService — lifecycle (MOVE từ series)', () => {
         content: 'Name cần chỉnh sửa (vòng 2): fix pacing'
       })
     )
+  })
+
+  it('requestRevision reopens an APPROVED proposal-Name while its series is IN_REVIEW', async () => {
+    const { service, nameRepo } = make({ status: NameStatus.APPROVED, kind: NameKind.PROPOSAL })
+
+    await service.requestRevision('e1', SERIES_ID, NAME_ID, 'rework after board rejection')
+
+    expect(nameRepo.updateNameStatus).toHaveBeenCalledWith(NAME_ID, { status: NameStatus.REVISION })
+  })
+
+  it('chapterRequestRevision keeps an APPROVED chapter-Name blocked', async () => {
+    const { service, nameRepo } = make({
+      status: NameStatus.APPROVED,
+      kind: NameKind.CHAPTER,
+      chapterId: CHAPTER_ID
+    })
+
+    await expect(service.chapterRequestRevision('e1', CHAPTER_ID, NAME_ID, 'must remain approved')).rejects.toBe(
+      InvalidNameStateException
+    )
+    expect(nameRepo.updateNameStatus).not.toHaveBeenCalled()
+  })
+
+  it('requestRevision keeps an APPROVED proposal-Name blocked before the series is reopened for review', async () => {
+    const { service, nameRepo } = make(
+      { status: NameStatus.APPROVED, kind: NameKind.PROPOSAL },
+      {},
+      SeriesStatus.REJECTED
+    )
+
+    await expect(service.requestRevision('e1', SERIES_ID, NAME_ID, 'too early')).rejects.toBe(InvalidNameStateException)
+    expect(nameRepo.updateNameStatus).not.toHaveBeenCalled()
   })
 
   it('uses each nameId as the revision notification reference so Names in one series do not dedupe each other', async () => {

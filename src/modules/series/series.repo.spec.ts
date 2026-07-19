@@ -1,4 +1,4 @@
-import { SeriesStatus } from '@prisma/client'
+import { ProposalStatus, SeriesStatus } from '@prisma/client'
 import { SERIES_METADATA_TERMINAL_STATUSES, SERIES_PROPOSAL_CAS_MAX_ATTEMPTS } from './series.constant'
 import { SeriesRepository } from './series.repo'
 
@@ -76,6 +76,54 @@ describe('SeriesRepository.findById people enrichment', () => {
 
     await expect(repo.findById('s1')).resolves.toEqual({ ...series, mangaka, editor: null })
     expect(prismaService.user.findMany).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('SeriesRepository.reopenSeriesToDraft', () => {
+  it('truly unsets editor/review fields and CAS-preserves the latest proposal while resetting its status', async () => {
+    const original = {
+      id: 's1',
+      proposal: {
+        nameId: 'n1',
+        synopsis: 'original',
+        characterDesigns: ['d1'],
+        estimatedLength: 10,
+        status: ProposalStatus.REJECTED,
+        createdAt: new Date('2026-07-18T00:00:00.000Z')
+      }
+    }
+    const concurrent = {
+      ...original,
+      proposal: { ...original.proposal, synopsis: 'concurrent edit', characterDesigns: ['d2'] }
+    }
+    const reopened = {
+      ...concurrent,
+      proposal: { ...concurrent.proposal, status: ProposalStatus.DRAFT }
+    }
+    const prismaService = {
+      series: {
+        update: jest.fn().mockResolvedValue(original),
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(original)
+          .mockResolvedValueOnce(concurrent)
+          .mockResolvedValueOnce(reopened),
+        updateMany: jest.fn().mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 })
+      }
+    }
+    const repo = new SeriesRepository(prismaService as never)
+
+    const result = await repo.reopenSeriesToDraft('s1')
+
+    expect(prismaService.series.update).toHaveBeenCalledWith({
+      where: { id: 's1' },
+      data: { editorId: { unset: true }, reviewStartedAt: { unset: true } }
+    })
+    expect(prismaService.series.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: 's1', proposal: { equals: concurrent.proposal } },
+      data: { proposal: { set: { ...concurrent.proposal, status: ProposalStatus.DRAFT } } }
+    })
+    expect(result).toEqual(reopened)
   })
 })
 
