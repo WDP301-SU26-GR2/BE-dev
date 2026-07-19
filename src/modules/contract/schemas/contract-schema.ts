@@ -123,6 +123,21 @@ export const ContractResSchema = extendApi(
     mangaka: UserMiniSchema.optional().describe('Thông tin hiển thị — CÓ ở GET list/detail'),
     editor: UserMiniSchema.nullable().optional().describe('null = chưa gán; absent ở mutation path'),
     boardDecisionId: z.string().nullable(),
+    boardDecision: z
+      .object({
+        id: z.string(),
+        decisionType: zEnum($Enums.DecisionType, 'DecisionType').nullable(),
+        result: zEnum($Enums.BoardDecisionResult, 'BoardDecisionResult').nullable(),
+        decidedAt: zDateField().nullable().describe('Thời điểm Board chốt Decision; null khi chưa finalize'),
+        boardSession: z.object({
+          id: z.string(),
+          title: z.string(),
+          startTime: zDateField()
+        })
+      })
+      .nullable()
+      .optional()
+      .describe('Căn cứ Board Decision và phiên họp nguồn; có ở GET list/detail'),
     sourceTransferRequestId: z.string().nullable().optional(),
     contractType: zEnum($Enums.ContractType, 'ContractType'),
     valuationAmount: z.number().nullable(),

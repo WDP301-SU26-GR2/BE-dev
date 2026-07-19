@@ -46,6 +46,16 @@ export const ContractErrors = {
       'Hợp đồng này chưa có quyết định phê duyệt chính thức từ Hội đồng'
     ),
 
+  ContractCreationBoardDecisionNotFound: () =>
+    new NotFoundException([{ message: E.boardDecisionNotFound, path: 'boardDecisionId' }]),
+
+  InvalidSerializationDecision: () =>
+    new ConflictException([{ message: E.invalidSerializationDecision, path: 'boardDecisionId' }]),
+
+  ContractMangakaMismatch: () => new ConflictException([{ message: E.contractMangakaMismatch, path: 'mangakaId' }]),
+
+  OpenContractExists: () => new ConflictException([{ message: E.openContractExists, path: 'seriesId' }]),
+
   NotAuthorizedInBoard: () =>
     new ForbiddenException(
       'NOT_AUTHORIZED_IN_BOARD',
