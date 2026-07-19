@@ -11,9 +11,28 @@ export class ContractRepo {
   constructor(private readonly prisma: PrismaService) {}
 
   // B-CON-01: đọc trạng thái series để gate tạo hợp đồng (cross-module read prisma.series).
-  async findSeriesStatus(seriesId: string): Promise<string | null> {
-    const series = await this.prisma.series.findUnique({ where: { id: seriesId }, select: { status: true } })
-    return series?.status ?? null
+  findSeriesForContractCreation(seriesId: string) {
+    return this.prisma.series.findUnique({
+      where: { id: seriesId },
+      select: { id: true, mangakaId: true, status: true }
+    })
+  }
+
+  findBoardDecisionForContractCreation(boardDecisionId: string) {
+    return this.prisma.boardDecision.findUnique({
+      where: { id: boardDecisionId },
+      select: { id: true, targetSeriesId: true, decisionType: true, result: true }
+    })
+  }
+
+  findBlockingContractForCreation(seriesId: string, boardDecisionId: string, statuses: ContractStatus[]) {
+    return this.prisma.contract.findFirst({
+      where: {
+        status: { in: statuses },
+        OR: [{ seriesId }, { boardDecisionId }]
+      },
+      select: { id: true }
+    })
   }
 
   // 1. Tạo hợp đồng nháp mới
@@ -34,6 +53,15 @@ export class ContractRepo {
       include: {
         versions: true,
         series: { select: { id: true, title: true } },
+        boardDecision: {
+          select: {
+            id: true,
+            decisionType: true,
+            result: true,
+            decidedAt: true,
+            boardSession: { select: { id: true, title: true, startTime: true } }
+          }
+        },
         mangaka: { select: USER_MINI_FIELDS },
         editor: { select: USER_MINI_FIELDS }
       }
@@ -56,6 +84,15 @@ export class ContractRepo {
       orderBy: { createdAt: 'desc' },
       include: {
         series: { select: { id: true, title: true } },
+        boardDecision: {
+          select: {
+            id: true,
+            decisionType: true,
+            result: true,
+            decidedAt: true,
+            boardSession: { select: { id: true, title: true, startTime: true } }
+          }
+        },
         mangaka: { select: USER_MINI_FIELDS },
         editor: { select: USER_MINI_FIELDS }
       }

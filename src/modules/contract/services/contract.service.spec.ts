@@ -17,7 +17,9 @@ function makeMocks(): Mocks {
       findById: jest.fn(),
       updateStatus: jest.fn().mockResolvedValue({ id: 'c1' }),
       createDraft: jest.fn().mockResolvedValue({ id: 'c1' }),
-      findSeriesStatus: jest.fn(),
+      findSeriesForContractCreation: jest.fn(),
+      findBoardDecisionForContractCreation: jest.fn(),
+      findBlockingContractForCreation: jest.fn(),
       updateAndLogVersion: jest.fn(),
       findVersionsByContractId: jest.fn(),
       findVersionById: jest.fn(),
@@ -162,11 +164,30 @@ describe('ContractService — B-CON-02 BOARD_REVIEW + request-changes', () => {
 })
 
 describe('ContractService.createDraft (B-CON-01 gate)', () => {
-  const dto = { seriesId: '507f1f77bcf86cd799439011', mangakaId: 'm1' } as unknown as CreateContractBodyDto
+  const dto = {
+    seriesId: '507f1f77bcf86cd799439011',
+    mangakaId: '507f1f77bcf86cd799439012',
+    boardDecisionId: '507f1f77bcf86cd799439013'
+  } as unknown as CreateContractBodyDto
+
+  const eligibleSeries = { id: dto.seriesId, mangakaId: dto.mangakaId, status: 'SERIALIZED' }
+  const eligibleDecision = {
+    id: dto.boardDecisionId,
+    targetSeriesId: dto.seriesId,
+    decisionType: 'SERIALIZATION',
+    result: 'APPROVED'
+  }
+
+  function allowCreation(m: Mocks) {
+    m.contractRepo.findSeriesForContractCreation.mockResolvedValue(eligibleSeries)
+    m.contractRepo.findBoardDecisionForContractCreation.mockResolvedValue(eligibleDecision)
+    m.contractRepo.findBlockingContractForCreation.mockResolvedValue(null)
+  }
 
   it('409 when series is not SERIALIZED', async () => {
     const m = makeMocks()
-    m.contractRepo.findSeriesStatus.mockResolvedValue('PITCHED')
+    allowCreation(m)
+    m.contractRepo.findSeriesForContractCreation.mockResolvedValue({ ...eligibleSeries, status: 'PITCHED' })
     await expect(makeService(m).createDraft('e1', dto)).rejects.toMatchObject({ status: 409 })
     expect(m.contractRepo.createDraft).not.toHaveBeenCalled()
   })
@@ -179,11 +200,67 @@ describe('ContractService.createDraft (B-CON-01 gate)', () => {
 
   it('creates draft when series is SERIALIZED', async () => {
     const m = makeMocks()
-    m.contractRepo.findSeriesStatus.mockResolvedValue('SERIALIZED')
+    allowCreation(m)
     m.contractRepo.createDraft.mockResolvedValue({ id: 'c1' })
     const res = await makeService(m).createDraft('e1', dto)
     expect(m.contractRepo.createDraft).toHaveBeenCalledWith('e1', dto)
     expect(res).toMatchObject({ id: 'c1' })
+  })
+
+  it('404 when boardDecisionId is malformed or does not exist', async () => {
+    const m = makeMocks()
+    allowCreation(m)
+    await expect(makeService(m).createDraft('e1', { ...dto, boardDecisionId: 'bad' })).rejects.toMatchObject({
+      status: 404
+    })
+    expect(m.contractRepo.findBoardDecisionForContractCreation).not.toHaveBeenCalled()
+
+    m.contractRepo.findBoardDecisionForContractCreation.mockResolvedValue(null)
+    await expect(makeService(m).createDraft('e1', dto)).rejects.toMatchObject({
+      status: 404,
+      response: { message: [{ message: 'Error.BoardDecisionNotFound', path: 'boardDecisionId' }] }
+    })
+    expect(m.contractRepo.createDraft).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['belongs to another series', { ...eligibleDecision, targetSeriesId: '507f1f77bcf86cd799439099' }],
+    ['has another decision type', { ...eligibleDecision, decisionType: 'CANCELLATION' }],
+    ['is not approved', { ...eligibleDecision, result: 'PENDING' }]
+  ])('409 when Board Decision %s', async (_case, decision) => {
+    const m = makeMocks()
+    allowCreation(m)
+    m.contractRepo.findBoardDecisionForContractCreation.mockResolvedValue(decision)
+
+    await expect(makeService(m).createDraft('e1', dto)).rejects.toMatchObject({
+      status: 409,
+      response: { message: [{ message: 'Error.InvalidSerializationDecision', path: 'boardDecisionId' }] }
+    })
+    expect(m.contractRepo.createDraft).not.toHaveBeenCalled()
+  })
+
+  it('409 when mangakaId is not the serialized series owner', async () => {
+    const m = makeMocks()
+    allowCreation(m)
+    m.contractRepo.findSeriesForContractCreation.mockResolvedValue({ ...eligibleSeries, mangakaId: 'another-mangaka' })
+
+    await expect(makeService(m).createDraft('e1', dto)).rejects.toMatchObject({
+      status: 409,
+      response: { message: [{ message: 'Error.ContractMangakaMismatch', path: 'mangakaId' }] }
+    })
+    expect(m.contractRepo.createDraft).not.toHaveBeenCalled()
+  })
+
+  it('409 when a non-terminal Contract already uses the same series or Board Decision', async () => {
+    const m = makeMocks()
+    allowCreation(m)
+    m.contractRepo.findBlockingContractForCreation.mockResolvedValue({ id: 'existing-contract' })
+
+    await expect(makeService(m).createDraft('e1', dto)).rejects.toMatchObject({
+      status: 409,
+      response: { message: [{ message: 'Error.OpenContractExists', path: 'seriesId' }] }
+    })
+    expect(m.contractRepo.createDraft).not.toHaveBeenCalled()
   })
 })
 
