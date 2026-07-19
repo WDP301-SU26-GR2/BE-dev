@@ -71,7 +71,7 @@ const setupSeriesAndDraftContract = async (
     data: {
       boardSessionId: session.id,
       targetSeriesId: series.id,
-      decisionType: DecisionType.CONTRACT,
+      decisionType: DecisionType.SERIALIZATION,
       result: 'APPROVED',
       allowedEditorIds: [b1.id],
       totalVotes: 1,
@@ -150,10 +150,14 @@ const main = async () => {
 
   const rHappyDetail = await req('GET', `/contracts/${cHappy}`, { token: e1Tok })
   ok(
-    'F06-EMB contract detail embeds mangaka and series',
+    'F06-EMB contract detail embeds mangaka, series, Decision and Board Session',
     rHappyDetail.status === 200 &&
       rHappyDetail.json?.data?.mangaka?.displayName?.length > 0 &&
-      rHappyDetail.json?.data?.series?.title === happy.series.title,
+      rHappyDetail.json?.data?.series?.title === happy.series.title &&
+      rHappyDetail.json?.data?.boardDecision?.id === happy.boardDecisionId &&
+      rHappyDetail.json?.data?.boardDecision?.decisionType === DecisionType.SERIALIZATION &&
+      rHappyDetail.json?.data?.boardDecision?.result === 'APPROVED' &&
+      rHappyDetail.json?.data?.boardDecision?.boardSession?.id === happy.sessionId,
     `got ${rHappyDetail.status} ${rHappyDetail.raw.slice(0, 200)}`
   )
 
@@ -509,7 +513,7 @@ const main = async () => {
     data: {
       boardSessionId: sessionGhost.id,
       targetSeriesId: draftSeries.id,
-      decisionType: DecisionType.CONTRACT,
+      decisionType: DecisionType.SERIALIZATION,
       result: 'APPROVED',
       allowedEditorIds: [b1.id],
       totalVotes: 1,
