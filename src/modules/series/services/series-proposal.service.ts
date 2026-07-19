@@ -162,9 +162,13 @@ export class SeriesProposalService {
 
   async reject(editorId: string, seriesId: string, reason: string) {
     const series = await this.requireSeries(seriesId)
-    if (series.status !== SeriesStatus.IN_REVIEW) throw InvalidProposalStateException
+    if (series.status !== SeriesStatus.IN_REVIEW && series.status !== SeriesStatus.REJECTED) {
+      throw InvalidProposalStateException
+    }
     requireAssignedEditor(series, editorId)
-    if (!series.reviewStartedAt) await this.seriesRepository.markReviewStarted(seriesId)
+    if (series.status === SeriesStatus.IN_REVIEW && !series.reviewStartedAt) {
+      await this.seriesRepository.markReviewStarted(seriesId)
+    }
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.REJECTED)
     const updated = await this.seriesStateService.transition(seriesId, SeriesStatus.ABANDONED, {
       changedBy: editorId,
@@ -180,12 +184,45 @@ export class SeriesProposalService {
   }
 
   async withdraw(mangakaId: string, seriesId: string, reason: string) {
-    await this.requireOwner(seriesId, mangakaId)
-    await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.WITHDRAWN)
-    const updated = await this.seriesStateService.transition(seriesId, SeriesStatus.WITHDRAWN, {
+    const series = await this.requireOwner(seriesId, mangakaId)
+    // Transition TRƯỚC (validate state machine — PITCHED trở đi bị 409), proposal status ghi SAU.
+    // Đảo thứ tự sẽ để lại proposal=WITHDRAWN trên series đang PITCHED khi transition bị chặn.
+    await this.seriesStateService.transition(seriesId, SeriesStatus.WITHDRAWN, {
       changedBy: mangakaId,
       reason
     })
+    const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.WITHDRAWN)
+    if (series.status === SeriesStatus.REJECTED && series.editorId) {
+      await this.notifyMangaka(
+        series.editorId,
+        seriesId,
+        'SERIES_WITHDRAWN_AFTER_REJECT',
+        SeriesMessages.notification.seriesWithdrawnAfterReject
+      )
+    }
+    return toSeriesRes(updated)
+  }
+
+  async reopen(mangakaId: string, seriesId: string) {
+    const series = await this.requireOwner(seriesId, mangakaId)
+    await this.seriesStateService.transition(seriesId, SeriesStatus.DRAFT, { changedBy: mangakaId })
+    const updated = await this.seriesRepository.reopenSeriesToDraft(seriesId)
+    const nameId = series.proposal?.nameId
+    if (nameId) await this.nameRepo.updateNameStatus(nameId, { status: NameStatus.DRAFT })
+    return toSeriesRes(updated)
+  }
+
+  async reopenForReview(editorId: string, seriesId: string, reason?: string) {
+    const series = await this.requireSeries(seriesId)
+    requireAssignedEditor(series, editorId)
+    await this.seriesStateService.transition(seriesId, SeriesStatus.IN_REVIEW, { changedBy: editorId, reason })
+    const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVISION)
+    await this.notifyMangaka(
+      series.mangakaId,
+      seriesId,
+      'SERIES_REOPENED_FOR_REVIEW',
+      SeriesMessages.notification.seriesReopenedForReview
+    )
     return toSeriesRes(updated)
   }
 

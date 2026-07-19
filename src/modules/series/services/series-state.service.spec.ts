@@ -58,6 +58,32 @@ describe('SeriesStateService.transition', () => {
     const svc = new SeriesStateService(repo as never, makeNameRepo() as never, makeAudit() as never)
     await expect(svc.transition('sX', SeriesStatus.IN_REVIEW, { changedBy: 'u1' })).rejects.toBeDefined()
   })
+
+  it('Spec 22: allows every reopen/rework edge and still rejects PITCHED → DRAFT', async () => {
+    const allowed: Array<[SeriesStatus, SeriesStatus]> = [
+      [SeriesStatus.REJECTED, SeriesStatus.IN_REVIEW],
+      [SeriesStatus.REJECTED, SeriesStatus.WITHDRAWN],
+      [SeriesStatus.REJECTED, SeriesStatus.ABANDONED],
+      [SeriesStatus.ABANDONED, SeriesStatus.DRAFT],
+      [SeriesStatus.WITHDRAWN, SeriesStatus.DRAFT]
+    ]
+
+    for (const [fromStatus, toStatus] of allowed) {
+      const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: fromStatus }) })
+      const svc = new SeriesStateService(repo as never, makeNameRepo() as never, makeAudit() as never)
+
+      await expect(svc.transition('s1', toStatus, { changedBy: 'u1' })).resolves.toMatchObject({ status: toStatus })
+      expect(repo.updateStatusWithHistory).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({ fromStatus, toStatus, changedBy: 'u1' })
+      )
+    }
+
+    const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: SeriesStatus.PITCHED }) })
+    const svc = new SeriesStateService(repo as never, makeNameRepo() as never, makeAudit() as never)
+    await expect(svc.transition('s1', SeriesStatus.DRAFT, { changedBy: 'u1' })).rejects.toBeDefined()
+    expect(repo.updateStatusWithHistory).not.toHaveBeenCalled()
+  })
 })
 
 describe('SeriesStateService.tryAdvanceToReadyToPitch', () => {
