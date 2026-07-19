@@ -3,7 +3,9 @@
 // `errors/series.errors.ts`, which references the `error` codes below.
 export const SeriesMessages = {
   response: {
-    proposalDeleted: 'Đã xoá bản đề xuất'
+    proposalDeleted: 'Đã xoá bản đề xuất',
+    seriesReopened: 'Đã mở lại hồ sơ — bạn có thể chỉnh sửa và nộp lại',
+    seriesReopenedForReview: 'Đã mở lại vòng chỉnh sửa sau khi hội đồng từ chối'
   },
   // Internal reasons stored on Series.statusHistory (audit trail). Keep English so logs/audits are
   // scannable; user-facing copy lives in `notification` / `response`.
@@ -17,6 +19,8 @@ export const SeriesMessages = {
     proposalResubmitted: (round: number) => `Đã nộp lại bản đề xuất (vòng ${round})`,
     proposalApproved: 'Bản đề xuất đã được duyệt',
     proposalRejected: (reason: string) => `Bản đề xuất bị từ chối: ${reason}`,
+    seriesReopenedForReview: 'Editor đã mở lại vòng chỉnh sửa sau khi hội đồng từ chối — hãy cập nhật hồ sơ và nộp lại',
+    seriesWithdrawnAfterReject: 'Mangaka đã rút series sau khi hội đồng từ chối',
     seriesCancelling: (allowance: number | null) =>
       allowance != null
         ? `Hội đồng đã quyết định huỷ series. Bạn được cấp ${allowance} chương để kết thúc.`

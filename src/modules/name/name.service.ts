@@ -89,7 +89,9 @@ export class NameService {
   ) {
     const { series, name } = await this.requireSeriesName(seriesId, nameId, opts)
     requireAssignedEditor(series, editorId)
-    if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW) {
+    const reopenable =
+      opts.kind === NameKind.PROPOSAL && name.status === NameStatus.APPROVED && series.status === SeriesStatus.IN_REVIEW
+    if (name.status !== NameStatus.SUBMITTED && name.status !== NameStatus.IN_REVIEW && !reopenable) {
       throw InvalidNameStateException
     }
     const updated = await this.nameRepo.updateNameStatus(nameId, { status: NameStatus.REVISION })

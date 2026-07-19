@@ -63,6 +63,14 @@ export class SeriesService {
     return this.proposalService.withdraw(mangakaId, seriesId, reason)
   }
 
+  reopen(mangakaId: string, seriesId: string) {
+    return this.proposalService.reopen(mangakaId, seriesId)
+  }
+
+  reopenForReview(editorId: string, seriesId: string, reason?: string) {
+    return this.proposalService.reopenForReview(editorId, seriesId, reason)
+  }
+
   franchiseConsent(seriesId: string, callerId: string, approve: boolean) {
     return this.proposalService.franchiseConsent(seriesId, callerId, approve)
   }
