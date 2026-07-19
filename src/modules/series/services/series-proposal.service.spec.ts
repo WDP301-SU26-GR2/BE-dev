@@ -2,8 +2,10 @@ import { ProposalStatus, SeriesStatus } from '@prisma/client'
 import { SeriesProposalService } from './series-proposal.service'
 import {
   FranchiseConsentRequiredException,
+  NotAssignedEditorException,
   NotFranchiseConsentTargetException,
-  NotOriginalMangakaException
+  NotOriginalMangakaException,
+  NotSeriesOwnerException
 } from '../errors/series.errors'
 
 const baseSeries = {
@@ -54,6 +56,11 @@ function make(seriesOverride: Record<string, unknown> = {}) {
       .fn()
       .mockImplementation((id, status) => Promise.resolve({ ...series, proposal: { ...series.proposal, status } })),
     updateProposalContent: jest.fn().mockResolvedValue(series),
+    reopenSeriesToDraft: jest
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve({ ...series, editorId: null, reviewStartedAt: null, status: SeriesStatus.DRAFT })
+      ),
     deleteSeriesWithNames: jest.fn().mockResolvedValue(undefined),
     markReviewStarted: jest.fn().mockResolvedValue(undefined),
     findExecutedContractType: jest.fn().mockResolvedValue(null),
@@ -128,6 +135,117 @@ describe('SeriesProposalService', () => {
     expect(seriesStateService.tryAdvanceToReadyToPitch).toHaveBeenCalledWith('s1', 'editor1')
     expect(notificationService.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'm1', referenceType: 'PROPOSAL_APPROVED', content: expect.any(String) })
+    )
+  })
+
+  it('withdraw khi transition bị chặn (PITCHED) → KHÔNG ghi proposal status (chống lệch dữ liệu)', async () => {
+    const { service, seriesRepository, seriesStateService } = make({ status: SeriesStatus.PITCHED })
+    const blocked = new Error('Error.InvalidSeriesTransition')
+    seriesStateService.transition.mockRejectedValue(blocked)
+    await expect(service.withdraw('m1', 's1', 'đổi ý')).rejects.toThrow(blocked)
+    expect(seriesRepository.updateProposalStatus).not.toHaveBeenCalled()
+  })
+
+  it('withdraw hợp lệ: transition TRƯỚC rồi mới ghi proposal WITHDRAWN', async () => {
+    const { service, seriesRepository, seriesStateService } = make({ status: SeriesStatus.IN_REVIEW })
+    await service.withdraw('m1', 's1', 'đổi ý')
+    expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.WITHDRAWN, {
+      changedBy: 'm1',
+      reason: 'đổi ý'
+    })
+    expect(seriesRepository.updateProposalStatus).toHaveBeenCalledWith('s1', ProposalStatus.WITHDRAWN)
+    const transitionOrder = seriesStateService.transition.mock.invocationCallOrder[0]
+    const proposalOrder = seriesRepository.updateProposalStatus.mock.invocationCallOrder[0]
+    expect(transitionOrder).toBeLessThan(proposalOrder)
+  })
+
+  it('reopen: ABANDONED → DRAFT + unset editor + proposal DRAFT + Name DRAFT', async () => {
+    const { service, seriesRepository, nameRepo, seriesStateService } = make({
+      status: SeriesStatus.ABANDONED,
+      editorId: 'e1',
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.REJECTED }
+    })
+
+    await service.reopen('m1', 's1')
+
+    expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.DRAFT, { changedBy: 'm1' })
+    expect(seriesRepository.reopenSeriesToDraft).toHaveBeenCalledWith('s1')
+    expect(nameRepo.updateNameStatus).toHaveBeenCalledWith('n1', { status: 'DRAFT' })
+  })
+
+  it('reopen by a non-owner throws before transition', async () => {
+    const { service, seriesStateService } = make({ status: SeriesStatus.ABANDONED })
+
+    await expect(service.reopen('other', 's1')).rejects.toBe(NotSeriesOwnerException)
+    expect(seriesStateService.transition).not.toHaveBeenCalled()
+  })
+
+  it('reopenForReview: REJECTED → IN_REVIEW + proposal revision + keeps editor + notifies mangaka', async () => {
+    const { service, seriesRepository, seriesStateService, notificationService } = make({
+      status: SeriesStatus.REJECTED,
+      editorId: 'e1',
+      reviewStartedAt: new Date('2026-07-18T00:00:00.000Z'),
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PITCHED }
+    })
+
+    await service.reopenForReview('e1', 's1', 'Hội đồng yêu cầu làm lại')
+
+    expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.IN_REVIEW, {
+      changedBy: 'e1',
+      reason: 'Hội đồng yêu cầu làm lại'
+    })
+    expect(seriesRepository.updateProposalStatus).toHaveBeenCalledWith('s1', ProposalStatus.PROPOSAL_REVISION)
+    expect(seriesRepository.reopenSeriesToDraft).not.toHaveBeenCalled()
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'm1', referenceType: 'SERIES_REOPENED_FOR_REVIEW' })
+    )
+  })
+
+  it('reopenForReview by another editor throws before transition', async () => {
+    const { service, seriesStateService } = make({
+      status: SeriesStatus.REJECTED,
+      editorId: 'e1',
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PITCHED }
+    })
+
+    await expect(service.reopenForReview('e2', 's1', 'x')).rejects.toBe(NotAssignedEditorException)
+    expect(seriesStateService.transition).not.toHaveBeenCalled()
+  })
+
+  it('reject from REJECTED → ABANDONED without marking review started again', async () => {
+    const { service, seriesRepository, seriesStateService } = make({
+      status: SeriesStatus.REJECTED,
+      editorId: 'e1',
+      reviewStartedAt: new Date('2026-07-18T00:00:00.000Z'),
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PITCHED }
+    })
+
+    await service.reject('e1', 's1', 'Dừng concept')
+
+    expect(seriesRepository.markReviewStarted).not.toHaveBeenCalled()
+    expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.ABANDONED, {
+      changedBy: 'e1',
+      reason: 'Dừng concept'
+    })
+  })
+
+  it('withdraw from REJECTED notifies the assigned editor after both primary writes', async () => {
+    const { service, seriesRepository, seriesStateService, notificationService } = make({
+      status: SeriesStatus.REJECTED,
+      editorId: 'e1',
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PITCHED }
+    })
+
+    await service.withdraw('m1', 's1', 'Dừng concept')
+
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'e1', referenceType: 'SERIES_WITHDRAWN_AFTER_REJECT' })
+    )
+    expect(seriesStateService.transition.mock.invocationCallOrder[0]).toBeLessThan(
+      notificationService.notifySafe.mock.invocationCallOrder[0]
+    )
+    expect(seriesRepository.updateProposalStatus.mock.invocationCallOrder[0]).toBeLessThan(
+      notificationService.notifySafe.mock.invocationCallOrder[0]
     )
   })
 
