@@ -109,7 +109,14 @@ export class ContractController {
   }
 
   @ApiOperation({ summary: 'Editor tạo hợp đồng nháp cho series đã SERIALIZED → DRAFT (B-CON-01)' })
-  @ApiErrors(ContractErrors.SeriesNotSerialized(), ContractErrors.NotFound())
+  @ApiErrors(
+    ContractErrors.SeriesNotSerialized(),
+    ContractErrors.NotFound(),
+    ContractErrors.ContractCreationBoardDecisionNotFound(),
+    ContractErrors.InvalidSerializationDecision(),
+    ContractErrors.ContractMangakaMismatch(),
+    ContractErrors.OpenContractExists()
+  )
   @Post()
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ContractResDto })

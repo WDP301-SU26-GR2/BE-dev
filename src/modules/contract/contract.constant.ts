@@ -53,3 +53,14 @@ export const CONTRACT_EDITABLE_STATUSES: ContractStatus[] = [
   ContractStatus.BOARD_APPROVED,
   ContractStatus.NEGOTIATION
 ]
+
+// Only terminal contracts allow a new draft for the same Series or Board Decision.
+export const CONTRACT_CREATION_BLOCKING_STATUSES: ContractStatus[] = [
+  ContractStatus.DRAFT,
+  ContractStatus.MANGAKA_REVIEW,
+  ContractStatus.MANGAKA_APPROVED,
+  ContractStatus.BOARD_APPROVED,
+  ContractStatus.NEGOTIATION,
+  ContractStatus.MANGAKA_SIGNED,
+  ContractStatus.FULLY_EXECUTED
+]

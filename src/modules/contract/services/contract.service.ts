@@ -8,7 +8,12 @@ import { NotificationService } from 'src/modules/notification/notification.servi
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
-import { canTransitionContract, CONTRACT_EDITABLE_STATUSES, CONTRACT_SIGNABLE_STATUSES } from '../contract.constant'
+import {
+  canTransitionContract,
+  CONTRACT_CREATION_BLOCKING_STATUSES,
+  CONTRACT_EDITABLE_STATUSES,
+  CONTRACT_SIGNABLE_STATUSES
+} from '../contract.constant'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { ContractMessages } from '../contract.messages'
 
@@ -103,9 +108,31 @@ export class ContractService {
 
   // Khởi tạo bản hợp đồng nháp (Editor tạo). B-CON-01: chỉ tạo được sau khi series đã SERIALIZED.
   async createDraft(editorId: string, dto: CreateContractBodyDto) {
-    if (!OBJECT_ID_RE.test(dto.seriesId)) throw ContractErrors.NotFound()
-    const seriesStatus = await this.contractRepo.findSeriesStatus(dto.seriesId)
-    if (seriesStatus !== 'SERIALIZED') throw ContractErrors.SeriesNotSerialized()
+    if (!OBJECT_ID_RE.test(dto.seriesId) || !OBJECT_ID_RE.test(dto.boardDecisionId)) throw ContractErrors.NotFound()
+
+    const [series, decision] = await Promise.all([
+      this.contractRepo.findSeriesForContractCreation(dto.seriesId),
+      this.contractRepo.findBoardDecisionForContractCreation(dto.boardDecisionId)
+    ])
+    if (!series) throw ContractErrors.NotFound()
+    if (!decision) throw ContractErrors.ContractCreationBoardDecisionNotFound()
+    if (series.status !== 'SERIALIZED') throw ContractErrors.SeriesNotSerialized()
+    if (series.mangakaId !== dto.mangakaId) throw ContractErrors.ContractMangakaMismatch()
+    if (
+      decision.targetSeriesId !== dto.seriesId ||
+      decision.decisionType !== 'SERIALIZATION' ||
+      decision.result !== 'APPROVED'
+    ) {
+      throw ContractErrors.InvalidSerializationDecision()
+    }
+
+    const existing = await this.contractRepo.findBlockingContractForCreation(
+      dto.seriesId,
+      dto.boardDecisionId,
+      CONTRACT_CREATION_BLOCKING_STATUSES
+    )
+    if (existing) throw ContractErrors.OpenContractExists()
+
     const contract = await this.contractRepo.createDraft(editorId, dto)
 
     await Promise.all([
