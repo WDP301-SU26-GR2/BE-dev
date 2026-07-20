@@ -1,7 +1,6 @@
 import { Global, Module } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core'
 import { JwtModule } from '@nestjs/jwt'
-import { EventEmitterModule } from '@nestjs/event-emitter'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
 import { IdentityHashService, IDENTITY_HASH_PEPPER } from 'src/infrastructure/crypto/identity-hash.service'
 import envConfig from './config/envConfig'
@@ -49,6 +48,7 @@ const infrastructureServices = [
       useClass: PasswordPolicyGuard
     }
   ],
-  imports: [JwtModule, EventEmitterModule.forRoot(), RedisModule, QueueModule]
+  // EventEmitterModule.forRoot() được đăng ký DUY NHẤT ở AppModule (composition root) — S-07 audit 2026-07-20.
+  imports: [JwtModule, RedisModule, QueueModule]
 })
 export class CoreModule {}

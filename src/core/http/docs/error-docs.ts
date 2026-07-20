@@ -187,6 +187,8 @@ export const ERROR_HINTS: Record<string, string> = {
     'caller is not the mangaka of this contract (approve / request-changes / sign / signing progress)',
   'Error.ContractAccessDenied':
     'contract is outside the caller view scope (mangaka: own, editor: assigned, board: all)',
+  'Error.PaymentAccessDenied':
+    'payment is outside the caller view scope (receiver: own; editor: assigned contract; mangaka: own contract/series; board/admin: all)',
   'Error.InvalidPhaseTransition': 'session phase only moves forward: PRESENTING -> QA -> VOTING (skipping allowed)',
   'Error.VotingNotOpen': 'castVote requires session.phase = VOTING - the session creator must advance the phase first',
   'Error.DecisionAlreadyFinalized': 'decision already APPROVED/REJECTED/EXPIRED — voting closed',

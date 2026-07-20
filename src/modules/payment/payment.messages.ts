@@ -16,7 +16,9 @@ export const PaymentMessages = {
     contractNotFound: 'Error.ContractNotFound',
     unauthorizedConditionEditor: 'Error.NotAssignedPaymentEditor',
     invalidThresholdConfig: 'Error.InvalidThresholdConfig',
-    recurringChapterRequiresRecurring: 'Error.RecurringChapterRequiresRecurring'
+    recurringChapterRequiresRecurring: 'Error.RecurringChapterRequiresRecurring',
+    // S-01 (audit 2026-07-20): object-level authorization — chặn đọc payment ngoài phạm vi sở hữu.
+    paymentAccessDenied: 'Error.PaymentAccessDenied'
   },
   errorText: {
     'Error.PaymentRecordNotFound': 'Không tìm thấy khoản thanh toán',
@@ -30,6 +32,7 @@ export const PaymentMessages = {
     'Error.ContractNotFound': 'Không tìm thấy hợp đồng',
     'Error.NotAssignedPaymentEditor': 'Chỉ Editor phụ trách mới được quản lý điều kiện thanh toán',
     'Error.InvalidThresholdConfig': 'Cấu hình ngưỡng thanh toán không hợp lệ',
-    'Error.RecurringChapterRequiresRecurring': 'Điều kiện theo chu kỳ chương phải được đánh dấu là định kỳ'
+    'Error.RecurringChapterRequiresRecurring': 'Điều kiện theo chu kỳ chương phải được đánh dấu là định kỳ',
+    'Error.PaymentAccessDenied': 'Bạn không có quyền truy cập khoản thanh toán này'
   }
 } as const

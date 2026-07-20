@@ -251,6 +251,13 @@ export class ContractService {
   }
 
   // Gửi hợp đồng sang cho Mangaka xem xét và thương lượng
+  // F-07 (audit 2026-07-20): dispatch workflow-status ở tầng service (controller chỉ chuyển tiếp).
+  updateStatusByWorkflow(contractId: string, userId: string, status: ContractStatus) {
+    if (status === ContractStatus.MANGAKA_REVIEW) return this.sendToMangaka(contractId, userId)
+    if (status === ContractStatus.MANGAKA_APPROVED) return this.mangakaApprove(contractId, userId)
+    throw ContractErrors.InvalidStatus()
+  }
+
   async sendToMangaka(contractId: string, editorId: string) {
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()

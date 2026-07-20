@@ -12,12 +12,12 @@ import {
   PaymentConditionNotFoundException,
   PaymentConditionNotEditableException,
   ContractNotFoundForPaymentException,
-  UnauthorizedPaymentConditionEditorException
+  UnauthorizedPaymentConditionEditorException,
+  PaymentAccessDeniedException
 } from '../errors/payment.error'
 import {
   CreatePaymentInternalDto,
   GetPaymentsQueryDto,
-  ApprovePaymentBodyDto,
   PayPaymentBodyDto,
   CancelPaymentBodyDto
 } from '../dto/payment.dto'
@@ -61,7 +61,8 @@ export class PaymentService {
     return { data: records }
   }
 
-  async getPaymentById(id: string) {
+  // Loader nội bộ: id-guard + not-found. Dùng cho mutation Board-only (không cần object-level authz).
+  private async loadPaymentOrThrow(id: string) {
     if (!OBJECT_ID_RE.test(id)) throw new PaymentRecordNotFoundException()
     const existing = await this.paymentRepo.findById(id)
     if (!existing) {
@@ -70,20 +71,27 @@ export class PaymentService {
     return existing
   }
 
-  async approvePayment(id: string, dto: ApprovePaymentBodyDto) {
-    const existing = await this.getPaymentById(id)
+  // S-01: read path — object-level authorization theo phạm vi sở hữu.
+  async getPaymentById(id: string, userId: string, roleName: string) {
+    const existing = await this.loadPaymentOrThrow(id)
+    await this.assertPaymentViewable(existing, userId, roleName)
+    return existing
+  }
+
+  async approvePayment(id: string, actorId: string) {
+    const existing = await this.loadPaymentOrThrow(id)
     if (existing.status !== PaymentRecordStatus.TRIGGERED) {
       throw new InvalidStatusForApprovalException()
     }
 
     const payment = await this.paymentRepo.update(id, {
       status: PaymentRecordStatus.APPROVED,
-      approvedBy: dto.approvedBy,
+      approvedBy: actorId,
       approvedAt: new Date()
     })
 
     await this.auditService.record({
-      actorId: dto.approvedBy ?? null,
+      actorId,
       entityType: AuditEntityType.PAYMENT_RECORD,
       entityId: id,
       action: 'TRANSITION',
@@ -101,8 +109,8 @@ export class PaymentService {
     return payment
   }
 
-  async payPayment(id: string, dto: PayPaymentBodyDto) {
-    const existing = await this.getPaymentById(id)
+  async payPayment(id: string, dto: PayPaymentBodyDto, actorId: string) {
+    const existing = await this.loadPaymentOrThrow(id)
     if (existing.status !== PaymentRecordStatus.APPROVED) {
       throw new InvalidStatusForPaymentException()
     }
@@ -116,7 +124,7 @@ export class PaymentService {
     })
 
     await this.auditService.record({
-      actorId: null,
+      actorId,
       entityType: AuditEntityType.PAYMENT_RECORD,
       entityId: id,
       action: 'TRANSITION',
@@ -134,8 +142,8 @@ export class PaymentService {
     return payment
   }
 
-  async cancelPayment(id: string, dto: CancelPaymentBodyDto) {
-    const existing = await this.getPaymentById(id)
+  async cancelPayment(id: string, dto: CancelPaymentBodyDto, actorId: string) {
+    const existing = await this.loadPaymentOrThrow(id)
     if (existing.status === PaymentRecordStatus.PAID) {
       throw new PaymentAlreadyPaidException()
     }
@@ -147,7 +155,7 @@ export class PaymentService {
     })
 
     await this.auditService.record({
-      actorId: null,
+      actorId,
       entityType: AuditEntityType.PAYMENT_RECORD,
       entityId: id,
       action: 'TRANSITION',
@@ -159,22 +167,73 @@ export class PaymentService {
     return cancelled
   }
 
-  async getPaymentsByContract(contractId: string) {
+  async getPaymentsByContract(contractId: string, userId: string, roleName: string) {
     if (!OBJECT_ID_RE.test(contractId)) return { data: [] }
+    await this.assertContractPaymentsViewable(contractId, userId, roleName)
     const records = await this.paymentRepo.findMany({ contractId })
     return { data: records }
   }
 
-  async getPaymentsBySeries(seriesId: string) {
+  async getPaymentsBySeries(seriesId: string, userId: string, roleName: string) {
     if (!OBJECT_ID_RE.test(seriesId)) return { data: [] }
+    await this.assertSeriesPaymentsViewable(seriesId, userId, roleName)
     const records = await this.paymentRepo.findMany({ seriesId })
     return { data: records }
   }
 
-  async getPaymentsByUserId(receiverId: string) {
+  async getPaymentsByUserId(receiverId: string, userId: string, roleName: string) {
     if (!OBJECT_ID_RE.test(receiverId)) return { data: [] }
+    // Board/Admin xem mọi người; ngoài ra chỉ được xem payment của CHÍNH MÌNH.
+    if (!this.isPrivileged(roleName) && receiverId !== userId) {
+      throw new PaymentAccessDeniedException()
+    }
     const records = await this.paymentRepo.findMany({ receiverId })
     return { data: records }
+  }
+
+  // ============================================================================
+  // S-01: object-level authorization helpers
+  // ============================================================================
+
+  private isPrivileged(roleName: string): boolean {
+    return roleName === RoleName.BOARD_MEMBER || roleName === RoleName.SUPER_ADMIN
+  }
+
+  // Xem 1 payment: Board/Admin toàn quyền; receiver xem của mình; ngoài ra kiểm chủ contract (editor/mangaka).
+  private async assertPaymentViewable(
+    payment: { contractId: string; receiverId: string },
+    userId: string,
+    roleName: string
+  ) {
+    if (this.isPrivileged(roleName)) return
+    if (roleName === RoleName.MANGAKA && payment.receiverId === userId) return
+
+    const contract = await this.paymentConditionRepo.findContractById(payment.contractId)
+    if (contract) {
+      if (roleName === RoleName.EDITOR && contract.editorId === userId) return
+      if (roleName === RoleName.MANGAKA && contract.mangakaId === userId) return
+    }
+    throw new PaymentAccessDeniedException()
+  }
+
+  private async assertContractPaymentsViewable(contractId: string, userId: string, roleName: string) {
+    if (this.isPrivileged(roleName)) return
+    const contract = await this.paymentConditionRepo.findContractById(contractId)
+    if (contract) {
+      if (roleName === RoleName.EDITOR && contract.editorId === userId) return
+      if (roleName === RoleName.MANGAKA && contract.mangakaId === userId) return
+    }
+    throw new PaymentAccessDeniedException()
+  }
+
+  private async assertSeriesPaymentsViewable(seriesId: string, userId: string, roleName: string) {
+    if (this.isPrivileged(roleName)) return
+    const series = await this.paymentRepo.findSeriesOwners(seriesId)
+    if (series) {
+      if (roleName === RoleName.EDITOR && series.editorId === userId) return
+      if (roleName === RoleName.MANGAKA && (series.mangakaId === userId || series.coOwnerId === userId)) return
+    }
+    throw new PaymentAccessDeniedException()
   }
 
   // ============================================================================

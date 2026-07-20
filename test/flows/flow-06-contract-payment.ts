@@ -493,6 +493,58 @@ const main = async () => {
   const rPayGhost = await req('GET', `/payments/aaaaaaaaaaaaaaaaaaaaaaaa`, { token: saTok })
   ok('06.3l GET payment rác → 404', rPayGhost.status === 404, `got ${rPayGhost.status}`)
 
+  // ═════════════ 06.3m — S-01 object-level authorization (BOLA) ═════════════════════════
+  // pr2 (receiver=m1, contract cHappy: mangaka m1 / editor e1). m2/e2 là người ngoài cuộc.
+  const prBola = await prisma.paymentRecord.create({
+    data: {
+      receiverId: m1.id,
+      amount: 77777,
+      paymentType: 'REVENUE_SHARE',
+      paymentSource: 'CONTRACT',
+      contractId: cHappy,
+      seriesId: happy.series.id,
+      status: 'TRIGGERED',
+      createdBy: b1.id
+    }
+  })
+  const rSelf = await req('GET', `/payments/${prBola.id}`, { token: m1Tok })
+  ok('06.3m receiver (m1) đọc payment của mình → 200', rSelf.status === 200, `got ${rSelf.status}`)
+  const rEditor = await req('GET', `/payments/${prBola.id}`, { token: e1Tok })
+  ok('06.3n editor phụ trách (e1) → 200', rEditor.status === 200, `got ${rEditor.status}`)
+  const rBoardRead = await req('GET', `/payments/${prBola.id}`, { token: b1Tok })
+  ok('06.3o board → 200', rBoardRead.status === 200, `got ${rBoardRead.status}`)
+  const rMangakaOutsider = await req('GET', `/payments/${prBola.id}`, { token: m2Tok })
+  expectError(rMangakaOutsider, 403, 'Error.PaymentAccessDenied', '06.3p 🔴 mangaka ngoài cuộc (m2) → 403 (BOLA blocked)')
+  const rEditorOutsider = await req('GET', `/payments/${prBola.id}`, { token: e2Tok })
+  expectError(rEditorOutsider, 403, 'Error.PaymentAccessDenied', '06.3q 🔴 editor không phụ trách (e2) → 403')
+  // by-user: mangaka chỉ đọc payment của chính mình
+  const rSelfList = await req('GET', `/payments/users/${m1.id}/payments`, { token: m1Tok })
+  ok('06.3r by-user chính mình → 200', rSelfList.status === 200, `got ${rSelfList.status}`)
+  const rOtherList = await req('GET', `/payments/users/${m2.id}/payments`, { token: m1Tok })
+  expectError(rOtherList, 403, 'Error.PaymentAccessDenied', '06.3s 🔴 mangaka đọc payment người khác → 403')
+  // by-series: editor không phụ trách series → 403
+  const rSeriesOutsider = await req('GET', `/payments/series/${happy.series.id}/payments`, { token: e2Tok })
+  expectError(rSeriesOutsider, 403, 'Error.PaymentAccessDenied', '06.3t 🔴 editor ngoài cuộc đọc theo series → 403')
+  // actor spoofing: approve KHÔNG còn nhận approvedBy từ body — approvedBy = token owner
+  const prSpoof = await prisma.paymentRecord.create({
+    data: {
+      receiverId: m1.id,
+      amount: 12345,
+      paymentType: 'REVENUE_SHARE',
+      paymentSource: 'CONTRACT',
+      contractId: cHappy,
+      status: 'TRIGGERED',
+      createdBy: b1.id
+    }
+  })
+  await req('PATCH', `/payments/${prSpoof.id}/approve`, { token: b1Tok, body: { approvedBy: m2.id } })
+  const spoofRow = await prisma.paymentRecord.findUnique({ where: { id: prSpoof.id } })
+  ok(
+    '06.3u 🔴 approvedBy = token owner (b1), KHÔNG phải id giả trong body (m2)',
+    spoofRow?.approvedBy === b1.id,
+    `got approvedBy=${spoofRow?.approvedBy}`
+  )
+
   // ═════════════ 06.4 — STATE MACHINE (invalid transitions) ═════════════════════════════
   section('06.4 Contract state machine — invalid transitions')
   const t1 = await setupSeriesAndDraftContract(m1, e1, b1, sa, ContractType.REVENUE_SHARE)

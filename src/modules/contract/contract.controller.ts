@@ -163,13 +163,7 @@ export class ContractController {
   )
   @ZodResponse({ status: 200, type: ContractResDto })
   updateStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body('status') status: ContractStatus) {
-    if (status === ContractStatus.MANGAKA_REVIEW) {
-      return this.contractService.sendToMangaka(id, userId)
-    }
-    if (status === ContractStatus.MANGAKA_APPROVED) {
-      return this.contractService.mangakaApprove(id, userId)
-    }
-    throw ContractErrors.InvalidStatus()
+    return this.contractService.updateStatusByWorkflow(id, userId, status)
   }
 
   @ApiOperation({ summary: 'B-CON-02: Mangaka yêu cầu chỉnh sửa điều khoản → NEGOTIATION' })

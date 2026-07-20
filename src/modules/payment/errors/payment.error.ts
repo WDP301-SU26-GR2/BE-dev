@@ -62,3 +62,10 @@ export class UnauthorizedPaymentConditionEditorException extends ForbiddenExcept
     super(E.unauthorizedConditionEditor)
   }
 }
+
+// S-01: object-level authorization — người gọi không thuộc phạm vi sở hữu payment (receiver/editor/mangaka của contract/series).
+export class PaymentAccessDeniedException extends ForbiddenException {
+  constructor() {
+    super(E.paymentAccessDenied)
+  }
+}
