@@ -13,7 +13,7 @@ import { NotificationReadService } from './services/notification-read.service'
 // without importing NotificationModule explicitly.
 @Global()
 @Module({
-  imports: [BullModule.registerQueue({ name: QUEUE.NOTIFICATION })],
+  imports: [BullModule.registerQueue({ name: QUEUE.NOTIFICATION, forceDisconnectOnShutdown: true })],
   controllers: [NotificationController],
   providers: [
     NotificationService,

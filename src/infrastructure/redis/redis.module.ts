@@ -11,6 +11,7 @@ import {
 } from './redis.constant'
 import { RedisService } from './redis.service'
 import { CacheService } from './cache.service'
+import { RedisConnectionsLifecycle } from './redis-connections.lifecycle'
 
 @Global()
 @Module({
@@ -28,7 +29,8 @@ import { CacheService } from './cache.service'
       useFactory: () => new Redis(envConfig.REDIS_URL, WS_REDIS_OPTIONS)
     },
     RedisService,
-    CacheService
+    CacheService,
+    RedisConnectionsLifecycle
   ],
   exports: [RedisService, CacheService, REDIS_CLIENT, REDIS_BULL_CONNECTION, REDIS_WS_CONNECTION]
 })

@@ -12,7 +12,7 @@ import { AiProcessor } from './services/ai.processor'
 import { AiSegmentService } from './services/ai-segment.service'
 
 @Module({
-  imports: [BullModule.registerQueue({ name: QUEUE.AI }), TaskModule],
+  imports: [BullModule.registerQueue({ name: QUEUE.AI, forceDisconnectOnShutdown: true }), TaskModule],
   controllers: [AiController],
   providers: [
     AiService,

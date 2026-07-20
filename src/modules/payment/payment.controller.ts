@@ -18,6 +18,7 @@ import {
   InvalidStatusForApprovalException,
   InvalidStatusForPaymentException,
   PaymentAlreadyPaidException,
+  PaymentNotCancellableException,
   PaymentAccessDeniedException
 } from './errors/payment.error'
 
@@ -75,7 +76,11 @@ export class PaymentController {
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Board/Admin hủy payment chưa PAID → CANCELLED' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(new PaymentRecordNotFoundException(), new PaymentAlreadyPaidException())
+  @ApiErrors(
+    new PaymentRecordNotFoundException(),
+    new PaymentAlreadyPaidException(),
+    new PaymentNotCancellableException()
+  )
   @Roles(RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: PaymentRecordResDto })
   cancelPayment(

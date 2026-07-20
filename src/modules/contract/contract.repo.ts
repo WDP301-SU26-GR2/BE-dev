@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common'
+import { randomUUID } from 'node:crypto'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { CreateContractBodyType } from './schemas/contract-schema'
 import type { Contract, ContractVersion } from '@prisma/client'
 import { ContractStatus, Prisma } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
-import { isUniqueConstrainError } from 'src/infrastructure/database/prisma-error.helper'
+import { isRetryableTransactionError, isUniqueConstrainError } from 'src/infrastructure/database/prisma-error.helper'
 import { fetchUserMiniMap, USER_MINI_FIELDS, toUserMini } from 'src/core/models/user-mini.model'
 
 @Injectable()
@@ -189,7 +190,7 @@ export class ContractRepo {
       try {
         return await fn()
       } catch (error) {
-        if (!isUniqueConstrainError(error)) throw error
+        if (!isUniqueConstrainError(error) && !isRetryableTransactionError(error)) throw error
         lastError = error
       }
     }
@@ -307,33 +308,43 @@ export class ContractRepo {
    * phản ánh sự thật; việc lật cờ `boardSignedAt` dùng CAS để chỉ một người thắng.
    */
   async recordBoardSignatureAndSettle(contractId: string, userId: string, requiredSignatures: number) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.contractSignature.create({
-        data: { contractId, userId, role: 'BOARD_EDITOR', signedAt: new Date() }
-      })
-
-      // Đếm SAU khi ghi, BÊN TRONG transaction → không còn cửa sổ TOCTOU.
-      const signatureCount = await tx.contractSignature.count({
-        where: { contractId, role: 'BOARD_EDITOR' }
-      })
-
-      let boardCompletedNow = false
-      if (requiredSignatures > 0 && signatureCount >= requiredSignatures) {
-        const flip = await tx.contract.updateMany({
-          // 🔴 AGENTS §10: hợp đồng chưa từng ký có `boardSignedAt` ABSENT, không phải null.
-          // `where: { boardSignedAt: null }` KHÔNG match doc absent ⇒ CAS không bao giờ khớp
-          // ⇒ hợp đồng không bao giờ chốt. Phải phủ CẢ HAI dạng "chưa ký".
-          where: { id: contractId, OR: [{ boardSignedAt: null }, { boardSignedAt: { isSet: false } }] },
-          data: { boardSignedAt: new Date() }
+    return this.withTransactionRetry(() =>
+      this.prisma.$transaction(async (tx) => {
+        // Serialization fence MUST be the first DB operation in this transaction. Every signer
+        // writes the same Contract document with a unique value, so concurrent snapshots cannot
+        // both commit after counting different subsets of signatures.
+        await tx.contract.update({
+          where: { id: contractId },
+          data: { signingFence: randomUUID() }
         })
-        boardCompletedNow = flip.count === 1
-      }
 
-      const executedNow = await this.settleFullyExecuted(tx, contractId)
-      const contract = await tx.contract.findUnique({ where: { id: contractId } })
+        await tx.contractSignature.create({
+          data: { contractId, userId, role: 'BOARD_EDITOR', signedAt: new Date() }
+        })
 
-      return { signatureCount, boardCompletedNow, executedNow, contract }
-    })
+        // Đếm SAU khi ghi, BÊN TRONG transaction → không còn cửa sổ TOCTOU.
+        const signatureCount = await tx.contractSignature.count({
+          where: { contractId, role: 'BOARD_EDITOR' }
+        })
+
+        let boardCompletedNow = false
+        if (requiredSignatures > 0 && signatureCount >= requiredSignatures) {
+          const flip = await tx.contract.updateMany({
+            // 🔴 AGENTS §10: hợp đồng chưa từng ký có `boardSignedAt` ABSENT, không phải null.
+            // `where: { boardSignedAt: null }` KHÔNG match doc absent ⇒ CAS không bao giờ khớp
+            // ⇒ hợp đồng không bao giờ chốt. Phải phủ CẢ HAI dạng "chưa ký".
+            where: { id: contractId, OR: [{ boardSignedAt: null }, { boardSignedAt: { isSet: false } }] },
+            data: { boardSignedAt: new Date() }
+          })
+          boardCompletedNow = flip.count === 1
+        }
+
+        const executedNow = await this.settleFullyExecuted(tx, contractId)
+        const contract = await tx.contract.findUnique({ where: { id: contractId } })
+
+        return { signatureCount, boardCompletedNow, executedNow, contract }
+      })
+    )
   }
 
   /**
@@ -343,21 +354,36 @@ export class ContractRepo {
    * → caller ném AlreadySigned và KHÔNG emit.
    */
   async recordMangakaSignatureAndSettle(contractId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const flip = await tx.contract.updateMany({
-        // 🔴 AGENTS §10: xem chú thích ở recordBoardSignatureAndSettle — absent ≠ null.
-        where: { id: contractId, OR: [{ mangakaSignedAt: null }, { mangakaSignedAt: { isSet: false } }] },
-        data: { mangakaSignedAt: new Date(), status: ContractStatus.MANGAKA_SIGNED }
+    return this.withTransactionRetry(() =>
+      this.prisma.$transaction(async (tx) => {
+        const flip = await tx.contract.updateMany({
+          // 🔴 AGENTS §10: xem chú thích ở recordBoardSignatureAndSettle — absent ≠ null.
+          where: { id: contractId, OR: [{ mangakaSignedAt: null }, { mangakaSignedAt: { isSet: false } }] },
+          data: { mangakaSignedAt: new Date(), status: ContractStatus.MANGAKA_SIGNED, signingFence: randomUUID() }
+        })
+        if (flip.count !== 1) {
+          return { signed: false, executedNow: false, contract: null }
+        }
+
+        const executedNow = await this.settleFullyExecuted(tx, contractId)
+        const contract = await tx.contract.findUnique({ where: { id: contractId } })
+
+        return { signed: true, executedNow, contract }
       })
-      if (flip.count !== 1) {
-        return { signed: false, executedNow: false, contract: null }
+    )
+  }
+
+  private async withTransactionRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
+    let lastError: unknown
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        return await fn()
+      } catch (error) {
+        if (!isRetryableTransactionError(error)) throw error
+        lastError = error
       }
-
-      const executedNow = await this.settleFullyExecuted(tx, contractId)
-      const contract = await tx.contract.findUnique({ where: { id: contractId } })
-
-      return { signed: true, executedNow, contract }
-    })
+    }
+    throw lastError
   }
 
   // 9. Lấy tiến độ ký kết hợp đồng chi tiết

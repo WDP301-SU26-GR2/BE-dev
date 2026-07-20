@@ -1,5 +1,7 @@
 //error-docs.ts dùng cho Swagger error description.
 export const ERROR_HINTS: Record<string, string> = {
+  'Error.PaymentNotCancellable': 'payment is already terminal or otherwise cannot transition to CANCELLED',
+  'Error.PageHasActiveTasks': 'page still has a non-cancelled task; cancel the work before deleting its page',
   'Error.PublicSeriesNotFound':
     'series does not exist, id is malformed, or the series is outside the post-serialization public status set',
   'Error.PublicChapterNotFound':

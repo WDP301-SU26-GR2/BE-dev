@@ -5,6 +5,7 @@ import {
   DuplicatePageNumberException,
   NotSeriesOwnerException,
   PageHasApprovedTasksException,
+  PageHasActiveTasksException,
   PageNotEditableException,
   PageNotFoundException
 } from '../errors/chapter.errors'
@@ -165,7 +166,7 @@ describe('PageService.deletePage', () => {
 
   it('deletes an editable page together with its regions and tasks', async () => {
     const d = makeDeleteDeps({
-      findTasksByPage: jest.fn().mockResolvedValue([{ id: 't1', status: 'ASSIGNED', assistantId: 'a1' }]),
+      findTasksByPage: jest.fn().mockResolvedValue([{ id: 't1', status: 'CANCELLED', assistantId: 'a1' }]),
       deletePageCascade: jest.fn().mockResolvedValue({ deletedRegions: 2, deletedTasks: 1 })
     })
 
@@ -178,9 +179,9 @@ describe('PageService.deletePage', () => {
   it('notifies each assistant whose task is removed', async () => {
     const d = makeDeleteDeps({
       findTasksByPage: jest.fn().mockResolvedValue([
-        { id: 't1', status: 'ASSIGNED', assistantId: 'a1' },
-        { id: 't2', status: 'IN_PROGRESS', assistantId: 'a2' },
-        { id: 't3', status: 'ASSIGNED', assistantId: null }
+        { id: 't1', status: 'CANCELLED', assistantId: 'a1' },
+        { id: 't2', status: 'CANCELLED', assistantId: 'a2' },
+        { id: 't3', status: 'CANCELLED', assistantId: null }
       ])
     })
 
@@ -211,10 +212,22 @@ describe('PageService.deletePage', () => {
     expect(d.repo.deletePageCascade).not.toHaveBeenCalled()
   })
 
-  it('still deletes when tasks exist but none is APPROVED', async () => {
+  it('refuses to hard-delete non-approved work that is still active', async () => {
     const d = makeDeleteDeps({
       findTasksByPage: jest.fn().mockResolvedValue([
         { id: 't1', status: 'REVISION_REQUESTED', assistantId: 'a1' },
+        { id: 't2', status: 'CANCELLED', assistantId: 'a2' }
+      ])
+    })
+
+    await expect(makeSvc(d).deletePage('u1', PG)).rejects.toBe(PageHasActiveTasksException)
+    expect(d.repo.deletePageCascade).not.toHaveBeenCalled()
+  })
+
+  it('allows cleanup after every task was explicitly cancelled', async () => {
+    const d = makeDeleteDeps({
+      findTasksByPage: jest.fn().mockResolvedValue([
+        { id: 't1', status: 'CANCELLED', assistantId: 'a1' },
         { id: 't2', status: 'CANCELLED', assistantId: 'a2' }
       ])
     })
@@ -333,6 +346,17 @@ describe('PageService.deletePagesBulk', () => {
     await expect(makeSvc(d).deletePagesBulk('u1', CH, { pageIds: [P1, P2] })).rejects.toBe(
       PageHasApprovedTasksException
     )
+    expect(d.repo.deletePagesCascade).not.toHaveBeenCalled()
+  })
+
+  it('is all-or-nothing when any page still has an active task', async () => {
+    const d = makeBulkDeps({
+      findTasksByPages: jest
+        .fn()
+        .mockResolvedValue([{ id: 't1', pageId: P2, status: 'IN_PROGRESS', assistantId: 'a1' }])
+    })
+
+    await expect(makeSvc(d).deletePagesBulk('u1', CH, { pageIds: [P1, P2] })).rejects.toBe(PageHasActiveTasksException)
     expect(d.repo.deletePagesCascade).not.toHaveBeenCalled()
   })
 

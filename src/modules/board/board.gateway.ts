@@ -5,7 +5,8 @@ import {
   MessageBody,
   ConnectedSocket,
   OnGatewayInit,
-  OnGatewayConnection
+  OnGatewayConnection,
+  OnApplicationShutdown
 } from '@nestjs/websockets'
 import { Server, Socket } from 'socket.io'
 import { Inject, Logger } from '@nestjs/common'
@@ -25,8 +26,9 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
   cors: { origin: corsOrigins() },
   namespace: 'board'
 })
-export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
+export class BoardGateway implements OnGatewayInit, OnGatewayConnection, OnApplicationShutdown {
   private readonly logger = new Logger(BoardGateway.name)
+  private subClient: Redis | null = null
 
   @WebSocketServer()
   server!: Server
@@ -41,6 +43,7 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
   afterInit() {
     const pubClient: Redis = this.wsRedis
     const subClient: Redis = pubClient.duplicate()
+    this.subClient = subClient
 
     const ioServer = (this.server as unknown as { server?: unknown }).server ?? this.server
     if (typeof (ioServer as any).adapter === 'function') {
@@ -48,6 +51,18 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
       this.logger.log('[Socket.IO] Redis Adapter initialized for horizontal scaling')
     } else {
       this.logger.warn('[Socket.IO] Unable to initialize Redis Adapter: adapter setter not found on server instance')
+    }
+  }
+
+  async onApplicationShutdown(): Promise<void> {
+    if (!this.subClient || this.subClient.status === 'end') return
+    try {
+      await this.subClient.quit()
+    } catch (error) {
+      this.logger.warn('[Socket.IO] Redis subscriber QUIT failed; disconnecting the socket', error)
+      this.subClient.disconnect()
+    } finally {
+      this.subClient = null
     }
   }
 

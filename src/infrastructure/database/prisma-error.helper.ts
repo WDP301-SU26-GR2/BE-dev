@@ -8,3 +8,17 @@ export function isUniqueConstrainError(error: any): error is PrismaClientKnownRe
 export function isNotFoundError(error: any): error is PrismaClientKnownRequestError {
   return error instanceof PrismaClientKnownRequestError && error.code === 'P2025'
 }
+
+/**
+ * Prisma maps MongoDB write conflicts/deadlocks raised by concurrent transactions to P2034.
+ * These failures are safe to retry only when the caller retries the whole transaction body.
+ */
+export function isRetryableTransactionError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const candidate = error as { code?: unknown; message?: unknown }
+  return (
+    candidate.code === 'P2034' ||
+    (typeof candidate.message === 'string' &&
+      (candidate.message.includes('TransientTransactionError') || candidate.message.includes('WriteConflict')))
+  )
+}

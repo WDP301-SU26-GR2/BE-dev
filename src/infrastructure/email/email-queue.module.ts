@@ -6,7 +6,7 @@ import { EmailQueue } from './email.queue'
 
 @Global()
 @Module({
-  imports: [BullModule.registerQueue({ name: QUEUE.EMAIL })],
+  imports: [BullModule.registerQueue({ name: QUEUE.EMAIL, forceDisconnectOnShutdown: true })],
   providers: [EmailQueue, EmailProcessor],
   exports: [EmailQueue]
 })

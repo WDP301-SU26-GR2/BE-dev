@@ -27,6 +27,12 @@ export class PaymentAlreadyPaidException extends BadRequestException {
   }
 }
 
+export class PaymentNotCancellableException extends BadRequestException {
+  constructor() {
+    super(E.paymentNotCancellable)
+  }
+}
+
 export class ReceiverNotFoundException extends BadRequestException {
   constructor() {
     super(E.receiverNotFound)

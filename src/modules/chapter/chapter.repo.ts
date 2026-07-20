@@ -390,12 +390,37 @@ export class ChapterRepository {
 
   // Cascade Page → Region → Task trong 1 transaction (AGENTS §10: cascade nhiều collection phải nguyên tử).
   async deletePagesCascade(pageIds: string[]) {
-    const [tasks, regions] = await this.prismaService.$transaction([
-      this.prismaService.task.deleteMany({ where: { pageId: { in: pageIds } } }),
-      this.prismaService.region.deleteMany({ where: { pageId: { in: pageIds } } }),
-      this.prismaService.page.deleteMany({ where: { id: { in: pageIds } } })
-    ])
-    return { deletedTasks: tasks.count, deletedRegions: regions.count }
+    return this.prismaService.$transaction(async (tx) => {
+      const [tasks, regions] = await Promise.all([
+        tx.task.findMany({ where: { pageId: { in: pageIds } }, select: { id: true } }),
+        tx.region.findMany({ where: { pageId: { in: pageIds } }, select: { id: true } })
+      ])
+      const taskIds = tasks.map((task) => task.id)
+      const regionIds = regions.map((region) => region.id)
+
+      // Annotation and RevisionRequest use polymorphic scalar targets, so Prisma cannot cascade
+      // them automatically. Delete every direct/referenced child before its owning entity.
+      await tx.annotation.deleteMany({
+        where: {
+          OR: [
+            { taskId: { in: taskIds } },
+            { targetType: 'PAGE', targetId: { in: pageIds } },
+            { targetType: 'REGION', targetId: { in: regionIds } },
+            { targetType: 'TASK', targetId: { in: taskIds } }
+          ]
+        }
+      })
+      await tx.revisionRequest.deleteMany({
+        where: { targetType: 'TASK', targetId: { in: taskIds } }
+      })
+      await tx.aiJob.deleteMany({ where: { pageId: { in: pageIds } } })
+
+      const deletedTasks = await tx.task.deleteMany({ where: { id: { in: taskIds } } })
+      const deletedRegions = await tx.region.deleteMany({ where: { id: { in: regionIds } } })
+      await tx.page.deleteMany({ where: { id: { in: pageIds } } })
+
+      return { deletedTasks: deletedTasks.count, deletedRegions: deletedRegions.count }
+    })
   }
 
   deletePageCascade(pageId: string) {

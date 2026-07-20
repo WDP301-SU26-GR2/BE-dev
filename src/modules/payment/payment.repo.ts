@@ -5,7 +5,8 @@ import {
   PaymentConditionStatus,
   PaymentRecordStatus,
   PaymentSource,
-  PaymentType
+  PaymentType,
+  Prisma
 } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { USER_MINI_FIELDS, fetchSeriesMiniMap, fetchUserMiniMap, toUserMini } from 'src/core/models/user-mini.model'
@@ -37,7 +38,11 @@ export class PaymentRecordRepo {
    *
    * @param expected trạng thái bắt buộc phải còn đúng lúc ghi; `{ not: X }` cho nhánh cancel.
    */
-  async updateWithExpectedStatus(id: string, expected: PaymentRecordStatus | { not: PaymentRecordStatus }, dto: any) {
+  async updateWithExpectedStatus(
+    id: string,
+    expected: PaymentRecordStatus | Prisma.EnumPaymentRecordStatusFilter,
+    dto: any
+  ) {
     const res = await this.prisma.paymentRecord.updateMany({
       where: { id, status: expected },
       data: dto

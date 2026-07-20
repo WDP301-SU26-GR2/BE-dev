@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import type { ContractAmendment, ContractAmendmentStatus, Prisma } from '@prisma/client'
 import { fetchUserMiniMap } from 'src/core/models/user-mini.model'
+import { isRetryableTransactionError, isUniqueConstrainError } from 'src/infrastructure/database/prisma-error.helper'
 
 const NON_TERMINAL: ContractAmendmentStatus[] = ['DRAFT', 'PENDING_SIGNATURES']
 
@@ -90,53 +91,69 @@ export class ContractAmendmentRepo {
   // Execute atomic: guard PENDING_SIGNATURES → FULLY_EXECUTED, apply typed field !=null lên Contract,
   // log 1 ContractVersion. Trả contract đã cập nhật, hoặc null nếu guard thua (đã execute nơi khác).
   async executeAndApply(amendmentId: string, contractId: string, lastSignerId: string): Promise<{ applied: boolean }> {
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Guard atomic — chỉ 1 lần thắng
-      const guard = await tx.contractAmendment.updateMany({
-        where: { id: amendmentId, status: 'PENDING_SIGNATURES' },
-        data: { status: 'FULLY_EXECUTED', fullyExecutedAt: new Date() }
+    return this.withVersionRetry(() =>
+      this.prisma.$transaction(async (tx) => {
+        // 1. Guard atomic — chỉ 1 lần thắng
+        const guard = await tx.contractAmendment.updateMany({
+          where: { id: amendmentId, status: 'PENDING_SIGNATURES' },
+          data: { status: 'FULLY_EXECUTED', fullyExecutedAt: new Date() }
+        })
+        if (guard.count !== 1) return { applied: false }
+
+        // 2. Đọc amendment (typed term)
+        const amendment = await tx.contractAmendment.findUniqueOrThrow({ where: { id: amendmentId } })
+
+        // S-05: cấp số phiên bản từ bản ghi mới nhất TRONG transaction, không dùng
+        // `versions.length + 1` (đếm sai khi có phiên bản bị xoá và đụng nhau khi chạy song song).
+        const latestVersion = await tx.contractVersion.findFirst({
+          where: { contractId },
+          orderBy: { versionNumber: 'desc' },
+          select: { versionNumber: true }
+        })
+        const nextVersionNumber = (latestVersion?.versionNumber ?? 0) + 1
+
+        // 3. Build contract update: chỉ field !=null
+        const contractData: Prisma.ContractUpdateInput = {}
+        if (amendment.valuationAmount != null) contractData.valuationAmount = amendment.valuationAmount
+        if (amendment.publisherOwnershipPct != null)
+          contractData.publisherOwnershipPct = amendment.publisherOwnershipPct
+        if (amendment.mangakaOwnershipPct != null) contractData.mangakaOwnershipPct = amendment.mangakaOwnershipPct
+        if (amendment.terminationClause != null) contractData.terminationClause = amendment.terminationClause
+        if (amendment.contractStart != null) contractData.contractStart = amendment.contractStart
+        if (amendment.contractEnd != null) contractData.contractEnd = amendment.contractEnd
+
+        const updatedContract = await tx.contract.update({ where: { id: contractId }, data: contractData })
+
+        // 4. Log ContractVersion (chỉ 4 field tiền tệ — ContractVersion không có start/end)
+        await tx.contractVersion.create({
+          data: {
+            contractId,
+            versionNumber: nextVersionNumber,
+            valuationAmount: updatedContract.valuationAmount,
+            publisherOwnershipPct: updatedContract.publisherOwnershipPct,
+            mangakaOwnershipPct: updatedContract.mangakaOwnershipPct,
+            terminationClause: updatedContract.terminationClause,
+            editedById: lastSignerId,
+            note: `Amendment ${amendmentId}`,
+            createdAt: new Date()
+          }
+        })
+
+        return { applied: true }
       })
-      if (guard.count !== 1) return { applied: false }
+    )
+  }
 
-      // 2. Đọc amendment (typed term)
-      const amendment = await tx.contractAmendment.findUniqueOrThrow({ where: { id: amendmentId } })
-
-      // S-05: cấp số phiên bản từ bản ghi mới nhất TRONG transaction, không dùng
-      // `versions.length + 1` (đếm sai khi có phiên bản bị xoá và đụng nhau khi chạy song song).
-      const latestVersion = await tx.contractVersion.findFirst({
-        where: { contractId },
-        orderBy: { versionNumber: 'desc' },
-        select: { versionNumber: true }
-      })
-      const nextVersionNumber = (latestVersion?.versionNumber ?? 0) + 1
-
-      // 3. Build contract update: chỉ field !=null
-      const contractData: Prisma.ContractUpdateInput = {}
-      if (amendment.valuationAmount != null) contractData.valuationAmount = amendment.valuationAmount
-      if (amendment.publisherOwnershipPct != null) contractData.publisherOwnershipPct = amendment.publisherOwnershipPct
-      if (amendment.mangakaOwnershipPct != null) contractData.mangakaOwnershipPct = amendment.mangakaOwnershipPct
-      if (amendment.terminationClause != null) contractData.terminationClause = amendment.terminationClause
-      if (amendment.contractStart != null) contractData.contractStart = amendment.contractStart
-      if (amendment.contractEnd != null) contractData.contractEnd = amendment.contractEnd
-
-      const updatedContract = await tx.contract.update({ where: { id: contractId }, data: contractData })
-
-      // 4. Log ContractVersion (chỉ 4 field tiền tệ — ContractVersion không có start/end)
-      await tx.contractVersion.create({
-        data: {
-          contractId,
-          versionNumber: nextVersionNumber,
-          valuationAmount: updatedContract.valuationAmount,
-          publisherOwnershipPct: updatedContract.publisherOwnershipPct,
-          mangakaOwnershipPct: updatedContract.mangakaOwnershipPct,
-          terminationClause: updatedContract.terminationClause,
-          editedById: lastSignerId,
-          note: `Amendment ${amendmentId}`,
-          createdAt: new Date()
-        }
-      })
-
-      return { applied: true }
-    })
+  private async withVersionRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
+    let lastError: unknown
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        return await fn()
+      } catch (error) {
+        if (!isUniqueConstrainError(error) && !isRetryableTransactionError(error)) throw error
+        lastError = error
+      }
+    }
+    throw lastError
   }
 }

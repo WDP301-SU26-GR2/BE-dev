@@ -47,6 +47,7 @@ import {
   PageNotFoundException,
   PageNotEditableException,
   PageHasApprovedTasksException,
+  PageHasActiveTasksException,
   RevisionNotResolvedException,
   TasksNotAllApprovedException,
   SeriesNotSerializedException,
@@ -211,6 +212,7 @@ export class ChapterController {
     PageNotFoundException,
     PageNotEditableException,
     PageHasApprovedTasksException,
+    PageHasActiveTasksException,
     ChapterOnHoldException
   )
   @Roles(RoleName.MANGAKA)
@@ -227,6 +229,7 @@ export class ChapterController {
     PageNotFoundException,
     PageNotEditableException,
     PageHasApprovedTasksException,
+    PageHasActiveTasksException,
     ChapterOnHoldException
   )
   @Roles(RoleName.MANGAKA)

@@ -1239,6 +1239,10 @@ const main = async () => {
   const delOther = await req('DELETE', `/pages/${pgDel.id}`, { token: s.tokens.mA2 })
   ok('F02-P12 mangaka khác xoá trang → 403', delOther.status === 403, `got ${delOther.status}`)
 
+  const delActivePage = await req('DELETE', `/pages/${pgDel.id}`, { token: s.tokens.mA })
+  expectError(delActivePage, 409, 'Error.PageHasActiveTasks', 'F02-P12b task đang làm dở chặn hard-delete')
+  await prisma.task.update({ where: { id: delTask.id }, data: { status: TaskStatus.CANCELLED } })
+
   const pageDelRes = await req('DELETE', `/pages/${pgDel.id}`, { token: s.tokens.mA })
   ok('F02-P13 DELETE page → 200', pageDelRes.status === 200, `got ${pageDelRes.status} ${pageDelRes.raw.slice(0, 200)}`)
   const delBody = (pageDelRes.json?.data ?? pageDelRes.json) as { deletedRegions: number; deletedTasks: number }

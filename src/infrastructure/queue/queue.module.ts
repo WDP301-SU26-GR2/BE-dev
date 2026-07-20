@@ -12,6 +12,10 @@ import { QueueService } from './queue.service'
     BullModule.forRootAsync({
       imports: [RedisModule],
       inject: [REDIS_BULL_CONNECTION],
+      // Jest e2e only verifies the HTTP composition root. Registering background workers there
+      // creates blocking Redis sockets unrelated to the assertion and prevents a clean CI exit.
+      // Unit/flow suites exercise the processors separately; production registration is unchanged.
+      extraOptions: { manualRegistration: process.env.NODE_ENV === 'test' },
       useFactory: (connection: Redis): QueueOptions => ({
         connection: connection as unknown as QueueOptions['connection']
       })

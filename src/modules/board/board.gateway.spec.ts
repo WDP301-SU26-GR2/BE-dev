@@ -47,6 +47,16 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     expect(adapterSetter).toHaveBeenCalledWith(redisAdapter)
   })
 
+  it('closes the duplicated Redis subscriber during application shutdown', async () => {
+    const subscriber = { status: 'ready', quit: jest.fn().mockResolvedValue('OK'), disconnect: jest.fn() }
+    redis.duplicate.mockReturnValue(subscriber)
+    gateway.afterInit()
+
+    await gateway.onApplicationShutdown()
+
+    expect(subscriber.quit).toHaveBeenCalledTimes(1)
+  })
+
   it('handleConnection without token → disconnect(true)', async () => {
     const d = makeDeps()
     const socket = makeSocket()

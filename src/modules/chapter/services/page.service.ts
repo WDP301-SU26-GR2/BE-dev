@@ -8,6 +8,7 @@ import {
   DuplicatePageNumberException,
   NotSeriesOwnerException,
   PageHasApprovedTasksException,
+  PageHasActiveTasksException,
   PageNotEditableException,
   PageNotFoundException
 } from '../errors/chapter.errors'
@@ -102,8 +103,10 @@ export class PageService {
     if (!PAGE_EDITABLE_STATUSES.includes(page.status)) throw PageNotEditableException
 
     const tasks = await this.chapterRepository.findTasksByPage(pageId)
-    // Đồng bộ PA-03 (xoá Region): không cho xoá mất công trợ lý đã được duyệt.
+    // Never hard-delete active Assistant work/history. The caller must explicitly cancel every
+    // task first; only CANCELLED tasks may be physically cleaned together with their page.
     if (tasks.some((task) => task.status === TaskStatus.APPROVED)) throw PageHasApprovedTasksException
+    if (tasks.some((task) => task.status !== TaskStatus.CANCELLED)) throw PageHasActiveTasksException
     const { deletedRegions, deletedTasks } = await this.chapterRepository.deletePageCascade(pageId)
 
     await this.auditService.record({
@@ -129,6 +132,7 @@ export class PageService {
 
     const tasks = await this.chapterRepository.findTasksByPages(body.pageIds)
     if (tasks.some((task) => task.status === TaskStatus.APPROVED)) throw PageHasApprovedTasksException
+    if (tasks.some((task) => task.status !== TaskStatus.CANCELLED)) throw PageHasActiveTasksException
     const { deletedRegions, deletedTasks } = await this.chapterRepository.deletePagesCascade(body.pageIds)
 
     await this.auditService.record({

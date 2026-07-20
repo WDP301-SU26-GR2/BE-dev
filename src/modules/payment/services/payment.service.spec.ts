@@ -431,6 +431,32 @@ describe('PaymentService — CAS transition (S-03)', () => {
     expect(m.auditService.record).not.toHaveBeenCalled()
   })
 
+  it.each(['CANCELLED', 'MISSED', 'FAILED'])('cancelPayment từ terminal %s bị từ chối trước CAS', async (status) => {
+    const m = makeMocks()
+    seed(m, status)
+
+    await expect(makeService(m).cancelPayment(P, { cancelReason: 'again' }, ACTOR)).rejects.toMatchObject({
+      status: 400,
+      response: { message: 'Error.PaymentNotCancellable' }
+    })
+    expect(m.paymentRepo.updateWithExpectedStatus).not.toHaveBeenCalled()
+    expect(m.auditService.record).not.toHaveBeenCalled()
+  })
+
+  it('cancelPayment CAS chỉ chấp nhận ba trạng thái đang xử lý', async () => {
+    const m = makeMocks()
+    seed(m, 'APPROVED')
+    m.paymentRepo.updateWithExpectedStatus.mockResolvedValue({ id: P, status: 'CANCELLED' })
+
+    await makeService(m).cancelPayment(P, { cancelReason: 'valid' }, ACTOR)
+
+    expect(m.paymentRepo.updateWithExpectedStatus).toHaveBeenCalledWith(
+      P,
+      { in: ['TRIGGERED', 'PENDING', 'APPROVED'] },
+      expect.objectContaining({ status: 'CANCELLED' })
+    )
+  })
+
   it('đường thắng race vẫn audit + emit đúng một lần', async () => {
     const m = makeMocks()
     seed(m, 'APPROVED')

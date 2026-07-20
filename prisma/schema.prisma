@@ -937,6 +937,7 @@ model Page {
   createdAt     DateTime   @default(now())
 
   regions Region[]
+  tasks   Task[]
 
   @@index([chapterId])
 }
@@ -960,6 +961,7 @@ model Region {
 model Task {
   id          String  @id @default(auto()) @map("_id") @db.ObjectId
   pageId      String  @db.ObjectId
+  page        Page    @relation(fields: [pageId], references: [id])
   regionId    String? @db.ObjectId
   assistantId String? @db.ObjectId
 
@@ -1137,6 +1139,9 @@ model Contract {
   status                ContractStatus @default(DRAFT)
   mangakaSignedAt       DateTime?
   boardSignedAt         DateTime?
+  // Internal serialization fence: every signing transaction writes a fresh token so concurrent
+  // signers contend on the same Contract document and the loser retries from a fresh snapshot.
+  signingFence          String?
   createdAt             DateTime       @default(now())
 
   conditions         PaymentCondition[]

@@ -182,3 +182,78 @@ describe('contract response enrichment', () => {
     expect(results[1].creator).toBeNull()
   })
 })
+
+describe('ContractRepo signing serialization (S-02)', () => {
+  it('writes the shared Contract fence before inserting/counting a Board signature', async () => {
+    const contractUpdate = jest.fn().mockResolvedValue({ id: 'c1' })
+    const signatureCreate = jest.fn().mockResolvedValue({ id: 'sig1' })
+    const signatureCount = jest.fn().mockResolvedValue(3)
+    const contractUpdateMany = jest.fn().mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 })
+    const contractFindUnique = jest.fn().mockResolvedValue({ id: 'c1', status: 'FULLY_EXECUTED' })
+    const tx = {
+      contract: { update: contractUpdate, updateMany: contractUpdateMany, findUnique: contractFindUnique },
+      contractSignature: { create: signatureCreate, count: signatureCount }
+    }
+    const transaction = jest.fn(async (callback: (client: typeof tx) => unknown) => callback(tx))
+    const repo = new ContractRepo({ $transaction: transaction } as any)
+
+    const result = await repo.recordBoardSignatureAndSettle('c1', 'u3', 3)
+
+    expect(contractUpdate).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: { signingFence: expect.any(String) }
+    })
+    expect(contractUpdate.mock.invocationCallOrder[0]).toBeLessThan(signatureCreate.mock.invocationCallOrder[0])
+    expect(signatureCreate.mock.invocationCallOrder[0]).toBeLessThan(signatureCount.mock.invocationCallOrder[0])
+    expect(result).toMatchObject({ signatureCount: 3, boardCompletedNow: true, executedNow: true })
+  })
+
+  it('retries the whole signing transaction after a Mongo write conflict', async () => {
+    const tx = {
+      contract: {
+        update: jest.fn().mockResolvedValue({ id: 'c1' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'c1' })
+      },
+      contractSignature: {
+        create: jest.fn().mockResolvedValue({ id: 'sig1' }),
+        count: jest.fn().mockResolvedValue(1)
+      }
+    }
+    const transaction = jest
+      .fn()
+      .mockRejectedValueOnce({ code: 'P2034', message: 'WriteConflict' })
+      .mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx))
+    const repo = new ContractRepo({ $transaction: transaction } as any)
+
+    await expect(repo.recordBoardSignatureAndSettle('c1', 'u1', 3)).resolves.toMatchObject({ signatureCount: 1 })
+    expect(transaction).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('ContractAmendmentRepo version retry (S-05)', () => {
+  it('retries execute-and-apply from a fresh transaction after a version conflict', async () => {
+    const tx = {
+      contractAmendment: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ valuationAmount: 200 })
+      },
+      contractVersion: {
+        findFirst: jest.fn().mockResolvedValue({ versionNumber: 4 }),
+        create: jest.fn().mockResolvedValue({ id: 'v5' })
+      },
+      contract: { update: jest.fn().mockResolvedValue({ valuationAmount: 200 }) }
+    }
+    const transaction = jest
+      .fn()
+      .mockRejectedValueOnce({ code: 'P2034', message: 'WriteConflict' })
+      .mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx))
+    const repo = new ContractAmendmentRepo({ $transaction: transaction } as any)
+
+    await expect(repo.executeAndApply('a1', 'c1', 'u1')).resolves.toEqual({ applied: true })
+    expect(transaction).toHaveBeenCalledTimes(2)
+    expect(tx.contractVersion.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ contractId: 'c1', versionNumber: 5, editedById: 'u1' })
+    })
+  })
+})

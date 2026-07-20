@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { RegionService } from './services/region.service'
 import { TaskAssignService } from './services/task-assign.service'
@@ -95,37 +96,32 @@ export class TaskService {
     if (ids.some((id) => id != null && !OBJECT_ID_RE.test(id))) return empty
 
     const isAssistant = roleName === RoleName.ASSISTANT
-    const scopeFilters: { seriesId?: string; chapterId?: string } = {
-      ...(query.seriesId ? { seriesId: query.seriesId } : {}),
-      ...(query.chapterId ? { chapterId: query.chapterId } : {})
-    }
-
-    let pageScope: TaskListWhere['pageId']
-    if (query.pageId) {
-      // Đường cũ: chốt đúng 1 trang. Mangaka phải sở hữu trang đó.
-      if (!isAssistant) {
-        const owned = await this.taskRepository.findPageWithOwner(query.pageId)
-        if (!owned || owned.chapter.series.mangakaId !== userId) return empty
-      }
-      pageScope = query.pageId
-    } else if (isAssistant) {
-      // Assistant vốn đã bị giới hạn theo assistantId; series/chapter chỉ là bộ lọc, KHÔNG phải authz.
-      if (Object.keys(scopeFilters).length === 0) pageScope = undefined
-      else {
-        const pageIds = await this.taskRepository.findOwnedPageIds(undefined, scopeFilters)
-        if (pageIds.length === 0) return empty
-        pageScope = { in: pageIds }
-      }
-    } else {
-      // Mangaka: mặc định TOÀN BỘ trang thuộc series mình sở hữu (không cần bám flow page).
-      const pageIds = await this.taskRepository.findOwnedPageIds(userId, scopeFilters)
-      if (pageIds.length === 0) return empty
-      pageScope = { in: pageIds }
+    // Task now has a real Prisma relation to Page. Keep authorization and all optional filters in
+    // ONE database predicate: contradictory page/chapter/series combinations correctly return an
+    // empty page, and pagination no longer materializes every owned page id into an unbounded `$in`.
+    const needsPageScope = !isAssistant || Boolean(query.pageId || query.chapterId || query.seriesId)
+    const pageScope: Prisma.PageWhereInput = {
+      ...(query.pageId ? { id: query.pageId } : {}),
+      ...(!isAssistant || query.chapterId || query.seriesId
+        ? {
+            chapter: {
+              is: {
+                ...(query.chapterId ? { id: query.chapterId } : {}),
+                series: {
+                  is: {
+                    ...(query.seriesId ? { id: query.seriesId } : {}),
+                    ...(!isAssistant ? { mangakaId: userId } : {})
+                  }
+                }
+              }
+            }
+          }
+        : {})
     }
 
     const where: TaskListWhere = {
       ...(isAssistant ? { assistantId: userId } : {}),
-      ...(pageScope !== undefined ? { pageId: pageScope } : {}),
+      ...(needsPageScope ? { page: { is: pageScope } } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.regionId ? { regionId: query.regionId } : {}),
       ...(!isAssistant && query.assistantId ? { assistantId: query.assistantId } : {})

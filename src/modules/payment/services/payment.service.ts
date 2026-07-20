@@ -7,6 +7,7 @@ import {
   InvalidStatusForApprovalException,
   InvalidStatusForPaymentException,
   PaymentAlreadyPaidException,
+  PaymentNotCancellableException,
   ReceiverNotFoundException,
   InvalidAmountException,
   PaymentConditionNotFoundException,
@@ -153,19 +154,25 @@ export class PaymentService {
     if (existing.status === PaymentRecordStatus.PAID) {
       throw new PaymentAlreadyPaidException()
     }
+    const cancellableStatuses: PaymentRecordStatus[] = [
+      PaymentRecordStatus.TRIGGERED,
+      PaymentRecordStatus.PENDING,
+      PaymentRecordStatus.APPROVED
+    ]
+    if (!cancellableStatuses.includes(existing.status)) throw new PaymentNotCancellableException()
 
     // S-03: CAS với điều kiện "chưa PAID". Chặn nhánh đối nghịch cancel-vs-pay
     // chạy song song rồi last-write-wins (huỷ một payment đã chi thật).
     const cancelled = await this.paymentRepo.updateWithExpectedStatus(
       id,
-      { not: PaymentRecordStatus.PAID },
+      { in: cancellableStatuses },
       {
         status: PaymentRecordStatus.CANCELLED,
         cancelledAt: new Date(),
         cancelReason: dto.cancelReason
       }
     )
-    if (!cancelled) throw new PaymentAlreadyPaidException()
+    if (!cancelled) throw new PaymentNotCancellableException()
 
     await this.auditService.record({
       actorId,
