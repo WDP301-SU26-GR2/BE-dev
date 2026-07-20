@@ -206,11 +206,20 @@ export class TaskRepository {
       deadline: Date | null
       priority: number
       assetIds: string[]
+      groupId?: string | null
+      groupTitle?: string | null
     }>
   ): Promise<Task[]> {
     return await this.prismaService.$transaction(
       items.map((d) => this.prismaService.task.create({ data: { ...d, status: 'ASSIGNED' } }))
     )
+  }
+
+  async findTasksByGroup(groupId: string) {
+    return await this.prismaService.task.findMany({
+      where: { groupId },
+      select: { id: true, status: true, pageId: true }
+    })
   }
 
   async findTaskById(id: string) {

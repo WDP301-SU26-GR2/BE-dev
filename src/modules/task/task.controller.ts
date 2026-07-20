@@ -7,6 +7,9 @@ import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import {
   BatchCreateTaskBodyDto,
+  CreateTaskGroupBodyDto,
+  TaskGroupResDto,
+  ApproveTaskGroupResDto,
   CancelTaskBodyDto,
   CreateRegionBodyDto,
   CreateTaskBodyDto,
@@ -147,6 +150,45 @@ export class TaskController {
     return this.taskService.createTaskBatch(userId, body)
   }
 
+  @Post('tasks/group')
+  @ApiOperation({
+    summary:
+      'Giao MỘT đầu việc trải nhiều trang (vd "vẽ nền ch.5 trang 1-10"). Backend tạo N task — mỗi trang 1 task — ' +
+      'dùng chung groupId; all-or-nothing. Region/tiến độ/duyệt vẫn theo từng trang.'
+  })
+  @ApiResponse({ status: 422, description: 'Validation fail' })
+  @ApiErrors(
+    PageNotFoundException,
+    NotSeriesOwnerException,
+    AssistantNotHiredException,
+    AssetNotFoundException,
+    ChapterOnHoldTaskException,
+    PageNotEditableTaskException
+  )
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 201, type: TaskGroupResDto })
+  createTaskGroup(
+    @Body() body: CreateTaskGroupBodyDto,
+    @ActiveUser('userId') userId: string
+  ): Promise<InstanceType<typeof TaskGroupResDto>> {
+    return this.taskService.createTaskGroup(userId, body)
+  }
+
+  @Post('tasks/group/:groupId/approve')
+  @ApiOperation({
+    summary:
+      'Duyệt cả nhóm việc. Chỉ duyệt task đang SUBMITTED/UNDER_REVIEW; task chưa tới lượt được liệt kê ở `skipped`.'
+  })
+  @ApiErrors(TaskNotFoundException, NotSeriesOwnerException, ChapterOnHoldTaskException, PageNotEditableTaskException)
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 201, type: ApproveTaskGroupResDto })
+  approveTaskGroup(
+    @Param('groupId') groupId: string,
+    @ActiveUser('userId') userId: string
+  ): Promise<InstanceType<typeof ApproveTaskGroupResDto>> {
+    return this.taskService.approveTaskGroup(userId, groupId)
+  }
+
   @Patch('tasks/:id')
   @ApiOperation({ summary: 'Sửa task (assetIds/deadline/priority)' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
@@ -181,7 +223,12 @@ export class TaskController {
   }
 
   @Get('tasks')
-  @ApiOperation({ summary: 'Danh sách task theo status/regionId (Assistant=được giao; Mangaka=theo pageId sở hữu)' })
+  @ApiOperation({
+    summary:
+      'Danh sách task. Assistant = task được giao cho mình; Mangaka = task thuộc mọi series mình sở hữu ' +
+      '(KHÔNG cần pageId), lọc dần bằng seriesId/chapterId/pageId/assistantId/status. ' +
+      'Scope không thuộc mình → trả rỗng, không 403.'
+  })
   @Roles(RoleName.MANGAKA, RoleName.ASSISTANT)
   @ZodResponse({ status: 200, type: TaskListResDto })
   listTasks(

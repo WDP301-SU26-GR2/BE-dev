@@ -1,4 +1,5 @@
 import { TaskAssignService } from './task-assign.service'
+import { CreateTaskGroupBodySchema } from '../schemas/task-schemas'
 import {
   AssetNotFoundException,
   AssistantNotHiredException,
@@ -200,5 +201,145 @@ describe('TaskAssignService', () => {
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'new-assistant', referenceType: 'TASK_ASSIGNED' })
     )
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task group: giao MỘT lần cho nhiều trang, nhưng dưới DB vẫn là N task 1-trang
+// (giữ nguyên region / pagesReady / cascade / duyệt từng trang).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('TaskAssignService.createGroup', () => {
+  const P1 = '0123456789abcdef01230001'
+  const P2 = '0123456789abcdef01230002'
+  const A1 = '0123456789abcdef01230003'
+
+  function makeDeps(over: Record<string, unknown> = {}) {
+    const taskRepository = {
+      findPageWithOwner: jest.fn().mockResolvedValue({
+        id: P1,
+        chapterId: 'c1',
+        status: 'DRAFT',
+        chapter: { seriesId: 's1', hold: null, series: { mangakaId: 'mangaka' } }
+      }),
+      createTasksBatch: jest.fn().mockImplementation((items: Array<Record<string, unknown>>) =>
+        Promise.resolve(
+          items.map((item, index) => ({
+            id: `t${index}`,
+            ...item,
+            status: 'ASSIGNED',
+            statusReason: null,
+            versions: [],
+            createdAt: new Date('2026-07-21T00:00:00.000Z')
+          }))
+        )
+      ),
+      ...over
+    }
+    const studioAssignmentService = { findActiveForPair: jest.fn().mockResolvedValue({ id: 'sa1' }) }
+    const storageRepository = { findAssetsByIds: jest.fn().mockResolvedValue([]) }
+    const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+    const taskStateService = { transition: jest.fn() }
+    return { taskRepository, studioAssignmentService, storageRepository, notificationService, taskStateService }
+  }
+
+  function makeSvc(d: ReturnType<typeof makeDeps>) {
+    return new TaskAssignService(
+      d.taskRepository as never,
+      d.studioAssignmentService as never,
+      d.storageRepository as never,
+      d.taskStateService as never,
+      d.notificationService as never
+    )
+  }
+
+  const body = { pageIds: [P1, P2], assistantId: A1, taskType: 'BACKGROUND', priority: 0, assetIds: [] }
+
+  it('tạo mỗi trang một task, tất cả dùng CHUNG groupId', async () => {
+    const d = makeDeps()
+
+    const res = await makeSvc(d).createGroup('mangaka', { ...body, groupTitle: 'Nền ch.5' } as never)
+
+    const created = d.taskRepository.createTasksBatch.mock.calls[0][0] as Array<Record<string, unknown>>
+    expect(created).toHaveLength(2)
+    expect(created[0].pageId).toBe(P1)
+    expect(created[1].pageId).toBe(P2)
+    expect(created[0].groupId).toBeTruthy()
+    expect(created[0].groupId).toBe(created[1].groupId)
+    expect(created[0].groupTitle).toBe('Nền ch.5')
+    expect(res.groupId).toBe(created[0].groupId)
+    expect(res.items).toHaveLength(2)
+  })
+
+  it('validate TOÀN BỘ trang trước khi tạo (all-or-nothing)', async () => {
+    const d = makeDeps({
+      findPageWithOwner: jest
+        .fn()
+        .mockResolvedValueOnce({
+          id: P1,
+          chapterId: 'c1',
+          status: 'DRAFT',
+          chapter: { seriesId: 's1', hold: null, series: { mangakaId: 'mangaka' } }
+        })
+        .mockResolvedValueOnce({
+          id: P2,
+          chapterId: 'c1',
+          status: 'COMPLETED', // trang đã khoá
+          chapter: { seriesId: 's1', hold: null, series: { mangakaId: 'mangaka' } }
+        })
+    })
+
+    await expect(makeSvc(d).createGroup('mangaka', { ...body } as never)).rejects.toBeDefined()
+    expect(d.taskRepository.createTasksBatch).not.toHaveBeenCalled()
+  })
+
+  it('trang không thuộc mình → không tạo task nào', async () => {
+    const d = makeDeps({
+      findPageWithOwner: jest.fn().mockResolvedValue({
+        id: P1,
+        chapterId: 'c1',
+        status: 'DRAFT',
+        chapter: { seriesId: 's1', hold: null, series: { mangakaId: 'someone-else' } }
+      })
+    })
+
+    await expect(makeSvc(d).createGroup('mangaka', { ...body } as never)).rejects.toBeDefined()
+    expect(d.taskRepository.createTasksBatch).not.toHaveBeenCalled()
+  })
+
+  it('assistant chưa được thuê → chặn (BR-ASSIST-01)', async () => {
+    const d = makeDeps()
+    d.studioAssignmentService.findActiveForPair = jest.fn().mockResolvedValue(null)
+
+    await expect(makeSvc(d).createGroup('mangaka', { ...body } as never)).rejects.toBeDefined()
+    expect(d.taskRepository.createTasksBatch).not.toHaveBeenCalled()
+  })
+
+  it('mỗi trợ lý nhận đúng một notification cho mỗi task', async () => {
+    const d = makeDeps()
+    await makeSvc(d).createGroup('mangaka', { ...body } as never)
+    expect(d.notificationService.notifySafe).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('CreateTaskGroupBodySchema', () => {
+  const ID = '0123456789abcdef01230001'
+
+  it('cần ít nhất 1 trang', () => {
+    expect(CreateTaskGroupBodySchema.safeParse({ pageIds: [], assistantId: ID, taskType: 'BACKGROUND' }).success).toBe(
+      false
+    )
+  })
+
+  it('chặn quá 50 trang', () => {
+    const pageIds = Array.from({ length: 51 }, () => ID)
+    expect(CreateTaskGroupBodySchema.safeParse({ pageIds, assistantId: ID, taskType: 'BACKGROUND' }).success).toBe(
+      false
+    )
+  })
+
+  it('nhận đúng shape tối thiểu', () => {
+    expect(
+      CreateTaskGroupBodySchema.safeParse({ pageIds: [ID], assistantId: ID, taskType: 'BACKGROUND' }).success
+    ).toBe(true)
   })
 })
