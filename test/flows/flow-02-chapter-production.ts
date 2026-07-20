@@ -6,7 +6,8 @@ import {
   makeSeriesAt,
   makeContractAt,
   makeNameAt,
-  makeTaskAt
+  makeTaskAt,
+  makeStudioAssignment
 } from './lib/seed.js'
 import { req, ok, section, summary, expectError, resetCounters, sleep } from './lib/http.js'
 import { login } from './lib/auth.js'
@@ -1125,6 +1126,216 @@ const main = async () => {
   await req('POST', `/chapters/${cSplit.id}/names/${cn2Id}/approve`, { token: s.tokens.e1, body: {} })
   const cnDelApproved = await req('DELETE', `/chapters/${cSplit.id}/names/${cn2Id}`, { token: s.tokens.mA })
   expectError(cnDelApproved, 409, 'Error.NameNotDeletable', 'F02-090 DELETE APPROVED Name → 409')
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // F02-P — Page API mở rộng (PATCH originalFile/pageNumber · DELETE · bulk DELETE)
+  //         + scoping GET /chapters/:id/pages (trước đây AUTH-only, không scoping)
+  // ═══════════════════════════════════════════════════════════════════════════
+  section('F02-P Page API mở rộng + scoping')
+
+  const cPage = (await createChapterWithApprovedName(s, s.seriesA.id, 30, 'ChPage')).chapter
+  const mkPage = async (pageNumber: number, originalFile = `r2://p${pageNumber}.png`) => {
+    const r = await req('POST', `/chapters/${cPage.id}/pages`, {
+      token: s.tokens.mA,
+      body: { pageNumber, originalFile }
+    })
+    return (r.json?.data ?? r.json) as { id: string; pageNumber: number }
+  }
+
+  const pg1 = await mkPage(1)
+  await mkPage(2)
+
+  // --- PATCH mở rộng ---
+  // originalFile là NGUỒN cho AI segment + Assistant workspace → PATCH KHÔNG được đè.
+  // Muốn thay bản gốc: xoá trang rồi upload lại.
+  const patchOriginal = await req('PATCH', `/pages/${pg1.id}`, {
+    token: s.tokens.mA,
+    body: { originalFile: 'r2://p1-redraw.png' }
+  })
+  ok('F02-P01 PATCH originalFile bị từ chối → 422', patchOriginal.status === 422, `got ${patchOriginal.status}`)
+  const pg1AfterFile = await prisma.page.findUnique({ where: { id: pg1.id } })
+  ok(
+    'F02-P01b bản gốc KHÔNG bị thay đổi',
+    pg1AfterFile?.originalFile === 'r2://p1.png',
+    `got ${pg1AfterFile?.originalFile}`
+  )
+
+  // displayFile = compositeFile ?? originalFile — FE chỉ đọc 1 field để render
+  const beforeComposite = await req('GET', `/chapters/${cPage.id}/pages`, { token: s.tokens.mA })
+  const pgBefore = ((beforeComposite.json?.data?.items ?? []) as Array<Record<string, unknown>>).find(
+    (item) => item.id === pg1.id
+  )
+  ok(
+    'F02-P01c chưa có composite → displayFile fallback về originalFile',
+    pgBefore?.displayFile === 'r2://p1.png',
+    `got ${String(pgBefore?.displayFile)}`
+  )
+
+  const patchComposite = await req('PATCH', `/pages/${pg1.id}`, {
+    token: s.tokens.mA,
+    body: { compositeFile: 'r2://p1-final.png' }
+  })
+  ok('F02-P01d PATCH compositeFile → 200', patchComposite.status === 200, `got ${patchComposite.status}`)
+  const afterComposite = await req('GET', `/chapters/${cPage.id}/pages`, { token: s.tokens.mA })
+  const pgAfter = ((afterComposite.json?.data?.items ?? []) as Array<Record<string, unknown>>).find(
+    (item) => item.id === pg1.id
+  )
+  ok(
+    'F02-P01e có composite → displayFile trỏ composite, originalFile vẫn còn nguyên',
+    pgAfter?.displayFile === 'r2://p1-final.png' && pgAfter?.originalFile === 'r2://p1.png',
+    `display=${String(pgAfter?.displayFile)} original=${String(pgAfter?.originalFile)}`
+  )
+
+  const patchDupNumber = await req('PATCH', `/pages/${pg1.id}`, { token: s.tokens.mA, body: { pageNumber: 2 } })
+  expectError(patchDupNumber, 409, 'Error.DuplicatePageNumber', 'F02-P02 đổi sang số trang đã dùng → 409')
+
+  const patchFreeNumber = await req('PATCH', `/pages/${pg1.id}`, { token: s.tokens.mA, body: { pageNumber: 7 } })
+  ok('F02-P03 đổi sang số trang trống → 200', patchFreeNumber.status === 200, `got ${patchFreeNumber.status}`)
+  const pg1Renumbered = await prisma.page.findUnique({ where: { id: pg1.id } })
+  ok('F02-P03b pageNumber persisted', pg1Renumbered?.pageNumber === 7, `got ${pg1Renumbered?.pageNumber}`)
+
+  const patchSelfNumber = await req('PATCH', `/pages/${pg1.id}`, { token: s.tokens.mA, body: { pageNumber: 7 } })
+  ok('F02-P04 gửi lại chính số của mình → 200', patchSelfNumber.status === 200, `got ${patchSelfNumber.status}`)
+
+  // --- scoping GET /chapters/:id/pages ---
+  const listOwner = await req('GET', `/chapters/${cPage.id}/pages`, { token: s.tokens.mA })
+  ok('F02-P05 mangaka chủ sở hữu list được', listOwner.status === 200, `got ${listOwner.status}`)
+
+  const listOtherMangaka = await req('GET', `/chapters/${cPage.id}/pages`, { token: s.tokens.mA2 })
+  expectError(listOtherMangaka, 403, 'Error.ChapterAccessDenied', 'F02-P06 mangaka khác → 403')
+
+  const listEditor = await req('GET', `/chapters/${cPage.id}/pages`, { token: s.tokens.e1 })
+  ok('F02-P07 editor phụ trách list được', listEditor.status === 200, `got ${listEditor.status}`)
+
+  const listWrongEditor = await req('GET', `/chapters/${cPage.id}/pages`, { token: s.tokens.e2 })
+  expectError(listWrongEditor, 403, 'Error.ChapterAccessDenied', 'F02-P08 editor không phụ trách → 403')
+
+  const outsiderAssistant = await makeUser('ASSISTANT')
+  const outsiderToken = await login(outsiderAssistant.email)
+  const listOutsider = await req('GET', `/chapters/${cPage.id}/pages`, { token: outsiderToken })
+  expectError(listOutsider, 403, 'Error.ChapterAccessDenied', 'F02-P09 assistant ngoài studio → 403')
+
+  const studioAssistant = await makeUser('ASSISTANT')
+  await makeStudioAssignment({ mangakaId: s.mangakaA.id, assistantId: studioAssistant.id, seriesId: s.seriesA.id })
+  const studioToken = await login(studioAssistant.email)
+  const listStudio = await req('GET', `/chapters/${cPage.id}/pages`, { token: studioToken })
+  ok('F02-P10 assistant có StudioAssignment ACTIVE list được', listStudio.status === 200, `got ${listStudio.status}`)
+
+  const listBoard = await req('GET', `/chapters/${cPage.id}/pages`, { token: s.tokens.b })
+  ok('F02-P11 board member list được (giám sát)', listBoard.status === 200, `got ${listBoard.status}`)
+
+  // --- DELETE page + cascade ---
+  const pgDel = await mkPage(11)
+  const delRegion = await prisma.region.create({
+    data: {
+      pageId: pgDel.id,
+      coordinates: { x: 1, y: 2, width: 3, height: 4 },
+      createdBy: 'MANUAL',
+      confirmedByMangaka: true
+    }
+  })
+  const delTask = await makeTaskAt({ pageId: pgDel.id, regionId: delRegion.id, assistantId: studioAssistant.id })
+
+  const delOther = await req('DELETE', `/pages/${pgDel.id}`, { token: s.tokens.mA2 })
+  ok('F02-P12 mangaka khác xoá trang → 403', delOther.status === 403, `got ${delOther.status}`)
+
+  const pageDelRes = await req('DELETE', `/pages/${pgDel.id}`, { token: s.tokens.mA })
+  ok('F02-P13 DELETE page → 200', pageDelRes.status === 200, `got ${pageDelRes.status} ${pageDelRes.raw.slice(0, 200)}`)
+  const delBody = (pageDelRes.json?.data ?? pageDelRes.json) as { deletedRegions: number; deletedTasks: number }
+  ok(
+    'F02-P13b payload đếm đúng cascade',
+    delBody?.deletedRegions === 1 && delBody?.deletedTasks === 1,
+    `got ${JSON.stringify(delBody)}`
+  )
+  ok('F02-P13c page đã xoá khỏi DB', (await prisma.page.findUnique({ where: { id: pgDel.id } })) === null)
+  ok('F02-P13d region cascade đã xoá', (await prisma.region.findUnique({ where: { id: delRegion.id } })) === null)
+  ok('F02-P13e task cascade đã xoá', (await prisma.task.findUnique({ where: { id: delTask.id } })) === null)
+
+  // Gate đồng bộ PA-03: không cho xoá mất công trợ lý ĐÃ ĐƯỢC DUYỆT
+  const pgApproved = await mkPage(12)
+  const approvedTask = await makeTaskAt({
+    pageId: pgApproved.id,
+    assistantId: studioAssistant.id,
+    status: TaskStatus.APPROVED
+  })
+  const delApprovedPage = await req('DELETE', `/pages/${pgApproved.id}`, { token: s.tokens.mA })
+  expectError(delApprovedPage, 409, 'Error.PageHasApprovedTasks', 'F02-P13f xoá trang có task APPROVED → 409')
+  ok(
+    'F02-P13g trang + task APPROVED vẫn còn nguyên',
+    (await prisma.page.findUnique({ where: { id: pgApproved.id } })) !== null &&
+      (await prisma.task.findUnique({ where: { id: approvedTask.id } })) !== null
+  )
+  const bulkApproved = await req('DELETE', `/chapters/${cPage.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageIds: [pgApproved.id] }
+  })
+  expectError(bulkApproved, 409, 'Error.PageHasApprovedTasks', 'F02-P13h bulk chứa trang có task APPROVED → 409')
+
+  const delMissing = await req('DELETE', `/pages/${pgDel.id}`, { token: s.tokens.mA })
+  expectError(delMissing, 404, 'Error.PageNotFound', 'F02-P14 xoá lại trang đã mất → 404')
+
+  const delBadId = await req('DELETE', '/pages/not-an-object-id', { token: s.tokens.mA })
+  expectError(delBadId, 404, 'Error.PageNotFound', 'F02-P15 id rác → 404 (không 500)')
+
+  // --- bulk DELETE all-or-nothing ---
+  const b1 = await mkPage(21)
+  const b2 = await mkPage(22)
+  const foreignChapter = (await createChapterWithApprovedName(s, s.seriesA.id, 31, 'ChOther')).chapter
+  const foreignRes = await req('POST', `/chapters/${foreignChapter.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageNumber: 1, originalFile: 'r2://foreign.png' }
+  })
+  const foreignPage = (foreignRes.json?.data ?? foreignRes.json) as { id: string }
+
+  const bulkForeign = await req('DELETE', `/chapters/${cPage.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageIds: [b1.id, foreignPage.id] }
+  })
+  expectError(bulkForeign, 404, 'Error.PageNotFound', 'F02-P16 bulk có page thuộc chapter khác → 404')
+  ok('F02-P16b all-or-nothing: b1 vẫn còn', (await prisma.page.findUnique({ where: { id: b1.id } })) !== null)
+  ok(
+    'F02-P16c all-or-nothing: page chapter khác vẫn còn',
+    (await prisma.page.findUnique({ where: { id: foreignPage.id } })) !== null
+  )
+
+  const bulkOver = await req('DELETE', `/chapters/${cPage.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageIds: Array.from({ length: 51 }, () => b1.id) }
+  })
+  ok('F02-P17 bulk > 50 id → 422', bulkOver.status === 422, `got ${bulkOver.status}`)
+
+  const bulkEmpty = await req('DELETE', `/chapters/${cPage.id}/pages`, { token: s.tokens.mA, body: { pageIds: [] } })
+  ok('F02-P18 bulk rỗng → 422', bulkEmpty.status === 422, `got ${bulkEmpty.status}`)
+
+  const bulkOk = await req('DELETE', `/chapters/${cPage.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageIds: [b1.id, b2.id] }
+  })
+  ok('F02-P19 bulk hợp lệ → 200', bulkOk.status === 200, `got ${bulkOk.status} ${bulkOk.raw.slice(0, 200)}`)
+  const bulkBody = (bulkOk.json?.data ?? bulkOk.json) as { deletedPages: number }
+  ok('F02-P19b deletedPages = 2', bulkBody?.deletedPages === 2, `got ${JSON.stringify(bulkBody)}`)
+  ok('F02-P19c cả 2 page đã mất', (await prisma.page.count({ where: { id: { in: [b1.id, b2.id] } } })) === 0)
+
+  // --- COMPLETED page bị khoá khỏi cả PATCH lẫn DELETE (Spec 19) ---
+  const cLocked = (await createChapterWithApprovedName(s, s.seriesA.id, 32, 'ChLocked')).chapter
+  const lockRes = await req('POST', `/chapters/${cLocked.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageNumber: 1, originalFile: 'r2://lock.png' }
+  })
+  const lockedPage = (lockRes.json?.data ?? lockRes.json) as { id: string }
+  await req('POST', `/chapters/${cLocked.id}/manuscript/submit`, { token: s.tokens.mA })
+  const lockedNow = await prisma.page.findUnique({ where: { id: lockedPage.id } })
+  ok('F02-P20 page đã COMPLETED sau submit', lockedNow?.status === PageStatus.COMPLETED, `got ${lockedNow?.status}`)
+
+  const delCompleted = await req('DELETE', `/pages/${lockedPage.id}`, { token: s.tokens.mA })
+  expectError(delCompleted, 409, 'Error.PageNotEditable', 'F02-P21 DELETE page COMPLETED → 409')
+
+  const bulkCompleted = await req('DELETE', `/chapters/${cLocked.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageIds: [lockedPage.id] }
+  })
+  expectError(bulkCompleted, 409, 'Error.PageNotEditable', 'F02-P22 bulk chứa page COMPLETED → 409')
+  ok('F02-P22b page COMPLETED vẫn còn', (await prisma.page.findUnique({ where: { id: lockedPage.id } })) !== null)
 
   await prisma.$disconnect()
   const fail = summary(FLOW)

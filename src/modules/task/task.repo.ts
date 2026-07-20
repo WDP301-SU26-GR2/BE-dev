@@ -9,14 +9,27 @@ export type TaskListWhere = Prisma.TaskWhereInput
 export class TaskRepository {
   constructor(private readonly prismaService: PrismaService) {}
 
-  private async attachPeople<T extends Pick<Task, 'assistantId' | 'versions'>>(rows: T[]) {
-    const users = await fetchUserMiniMap(
-      this.prismaService,
-      rows.flatMap((row) => [row.assistantId, ...row.versions.map((version) => version.submittedBy)])
-    )
+  // Batch lookup vùng cho task theo Region — Assistant cần toạ độ để biết chỗ phải làm,
+  // mà GET /pages/:id/regions là MANGAKA/EDITOR-only. 1 query cho cả trang, không N+1.
+  private async fetchRegionMap(regionIds: Array<string | null>) {
+    const ids = [...new Set(regionIds.filter((id): id is string => Boolean(id)))]
+    if (ids.length === 0) return new Map<string, Region>()
+    const regions = await this.prismaService.region.findMany({ where: { id: { in: ids } } })
+    return new Map(regions.map((region) => [region.id, region]))
+  }
+
+  private async attachEmbeds<T extends Pick<Task, 'assistantId' | 'regionId' | 'versions'>>(rows: T[]) {
+    const [users, regions] = await Promise.all([
+      fetchUserMiniMap(
+        this.prismaService,
+        rows.flatMap((row) => [row.assistantId, ...row.versions.map((version) => version.submittedBy)])
+      ),
+      this.fetchRegionMap(rows.map((row) => row.regionId))
+    ])
     return rows.map((row) => ({
       ...row,
       assistant: row.assistantId ? (users.get(row.assistantId) ?? null) : null,
+      region: row.regionId ? (regions.get(row.regionId) ?? null) : null,
       versions: row.versions.map((version) => ({
         ...version,
         submitter: version.submittedBy ? (users.get(version.submittedBy) ?? null) : null
@@ -36,6 +49,48 @@ export class TaskRepository {
         chapter: { select: { seriesId: true, hold: true, series: { select: { mangakaId: true } } } }
       }
     })
+  }
+
+  // Task chỉ có `pageId` scalar (KHÔNG có relation field tới Page) nên Prisma không
+  // filter xuyên quan hệ được → phải resolve tập pageId theo scope rồi dùng `pageId: { in }`
+  // (`@@index([pageId])` đỡ được truy vấn này).
+  // mangakaId != null ⇒ chỉ lấy trang thuộc series của Mangaka đó (authz).
+  async findOwnedPageIds(
+    mangakaId: string | undefined,
+    filter: { seriesId?: string; chapterId?: string }
+  ): Promise<string[]> {
+    let chapterIds: string[]
+
+    if (filter.chapterId) {
+      const chapter = await this.prismaService.chapter.findUnique({
+        where: { id: filter.chapterId },
+        select: { id: true, series: { select: { mangakaId: true } } }
+      })
+      if (!chapter) return []
+      if (mangakaId && chapter.series.mangakaId !== mangakaId) return []
+      chapterIds = [chapter.id]
+    } else {
+      const seriesRows = await this.prismaService.series.findMany({
+        where: {
+          ...(mangakaId ? { mangakaId } : {}),
+          ...(filter.seriesId ? { id: filter.seriesId } : {})
+        },
+        select: { id: true }
+      })
+      if (seriesRows.length === 0) return []
+      const chapters = await this.prismaService.chapter.findMany({
+        where: { seriesId: { in: seriesRows.map((row) => row.id) } },
+        select: { id: true }
+      })
+      if (chapters.length === 0) return []
+      chapterIds = chapters.map((chapter) => chapter.id)
+    }
+
+    const pages = await this.prismaService.page.findMany({
+      where: { chapterId: { in: chapterIds } },
+      select: { id: true }
+    })
+    return pages.map((page) => page.id)
   }
 
   // ---- Region (A-TSK-01/02) ----
@@ -151,6 +206,8 @@ export class TaskRepository {
       deadline: Date | null
       priority: number
       assetIds: string[]
+      groupId?: string | null
+      groupTitle?: string | null
     }>
   ): Promise<Task[]> {
     return await this.prismaService.$transaction(
@@ -158,10 +215,17 @@ export class TaskRepository {
     )
   }
 
+  async findTasksByGroup(groupId: string) {
+    return await this.prismaService.task.findMany({
+      where: { groupId },
+      select: { id: true, status: true, pageId: true }
+    })
+  }
+
   async findTaskById(id: string) {
     const row = await this.prismaService.task.findUnique({ where: { id } })
     if (!row) return null
-    return (await this.attachPeople([row]))[0]
+    return (await this.attachEmbeds([row]))[0]
   }
 
   // single-writer status (gọi từ TaskStateService)
@@ -217,7 +281,7 @@ export class TaskRepository {
       skip: page.offset,
       take: page.limit
     })
-    return this.attachPeople(rows)
+    return this.attachEmbeds(rows)
   }
 
   async countTasks(where: TaskListWhere): Promise<number> {

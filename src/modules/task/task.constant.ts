@@ -41,3 +41,6 @@ export const REASSIGNABLE_TASK_STATUSES: TaskStatus[] = [
   TaskStatus.REVISION_REQUESTED,
   TaskStatus.ON_HOLD
 ]
+
+// Trạng thái có thể duyệt khi bấm "duyệt cả nhóm" (mirror gate của approve từng task).
+export const GROUP_APPROVABLE_TASK_STATUSES: TaskStatus[] = [TaskStatus.SUBMITTED, TaskStatus.UNDER_REVIEW]

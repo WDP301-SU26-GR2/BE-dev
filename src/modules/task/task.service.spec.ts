@@ -103,3 +103,120 @@ describe('TaskService.listTasks', () => {
     expect(repo.listTasks).not.toHaveBeenCalled()
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mangaka list task KHÔNG cần bám flow page → filter dần assistant/series/chapter/page.
+// Trước đây thiếu pageId là trả rỗng ⇒ không có màn "tất cả việc của tôi".
+// ─────────────────────────────────────────────────────────────────────────────
+describe('TaskService.listTasks — mangaka scope toàn bộ series của mình', () => {
+  const S1 = '0123456789abcdef01230001'
+  const C1 = '0123456789abcdef01230002'
+  const P1 = '0123456789abcdef01230003'
+  const A1 = '0123456789abcdef01230004'
+
+  function makeDeps(over: Record<string, unknown> = {}) {
+    const repo = {
+      findOwnedPageIds: jest.fn().mockResolvedValue([P1]),
+      findPageWithOwner: jest.fn().mockResolvedValue({
+        id: P1,
+        chapterId: C1,
+        chapter: { seriesId: S1, hold: null, series: { mangakaId: 'mangaka' } }
+      }),
+      listTasks: jest.fn().mockResolvedValue([]),
+      countTasks: jest.fn().mockResolvedValue(0),
+      ...over
+    }
+    return repo
+  }
+
+  function makeSvc(repo: Record<string, unknown>) {
+    return new TaskService({} as never, {} as never, {} as never, repo as never)
+  }
+
+  const baseQuery = { limit: 20, offset: 0 }
+
+  it('không truyền pageId vẫn trả task của mọi series mình sở hữu', async () => {
+    const repo = makeDeps()
+    await makeSvc(repo).listTasks('mangaka', 'MANGAKA', baseQuery)
+
+    expect(repo.findOwnedPageIds).toHaveBeenCalledWith('mangaka', {})
+    expect(repo.listTasks.mock.calls[0][0]).toEqual({ pageId: { in: [P1] } })
+  })
+
+  it('lọc theo seriesId', async () => {
+    const repo = makeDeps()
+    await makeSvc(repo).listTasks('mangaka', 'MANGAKA', { ...baseQuery, seriesId: S1 })
+
+    expect(repo.findOwnedPageIds).toHaveBeenCalledWith('mangaka', { seriesId: S1 })
+  })
+
+  it('lọc theo chapterId', async () => {
+    const repo = makeDeps()
+    await makeSvc(repo).listTasks('mangaka', 'MANGAKA', { ...baseQuery, chapterId: C1 })
+
+    expect(repo.findOwnedPageIds).toHaveBeenCalledWith('mangaka', { chapterId: C1 })
+  })
+
+  it('lọc theo assistantId cộng dồn với scope sở hữu', async () => {
+    const repo = makeDeps()
+    await makeSvc(repo).listTasks('mangaka', 'MANGAKA', { ...baseQuery, assistantId: A1 })
+
+    expect(repo.listTasks.mock.calls[0][0]).toEqual({
+      pageId: { in: [P1] },
+      assistantId: A1
+    })
+  })
+
+  it('truyền pageId vẫn giữ đường cũ: kiểm sở hữu đúng 1 trang', async () => {
+    const repo = makeDeps()
+    await makeSvc(repo).listTasks('mangaka', 'MANGAKA', { ...baseQuery, pageId: P1 })
+
+    expect(repo.findPageWithOwner).toHaveBeenCalledWith(P1)
+    expect(repo.listTasks.mock.calls[0][0]).toEqual({ pageId: P1 })
+  })
+
+  it('pageId không thuộc mình → rỗng, không truy vấn task', async () => {
+    const repo = makeDeps({
+      findPageWithOwner: jest.fn().mockResolvedValue({
+        id: P1,
+        chapterId: C1,
+        chapter: { seriesId: S1, hold: null, series: { mangakaId: 'someone-else' } }
+      })
+    })
+
+    const res = await makeSvc(repo).listTasks('mangaka', 'MANGAKA', { ...baseQuery, pageId: P1 })
+
+    expect(res.items).toEqual([])
+    expect(repo.listTasks).not.toHaveBeenCalled()
+  })
+
+  it('không sở hữu trang nào → rỗng, không truy vấn task', async () => {
+    const repo = makeDeps({ findOwnedPageIds: jest.fn().mockResolvedValue([]) })
+
+    const res = await makeSvc(repo).listTasks('mangaka', 'MANGAKA', baseQuery)
+
+    expect(res.items).toEqual([])
+    expect(res.total).toBe(0)
+    expect(repo.listTasks).not.toHaveBeenCalled()
+  })
+
+  it('seriesId rác → rỗng, không truy vấn', async () => {
+    const repo = makeDeps()
+    const res = await makeSvc(repo).listTasks('mangaka', 'MANGAKA', { ...baseQuery, seriesId: 'rac' })
+
+    expect(res.items).toEqual([])
+    expect(repo.findOwnedPageIds).not.toHaveBeenCalled()
+    expect(repo.listTasks).not.toHaveBeenCalled()
+  })
+
+  it('assistant vẫn chỉ thấy task của chính mình, kể cả khi lọc theo series', async () => {
+    const repo = makeDeps({ findOwnedPageIds: jest.fn().mockResolvedValue([P1]) })
+    await makeSvc(repo).listTasks('assistant', 'ASSISTANT', { ...baseQuery, seriesId: S1 })
+
+    const where = repo.listTasks.mock.calls[0][0]
+    expect(where.assistantId).toBe('assistant')
+    expect(where.pageId).toEqual({ in: [P1] })
+    // scope series của assistant KHÔNG lọc theo quyền sở hữu mangaka
+    expect(repo.findOwnedPageIds).toHaveBeenCalledWith(undefined, { seriesId: S1 })
+  })
+})

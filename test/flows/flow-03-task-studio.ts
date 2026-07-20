@@ -704,6 +704,241 @@ const main = async () => {
   })
   ok('F03-055c EDITOR tạo task → 403 (route MANGAKA)', rTaskByEditor.status === 403, `got ${rTaskByEditor.status}`)
 
+  // ══════════════ S-REG-EMBED — Assistant lấy được toạ độ vùng qua TaskRes ══════════════
+  // Gap gốc: TaskRes chỉ có regionId trần, còn GET /pages/:id/regions là MANGAKA/EDITOR-only
+  // ⇒ Assistant nhận task theo Region nhưng KHÔNG có đường hợp lệ nào lấy toạ độ.
+  section('S-REG-EMBED region embed cho Assistant')
+
+  const embedRegionRes = await req('POST', `/pages/${page.id}/regions`, {
+    token: m1Tok,
+    body: { coordinates: { x: 120, y: 340, width: 400, height: 260 }, regionType: 'BACKGROUND' }
+  })
+  const embedRegionId = embedRegionRes.json?.data?.id as string
+  ok('F03-RE01 tạo region để giao task → 201', embedRegionRes.status === 201, `got ${embedRegionRes.status}`)
+
+  const embedTaskRes = await req('POST', '/tasks', {
+    token: m1Tok,
+    body: {
+      pageId: page.id,
+      regionId: embedRegionId,
+      assistantId: a1.id,
+      taskType: 'BACKGROUND',
+      priority: 1
+    }
+  })
+  const embedTaskId = embedTaskRes.json?.data?.id as string
+  ok(
+    'F03-RE02 giao task theo region → 201',
+    embedTaskRes.status === 201,
+    `got ${embedTaskRes.status} ${embedTaskRes.raw.slice(0, 160)}`
+  )
+
+  // Assistant vẫn KHÔNG được đọc toàn bộ region của trang (route dành cho Mangaka/Editor)
+  const assistantRegionList = await req('GET', `/pages/${page.id}/regions`, { token: a1Tok })
+  ok(
+    'F03-RE03 assistant vẫn bị chặn ở GET /pages/:id/regions (403)',
+    assistantRegionList.status === 403,
+    `got ${assistantRegionList.status}`
+  )
+
+  // …nhưng lấy được toạ độ vùng của CHÍNH task mình, qua TaskRes
+  const assistantTaskDetail = await req('GET', `/tasks/${embedTaskId}`, { token: a1Tok })
+  const embedded = assistantTaskDetail.json?.data?.region as
+    | { id: string; coordinates: { x: number; y: number; width: number; height: number }; regionType: string }
+    | null
+    | undefined
+  ok(
+    'F03-RE04 GET /tasks/:id (assistant) trả region kèm toạ độ',
+    assistantTaskDetail.status === 200 &&
+      embedded?.id === embedRegionId &&
+      embedded?.coordinates?.x === 120 &&
+      embedded?.coordinates?.y === 340 &&
+      embedded?.coordinates?.width === 400 &&
+      embedded?.coordinates?.height === 260 &&
+      embedded?.regionType === 'BACKGROUND',
+    `got ${assistantTaskDetail.status} region=${JSON.stringify(embedded)}`
+  )
+
+  const assistantTaskList = await req('GET', `/tasks?pageId=${page.id}`, { token: a1Tok })
+  const listItems = (assistantTaskList.json?.data?.items ?? []) as Array<{
+    id: string
+    regionId: string | null
+    region: { coordinates: { x: number } } | null
+  }>
+  const listed = listItems.find((t) => t.id === embedTaskId)
+  ok(
+    'F03-RE05 GET /tasks (list) cũng embed region',
+    assistantTaskList.status === 200 && listed?.region?.coordinates?.x === 120,
+    `got ${assistantTaskList.status} region=${JSON.stringify(listed?.region)}`
+  )
+
+  const noRegionTask = listItems.find((t) => t.regionId === null)
+  ok(
+    'F03-RE06 task không gắn vùng → region = null (không undefined/lỗi)',
+    noRegionTask === undefined || noRegionTask.region === null,
+    `got ${JSON.stringify(noRegionTask?.region)}`
+  )
+
+  // ══════════════ S-TASK-SCOPE — Mangaka list task không cần bám flow page ══════════════
+  section('S-TASK-SCOPE Mangaka lọc task theo assistant/series/chapter/page')
+
+  const scopeAll = await req('GET', '/tasks', { token: m1Tok })
+  const scopeAllItems = (scopeAll.json?.data?.items ?? []) as Array<{ id: string; pageId: string }>
+  ok(
+    'F03-TS01 GET /tasks (mangaka, KHÔNG pageId) → 200 và có dữ liệu',
+    scopeAll.status === 200 && scopeAllItems.length > 0,
+    `got ${scopeAll.status} n=${scopeAllItems.length}`
+  )
+
+  const scopeBySeries = await req('GET', `/tasks?seriesId=${series.id}`, { token: m1Tok })
+  const bySeriesTotal = (scopeBySeries.json?.data?.total ?? -1) as number
+  ok(
+    'F03-TS02 lọc theo seriesId của mình → 200',
+    scopeBySeries.status === 200 && bySeriesTotal > 0,
+    `got ${scopeBySeries.status} total=${bySeriesTotal}`
+  )
+
+  const scopeByChapter = await req('GET', `/tasks?chapterId=${chapter.id}`, { token: m1Tok })
+  ok(
+    'F03-TS03 lọc theo chapterId → 200',
+    scopeByChapter.status === 200 && (scopeByChapter.json?.data?.total ?? 0) > 0,
+    `got ${scopeByChapter.status}`
+  )
+
+  const scopeByAssistant = await req('GET', `/tasks?assistantId=${a1.id}`, { token: m1Tok })
+  const byAssistantItems = (scopeByAssistant.json?.data?.items ?? []) as Array<{ assistantId: string }>
+  ok(
+    'F03-TS04 lọc theo assistantId → chỉ task của trợ lý đó',
+    scopeByAssistant.status === 200 &&
+      byAssistantItems.length > 0 &&
+      byAssistantItems.every((t) => t.assistantId === a1.id),
+    `got ${scopeByAssistant.status} n=${byAssistantItems.length}`
+  )
+
+  // 🔴 authz: series của người khác → rỗng, KHÔNG rò task
+  const foreignSeriesScope = await req('GET', `/tasks?seriesId=${series.id}`, { token: m2Tok })
+  ok(
+    'F03-TS05 mangaka khác lọc series không sở hữu → rỗng (không rò task)',
+    foreignSeriesScope.status === 200 && (foreignSeriesScope.json?.data?.total ?? -1) === 0,
+    `got ${foreignSeriesScope.status} total=${foreignSeriesScope.json?.data?.total}`
+  )
+
+  const foreignChapterScope = await req('GET', `/tasks?chapterId=${chapter.id}`, { token: m2Tok })
+  ok(
+    'F03-TS06 mangaka khác lọc chapter không sở hữu → rỗng',
+    foreignChapterScope.status === 200 && (foreignChapterScope.json?.data?.total ?? -1) === 0,
+    `got ${foreignChapterScope.status} total=${foreignChapterScope.json?.data?.total}`
+  )
+
+  const badSeriesScope = await req('GET', '/tasks?seriesId=khong-phai-objectid', { token: m1Tok })
+  ok(
+    'F03-TS07 seriesId rác → 200 rỗng (không 500)',
+    badSeriesScope.status === 200 && (badSeriesScope.json?.data?.total ?? -1) === 0,
+    `got ${badSeriesScope.status}`
+  )
+
+  const assistantScoped = await req('GET', `/tasks?seriesId=${series.id}`, { token: a1Tok })
+  const assistantScopedItems = (assistantScoped.json?.data?.items ?? []) as Array<{ assistantId: string }>
+  ok(
+    'F03-TS08 assistant lọc theo series vẫn chỉ thấy task của chính mình',
+    assistantScoped.status === 200 && assistantScopedItems.every((t) => t.assistantId === a1.id),
+    `got ${assistantScoped.status} n=${assistantScopedItems.length}`
+  )
+
+  // ══════════════ S-TASK-GROUP — 1 đầu việc trải nhiều trang ══════════════
+  // Dưới DB vẫn là N task 1-trang dùng chung groupId ⇒ region/pagesReady/cascade/duyệt-từng-trang giữ nguyên.
+  section('S-TASK-GROUP giao 1 đầu việc cho nhiều trang')
+
+  const gPage1 = await makePageAt({ chapterId: chapter.id, pageNumber: 90 })
+  const gPage2 = await makePageAt({ chapterId: chapter.id, pageNumber: 91 })
+
+  const groupRes = await req('POST', '/tasks/group', {
+    token: m1Tok,
+    body: {
+      pageIds: [gPage1.id, gPage2.id],
+      assistantId: a1.id,
+      taskType: 'BACKGROUND',
+      groupTitle: 'Vẽ nền ch.5'
+    }
+  })
+  const groupBody = (groupRes.json?.data ?? groupRes.json) as {
+    groupId: string
+    groupTitle: string
+    total: number
+    items: Array<{ id: string; pageId: string; groupId: string }>
+  }
+  ok(
+    'F03-TG01 tạo group cho 2 trang → 201, mỗi trang 1 task',
+    groupRes.status === 201 && groupBody?.total === 2,
+    `got ${groupRes.status} ${groupRes.raw.slice(0, 200)}`
+  )
+  ok(
+    'F03-TG02 cả 2 task dùng CHUNG groupId + đúng groupTitle',
+    groupBody?.items?.length === 2 &&
+      groupBody.items[0].groupId === groupBody.groupId &&
+      groupBody.items[1].groupId === groupBody.groupId &&
+      groupBody.groupTitle === 'Vẽ nền ch.5',
+    `got ${JSON.stringify(groupBody?.items?.map((t) => t.groupId))}`
+  )
+  const dbGroupTasks = await prisma.task.findMany({ where: { groupId: groupBody.groupId } })
+  ok(
+    'F03-TG03 DB: đúng 2 task, mỗi task vẫn thuộc ĐÚNG 1 trang',
+    dbGroupTasks.length === 2 && dbGroupTasks.every((t) => typeof t.pageId === 'string'),
+    `got ${dbGroupTasks.length}`
+  )
+
+  const groupFilter = await req('GET', `/tasks?groupId=${groupBody.groupId}`, { token: m1Tok })
+  ok(
+    'F03-TG04 lọc GET /tasks?groupId= → đúng 2 task',
+    groupFilter.status === 200 && (groupFilter.json?.data?.total ?? 0) === 2,
+    `got ${groupFilter.status} total=${groupFilter.json?.data?.total}`
+  )
+
+  // all-or-nothing: 1 trang không thuộc mình → không tạo task nào
+  const foreignSeries = await makeSeriesAt(SeriesStatus.SERIALIZED, { mangakaId: m2.id, editorId: e1.id })
+  const foreignChapter = await makeChapterAt({
+    seriesId: foreignSeries.id,
+    chapterNumber: 1,
+    manuscriptStatus: ManuscriptStatus.IN_PRODUCTION
+  })
+  const foreignPage = await makePageAt({ chapterId: foreignChapter.id, pageNumber: 95 })
+  const beforeCount = await prisma.task.count()
+  const groupBad = await req('POST', '/tasks/group', {
+    token: m1Tok,
+    body: { pageIds: [gPage1.id, foreignPage.id], assistantId: a1.id, taskType: 'BACKGROUND' }
+  })
+  ok('F03-TG05 group có trang không thuộc mình → lỗi', groupBad.status >= 400, `got ${groupBad.status}`)
+  ok(
+    'F03-TG05b all-or-nothing: KHÔNG task nào được tạo',
+    (await prisma.task.count()) === beforeCount,
+    `before=${beforeCount} after=${await prisma.task.count()}`
+  )
+
+  // duyệt cả nhóm: chỉ task đã nộp mới được duyệt
+  await req('POST', `/tasks/${groupBody.items[0].id}/start`, { token: a1Tok, body: {} })
+  await req('POST', `/tasks/${groupBody.items[0].id}/submit`, { token: a1Tok, body: { file: 'r2/g1.png' } })
+
+  const approveGroup = await req('POST', `/tasks/group/${groupBody.groupId}/approve`, { token: m1Tok, body: {} })
+  const approveBody = (approveGroup.json?.data ?? approveGroup.json) as { approved: number; skipped: string[] }
+  ok(
+    'F03-TG06 duyệt cả nhóm → duyệt 1, bỏ qua 1 (chưa nộp)',
+    approveGroup.status === 201 && approveBody?.approved === 1 && approveBody?.skipped?.length === 1,
+    `got ${approveGroup.status} ${JSON.stringify(approveBody)}`
+  )
+  const t1After = await prisma.task.findUnique({ where: { id: groupBody.items[0].id } })
+  const t2After = await prisma.task.findUnique({ where: { id: groupBody.items[1].id } })
+  ok(
+    'F03-TG06b DB: task đã nộp → APPROVED, task chưa nộp giữ nguyên ASSIGNED',
+    t1After?.status === TaskStatus.APPROVED && t2After?.status === TaskStatus.ASSIGNED,
+    `t1=${t1After?.status} t2=${t2After?.status}`
+  )
+
+  const approveForeign = await req('POST', `/tasks/group/${groupBody.groupId}/approve`, { token: m2Tok, body: {} })
+  ok('F03-TG07 mangaka khác duyệt nhóm → 403', approveForeign.status === 403, `got ${approveForeign.status}`)
+
+  const approveMissing = await req('POST', '/tasks/group/khong-ton-tai/approve', { token: m1Tok, body: {} })
+  ok('F03-TG08 group không tồn tại → 404', approveMissing.status === 404, `got ${approveMissing.status}`)
+
   await prisma.$disconnect()
   const fail = summary(FLOW)
   await sleep(300)

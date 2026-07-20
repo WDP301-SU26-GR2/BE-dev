@@ -1,3 +1,4 @@
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { PaymentEngineService } from './payment-engine.service'
 
 const makeRepo = () => ({
@@ -147,5 +148,65 @@ describe('PaymentEngineService markMissedTimeBoundConditions — cron hardening 
     const d = makeCronDeps()
     d.repo.findPendingTimeBoundConditions = jest.fn().mockRejectedValue(new Error('mongo down'))
     await expect(make(d).markMissedTimeBoundConditions()).resolves.toBeUndefined()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S-03 idempotency (BACKEND_AUDIT_2026-07-20)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('PaymentEngineService — idempotency của createPaymentOnce', () => {
+  const makeDeps = () => ({
+    repo: {
+      existsPayment: jest.fn().mockResolvedValue(null),
+      createTriggeredPayment: jest.fn().mockResolvedValue({
+        id: 'p1',
+        contractId: 'ct1',
+        receiverId: 'u1',
+        amount: 100
+      })
+    },
+    eventEmitter: { emit: jest.fn() },
+    redis: { setNxEx: jest.fn().mockResolvedValue(true) }
+  })
+  const make = (d: ReturnType<typeof makeDeps>) =>
+    new PaymentEngineService(d.repo as never, d.eventEmitter as never, d.redis as never)
+
+  const contract = {
+    id: 'ct1',
+    seriesId: 's1',
+    mangakaId: 'u1',
+    publisherOwnershipPct: 70,
+    valuationAmount: 1000
+  } as never
+
+  // Race: hai event đồng thời cùng vượt qua existsPayment → DB unique index chặn
+  // request thua bằng P2002. Engine phải nuốt đúng lỗi đó và trả null (đã tồn tại),
+  // KHÔNG được ném 500 lên client và KHÔNG được emit payment.triggered lần hai.
+  it('P2002 từ unique index → trả null, không emit payment.triggered', async () => {
+    const d = makeDeps()
+    // Dùng ĐÚNG class Prisma ném ra thật — isUniqueConstrainError check `instanceof`,
+    // mock bằng plain Error sẽ xanh giả rồi vỡ lúc runtime (bài học mock-blindspot §41.3).
+    d.repo.createTriggeredPayment = jest
+      .fn()
+      .mockRejectedValue(
+        new PrismaClientKnownRequestError('Unique constraint failed', { code: 'P2002', clientVersion: 'test' })
+      )
+
+    await expect(make(d).generateCompensationPayment(contract, 500)).resolves.toBeNull()
+    expect(d.eventEmitter.emit).not.toHaveBeenCalled()
+  })
+
+  // Lỗi DB khác (không phải trùng khoá) vẫn phải nổi lên — không được nuốt im lặng.
+  it('lỗi DB khác P2002 vẫn ném ra ngoài', async () => {
+    const d = makeDeps()
+    d.repo.createTriggeredPayment = jest.fn().mockRejectedValue(new Error('mongo down'))
+    await expect(make(d).generateCompensationPayment(contract, 500)).rejects.toThrow('mongo down')
+  })
+
+  it('đường bình thường vẫn emit payment.triggered đúng một lần', async () => {
+    const d = makeDeps()
+    await make(d).generateCompensationPayment(contract, 500)
+    expect(d.eventEmitter.emit).toHaveBeenCalledTimes(1)
+    expect(d.eventEmitter.emit).toHaveBeenCalledWith('payment.triggered', expect.objectContaining({ paymentId: 'p1' }))
   })
 })

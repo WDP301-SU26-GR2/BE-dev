@@ -249,6 +249,32 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   Pattern dùng ở `series-query`/`series-claim`/`series-proposal`/`admin-user-query`/`mangaka-profile` service — bám theo.
   (Unit test malformed-id bắt được; nhưng dễ quên khi thêm route `:id` mới → luôn thêm guard + 1 test id rác → 404.)
 
+- **🔴 pnpm auto-install có thể regenerate Prisma Client thành bản `--no-engine` → app KHÔNG boot được, mà
+  `build`/`test`/`tsc`/`lint` VẪN XANH.** Triệu chứng: boot chết với
+  `InvalidDatasourceError: the URL must start with the protocol 'prisma://'` dù `DATABASE_URL` là `mongodb://` đúng.
+  Nguyên nhân: generated client bị sinh lại với `"copyEngine": false` (chế độ Accelerate/Data Proxy — chỉ nhận `prisma://`).
+  **Chẩn đoán 1 lệnh:**
+  `grep -oE 'copyEngine": *(true|false)' node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/index.js`
+  → `false` là hỏng. **Fix:** `pnpm prisma:generate` (kiểm lại thành `true`), rồi boot lại.
+  Vì sao build/test không bắt: chúng chỉ cần **type** + enum của generated client, KHÔNG cần query-engine binary.
+  Dấu hiệu nhận biết sớm: mọi file trong `.prisma/client` có mtime mới tinh, riêng `query_engine-*.node` thì cũ.
+  (Liên quan §72.8: hạn chế lệnh pnpm kích hoạt deps-status-check.)
+  🔴 **NGUYÊN NHÂN GỐC (Windows) — TẮT SERVER TRƯỚC KHI `prisma generate`:** app đang chạy **giữ khoá**
+  `query_engine-windows.dll.node` (DLL đã nạp) ⇒ generate ném
+  `EPERM: operation not permitted, rename ...query_engine-windows.dll.node.tmpNNNNN -> ...node`,
+  bỏ lại file `*.tmp*` rác và **có thể để client ở trạng thái thiếu engine**. Quy trình đúng:
+  `kill server (4000/4100)` → `rm -f .prisma/client/*.tmp*` → `pnpm prisma:generate` → verify `copyEngine: true`
+  → boot lại. **Đừng chạy generate khi server đang lên.**
+
+- **🔴 `overrides` khai ở `pnpm-workspace.yaml` ⇒ Docker/CI phải dùng pnpm cùng major (≥10) với máy sinh lockfile.**
+  pnpm 10+ đọc `overrides` từ `pnpm-workspace.yaml`; pnpm 9 CHỈ đọc `package.json > pnpm.overrides`. Nếu Dockerfile
+  pin pnpm 9 mà lockfile do pnpm 11 sinh (có block `overrides:`) → `pnpm install --frozen-lockfile` chết với
+  `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH: the current "overrides" configuration doesn't match the value found in the lockfile`.
+  **`pnpm build`/`test` LOCAL KHÔNG bắt được** (không chạy `--frozen-lockfile` trong container) — chỉ vỡ ở CI/deploy.
+  **Fix:** `Dockerfile` `ENV PNPM_VERSION` khớp major với `pnpm --version` của máy commit lockfile.
+  Chẩn đoán tất định (không cần Docker): `pnpm@9.x install --lockfile-only` trên chỉ `pnpm-workspace.yaml` → lockfile
+  sinh ra KHÔNG có block `overrides` ⇒ đúng là nó không đọc. (Nguồn: §73 thêm 5 override vá F-03.)
+
 ## 11. Migration / Done Checklist
 
 Mỗi refactor/feature phải giữ:

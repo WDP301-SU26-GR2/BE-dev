@@ -15,6 +15,7 @@ import { TaskRepository } from '../task.repo'
 import { TaskStateService } from './task-state.service'
 import { toTaskRes } from '../task.mapper'
 import { RequestRevisionBodyType, SubmitTaskBodyType } from '../schemas/task-schemas'
+import { GROUP_APPROVABLE_TASK_STATUSES } from '../task.constant'
 import { TaskMessages } from '../task.messages'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
@@ -97,6 +98,27 @@ export class TaskReviewService {
       TaskMessages.notification.taskSubmittedForReview(versionNumber)
     )
     return toTaskRes(updated)
+  }
+
+  // Duyệt cả nhóm việc. TÁI DÙNG approve() để không nhân đôi luật duyệt
+  // (SUBMITTED→UNDER_REVIEW→APPROVED + ghi review vào version + notify trợ lý).
+  // Task chưa tới lượt thì bỏ qua và báo lại — nhóm hiếm khi chín cùng lúc.
+  async approveGroup(mangakaId: string, groupId: string) {
+    const tasks = await this.taskRepository.findTasksByGroup(groupId)
+    if (tasks.length === 0) throw TaskNotFoundException
+    await this.requireOwner(mangakaId, tasks[0].pageId)
+
+    const skipped: string[] = []
+    let approved = 0
+    for (const task of tasks) {
+      if (!GROUP_APPROVABLE_TASK_STATUSES.includes(task.status)) {
+        skipped.push(task.id)
+        continue
+      }
+      await this.approve(mangakaId, task.id)
+      approved++
+    }
+    return { groupId, approved, skipped }
   }
 
   async approve(mangakaId: string, taskId: string) {

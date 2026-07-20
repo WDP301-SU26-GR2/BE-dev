@@ -17,6 +17,7 @@ export function toRegionRes(r: Region) {
 
 type TaskWithPeople = Omit<Task, 'versions'> & {
   assistant?: UserMiniType | null
+  region?: Region | null
   versions: Array<Task['versions'][number] & { submitter?: UserMiniType | null }>
 }
 
@@ -42,6 +43,9 @@ export function toTaskRes(t: TaskWithPeople) {
       ...(v.submitter !== undefined ? { submitter: v.submitter } : {})
     })),
     createdAt: t.createdAt.toISOString(),
-    ...(t.assistant !== undefined ? { assistant: t.assistant } : {})
+    groupId: t.groupId ?? null,
+    groupTitle: t.groupTitle ?? null,
+    ...(t.assistant !== undefined ? { assistant: t.assistant } : {}),
+    ...(t.region !== undefined ? { region: t.region ? toRegionRes(t.region) : null } : {})
   }
 }

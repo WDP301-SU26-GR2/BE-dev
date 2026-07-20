@@ -366,7 +366,43 @@ export class ChapterRepository {
   findPagesByChapterId(chapterId: string) {
     return this.prismaService.page.findMany({ where: { chapterId }, orderBy: { pageNumber: 'asc' } })
   }
-  updatePage(id: string, data: { compositeFile?: string }) {
+  findPageByChapterAndNumber(chapterId: string, pageNumber: number) {
+    return this.prismaService.page.findFirst({ where: { chapterId, pageNumber } })
+  }
+
+  findPagesByIds(ids: string[]) {
+    return this.prismaService.page.findMany({ where: { id: { in: ids } } })
+  }
+
+  findTasksByPage(pageId: string) {
+    return this.prismaService.task.findMany({
+      where: { pageId },
+      select: { id: true, status: true, assistantId: true }
+    })
+  }
+
+  findTasksByPages(pageIds: string[]) {
+    return this.prismaService.task.findMany({
+      where: { pageId: { in: pageIds } },
+      select: { id: true, status: true, assistantId: true }
+    })
+  }
+
+  // Cascade Page → Region → Task trong 1 transaction (AGENTS §10: cascade nhiều collection phải nguyên tử).
+  async deletePagesCascade(pageIds: string[]) {
+    const [tasks, regions] = await this.prismaService.$transaction([
+      this.prismaService.task.deleteMany({ where: { pageId: { in: pageIds } } }),
+      this.prismaService.region.deleteMany({ where: { pageId: { in: pageIds } } }),
+      this.prismaService.page.deleteMany({ where: { id: { in: pageIds } } })
+    ])
+    return { deletedTasks: tasks.count, deletedRegions: regions.count }
+  }
+
+  deletePageCascade(pageId: string) {
+    return this.deletePagesCascade([pageId])
+  }
+
+  updatePage(id: string, data: { originalFile?: string; compositeFile?: string; pageNumber?: number }) {
     return this.prismaService.page.update({ where: { id }, data })
   }
   updatePageStatus(id: string, status: PageStatus) {

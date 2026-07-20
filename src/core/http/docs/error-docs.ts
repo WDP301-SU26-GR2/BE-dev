@@ -53,6 +53,8 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.DeadlineRequestNotFound': 'deadline request, chapter, or schedule does not exist',
   'Error.DownloadForbidden': 'current user cannot download this asset',
   'Error.DuplicateChapterNumber': 'chapter number already exists in this series',
+  'Error.DuplicatePageNumber': 'page number already exists in this chapter',
+  'Error.PageHasApprovedTasks': 'page has approved task(s); cannot delete',
   'Error.DuplicateChapterName': 'chapter-Name already exists for this chapter number (kind=CHAPTER)',
   'Error.DuplicateActiveCollaboration': 'an active collaboration or pending invite already exists for this pair',
   'Error.EmailAlreadyExists': 'email is already used',

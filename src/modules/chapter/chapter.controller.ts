@@ -11,6 +11,9 @@ import {
   ChapterResDto,
   CreateChapterBodyDto,
   CreatePageBodyDto,
+  DeletePageResDto,
+  DeletePagesBulkBodyDto,
+  DeletePagesBulkResDto,
   ExtendDeadlineBodyDto,
   HoldChapterBodyDto,
   PageListResDto,
@@ -35,6 +38,7 @@ import {
   ChapterOnHoldException,
   ContractNotExecutedException,
   DuplicateChapterNumberException,
+  DuplicatePageNumberException,
   EndingAllowanceExceededException,
   InvalidManuscriptTransitionException,
   NoPagesToSubmitException,
@@ -42,6 +46,7 @@ import {
   NotSeriesOwnerException,
   PageNotFoundException,
   PageNotEditableException,
+  PageHasApprovedTasksException,
   RevisionNotResolvedException,
   TasksNotAllApprovedException,
   SeriesNotSerializedException,
@@ -174,19 +179,60 @@ export class ChapterController {
   }
 
   @Get('chapters/:id/pages')
-  @ApiOperation({ summary: 'List trang của chapter' })
+  @ApiOperation({ summary: 'List trang của chapter (scoped: chủ sở hữu / editor phụ trách / trợ lý đang cộng tác)' })
+  @ApiErrors(ChapterNotFoundException, ChapterAccessDeniedException)
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.ASSISTANT, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: PageListResDto })
-  listPages(@Param('id') id: string) {
-    return this.chapterService.listPages(id)
+  listPages(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
+    return this.chapterService.listPages(userId, roleName, id)
   }
 
   @Patch('pages/:pageId')
-  @ApiOperation({ summary: 'Mangaka cập nhật file trang; trạng thái do backend lifecycle quản lý' })
-  @ApiErrors(NotSeriesOwnerException, PageNotFoundException, PageNotEditableException, ChapterOnHoldException)
+  @ApiOperation({
+    summary: 'Mangaka cập nhật file gốc/composite/số trang; trạng thái do backend lifecycle quản lý'
+  })
+  @ApiErrors(
+    NotSeriesOwnerException,
+    PageNotFoundException,
+    PageNotEditableException,
+    ChapterOnHoldException,
+    DuplicatePageNumberException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: PageResDto })
   updatePage(@Param('pageId') pageId: string, @Body() body: UpdatePageBodyDto, @ActiveUser('userId') userId: string) {
     return this.chapterService.updatePage(userId, pageId, body)
+  }
+
+  @Delete('pages/:pageId')
+  @ApiOperation({ summary: 'Mangaka xoá trang — cascade xoá Region + Task của trang (chặn khi trang đã COMPLETED)' })
+  @ApiErrors(
+    NotSeriesOwnerException,
+    PageNotFoundException,
+    PageNotEditableException,
+    PageHasApprovedTasksException,
+    ChapterOnHoldException
+  )
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 200, type: DeletePageResDto })
+  deletePage(@Param('pageId') pageId: string, @ActiveUser('userId') userId: string) {
+    return this.chapterService.deletePage(userId, pageId)
+  }
+
+  @Delete('chapters/:id/pages')
+  @ApiOperation({ summary: 'Mangaka xoá nhiều trang trong 1 chapter (all-or-nothing, tối đa 50)' })
+  @ApiErrors(
+    NotSeriesOwnerException,
+    ChapterNotFoundException,
+    PageNotFoundException,
+    PageNotEditableException,
+    PageHasApprovedTasksException,
+    ChapterOnHoldException
+  )
+  @Roles(RoleName.MANGAKA)
+  @ZodResponse({ status: 200, type: DeletePagesBulkResDto })
+  deletePagesBulk(@Param('id') id: string, @Body() body: DeletePagesBulkBodyDto, @ActiveUser('userId') userId: string) {
+    return this.chapterService.deletePagesBulk(userId, id, body)
   }
 
   @Post('chapters/:id/manuscript/submit')

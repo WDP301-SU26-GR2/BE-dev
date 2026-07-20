@@ -1,6 +1,9 @@
 import { createZodDto } from 'nestjs-zod'
 import {
   BatchCreateTaskBodySchema,
+  CreateTaskGroupBodySchema,
+  TaskGroupResSchema,
+  ApproveTaskGroupResSchema,
   CancelTaskBodySchema,
   CreateRegionBodySchema,
   CreateTaskBodySchema,
@@ -24,6 +27,9 @@ export class RegionListResDto extends createZodDto(RegionListResSchema) {}
 export class DeleteRegionResDto extends createZodDto(DeleteRegionResSchema) {}
 export class CreateTaskBodyDto extends createZodDto(CreateTaskBodySchema) {}
 export class BatchCreateTaskBodyDto extends createZodDto(BatchCreateTaskBodySchema) {}
+export class CreateTaskGroupBodyDto extends createZodDto(CreateTaskGroupBodySchema) {}
+export class TaskGroupResDto extends createZodDto(TaskGroupResSchema) {}
+export class ApproveTaskGroupResDto extends createZodDto(ApproveTaskGroupResSchema) {}
 export class CancelTaskBodyDto extends createZodDto(CancelTaskBodySchema) {}
 export class UpdateTaskBodyDto extends createZodDto(UpdateTaskBodySchema) {}
 export class SubmitTaskBodyDto extends createZodDto(SubmitTaskBodySchema) {}

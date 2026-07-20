@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-20T05:00:47.534Z — 259 routes.
+// Sinh lúc: 2026-07-20T19:40:19.916Z — 263 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -179,7 +179,13 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'POST', path: '/chapters/:id/names/:nameId/request-revision', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/chapters/:id/names/:nameId/resubmit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/chapters/:id/names/:nameId/submit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  { method: 'GET', path: '/chapters/:id/pages', access: 'AUTH', allowed: [] },
+  { method: 'DELETE', path: '/chapters/:id/pages', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  {
+    method: 'GET',
+    path: '/chapters/:id/pages',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.ASSISTANT, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
   { method: 'POST', path: '/chapters/:id/pages', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   {
     method: 'GET',
@@ -375,6 +381,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'GET', path: '/pages/:id/regions', access: 'ROLES', allowed: [RoleCode.MANGAKA, RoleCode.EDITOR] },
   { method: 'POST', path: '/pages/:id/regions', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/pages/:id/segment', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'DELETE', path: '/pages/:pageId', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'PATCH', path: '/pages/:pageId', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'GET', path: '/payments', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN] },
   {
@@ -640,6 +647,8 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'POST', path: '/tasks/:id/start', access: 'ROLES', allowed: [RoleCode.ASSISTANT] },
   { method: 'POST', path: '/tasks/:id/submit', access: 'ROLES', allowed: [RoleCode.ASSISTANT] },
   { method: 'POST', path: '/tasks/batch', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'POST', path: '/tasks/group', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'POST', path: '/tasks/group/:groupId/approve', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/transfers/contracts', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   {
     method: 'POST',
