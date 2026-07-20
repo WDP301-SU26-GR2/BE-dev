@@ -1,7 +1,6 @@
 import { createZodDto } from 'nestjs-zod'
 import {
   GetPaymentsQuerySchema,
-  ApprovePaymentBodySchema,
   PayPaymentBodySchema,
   CancelPaymentBodySchema,
   CreatePaymentInternalSchema,
@@ -11,7 +10,6 @@ import {
 
 // Request DTOs
 export class GetPaymentsQueryDto extends createZodDto(GetPaymentsQuerySchema) {}
-export class ApprovePaymentBodyDto extends createZodDto(ApprovePaymentBodySchema) {}
 export class PayPaymentBodyDto extends createZodDto(PayPaymentBodySchema) {}
 export class CancelPaymentBodyDto extends createZodDto(CancelPaymentBodySchema) {}
 export class CreatePaymentInternalDto extends createZodDto(CreatePaymentInternalSchema) {}

@@ -26,17 +26,8 @@ export const GetPaymentsQuerySchema = extendApi(
   }
 )
 
-export const ApprovePaymentBodySchema = extendApi(
-  z
-    .object({
-      approvedBy: z.string().min(1, { message: 'approvedBy (ID người duyệt) là bắt buộc' })
-    })
-    .strict(),
-  {
-    title: 'ApprovePaymentBody',
-    description: 'Board duyệt payment'
-  }
-)
+// S-01: bỏ `approvedBy` khỏi body — actor lấy từ access token (chống giả mạo người duyệt).
+// Route approve nay KHÔNG nhận body.
 
 export const PayPaymentBodySchema = extendApi(
   z

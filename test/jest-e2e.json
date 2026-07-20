@@ -7,6 +7,7 @@
     "^.+\\.(t|j)sx?$": "ts-jest"
   },
   "moduleNameMapper": {
-    "^src/(.*)$": "<rootDir>/../src/$1"
+    "^src/(.*)$": "<rootDir>/../src/$1",
+    "^@react-pdf/renderer$": "<rootDir>/../src/infrastructure/pdf/react-pdf-renderer.jest-mock.ts"
   }
 }
