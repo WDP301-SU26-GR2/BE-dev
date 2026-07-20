@@ -8,7 +8,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PNPM_VERSION=9.15.0
+# ⚠ PHẢI khớp major với pnpm sinh ra pnpm-lock.yaml. `overrides` (vá advisory F-03) khai ở
+# pnpm-workspace.yaml — pnpm 9 KHÔNG đọc field đó (chỉ đọc package.json > pnpm.overrides) nên
+# nó tính ra "0 overrides" trong khi lockfile khai 5 → `--frozen-lockfile` chết với
+# ERR_PNPM_LOCKFILE_CONFIG_MISMATCH. Đổi lockfile ở local mà quên đổi dòng này = vỡ CI.
+ENV PNPM_VERSION=11.1.3
 RUN npm install -g pnpm@${PNPM_VERSION} \
     && pnpm --version
 

@@ -27,6 +27,25 @@ export class PaymentRecordRepo {
     })
   }
 
+  /**
+   * S-03: compare-and-set cho transition của PaymentRecord.
+   *
+   * `updateMany` cho phép đặt điều kiện status vào `where`, nên phép "kiểm tra trạng
+   * thái + ghi" thành MỘT lệnh nguyên tử ở tầng DB. Trả null khi không ghi được
+   * (đã có request khác chuyển trạng thái trước) → caller ném lỗi trạng thái và
+   * tuyệt đối không audit/emit. Mẫu read-then-update cũ để lọt 2 winner.
+   *
+   * @param expected trạng thái bắt buộc phải còn đúng lúc ghi; `{ not: X }` cho nhánh cancel.
+   */
+  async updateWithExpectedStatus(id: string, expected: PaymentRecordStatus | { not: PaymentRecordStatus }, dto: any) {
+    const res = await this.prisma.paymentRecord.updateMany({
+      where: { id, status: expected },
+      data: dto
+    })
+    if (res.count === 0) return null
+    return this.prisma.paymentRecord.findUnique({ where: { id } })
+  }
+
   async findById(id: string) {
     const record = await this.prisma.paymentRecord.findUnique({
       where: { id },
@@ -237,9 +256,14 @@ export class PaymentRecordRepo {
         paymentType: data.paymentType,
         paymentSource: data.paymentSource ?? PaymentSource.CONTRACT,
         contractId: data.contractId,
-        conditionId: data.conditionId ?? undefined,
-        seriesId: data.seriesId ?? undefined,
-        period: data.period ?? undefined,
+        // 🔴 S-03 / AGENTS §10: PHẢI ghi null TƯỜNG MINH, KHÔNG dùng `?? undefined`.
+        // Mongo phân biệt field ABSENT với field = null; `where: { conditionId: null }`
+        // của existsPayment KHÔNG match doc absent ⇒ ghi undefined làm dedupe chết câm
+        // với mọi REVENUE_SHARE/COMPENSATION (conditionId null). Đây cũng là giá trị mà
+        // unique index `payment_idempotency` dựa vào.
+        conditionId: data.conditionId ?? null,
+        seriesId: data.seriesId ?? null,
+        period: data.period ?? null,
         description: data.description,
         createdBy: data.createdBy ?? undefined,
         status: PaymentRecordStatus.TRIGGERED

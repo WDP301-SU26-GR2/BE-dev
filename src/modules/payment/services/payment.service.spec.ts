@@ -47,6 +47,7 @@ function makeMocks(): Mocks {
       findById: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(),
+      updateWithExpectedStatus: jest.fn(),
       create: jest.fn(),
       findUserById: jest.fn(),
       findSeriesOwners: jest.fn()
@@ -93,6 +94,7 @@ describe('PaymentService — OBJECT_ID_RE guard (Spec 11 §2.1)', () => {
     })
     expect(m.paymentRepo.findById).not.toHaveBeenCalled()
     expect(m.paymentRepo.update).not.toHaveBeenCalled()
+    expect(m.paymentRepo.updateWithExpectedStatus).not.toHaveBeenCalled()
     expect(m.eventEmitter.emit).not.toHaveBeenCalled()
   })
 
@@ -101,6 +103,7 @@ describe('PaymentService — OBJECT_ID_RE guard (Spec 11 §2.1)', () => {
     await expect(makeService(m).payPayment('bad-id', {} as never, 'actor-1')).rejects.toMatchObject({ status: 404 })
     expect(m.paymentRepo.findById).not.toHaveBeenCalled()
     expect(m.paymentRepo.update).not.toHaveBeenCalled()
+    expect(m.paymentRepo.updateWithExpectedStatus).not.toHaveBeenCalled()
     expect(m.eventEmitter.emit).not.toHaveBeenCalled()
   })
 
@@ -109,6 +112,7 @@ describe('PaymentService — OBJECT_ID_RE guard (Spec 11 §2.1)', () => {
     await expect(makeService(m).cancelPayment('bad-id', {} as never, 'actor-1')).rejects.toMatchObject({ status: 404 })
     expect(m.paymentRepo.findById).not.toHaveBeenCalled()
     expect(m.paymentRepo.update).not.toHaveBeenCalled()
+    expect(m.paymentRepo.updateWithExpectedStatus).not.toHaveBeenCalled()
   })
 
   it('getPaymentsByContract: contractId rác → 200 rỗng, KHÔNG chạm repo (tiền lệ PA-02)', async () => {
@@ -240,7 +244,8 @@ describe('PaymentService — S-01 actor identity (mutations lấy actor từ tok
     m.paymentRepo.findById = jest
       .fn()
       .mockResolvedValue({ id: P, status, contractId: CTR, receiverId: OWNER, amount: 100 })
-    m.paymentRepo.update = jest
+    // S-03: transition nay đi qua CAS `updateWithExpectedStatus`, không phải `update`.
+    m.paymentRepo.updateWithExpectedStatus = jest
       .fn()
       .mockResolvedValue({ id: P, status: 'X', contractId: CTR, receiverId: OWNER, amount: 100 })
   }
@@ -249,7 +254,11 @@ describe('PaymentService — S-01 actor identity (mutations lấy actor từ tok
     const m = makeMocks()
     seedFor(m, 'TRIGGERED')
     await makeService(m).approvePayment(P, OWNER)
-    expect(m.paymentRepo.update).toHaveBeenCalledWith(P, expect.objectContaining({ approvedBy: OWNER }))
+    expect(m.paymentRepo.updateWithExpectedStatus).toHaveBeenCalledWith(
+      P,
+      'TRIGGERED',
+      expect.objectContaining({ approvedBy: OWNER })
+    )
     expect(m.auditService.record).toHaveBeenCalledWith(expect.objectContaining({ actorId: OWNER }))
   })
 
@@ -274,7 +283,7 @@ describe('PaymentService — AuditLog wiring (Spec 11 §2.2)', () => {
   it('approvePayment: ghi AuditLog PAYMENT_RECORD/TRANSITION', async () => {
     const m = makeMocks()
     m.paymentRepo.findById = jest.fn().mockResolvedValue({ id: '507f1f77bcf86cd799439011', status: 'TRIGGERED' })
-    m.paymentRepo.update = jest.fn().mockResolvedValue({
+    m.paymentRepo.updateWithExpectedStatus = jest.fn().mockResolvedValue({
       id: '507f1f77bcf86cd799439011',
       status: 'APPROVED',
       contractId: 'c1',
@@ -297,7 +306,7 @@ describe('PaymentService — AuditLog wiring (Spec 11 §2.2)', () => {
   it('payPayment: ghi AuditLog PAYMENT_RECORD/TRANSITION (TRIGGERED → PAID đều log)', async () => {
     const m = makeMocks()
     m.paymentRepo.findById = jest.fn().mockResolvedValue({ id: '507f1f77bcf86cd799439012', status: 'APPROVED' })
-    m.paymentRepo.update = jest.fn().mockResolvedValue({
+    m.paymentRepo.updateWithExpectedStatus = jest.fn().mockResolvedValue({
       id: '507f1f77bcf86cd799439012',
       status: 'PAID',
       contractId: 'c1',
@@ -320,7 +329,7 @@ describe('PaymentService — AuditLog wiring (Spec 11 §2.2)', () => {
   it('cancelPayment: ghi AuditLog PAYMENT_RECORD/TRANSITION với reason', async () => {
     const m = makeMocks()
     m.paymentRepo.findById = jest.fn().mockResolvedValue({ id: '507f1f77bcf86cd799439013', status: 'TRIGGERED' })
-    m.paymentRepo.update = jest.fn().mockResolvedValue({
+    m.paymentRepo.updateWithExpectedStatus = jest.fn().mockResolvedValue({
       id: '507f1f77bcf86cd799439013',
       status: 'CANCELLED',
       contractId: 'c1',
@@ -339,5 +348,104 @@ describe('PaymentService — AuditLog wiring (Spec 11 §2.2)', () => {
         reason: 'dead contract'
       })
     )
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S-03 (BACKEND_AUDIT_2026-07-20) — transition phải CAS, không read-then-update.
+//
+// Mẫu cũ: đọc status → so sánh → `update({ where: { id } })`. Hai request đồng
+// thời cùng đọc TRIGGERED rồi cùng ghi APPROVED ⇒ audit hai lần, emit hai lần,
+// và với pay thì `payment.paid` bắn đôi (downstream tạo tiền hai lần).
+//
+// Hợp đồng mới: ghi bằng updateWithExpectedStatus (updateMany + where status kỳ
+// vọng). count === 0 nghĩa là thua race ⇒ ném đúng lỗi 409/422 của trạng thái,
+// và TUYỆT ĐỐI không audit/emit.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('PaymentService — CAS transition (S-03)', () => {
+  const P = '507f1f77bcf86cd799439011'
+  const ACTOR = '507f1f77bcf86cd799439099'
+
+  const seed = (m: Mocks, status: string) => {
+    m.paymentRepo.findById.mockResolvedValue({
+      id: P,
+      status,
+      contractId: 'ct1',
+      receiverId: 'u1',
+      amount: 100
+    })
+    m.paymentRepo.updateWithExpectedStatus = jest.fn()
+  }
+
+  it('approvePayment dùng CAS với status kỳ vọng TRIGGERED', async () => {
+    const m = makeMocks()
+    seed(m, 'TRIGGERED')
+    m.paymentRepo.updateWithExpectedStatus.mockResolvedValue({
+      id: P,
+      status: 'APPROVED',
+      contractId: 'ct1',
+      receiverId: 'u1',
+      amount: 100
+    })
+
+    await makeService(m).approvePayment(P, ACTOR)
+
+    expect(m.paymentRepo.updateWithExpectedStatus).toHaveBeenCalledWith(
+      P,
+      'TRIGGERED',
+      expect.objectContaining({ status: 'APPROVED', approvedBy: ACTOR })
+    )
+    expect(m.paymentRepo.update).not.toHaveBeenCalled()
+  })
+
+  it('approvePayment THUA race (CAS trả null) → ném lỗi, KHÔNG audit, KHÔNG emit', async () => {
+    const m = makeMocks()
+    seed(m, 'TRIGGERED')
+    m.paymentRepo.updateWithExpectedStatus.mockResolvedValue(null)
+
+    await expect(makeService(m).approvePayment(P, ACTOR)).rejects.toMatchObject({ status: 400 })
+    expect(m.auditService.record).not.toHaveBeenCalled()
+    expect(m.eventEmitter.emit).not.toHaveBeenCalled()
+  })
+
+  it('payPayment THUA race → ném lỗi, KHÔNG emit payment.paid (chống tạo tiền 2 lần)', async () => {
+    const m = makeMocks()
+    seed(m, 'APPROVED')
+    m.paymentRepo.updateWithExpectedStatus.mockResolvedValue(null)
+
+    await expect(makeService(m).payPayment(P, { paymentMethod: 'BANK' } as never, ACTOR)).rejects.toMatchObject({
+      status: 400
+    })
+    expect(m.eventEmitter.emit).not.toHaveBeenCalled()
+    expect(m.auditService.record).not.toHaveBeenCalled()
+  })
+
+  it('cancelPayment THUA race (ai đó vừa PAID) → ném lỗi, KHÔNG audit', async () => {
+    const m = makeMocks()
+    seed(m, 'APPROVED')
+    m.paymentRepo.updateWithExpectedStatus.mockResolvedValue(null)
+
+    await expect(makeService(m).cancelPayment(P, { cancelReason: 'x' }, ACTOR)).rejects.toMatchObject({
+      status: 400
+    })
+    expect(m.auditService.record).not.toHaveBeenCalled()
+  })
+
+  it('đường thắng race vẫn audit + emit đúng một lần', async () => {
+    const m = makeMocks()
+    seed(m, 'APPROVED')
+    m.paymentRepo.updateWithExpectedStatus.mockResolvedValue({
+      id: P,
+      status: 'PAID',
+      contractId: 'ct1',
+      receiverId: 'u1',
+      amount: 100
+    })
+
+    await makeService(m).payPayment(P, { paymentMethod: 'BANK' } as never, ACTOR)
+
+    expect(m.auditService.record).toHaveBeenCalledTimes(1)
+    expect(m.eventEmitter.emit).toHaveBeenCalledTimes(1)
+    expect(m.eventEmitter.emit).toHaveBeenCalledWith('payment.paid', expect.objectContaining({ paymentId: P }))
   })
 })

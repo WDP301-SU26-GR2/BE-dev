@@ -7,6 +7,7 @@ import { TaskRepository, TaskListWhere } from './task.repo'
 import { toTaskRes } from './task.mapper'
 import {
   BatchCreateTaskBodyType,
+  CreateTaskGroupBodyType,
   CancelTaskBodyType,
   CreateRegionBodyType,
   CreateTaskBodyType,
@@ -51,6 +52,14 @@ export class TaskService {
   createTaskBatch(userId: string, body: BatchCreateTaskBodyType) {
     return this.taskAssignService.createBatch(userId, body)
   }
+
+  createTaskGroup(userId: string, body: CreateTaskGroupBodyType) {
+    return this.taskAssignService.createGroup(userId, body)
+  }
+
+  approveTaskGroup(userId: string, groupId: string) {
+    return this.taskReviewService.approveGroup(userId, groupId)
+  }
   reassignTask(userId: string, id: string, body: ReassignTaskBodyType) {
     return this.taskAssignService.reassign(userId, id, body)
   }
@@ -90,36 +99,48 @@ export class TaskService {
   }
 
   async listTasks(userId: string, roleName: string, query: ListTasksQueryType) {
-    let where: TaskListWhere
-    if (roleName === RoleName.ASSISTANT) {
-      if (query.pageId && !OBJECT_ID_RE.test(query.pageId))
-        return { items: [], total: 0, limit: query.limit, offset: query.offset }
-      if (query.regionId && !OBJECT_ID_RE.test(query.regionId))
-        return { items: [], total: 0, limit: query.limit, offset: query.offset }
-      where = {
-        assistantId: userId,
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.pageId ? { pageId: query.pageId } : {}),
-        ...(query.regionId ? { regionId: query.regionId } : {})
+    const empty = { items: [], total: 0, limit: query.limit, offset: query.offset }
+    const ids = [query.pageId, query.regionId, query.assistantId, query.seriesId, query.chapterId]
+    if (ids.some((id) => id != null && !OBJECT_ID_RE.test(id))) return empty
+
+    const isAssistant = roleName === RoleName.ASSISTANT
+    const scopeFilters: { seriesId?: string; chapterId?: string } = {
+      ...(query.seriesId ? { seriesId: query.seriesId } : {}),
+      ...(query.chapterId ? { chapterId: query.chapterId } : {})
+    }
+
+    let pageScope: TaskListWhere['pageId']
+    if (query.pageId) {
+      // Đường cũ: chốt đúng 1 trang. Mangaka phải sở hữu trang đó.
+      if (!isAssistant) {
+        const owned = await this.taskRepository.findPageWithOwner(query.pageId)
+        if (!owned || owned.chapter.series.mangakaId !== userId) return empty
+      }
+      pageScope = query.pageId
+    } else if (isAssistant) {
+      // Assistant vốn đã bị giới hạn theo assistantId; series/chapter chỉ là bộ lọc, KHÔNG phải authz.
+      if (Object.keys(scopeFilters).length === 0) pageScope = undefined
+      else {
+        const pageIds = await this.taskRepository.findOwnedPageIds(undefined, scopeFilters)
+        if (pageIds.length === 0) return empty
+        pageScope = { in: pageIds }
       }
     } else {
-      // MANGAKA: bắt buộc pageId thuộc sở hữu; thiếu/không sở hữu → rỗng
-      if (!query.pageId || !OBJECT_ID_RE.test(query.pageId))
-        return { items: [], total: 0, limit: query.limit, offset: query.offset }
-      if (query.regionId && !OBJECT_ID_RE.test(query.regionId))
-        return { items: [], total: 0, limit: query.limit, offset: query.offset }
-      if (query.assistantId && !OBJECT_ID_RE.test(query.assistantId))
-        return { items: [], total: 0, limit: query.limit, offset: query.offset }
-      const page = await this.taskRepository.findPageWithOwner(query.pageId)
-      if (!page || page.chapter.series.mangakaId !== userId)
-        return { items: [], total: 0, limit: query.limit, offset: query.offset }
-      where = {
-        pageId: query.pageId,
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.assistantId ? { assistantId: query.assistantId } : {}),
-        ...(query.regionId ? { regionId: query.regionId } : {})
-      }
+      // Mangaka: mặc định TOÀN BỘ trang thuộc series mình sở hữu (không cần bám flow page).
+      const pageIds = await this.taskRepository.findOwnedPageIds(userId, scopeFilters)
+      if (pageIds.length === 0) return empty
+      pageScope = { in: pageIds }
     }
+
+    const where: TaskListWhere = {
+      ...(isAssistant ? { assistantId: userId } : {}),
+      ...(pageScope !== undefined ? { pageId: pageScope } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.regionId ? { regionId: query.regionId } : {}),
+      ...(query.groupId ? { groupId: query.groupId } : {}),
+      ...(!isAssistant && query.assistantId ? { assistantId: query.assistantId } : {})
+    }
+
     const page = { limit: query.limit, offset: query.offset }
     const [rows, total] = await Promise.all([
       this.taskRepository.listTasks(where, page),

@@ -4,6 +4,7 @@ import { ChapterRepository } from './chapter.repo'
 import {
   CreateChapterBodyType,
   CreatePageBodyType,
+  DeletePagesBulkBodyType,
   ExtendDeadlineBodyType,
   HoldChapterBodyType,
   SetScheduleBodyType,
@@ -92,9 +93,17 @@ export class ChapterService {
     return toPageRes(page)
   }
 
-  async listPages(chapterId: string) {
-    const pages = await this.pageService.listPages(chapterId)
+  async listPages(userId: string, roleName: string, chapterId: string) {
+    const pages = await this.pageService.listPages(userId, roleName, chapterId)
     return { items: pages.map(toPageRes) }
+  }
+
+  deletePage(userId: string, pageId: string) {
+    return this.pageService.deletePage(userId, pageId)
+  }
+
+  deletePagesBulk(userId: string, chapterId: string, body: DeletePagesBulkBodyType) {
+    return this.pageService.deletePagesBulk(userId, chapterId, body)
   }
 
   async updatePage(userId: string, pageId: string, body: UpdatePageBodyType) {

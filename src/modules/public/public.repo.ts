@@ -74,7 +74,7 @@ export class PublicRepository {
     return this.prisma.page.findMany({
       where: { chapterId },
       orderBy: { pageNumber: 'asc' },
-      select: { pageNumber: true, originalFile: true }
+      select: { pageNumber: true, originalFile: true, compositeFile: true }
     })
   }
 

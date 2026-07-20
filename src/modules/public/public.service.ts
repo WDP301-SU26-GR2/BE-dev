@@ -93,9 +93,12 @@ export class PublicService {
       return {
         series: { id: series.id, title: series.title },
         chapter: mapPublicChapter(chapter),
+        // Bản xuất bản = composite (đã có nền/screentone/hiệu ứng của trợ lý);
+        // trang Mangaka tự vẽ hết thì không có composite → fallback bản gốc.
+        // CÙNG công thức với PageRes.displayFile — đừng để 2 nơi lệch nhau.
         pages: pagesRaw
-          .filter((page): page is { pageNumber: number; originalFile: string } => page.originalFile != null)
-          .map((page) => ({ pageNumber: page.pageNumber, fileKey: page.originalFile })),
+          .map((page) => ({ pageNumber: page.pageNumber, fileKey: page.compositeFile ?? page.originalFile }))
+          .filter((page): page is { pageNumber: number; fileKey: string } => page.fileKey != null),
         prevChapterId: previousChapter?.id ?? null,
         nextChapterId: nextChapter?.id ?? null
       }

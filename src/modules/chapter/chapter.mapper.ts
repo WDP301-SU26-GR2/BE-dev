@@ -52,6 +52,8 @@ export function toPageRes(page: Page) {
     pageNumber: page.pageNumber,
     originalFile: page.originalFile,
     compositeFile: page.compositeFile,
+    // Nguồn sự thật DUY NHẤT cho "ảnh nên hiển thị" — public reader dùng cùng công thức.
+    displayFile: page.compositeFile ?? page.originalFile,
     status: page.status,
     createdAt: page.createdAt.toISOString()
   }

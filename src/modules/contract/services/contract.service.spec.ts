@@ -386,9 +386,51 @@ describe('ContractService.signByMangakaWithOtp (ContractExecuted emit)', () => {
       boardSignedAt: new Date(), // board already signed → mangaka sign flips to FULLY_EXECUTED
       status: ContractStatus.BOARD_APPROVED // B-CON-02: signable only after board approves terms
     })
-    m.contractRepo.updateStatus.mockResolvedValue({ id: CID, seriesId: 's1', status: ContractStatus.FULLY_EXECUTED })
+    // S-02: transition nay đi qua CAS trong transaction. `executedNow` là cờ DUY NHẤT
+    // quyết định ai được emit — chỉ request thắng CAS mới bắn event.
+    m.contractRepo.recordMangakaSignatureAndSettle = jest.fn().mockResolvedValue({
+      signed: true,
+      executedNow: true,
+      contract: { id: CID, seriesId: 's1', status: ContractStatus.FULLY_EXECUTED }
+    })
     await makeService(m).signByMangakaWithOtp(CID, 'm1', 'm1@x.test', '123456')
     expect(m.domainEventBus.emit).toHaveBeenCalledWith('contract.executed', { contractId: CID, seriesId: 's1' })
+  })
+
+  it('S-02: THUA race (CAS trả signed=false) → AlreadySigned, KHÔNG emit', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: CID,
+      mangakaId: 'm1',
+      mangakaSignedAt: null,
+      boardSignedAt: new Date(),
+      status: ContractStatus.BOARD_APPROVED
+    })
+    m.contractRepo.recordMangakaSignatureAndSettle = jest
+      .fn()
+      .mockResolvedValue({ signed: false, executedNow: false, contract: null })
+
+    await expect(makeService(m).signByMangakaWithOtp(CID, 'm1', 'm1@x.test', '123456')).rejects.toBeDefined()
+    expect(m.domainEventBus.emit).not.toHaveBeenCalled()
+  })
+
+  it('S-02: ký thành công nhưng CHƯA đủ hai phía (executedNow=false) → KHÔNG emit', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: CID,
+      mangakaId: 'm1',
+      mangakaSignedAt: null,
+      boardSignedAt: null, // board chưa ký xong
+      status: ContractStatus.BOARD_APPROVED
+    })
+    m.contractRepo.recordMangakaSignatureAndSettle = jest.fn().mockResolvedValue({
+      signed: true,
+      executedNow: false,
+      contract: { id: CID, seriesId: 's1', status: ContractStatus.MANGAKA_SIGNED }
+    })
+
+    await makeService(m).signByMangakaWithOtp(CID, 'm1', 'm1@x.test', '123456')
+    expect(m.domainEventBus.emit).not.toHaveBeenCalled()
   })
 })
 
@@ -663,5 +705,105 @@ describe('ContractService — Audit trail (Spec 11)', () => {
 
     // phải resolve (không throw) dù audit fail
     await expect(makeService(m).mangakaApprove(CID, '507f1f77bcf86cd799439012')).resolves.toBeDefined()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S-02 (BACKEND_AUDIT_2026-07-20) — ký Board phải nguyên tử.
+//
+// Bản cũ: `countBoardSignatures()` chạy NGOÀI transaction rồi `count + 1`. Hai lỗi thật:
+//  1. Hai người ký giữa chừng đồng thời → cả hai đọc cùng số cũ → không ai đạt ngưỡng
+//     → hợp đồng KẸT VĨNH VIỄN (đã ký nên bị BoardMemberAlreadySigned chặn ký lại)
+//     → series không publish được chapter nào nữa (BR-CONTRACT-05).
+//  2. Hai người ký cuối đồng thời → cả hai đạt ngưỡng → emit ContractExecuted 2 lần.
+//
+// Bản mới: repo đếm LẠI bên trong transaction sau khi ghi, và CAS quyết định ai chốt.
+// Service chỉ được tin `boardCompletedNow` / `executedNow` do repo trả về.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('ContractService.signByBoardWithOtp — S-02 atomic signing', () => {
+  const CID = '507f1f77bcf86cd799439055'
+  const B1 = 'board-1'
+
+  const seedCtx = (m: Mocks, over: Record<string, unknown> = {}) => {
+    m.contractRepo.findWithBoardDecision.mockResolvedValue({
+      id: CID,
+      seriesId: 's1',
+      mangakaId: 'm1',
+      editorId: 'e1',
+      status: ContractStatus.BOARD_APPROVED,
+      boardSignedAt: null,
+      mangakaSignedAt: new Date(),
+      boardDecision: { boardSession: { allowedEditorIds: [B1, 'board-2', 'board-3'] } },
+      ...over
+    })
+    m.contractRepo.findSpecificSignature = jest.fn().mockResolvedValue(null)
+  }
+
+  it('chữ ký giữa chừng: KHÔNG chốt, KHÔNG emit, báo tiến độ theo số repo đếm', async () => {
+    const m = makeMocks()
+    seedCtx(m)
+    m.contractRepo.recordBoardSignatureAndSettle = jest.fn().mockResolvedValue({
+      signatureCount: 2,
+      boardCompletedNow: false,
+      executedNow: false,
+      contract: { id: CID, seriesId: 's1', status: ContractStatus.BOARD_APPROVED }
+    })
+
+    const res = await makeService(m).signByBoardWithOtp(CID, B1, 'b1@x.test', '123456')
+
+    expect(res.status).toBe('PENDING_MORE_SIGNATURES')
+    expect(m.domainEventBus.emit).not.toHaveBeenCalled()
+    // Số hiển thị phải lấy TỪ REPO (đếm trong transaction), không tự cộng ở service.
+    expect(res.message).toContain('2')
+  })
+
+  it('người ký cuối THẮNG CAS → chốt + emit đúng một lần', async () => {
+    const m = makeMocks()
+    seedCtx(m)
+    m.contractRepo.recordBoardSignatureAndSettle = jest.fn().mockResolvedValue({
+      signatureCount: 3,
+      boardCompletedNow: true,
+      executedNow: true,
+      contract: { id: CID, seriesId: 's1', status: ContractStatus.FULLY_EXECUTED }
+    })
+
+    const res = await makeService(m).signByBoardWithOtp(CID, B1, 'b1@x.test', '123456')
+
+    expect(res.status).toBe('COMPLETED')
+    expect(m.domainEventBus.emit).toHaveBeenCalledTimes(1)
+    expect(m.domainEventBus.emit).toHaveBeenCalledWith('contract.executed', { contractId: CID, seriesId: 's1' })
+  })
+
+  it('🔴 người ký cuối THUA CAS (người khác vừa chốt) → KHÔNG emit lần hai', async () => {
+    const m = makeMocks()
+    seedCtx(m)
+    // Đủ chữ ký, nhưng cờ boardSignedAt đã bị request song song lật trước.
+    m.contractRepo.recordBoardSignatureAndSettle = jest.fn().mockResolvedValue({
+      signatureCount: 3,
+      boardCompletedNow: false,
+      executedNow: false,
+      contract: { id: CID, seriesId: 's1', status: ContractStatus.FULLY_EXECUTED }
+    })
+
+    await makeService(m).signByBoardWithOtp(CID, B1, 'b1@x.test', '123456')
+
+    expect(m.domainEventBus.emit).not.toHaveBeenCalled()
+    expect(m.auditService.record).not.toHaveBeenCalled()
+  })
+
+  it('service KHÔNG tự đếm chữ ký nữa (nguồn sự thật là repo trong transaction)', async () => {
+    const m = makeMocks()
+    seedCtx(m)
+    m.contractRepo.countBoardSignatures = jest.fn()
+    m.contractRepo.recordBoardSignatureAndSettle = jest.fn().mockResolvedValue({
+      signatureCount: 1,
+      boardCompletedNow: false,
+      executedNow: false,
+      contract: { id: CID, seriesId: 's1', status: ContractStatus.BOARD_APPROVED }
+    })
+
+    await makeService(m).signByBoardWithOtp(CID, B1, 'b1@x.test', '123456')
+
+    expect(m.contractRepo.countBoardSignatures).not.toHaveBeenCalled()
   })
 })
