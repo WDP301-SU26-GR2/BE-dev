@@ -10,6 +10,9 @@ const makeRepo = (over: Partial<UsersRepository> = {}): UsersRepository =>
     ...over
   }) as UsersRepository
 
+// AssistantProfileService phát `assistant.availability.changed` (A-TSK-05) nên cần event bus.
+const makeEventBus = () => ({ emit: jest.fn() }) as never
+
 describe('AssistantProfileService.getByUserId', () => {
   it('có profile → hasProfile:true + ngày ISO', async () => {
     const repo = makeRepo({
@@ -28,7 +31,7 @@ describe('AssistantProfileService.getByUserId', () => {
         user: { displayName: 'Bob', avatar: null }
       })
     })
-    const svc = new AssistantProfileService(repo)
+    const svc = new AssistantProfileService(repo, makeEventBus())
     const res = await svc.getByUserId(VALID_ID)
     expect(res.hasProfile).toBe(true)
     expect(res.availabilityFrom).toBe('2026-06-29T00:00:00.000Z')
@@ -40,7 +43,7 @@ describe('AssistantProfileService.getByUserId', () => {
         .fn()
         .mockResolvedValue({ id: VALID_ID, displayName: 'New', avatar: null, role: { code: 'ASSISTANT' } })
     })
-    const svc = new AssistantProfileService(repo)
+    const svc = new AssistantProfileService(repo, makeEventBus())
     const res = await svc.getByUserId(VALID_ID)
     expect(res.hasProfile).toBe(false)
     expect(res.specializations).toEqual([])
@@ -54,13 +57,13 @@ describe('AssistantProfileService.getByUserId', () => {
         .fn()
         .mockResolvedValue({ id: VALID_ID, displayName: 'M', avatar: null, role: { code: 'MANGAKA' } })
     })
-    const svc = new AssistantProfileService(repo)
+    const svc = new AssistantProfileService(repo, makeEventBus())
     await expect(svc.getByUserId(VALID_ID)).rejects.toBe(ProfileNotFoundException)
   })
 
   it('id rác → ProfileNotFound, không query', async () => {
     const repo = makeRepo()
-    const svc = new AssistantProfileService(repo)
+    const svc = new AssistantProfileService(repo, makeEventBus())
     await expect(svc.getByUserId('garbage')).rejects.toBe(ProfileNotFoundException)
     expect(repo['findAssistantProfileByUserId']).not.toHaveBeenCalled()
   })

@@ -216,6 +216,15 @@ export const ContractStatusProgressResSchema = extendApi(
   { title: 'ContractStatusProgressRes', description: 'Trạng thái hợp đồng và tiến độ ký' }
 )
 
+export const ContractPdfResSchema = extendApi(
+  z.object({
+    downloadUrl: z.string().describe('Presigned GET URL; open or download before expiresAt'),
+    expiresAt: z.string().describe('ISO 8601 expiry of downloadUrl'),
+    key: z.string().describe('Version-derived object storage key for the contract PDF')
+  }),
+  { title: 'ContractPdfRes', description: 'Presigned download for a signed Contract PDF' }
+)
+
 // Cung cấp các Types gọn gàng ra bên ngoài
 export type CreateContractBodyType = z.infer<typeof CreateContractBodySchema>
 export type EditorUpdateContractBodyType = z.infer<typeof EditorUpdateContractBodySchema>
@@ -232,3 +241,17 @@ export const ReportRevenueBodySchema = z
   .strict()
 
 export type ReportRevenueBodyType = z.infer<typeof ReportRevenueBodySchema>
+
+// 5. B-CON-02: lý do BẮT BUỘC khi yêu cầu chỉnh sửa điều khoản (cả phía Mangaka lẫn Hội đồng).
+// Không có lý do thì Editor không biết sửa gì → vòng thương lượng BR-CONTRACT-02 gãy.
+// Cùng shape với RevisionReasonBodySchema của manuscript (chapter) để FE dùng nhất quán.
+export const ContractChangeReasonBodySchema = z
+  .object({
+    reason: z
+      .string({ error: 'reason phải là một chuỗi ký tự' })
+      .min(1, { message: 'reason là bắt buộc không được để trống' })
+      .max(1000, { message: 'reason tối đa 1000 ký tự' })
+  })
+  .strict()
+
+export type ContractChangeReasonBodyType = z.infer<typeof ContractChangeReasonBodySchema>

@@ -909,14 +909,13 @@ const main = async () => {
   })
 
   // Tạo series SERIALIZED mới cho suggest-members test (happy/pre đều terminal).
-  const autoSer = await makeSeriesAt(SeriesStatus.SERIALIZED, {
-    mangakaId: m1.id,
-    editorId: e1.id,
-    genres: ['ACTION', 'ROMANCE'],
-    demographic: 'SHONEN'
+  const autoSer = await makeSeriesAt(SeriesStatus.SERIALIZED, { mangakaId: m1.id, editorId: e1.id })
+  // makeSeriesAt KHÔNG nhận `genres`/`demographic` trong MakeSeriesInput (2 field này bị bỏ lặng lẽ
+  // nếu truyền vào) → set thẳng qua prisma. Cần genres để `suggest-members` chấm điểm theo specialtyGenres.
+  await prisma.series.update({
+    where: { id: autoSer.id },
+    data: { genres: ['ACTION', 'ROMANCE'], demographic: 'SHONEN' }
   })
-  // makeSeriesAt không nhận `genres` trong MakeSeriesInput — set inline qua prisma.
-  await prisma.series.update({ where: { id: autoSer.id }, data: { genres: ['ACTION', 'ROMANCE'] } })
 
   // F01-080 — GET /board/suggest-members (EDITOR) → 200, score giảm dần, size lẻ >= 3
   const sugRes = await req('GET', `/board/suggest-members?seriesId=${autoSer.id}`, { token: e1Tok })

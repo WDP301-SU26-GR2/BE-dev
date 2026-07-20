@@ -8,7 +8,7 @@ jest.mock('@aws-sdk/s3-request-presigner', () => ({
 }))
 
 jest.mock('@aws-sdk/client-s3', () => ({
-  S3Client: jest.fn().mockImplementation((input) => ({ input })),
+  S3Client: jest.fn().mockImplementation((input) => ({ input, send: jest.fn().mockResolvedValue({}) })),
   PutObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
   GetObjectCommand: jest.fn().mockImplementation((input) => ({ input }))
 }))
@@ -115,5 +115,24 @@ describe('StorageService', () => {
 
     expect(mockGetSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), { expiresIn: 900 })
     expect(result.expiresAt).toBe('2026-07-16T00:15:00.000Z')
+  })
+
+  it('putObject sends bucket, key, body and content type for a backend-generated PDF', async () => {
+    const service = new StorageService()
+    const client = (service as any).client
+    const body = Buffer.from('%PDF-')
+
+    await service.putObject('contracts/c1/contract-v1-a0.pdf', body, 'application/pdf')
+
+    expect(client.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          Bucket: 'mangaka-dev',
+          Key: 'contracts/c1/contract-v1-a0.pdf',
+          Body: body,
+          ContentType: 'application/pdf'
+        })
+      })
+    )
   })
 })

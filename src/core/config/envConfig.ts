@@ -70,6 +70,11 @@ const configSchema = z
     RECAPTCHA_SECRET: z.string().default(''),
     // Public cover/page signed URL lifetime in seconds.
     PUBLIC_SIGN_TTL_SECONDS: z.coerce.number().default(900),
+    // Spec 23: kill-switch read-cache. Do not use z.coerce.boolean(): the string 'false' is truthy.
+    READ_CACHE_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
     // Fixed-window, per-IP quota for public read routes.
     PUBLIC_RL_IP_MAX: z.coerce.number().default(120),
     PUBLIC_RL_IP_WINDOW: z.coerce.number().default(60)

@@ -1,6 +1,7 @@
 import { ManuscriptStatus, SeriesStatus } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { ChapterPublishService } from './chapter-publish.service'
+import { asCacheService, makeCacheServiceMock } from 'src/infrastructure/redis/cache.service.mock'
 
 function makeDeps(series: Record<string, unknown>) {
   const repo = {
@@ -32,7 +33,8 @@ describe('ChapterPublishService.publish', () => {
       manuscriptState as never,
       eventBus as never,
       notification as never,
-      appConfig as never
+      appConfig as never,
+      asCacheService(makeCacheServiceMock())
     )
     await svc.publish('e1', 'c1')
     expect(manuscriptState.transition).toHaveBeenCalledWith('c1', ManuscriptStatus.PUBLISHED, { changedBy: 'e1' })
@@ -56,7 +58,8 @@ describe('ChapterPublishService.publish', () => {
       manuscriptState as never,
       eventBus as never,
       notification as never,
-      appConfig as never
+      appConfig as never,
+      asCacheService(makeCacheServiceMock())
     )
     await svc.publish('e1', 'c1')
     expect(manuscriptState.transition).toHaveBeenCalledWith('c1', ManuscriptStatus.AWAITING_CO_OWNER_APPROVAL, {
@@ -85,7 +88,8 @@ describe('ChapterPublishService.publish', () => {
       manuscriptState as never,
       eventBus as never,
       notification as never,
-      appConfig as never
+      appConfig as never,
+      asCacheService(makeCacheServiceMock())
     )
     await expect(svc.publish('e1', 'c1')).rejects.toBeDefined()
     expect(manuscriptState.transition).not.toHaveBeenCalled()
@@ -103,7 +107,8 @@ describe('ChapterPublishService.publish', () => {
       manuscriptState as never,
       eventBus as never,
       notification as never,
-      appConfig as never
+      appConfig as never,
+      asCacheService(makeCacheServiceMock())
     )
     await expect(svc.publish('other', 'c1')).rejects.toBeDefined()
   })
@@ -142,7 +147,8 @@ describe('ChapterPublishService.publish — ending phase (Fix-1 G-1)', () => {
         manuscriptState as never,
         eventBus as never,
         notification as never,
-        appConfig as never
+        appConfig as never,
+        asCacheService(makeCacheServiceMock())
       )
       await expect(svc.publish('e1', 'c1')).resolves.toBeDefined()
       // Gate đã bypass → KHÔNG gọi findExecutedContractBySeriesId
@@ -163,7 +169,8 @@ describe('ChapterPublishService.publish — ending phase (Fix-1 G-1)', () => {
       manuscriptState as never,
       eventBus as never,
       notification as never,
-      appConfig as never
+      appConfig as never,
+      asCacheService(makeCacheServiceMock())
     )
     await expect(svc.publish('e1', 'c1')).rejects.toMatchObject({ status: 409 })
     expect(manuscriptState.transition).not.toHaveBeenCalled()
@@ -177,7 +184,8 @@ describe('ChapterPublishService.publish — ending phase (Fix-1 G-1)', () => {
       manuscriptState as never,
       eventBus as never,
       notification as never,
-      appConfig as never
+      appConfig as never,
+      asCacheService(makeCacheServiceMock())
     )
     await svc.publish('e1', 'c1')
     expect(manuscriptState.transition).toHaveBeenCalledWith(

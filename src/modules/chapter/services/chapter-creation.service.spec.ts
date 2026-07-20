@@ -54,7 +54,7 @@ describe('ChapterCreationService.create (chapter-first)', () => {
     repo.findChapterByNumber.mockResolvedValue(null)
     const out = await make(repo).create('u', { seriesId: S, chapterNumber: 5, title: 'X' })
     expect(repo.createChapter).toHaveBeenCalledWith({ seriesId: S, chapterNumber: 5, title: 'X' })
-    expect(out.status).toBe('DRAFT')
+    expect(out?.status).toBe('DRAFT')
   })
 })
 

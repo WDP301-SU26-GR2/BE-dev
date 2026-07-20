@@ -7,7 +7,7 @@ describe('ChapterPublishedListener', () => {
     const queue = { enqueue: jest.fn().mockResolvedValue(undefined) }
     const listener = new ChapterPublishedListener(repo as never, queue as never)
 
-    await listener.handle({ chapterId: 'C1', seriesId: 'S1', publishedAt: '2026-06-26T00:00:00Z' })
+    await listener.handle({ chapterId: 'C1', seriesId: 'S1', chapterNumber: 1, publishedAt: '2026-06-26T00:00:00Z' })
 
     expect(repo.findSeriesRecipients).toHaveBeenCalledWith('S1')
     expect(queue.enqueue).toHaveBeenCalledTimes(2)
@@ -26,7 +26,7 @@ describe('ChapterPublishedListener', () => {
     const queue = { enqueue: jest.fn() }
     const listener = new ChapterPublishedListener(repo as never, queue as never)
 
-    await listener.handle({ chapterId: 'C1', seriesId: 'S1', publishedAt: 'x' })
+    await listener.handle({ chapterId: 'C1', seriesId: 'S1', chapterNumber: 1, publishedAt: 'x' })
 
     expect(queue.enqueue).not.toHaveBeenCalled()
   })

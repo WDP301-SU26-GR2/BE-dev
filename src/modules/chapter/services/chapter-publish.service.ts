@@ -13,6 +13,7 @@ import { ChapterRepository } from '../chapter.repo'
 import { ManuscriptStateService } from './manuscript-state.service'
 import { ChapterMessages } from '../chapter.messages'
 import { AppConfigService } from 'src/modules/app-config/app-config.service'
+import { CacheService } from 'src/infrastructure/redis/cache.service'
 
 @Injectable()
 export class ChapterPublishService {
@@ -21,7 +22,8 @@ export class ChapterPublishService {
     private readonly manuscriptStateService: ManuscriptStateService,
     private readonly eventBus: DomainEventBus,
     private readonly notificationService: NotificationService,
-    private readonly appConfigService: AppConfigService
+    private readonly appConfigService: AppConfigService,
+    private readonly cacheService: CacheService
   ) {}
 
   // A-CHP-05/06. Transition map đảm bảo chỉ publish được từ READY_FOR_PRINT (else InvalidManuscriptTransition 409).
@@ -73,6 +75,7 @@ export class ChapterPublishService {
       chapterNumber: chapter.chapterNumber,
       publishedAt
     })
+    await this.cacheService.bumpVersion('pubseries')
     return res
   }
 }

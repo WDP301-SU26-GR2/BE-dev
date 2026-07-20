@@ -135,12 +135,15 @@ const main = async () => {
   const e1 = await makeUser('EDITOR')
   const e2 = await makeUser('EDITOR')
   const b1 = await makeUser('BOARD_MEMBER')
+  // b2 = BOARD_MEMBER hợp lệ nhưng NGOÀI roster phiên họp → dùng chứng minh guard roster ở bước xem xét.
+  const b2 = await makeUser('BOARD_MEMBER')
   const sa = await makeUser('SUPER_ADMIN')
   const m1Tok = await login(m1.email)
   const m2Tok = await login(m2.email)
   const e1Tok = await login(e1.email)
   const e2Tok = await login(e2.email)
   const b1Tok = await login(b1.email)
+  const b2Tok = await login(b2.email)
   const saTok = await login(sa.email)
 
   // ═════════════ 06.1 — HAPPY PATH: full lifecycle REVENUE_SHARE ═══════════════════════
@@ -175,7 +178,10 @@ const main = async () => {
   )
 
   // Mangaka request-changes → NEGOTIATION
-  const rRC = await req('POST', `/contracts/${cHappy}/request-changes`, { token: m1Tok })
+  const rRC = await req('POST', `/contracts/${cHappy}/request-changes`, {
+    token: m1Tok,
+    body: { reason: 'Xin nâng tỉ lệ ăn chia của tác giả lên 35%' }
+  })
   ok('06.1d Mangaka request-changes → NEGOTIATION', rRC.status === 201, `got ${rRC.status}`)
   ok(
     '06.1e status DB = NEGOTIATION',
@@ -200,6 +206,24 @@ const main = async () => {
   // Mangaka approve
   const rMA = await req('PATCH', `/contracts/${cHappy}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
   ok('06.1i Mangaka approve → MANGAKA_APPROVED', rMA.status === 200, `got ${rMA.status}`)
+
+  // Board ngoài roster phiên họp KHÔNG được xem xét điều khoản (mirror guard bước ký) — chạy TRƯỚC
+  // happy path để chứng minh nó chặn thật ở đúng trạng thái MANGAKA_APPROVED (không phải chặn nhờ state).
+  const rBAOutsider = await req('POST', `/contracts/${cHappy}/board-approve`, { token: b2Tok })
+  ok(
+    '06.1j-neg board-approve bởi BOARD_MEMBER ngoài roster → 403',
+    rBAOutsider.status === 403,
+    `got ${rBAOutsider.status} ${rBAOutsider.raw.slice(0, 200)}`
+  )
+  const rBRCOutsider = await req('POST', `/contracts/${cHappy}/board-request-changes`, {
+    token: b2Tok,
+    body: { reason: 'Thử vượt quyền' }
+  })
+  ok(
+    '06.1j-neg2 board-request-changes bởi BOARD_MEMBER ngoài roster → 403',
+    rBRCOutsider.status === 403,
+    `got ${rBRCOutsider.status} ${rBRCOutsider.raw.slice(0, 200)}`
+  )
 
   // Board approve
   const rBA = await req('POST', `/contracts/${cHappy}/board-approve`, { token: b1Tok })
@@ -228,6 +252,34 @@ const main = async () => {
   ok(
     '06.1o status DB = FULLY_EXECUTED + mangakaSignedAt set',
     (await prisma.contract.findUnique({ where: { id: cHappy } }))?.status === ContractStatus.FULLY_EXECUTED
+  )
+
+  const rPdf = await req('GET', `/contracts/${cHappy}/pdf`, { token: e1Tok })
+  ok(
+    'F06-PDF-1 Editor downloads executed Contract PDF',
+    rPdf.status === 200 && typeof rPdf.json?.data?.downloadUrl === 'string' && typeof rPdf.json?.data?.key === 'string',
+    rPdf.raw.slice(0, 200)
+  )
+  const downloadedPdf = await fetch(rPdf.json.data.downloadUrl)
+  const downloadedPdfBytes = Buffer.from(await downloadedPdf.arrayBuffer())
+  ok(
+    'F06-PDF-1b presigned URL returns a real PDF',
+    downloadedPdf.status === 200 &&
+      (downloadedPdf.headers.get('content-type') ?? '').includes('application/pdf') &&
+      downloadedPdfBytes.subarray(0, 5).toString() === '%PDF-',
+    `status=${downloadedPdf.status} content-type=${downloadedPdf.headers.get('content-type')} bytes=${downloadedPdfBytes.length}`
+  )
+  const rPdf2 = await req('GET', `/contracts/${cHappy}/pdf`, { token: e1Tok })
+  ok(
+    'F06-PDF-2 export is idempotent for the same content version',
+    rPdf2.status === 200 && rPdf2.json?.data?.key === rPdf.json?.data?.key,
+    rPdf2.raw.slice(0, 200)
+  )
+  expectError(
+    await req('GET', `/contracts/${cHappy}/pdf`, { token: m2Tok }),
+    403,
+    'Error.ContractAccessDenied',
+    'F06-PDF-3 outsider mangaka cannot download'
   )
 
   // ═════════════ 06.2 — PAYMENT CONDITIONS ═══════════════════════════════════════════════

@@ -2,6 +2,7 @@ import { ManuscriptStatus } from '@prisma/client'
 import { ChapterCoOwnerService } from './chapter-coowner.service'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { NotCoOwnerException, CoOwnerApprovalNotPendingException } from '../errors/chapter.errors'
+import { asCacheService, makeCacheServiceMock } from 'src/infrastructure/redis/cache.service.mock'
 
 const CHAPTER_ID = '507f1f77bcf86cd799439011'
 
@@ -28,7 +29,8 @@ function make(m: ReturnType<typeof makeMocks>) {
     m.chapterRepository as never,
     m.manuscriptStateService as never,
     m.eventBus as never,
-    m.notificationService as never
+    m.notificationService as never,
+    asCacheService(makeCacheServiceMock())
   )
 }
 
