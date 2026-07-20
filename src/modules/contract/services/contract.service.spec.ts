@@ -129,7 +129,7 @@ describe('ContractService — B-CON-02 BOARD_REVIEW + request-changes', () => {
     expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
   })
 
-  it('boardApprove: 403 NOT_AUTHORIZED_IN_BOARD when caller is a BOARD_MEMBER outside the session roster', async () => {
+  it('boardApprove: 403 Error.NotAuthorizedInBoard when caller is a BOARD_MEMBER outside the session roster', async () => {
     const m = makeMocks()
     m.contractRepo.findWithBoardDecision.mockResolvedValue(
       withRoster({ id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_APPROVED })
@@ -193,7 +193,7 @@ describe('ContractService — B-CON-02 BOARD_REVIEW + request-changes', () => {
     )
   })
 
-  it('boardApprove: 400 BOARD_DECISION_NOT_FOUND khi hợp đồng chưa gắn quyết định Hội đồng', async () => {
+  it('boardApprove: 400 Error.ContractBoardDecisionMissing khi hợp đồng chưa gắn quyết định Hội đồng', async () => {
     const m = makeMocks()
     m.contractRepo.findWithBoardDecision.mockResolvedValue({
       id: CID,

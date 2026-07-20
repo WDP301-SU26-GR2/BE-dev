@@ -17,11 +17,9 @@ export const SurveyPeriodAlreadyFinalizedException = new BadRequestException(E.s
 export const SurveyPeriodNotFinalizedException = new ConflictException(E.surveyPeriodNotFinalized)
 export const ReaderAlreadyVotedException = new ConflictException(E.readerAlreadyVoted)
 export const VoteOtpNotFoundException = new BadRequestException(E.voteOtpNotFound)
+// `code` derive từ `message` (= 'Error.VoteOtpRateLimit'); trước 2026-07-20 override 'VOTE_OTP_RATE_LIMITED'.
 export const VoteOtpRateLimitException = (retryAfter: number) =>
-  new HttpException(
-    { message: E.voteOtpRateLimit, code: 'VOTE_OTP_RATE_LIMITED', retryAfter },
-    HttpStatus.TOO_MANY_REQUESTS
-  )
+  new HttpException({ message: E.voteOtpRateLimit, retryAfter }, HttpStatus.TOO_MANY_REQUESTS)
 export const VoteIpLimitExceededException = new HttpException(E.voteIpLimitExceeded, HttpStatus.TOO_MANY_REQUESTS)
 export const SurveyDataImportNotAllowedException = new BadRequestException(E.surveyDataImportNotAllowed)
 export const RankingFinalizeNotAllowedException = new BadRequestException(E.rankingFinalizeNotAllowed)

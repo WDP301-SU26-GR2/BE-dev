@@ -374,7 +374,7 @@ const main = async () => {
   })
   ok(
     'F11-RL1c successful register sent a real OTP and now enforces cooldown',
-    resendAfterRealRegisterOtp.status === 429 && resendAfterRealRegisterOtp.json?.code === 'AUTH_OTP_RATE_LIMITED',
+    resendAfterRealRegisterOtp.status === 429 && resendAfterRealRegisterOtp.json?.code === 'Error.OtpRateLimited',
     `got ${resendAfterRealRegisterOtp.status} ${resendAfterRealRegisterOtp.raw.slice(0, 180)}`
   )
 
@@ -400,7 +400,7 @@ const main = async () => {
   })
   ok(
     'F11-RL2c real OTP send consumes cooldown',
-    otpAfterRealSend.status === 429 && otpAfterRealSend.json?.code === 'AUTH_OTP_RATE_LIMITED',
+    otpAfterRealSend.status === 429 && otpAfterRealSend.json?.code === 'Error.OtpRateLimited',
     `got ${otpAfterRealSend.status} ${otpAfterRealSend.raw.slice(0, 180)}`
   )
 

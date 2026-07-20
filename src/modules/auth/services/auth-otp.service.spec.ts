@@ -115,7 +115,6 @@ describe('AuthOtpService.issueOtp rate-limit', () => {
       status: 429,
       response: {
         message: 'Error.OtpRateLimited',
-        code: 'AUTH_OTP_RATE_LIMITED',
         retryAfter: 30
       }
     })
