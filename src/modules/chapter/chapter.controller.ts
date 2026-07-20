@@ -46,6 +46,7 @@ import {
   NotSeriesOwnerException,
   PageNotFoundException,
   PageNotEditableException,
+  PageHasApprovedTasksException,
   RevisionNotResolvedException,
   TasksNotAllApprovedException,
   SeriesNotSerializedException,
@@ -205,7 +206,13 @@ export class ChapterController {
 
   @Delete('pages/:pageId')
   @ApiOperation({ summary: 'Mangaka xoá trang — cascade xoá Region + Task của trang (chặn khi trang đã COMPLETED)' })
-  @ApiErrors(NotSeriesOwnerException, PageNotFoundException, PageNotEditableException, ChapterOnHoldException)
+  @ApiErrors(
+    NotSeriesOwnerException,
+    PageNotFoundException,
+    PageNotEditableException,
+    PageHasApprovedTasksException,
+    ChapterOnHoldException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: DeletePageResDto })
   deletePage(@Param('pageId') pageId: string, @ActiveUser('userId') userId: string) {
@@ -219,6 +226,7 @@ export class ChapterController {
     ChapterNotFoundException,
     PageNotFoundException,
     PageNotEditableException,
+    PageHasApprovedTasksException,
     ChapterOnHoldException
   )
   @Roles(RoleName.MANGAKA)

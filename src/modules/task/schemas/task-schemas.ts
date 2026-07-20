@@ -155,6 +155,8 @@ export const TaskListResSchema = extendApi(
 export const ListTasksQuerySchema = extendApi(
   z
     .object({
+      seriesId: z.string().optional().describe('Lọc task theo series (Mangaka: chỉ series mình sở hữu)'),
+      chapterId: z.string().optional().describe('Lọc task theo chapter'),
       pageId: z.string().optional(),
       regionId: z.string().optional().describe('Lọc task theo vùng (Region id)'),
       assistantId: z.string().optional(),
@@ -163,7 +165,11 @@ export const ListTasksQuerySchema = extendApi(
       offset: z.coerce.number().int().nonnegative().default(0)
     })
     .strict(),
-  { title: 'ListTasksQuery', description: 'Lọc task (scope theo role)' }
+  {
+    title: 'ListTasksQuery',
+    description:
+      'Lọc task (scope theo role). Mangaka KHÔNG cần truyền pageId — mặc định là toàn bộ task thuộc series mình sở hữu, rồi lọc dần theo assistantId/seriesId/chapterId/pageId.'
+  }
 )
 
 export type CreateRegionBodyType = z.infer<typeof CreateRegionBodySchema>

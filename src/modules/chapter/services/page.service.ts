@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { AuditEntityType, ManuscriptStatus, NameStatus, NotificationType } from '@prisma/client'
+import { AuditEntityType, ManuscriptStatus, NameStatus, NotificationType, TaskStatus } from '@prisma/client'
 import {
   ChapterAccessDeniedException,
   ChapterNameNotApprovedException,
@@ -7,6 +7,7 @@ import {
   ChapterOnHoldException,
   DuplicatePageNumberException,
   NotSeriesOwnerException,
+  PageHasApprovedTasksException,
   PageNotEditableException,
   PageNotFoundException
 } from '../errors/chapter.errors'
@@ -80,8 +81,9 @@ export class PageService {
     if (!PAGE_EDITABLE_STATUSES.includes(page.status)) throw PageNotEditableException
 
     // Partial-update (AGENTS §10): omit/null = giữ nguyên.
-    const data: { originalFile?: string; compositeFile?: string; pageNumber?: number } = {}
-    if (body.originalFile != null) data.originalFile = body.originalFile
+    // KHÔNG cho sửa originalFile: đó là NGUỒN cho AI segment + Assistant workspace.
+    // Muốn thay bản gốc → xoá trang rồi upload lại (DELETE /pages/:pageId).
+    const data: { compositeFile?: string; pageNumber?: number } = {}
     if (body.compositeFile != null) data.compositeFile = body.compositeFile
     if (body.pageNumber != null) {
       const taken = await this.chapterRepository.findPageByChapterAndNumber(page.chapterId, body.pageNumber)
@@ -100,6 +102,8 @@ export class PageService {
     if (!PAGE_EDITABLE_STATUSES.includes(page.status)) throw PageNotEditableException
 
     const tasks = await this.chapterRepository.findTasksByPage(pageId)
+    // Đồng bộ PA-03 (xoá Region): không cho xoá mất công trợ lý đã được duyệt.
+    if (tasks.some((task) => task.status === TaskStatus.APPROVED)) throw PageHasApprovedTasksException
     const { deletedRegions, deletedTasks } = await this.chapterRepository.deletePageCascade(pageId)
 
     await this.auditService.record({
@@ -124,6 +128,7 @@ export class PageService {
     if (pages.some((page) => !PAGE_EDITABLE_STATUSES.includes(page.status))) throw PageNotEditableException
 
     const tasks = await this.chapterRepository.findTasksByPages(body.pageIds)
+    if (tasks.some((task) => task.status === TaskStatus.APPROVED)) throw PageHasApprovedTasksException
     const { deletedRegions, deletedTasks } = await this.chapterRepository.deletePagesCascade(body.pageIds)
 
     await this.auditService.record({

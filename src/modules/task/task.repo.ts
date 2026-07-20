@@ -51,6 +51,48 @@ export class TaskRepository {
     })
   }
 
+  // Task chỉ có `pageId` scalar (KHÔNG có relation field tới Page) nên Prisma không
+  // filter xuyên quan hệ được → phải resolve tập pageId theo scope rồi dùng `pageId: { in }`
+  // (`@@index([pageId])` đỡ được truy vấn này).
+  // mangakaId != null ⇒ chỉ lấy trang thuộc series của Mangaka đó (authz).
+  async findOwnedPageIds(
+    mangakaId: string | undefined,
+    filter: { seriesId?: string; chapterId?: string }
+  ): Promise<string[]> {
+    let chapterIds: string[]
+
+    if (filter.chapterId) {
+      const chapter = await this.prismaService.chapter.findUnique({
+        where: { id: filter.chapterId },
+        select: { id: true, series: { select: { mangakaId: true } } }
+      })
+      if (!chapter) return []
+      if (mangakaId && chapter.series.mangakaId !== mangakaId) return []
+      chapterIds = [chapter.id]
+    } else {
+      const seriesRows = await this.prismaService.series.findMany({
+        where: {
+          ...(mangakaId ? { mangakaId } : {}),
+          ...(filter.seriesId ? { id: filter.seriesId } : {})
+        },
+        select: { id: true }
+      })
+      if (seriesRows.length === 0) return []
+      const chapters = await this.prismaService.chapter.findMany({
+        where: { seriesId: { in: seriesRows.map((row) => row.id) } },
+        select: { id: true }
+      })
+      if (chapters.length === 0) return []
+      chapterIds = chapters.map((chapter) => chapter.id)
+    }
+
+    const pages = await this.prismaService.page.findMany({
+      where: { chapterId: { in: chapterIds } },
+      select: { id: true }
+    })
+    return pages.map((page) => page.id)
+  }
+
   // ---- Region (A-TSK-01/02) ----
   async createRegion(data: {
     pageId: string

@@ -4,6 +4,7 @@ import {
   ChapterNotFoundException,
   DuplicatePageNumberException,
   NotSeriesOwnerException,
+  PageHasApprovedTasksException,
   PageNotEditableException,
   PageNotFoundException
 } from '../errors/chapter.errors'
@@ -196,6 +197,32 @@ describe('PageService.deletePage', () => {
     expect(d.audit.record).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'u1', entityId: PG }))
   })
 
+  // Đồng bộ PA-03: xoá Region bị CHẶN khi có task APPROVED (công trợ lý đã được duyệt).
+  // Xoá Page cũng phải chặn, nếu không sẽ có đường vòng xoá mất công đã duyệt.
+  it('refuses to delete a page that has an APPROVED task', async () => {
+    const d = makeDeleteDeps({
+      findTasksByPage: jest.fn().mockResolvedValue([
+        { id: 't1', status: 'ASSIGNED', assistantId: 'a1' },
+        { id: 't2', status: 'APPROVED', assistantId: 'a2' }
+      ])
+    })
+
+    await expect(makeSvc(d).deletePage('u1', PG)).rejects.toBe(PageHasApprovedTasksException)
+    expect(d.repo.deletePageCascade).not.toHaveBeenCalled()
+  })
+
+  it('still deletes when tasks exist but none is APPROVED', async () => {
+    const d = makeDeleteDeps({
+      findTasksByPage: jest.fn().mockResolvedValue([
+        { id: 't1', status: 'REVISION_REQUESTED', assistantId: 'a1' },
+        { id: 't2', status: 'CANCELLED', assistantId: 'a2' }
+      ])
+    })
+
+    await expect(makeSvc(d).deletePage('u1', PG)).resolves.toBeDefined()
+    expect(d.repo.deletePageCascade).toHaveBeenCalledWith(PG)
+  })
+
   it('refuses to delete a COMPLETED page', async () => {
     const d = makeDeleteDeps({
       findPageById: jest.fn().mockResolvedValue({ id: PG, chapterId: 'c1', status: 'COMPLETED' })
@@ -295,6 +322,17 @@ describe('PageService.deletePagesBulk', () => {
     })
 
     await expect(makeSvc(d).deletePagesBulk('u1', CH, { pageIds: [P1, P2] })).rejects.toBe(PageNotEditableException)
+    expect(d.repo.deletePagesCascade).not.toHaveBeenCalled()
+  })
+
+  it('is all-or-nothing when any page has an APPROVED task', async () => {
+    const d = makeBulkDeps({
+      findTasksByPages: jest.fn().mockResolvedValue([{ id: 't1', pageId: P2, status: 'APPROVED', assistantId: 'a1' }])
+    })
+
+    await expect(makeSvc(d).deletePagesBulk('u1', CH, { pageIds: [P1, P2] })).rejects.toBe(
+      PageHasApprovedTasksException
+    )
     expect(d.repo.deletePagesCascade).not.toHaveBeenCalled()
   })
 
@@ -459,8 +497,10 @@ describe('UpdatePageBodySchema', () => {
     expect(UpdatePageBodySchema.safeParse({ status: 'DRAFT' }).success).toBe(false)
   })
 
-  it('accepts originalFile so a mangaka can replace the pencil/ink scan', () => {
-    expect(UpdatePageBodySchema.safeParse({ originalFile: 'uploads/u1/redraw.png' }).success).toBe(true)
+  // originalFile là NGUỒN cho AI segment + Assistant workspace → không cho PATCH đè.
+  // Thay bản gốc = xoá trang rồi upload lại (DELETE /pages/:pageId).
+  it('rejects originalFile — bản gốc chỉ set lúc tạo trang', () => {
+    expect(UpdatePageBodySchema.safeParse({ originalFile: 'uploads/u1/redraw.png' }).success).toBe(false)
   })
 
   it('accepts pageNumber so a mangaka can renumber a page', () => {
@@ -473,7 +513,7 @@ describe('UpdatePageBodySchema', () => {
 })
 
 describe('PageService.updatePage extended fields', () => {
-  it('persists originalFile', async () => {
+  it('never writes originalFile even if it reaches the service layer', async () => {
     const { repo, manuscriptState } = makeDeps()
     const svc = new PageService(
       repo as never,
@@ -483,9 +523,9 @@ describe('PageService.updatePage extended fields', () => {
       makeAudit() as never
     )
 
-    await svc.updatePage('u1', 'p1', { originalFile: 'uploads/u1/redraw.png' })
+    await svc.updatePage('u1', 'p1', { originalFile: 'uploads/u1/redraw.png' } as never)
 
-    expect(repo.updatePage).toHaveBeenCalledWith('p1', { originalFile: 'uploads/u1/redraw.png' })
+    expect(repo.updatePage).not.toHaveBeenCalled()
   })
 
   it('persists pageNumber when the slot is free', async () => {
@@ -549,11 +589,10 @@ describe('PageService.updatePage extended fields', () => {
       makeAudit() as never
     )
 
-    await svc.updatePage('u1', 'p1', { originalFile: 'k1', compositeFile: 'k2', pageNumber: 7 })
+    await svc.updatePage('u1', 'p1', { compositeFile: 'k2', pageNumber: 7 })
 
     expect(repo.updatePage).toHaveBeenCalledTimes(1)
     expect(repo.updatePage).toHaveBeenCalledWith('p1', {
-      originalFile: 'k1',
       compositeFile: 'k2',
       pageNumber: 7
     })

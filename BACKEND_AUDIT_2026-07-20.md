@@ -562,3 +562,67 @@ Audit xếp S-04 mức HIGH và đề xuất transactional outbox. BE-A đánh g
 ⚠️ **Có schema delta** (2 unique index + 1 index) → deploy phải theo runbook `PROGRESS-BE-A.md` §73.6: chạy `scripts/migrate-payment-idempotency.mjs --dry-run` **TRƯỚC** `db push`; script **cố tình không tự xoá** bản trùng vì đó là bản ghi tiền.
 
 **Chưa commit** — worktree giữ dirty để user tự review (17 file).
+
+---
+
+## 14. Senior re-audit sau đợt AI implement tiếp — 2026-07-21
+
+Mục này **thay thế kết luận trạng thái ở §13 khi có xung đột**. Quy tắc giữ nguyên: chỉ đánh `[x] DONE` khi invariant của finding đã được khép kín bằng cả code hiện tại và verification phù hợp; flow tuần tự không được dùng làm bằng chứng duy nhất cho concurrency safety.
+
+### 14.1. Checklist audit đã hiệu chỉnh
+
+| Finding | Trạng thái | Kết luận re-audit |
+|---|---|---|
+| F-01 Error-code migration | [x] **DONE phía BE** | Không phát hiện regression trong build, unit và ba flow được chạy lại. Rollout đồng bộ FE vẫn là việc phát hành ngoài scope code BE. |
+| F-02 Jest E2E ESM/CJS/open handle | [~] **PARTIAL** | 1/1 assertion pass trong 11.525 giây, nhưng process không tự thoát; command bị timeout sau 90 giây ngay cả với `--detectOpenHandles`. Chưa CI-green. |
+| F-03 Dependency advisories | [x] **DONE** | `pnpm audit --prod` ngày 2026-07-21 trả `No known vulnerabilities found`. |
+| F-04 Service split threshold | [ ] **OPEN** | Không thuộc đợt fix hiện tại; các service hotspot chưa được tách theo threshold kiến trúc. |
+| F-05 Atomic state boundary | [~] **PARTIAL** | Contract signing và Payment đã có transaction/CAS ở các đường chính, nhưng các khe concurrency nêu tại S-02/S-03/S-05 bên dưới chưa khép kín. |
+| F-06 Coverage vùng nghiệp vụ | [ ] **OPEN** | Unit tăng lên 1.224 test và flow mới bao phủ page/task; vẫn chưa có test concurrency thật cho hai final signer, amendment-version conflict và repeated cancel. |
+| F-07 Business dispatch trong ContractController | [x] **DONE** | Kết luận §12 giữ nguyên; build/unit/Flow 06 pass. |
+| F-08 RoleService truy cập Prisma trực tiếp | [x] **DONE** | Kết luận §12 giữ nguyên; không thấy regression trong diff hiện tại. |
+| F-09 Seed floating promise/lifecycle | [x] **DONE** | Kết luận §12 giữ nguyên. |
+| F-10 ObjectId regex duplication | [ ] **OPEN** | Các bản sao `OBJECT_ID_RE` vẫn tồn tại ở nhiều module. |
+| F-11 Lint warnings | [~] **PARTIAL** | ESLint exit 0 và **0 error**, nhưng còn **136 warning**. Vì finding gốc là lint warnings, không đánh DONE toàn phần. |
+| F-12 console/docs drift | [~] **PARTIAL** | Phần production console đã được dọn theo §13; chưa có bằng chứng khép kín toàn bộ docs/README drift của finding gốc. |
+| F-13 Flow SKIP/gaps | [ ] **OPEN** | Các case SKIP/out-of-scope của full suite chưa được chuyển thành executable assertions. |
+| S-01 Payment BOLA + actor spoofing | [x] **DONE** | Flow 06 tiếp tục pass các case outsider 403, receiver/editor/board scope và actor lấy từ token. |
+| S-02 Contract signing atomicity/race | [~] **PARTIAL** | Transaction đã loại failure giữa create signature và update Contract, đồng thời settlement dùng CAS. Tuy nhiên `recordBoardSignatureAndSettle()` vẫn `create` signature rồi `count` trong snapshot transaction. Với 1/3 chữ ký có sẵn và hai final signer chạy đồng thời, mỗi transaction có thể chỉ thấy bản cũ + chữ ký của chính nó (=2), nên cả hai commit signature nhưng không request nào set `boardSignedAt`; chưa có concurrency test chứng minh điều ngược lại. Flow 06 94/94 là tuần tự nên không khép finding này. |
+| S-03 Payment concurrency/idempotency | [~] **PARTIAL** | Unique idempotency key, insert-and-handle-P2002 và CAS cho approve/pay đã xử lý phần lớn finding. Nhưng `cancelPayment()` dùng expected status `{ not: PAID }`; record đã `CANCELLED` vẫn match, bị cancel/audit lại và đổi timestamp/reason. Invariant transition/idempotency chưa khép kín. |
+| S-04 Durable domain events | [ ] **OPEN / HOÃN CÓ CHỦ ĐÍCH** | Chưa có outbox, replay hoặc reconciliation. Lý do hoãn ở §13.3 hợp lý về ưu tiên nhưng không biến finding thành DONE. |
+| S-05 ContractVersion uniqueness | [~] **PARTIAL** | Database unique index và retry trong `ContractRepo.updateAndLogVersion()` là đúng. Nhưng `ContractAmendmentRepo.executeAndApply()` cũng cấp `max + 1` trong transaction mà không dùng bounded retry; chữ ký amendment được ghi trước ở transaction khác. Khi P2002 xảy ra, amendment có thể còn `PENDING_SIGNATURES` với final signature đã tồn tại, còn retry sign bị `AlreadySigned`, dẫn đến kẹt flow. |
+| S-06 Notification/cache policy | [ ] **ACCEPTED/UNCHANGED** | Vẫn là best-effort/fail-open với bounded staleness; cần SLA/monitoring nếu muốn đóng finding. |
+| S-07 Duplicate EventEmitter root | [x] **DONE** | Kết luận §12 giữ nguyên; không thấy root registration thứ hai quay lại. |
+
+Tổng hợp audit gốc sau hiệu chỉnh: **7 DONE** (`F-01`, `F-03`, `F-07`, `F-08`, `F-09`, `S-01`, `S-07`), **7 PARTIAL** (`F-02`, `F-05`, `F-11`, `F-12`, `S-02`, `S-03`, `S-05`), còn lại **OPEN/ACCEPTED**. Ba dấu DONE của §13 tại S-02, S-03 và S-05 được hạ về PARTIAL vì implementation có tiến bộ thật nhưng chưa khép invariant gốc.
+
+### 14.2. Review phần page/task đang nằm trong worktree
+
+| Hạng mục mới | Trạng thái | Bằng chứng và giới hạn |
+|---|---|---|
+| Page response `displayFile` + public reader ưu tiên composite | [x] **DONE** | Cùng công thức `compositeFile ?? originalFile`; unit pass và Flow 02 xác nhận fallback/original/composite. |
+| Không cho PATCH `originalFile` | [x] **DONE** | Schema từ chối 422; Flow 02 xác nhận original không đổi và composite cập nhật được. |
+| Task response embed `region` cho Assistant | [x] **DONE** | Repository batch-load Region; detail/list/null đều được Flow 03 xác nhận, không tạo N+1 theo từng task. |
+| Mangaka `GET /tasks` toàn bộ + filter assistant/series/chapter/page | [~] **PARTIAL** | Filter đơn và authorization pass Flow 03. Nhưng khi có cả `seriesId + chapterId`, repository ưu tiên `chapterId` và bỏ qua `seriesId`; khi có `pageId`, service bỏ qua series/chapter. Các filter kết hợp mâu thuẫn có thể vẫn trả data thay vì giao theo phép AND. Tập pageId cũng được materialize toàn bộ trước pagination, còn nợ scalability. |
+| DELETE page/bulk cascade | [~] **PARTIAL** | Transaction xóa Page/Region/Task và chặn task APPROVED; Flow 02 pass các case access, all-or-nothing và status gate. Cascade chưa xử lý `AiJob.pageId`, Annotation target PAGE/REGION/TASK, RevisionRequest target TASK và object trên R2; có nguy cơ orphan. Ngoài ra task đang làm dở bị hard-delete thay vì chuyển `CANCELLED`, làm mất lịch sử nghiệp vụ. |
+
+### 14.3. Gate snapshot 2026-07-21
+
+| Gate | Kết quả |
+|---|---:|
+| `pnpm build` | **PASS** |
+| `pnpm exec prisma validate` | **PASS** |
+| Unit | **PASS — 151/151 suite, 1.224/1.224 test** |
+| ESLint read-only | **PASS exit code — 0 error, 136 warning** |
+| Dependency audit production | **PASS — 0 known vulnerability** |
+| E2E | **PARTIAL — 1/1 assertion pass, process timeout vì open handle** |
+| Flow 02 Chapter/Page | **PASS — 178/178** |
+| Flow 03 Studio/Task | **PASS — 93/93** |
+| Flow 06 Contract/Payment/PDF R2 | **PASS — 94/94** |
+
+### 14.4. Phạm vi thay đổi của lần re-audit
+
+- Không sửa source code, schema, test hay config.
+- Không commit và không tạo branch.
+- Chỉ cập nhật file audit này; 17 file source/test dirty có sẵn được giữ nguyên.
+- Flow dùng database `Mangaka-flowtest`; không thao tác database production.

@@ -147,13 +147,13 @@ describe('PublicService', () => {
       await expect(service.getChapterPages(CHAPTER_ID)).rejects.toBe(PublicChapterNotFoundException)
     })
 
-    it('skips pages without original files before signing and returns published neighbours', async () => {
+    it('skips pages without any file before signing and returns published neighbours', async () => {
       repo.findPublishedChapterById.mockResolvedValue(chapterRow)
       repo.findPublicSeriesById.mockResolvedValue(seriesRow)
       repo.findPagesByChapterId.mockResolvedValue([
-        { pageNumber: 1, originalFile: 'k1' },
-        { pageNumber: 2, originalFile: null },
-        { pageNumber: 3, originalFile: 'k3' }
+        { pageNumber: 1, originalFile: 'k1', compositeFile: null },
+        { pageNumber: 2, originalFile: null, compositeFile: null },
+        { pageNumber: 3, originalFile: 'k3', compositeFile: null }
       ])
       repo.findAdjacentPublishedChapter.mockImplementation((_seriesId: string, _number: number, direction: string) =>
         Promise.resolve(direction === 'prev' ? { id: 'prevId' } : null)
@@ -169,6 +169,24 @@ describe('PublicService', () => {
       expect(storage.createPresignedDownload).toHaveBeenCalledTimes(2)
       expect(storage.createPresignedDownload).toHaveBeenNthCalledWith(1, 'k1', 900)
       expect(storage.createPresignedDownload).toHaveBeenNthCalledWith(2, 'k3', 900)
+    })
+
+    // 🔴 BUG: reader đang serve originalFile (bản pencil/ink THÔ) ⇒ độc giả không bao giờ
+    // thấy nền/screentone/hiệu ứng trợ lý đã làm. Bản xuất bản phải là composite khi có.
+    it('serves the composite artwork when the page has one', async () => {
+      repo.findPublishedChapterById.mockResolvedValue(chapterRow)
+      repo.findPublicSeriesById.mockResolvedValue(seriesRow)
+      repo.findPagesByChapterId.mockResolvedValue([
+        { pageNumber: 1, originalFile: 'ink-1', compositeFile: 'final-1' },
+        { pageNumber: 2, originalFile: 'ink-2', compositeFile: null }
+      ])
+      repo.findAdjacentPublishedChapter.mockResolvedValue(null)
+
+      await service.getChapterPages(CHAPTER_ID)
+
+      // trang 1 có composite → dùng composite; trang 2 chưa có → fallback bản gốc
+      expect(storage.createPresignedDownload).toHaveBeenNthCalledWith(1, 'final-1', 900)
+      expect(storage.createPresignedDownload).toHaveBeenNthCalledWith(2, 'ink-2', 900)
     })
   })
 })

@@ -779,6 +779,72 @@ const main = async () => {
     `got ${JSON.stringify(noRegionTask?.region)}`
   )
 
+  // ══════════════ S-TASK-SCOPE — Mangaka list task không cần bám flow page ══════════════
+  section('S-TASK-SCOPE Mangaka lọc task theo assistant/series/chapter/page')
+
+  const scopeAll = await req('GET', '/tasks', { token: m1Tok })
+  const scopeAllItems = (scopeAll.json?.data?.items ?? []) as Array<{ id: string; pageId: string }>
+  ok(
+    'F03-TS01 GET /tasks (mangaka, KHÔNG pageId) → 200 và có dữ liệu',
+    scopeAll.status === 200 && scopeAllItems.length > 0,
+    `got ${scopeAll.status} n=${scopeAllItems.length}`
+  )
+
+  const scopeBySeries = await req('GET', `/tasks?seriesId=${series.id}`, { token: m1Tok })
+  const bySeriesTotal = (scopeBySeries.json?.data?.total ?? -1) as number
+  ok(
+    'F03-TS02 lọc theo seriesId của mình → 200',
+    scopeBySeries.status === 200 && bySeriesTotal > 0,
+    `got ${scopeBySeries.status} total=${bySeriesTotal}`
+  )
+
+  const scopeByChapter = await req('GET', `/tasks?chapterId=${chapter.id}`, { token: m1Tok })
+  ok(
+    'F03-TS03 lọc theo chapterId → 200',
+    scopeByChapter.status === 200 && (scopeByChapter.json?.data?.total ?? 0) > 0,
+    `got ${scopeByChapter.status}`
+  )
+
+  const scopeByAssistant = await req('GET', `/tasks?assistantId=${a1.id}`, { token: m1Tok })
+  const byAssistantItems = (scopeByAssistant.json?.data?.items ?? []) as Array<{ assistantId: string }>
+  ok(
+    'F03-TS04 lọc theo assistantId → chỉ task của trợ lý đó',
+    scopeByAssistant.status === 200 &&
+      byAssistantItems.length > 0 &&
+      byAssistantItems.every((t) => t.assistantId === a1.id),
+    `got ${scopeByAssistant.status} n=${byAssistantItems.length}`
+  )
+
+  // 🔴 authz: series của người khác → rỗng, KHÔNG rò task
+  const foreignSeriesScope = await req('GET', `/tasks?seriesId=${series.id}`, { token: m2Tok })
+  ok(
+    'F03-TS05 mangaka khác lọc series không sở hữu → rỗng (không rò task)',
+    foreignSeriesScope.status === 200 && (foreignSeriesScope.json?.data?.total ?? -1) === 0,
+    `got ${foreignSeriesScope.status} total=${foreignSeriesScope.json?.data?.total}`
+  )
+
+  const foreignChapterScope = await req('GET', `/tasks?chapterId=${chapter.id}`, { token: m2Tok })
+  ok(
+    'F03-TS06 mangaka khác lọc chapter không sở hữu → rỗng',
+    foreignChapterScope.status === 200 && (foreignChapterScope.json?.data?.total ?? -1) === 0,
+    `got ${foreignChapterScope.status} total=${foreignChapterScope.json?.data?.total}`
+  )
+
+  const badSeriesScope = await req('GET', '/tasks?seriesId=khong-phai-objectid', { token: m1Tok })
+  ok(
+    'F03-TS07 seriesId rác → 200 rỗng (không 500)',
+    badSeriesScope.status === 200 && (badSeriesScope.json?.data?.total ?? -1) === 0,
+    `got ${badSeriesScope.status}`
+  )
+
+  const assistantScoped = await req('GET', `/tasks?seriesId=${series.id}`, { token: a1Tok })
+  const assistantScopedItems = (assistantScoped.json?.data?.items ?? []) as Array<{ assistantId: string }>
+  ok(
+    'F03-TS08 assistant lọc theo series vẫn chỉ thấy task của chính mình',
+    assistantScoped.status === 200 && assistantScopedItems.every((t) => t.assistantId === a1.id),
+    `got ${assistantScoped.status} n=${assistantScopedItems.length}`
+  )
+
   await prisma.$disconnect()
   const fail = summary(FLOW)
   await sleep(300)
