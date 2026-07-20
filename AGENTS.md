@@ -266,6 +266,15 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   `kill server (4000/4100)` → `rm -f .prisma/client/*.tmp*` → `pnpm prisma:generate` → verify `copyEngine: true`
   → boot lại. **Đừng chạy generate khi server đang lên.**
 
+- **🔴 `overrides` khai ở `pnpm-workspace.yaml` ⇒ Docker/CI phải dùng pnpm cùng major (≥10) với máy sinh lockfile.**
+  pnpm 10+ đọc `overrides` từ `pnpm-workspace.yaml`; pnpm 9 CHỈ đọc `package.json > pnpm.overrides`. Nếu Dockerfile
+  pin pnpm 9 mà lockfile do pnpm 11 sinh (có block `overrides:`) → `pnpm install --frozen-lockfile` chết với
+  `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH: the current "overrides" configuration doesn't match the value found in the lockfile`.
+  **`pnpm build`/`test` LOCAL KHÔNG bắt được** (không chạy `--frozen-lockfile` trong container) — chỉ vỡ ở CI/deploy.
+  **Fix:** `Dockerfile` `ENV PNPM_VERSION` khớp major với `pnpm --version` của máy commit lockfile.
+  Chẩn đoán tất định (không cần Docker): `pnpm@9.x install --lockfile-only` trên chỉ `pnpm-workspace.yaml` → lockfile
+  sinh ra KHÔNG có block `overrides` ⇒ đúng là nó không đọc. (Nguồn: §73 thêm 5 override vá F-03.)
+
 ## 11. Migration / Done Checklist
 
 Mỗi refactor/feature phải giữ:
