@@ -135,12 +135,15 @@ const main = async () => {
   const e1 = await makeUser('EDITOR')
   const e2 = await makeUser('EDITOR')
   const b1 = await makeUser('BOARD_MEMBER')
+  // b2 = BOARD_MEMBER hợp lệ nhưng NGOÀI roster phiên họp → dùng chứng minh guard roster ở bước xem xét.
+  const b2 = await makeUser('BOARD_MEMBER')
   const sa = await makeUser('SUPER_ADMIN')
   const m1Tok = await login(m1.email)
   const m2Tok = await login(m2.email)
   const e1Tok = await login(e1.email)
   const e2Tok = await login(e2.email)
   const b1Tok = await login(b1.email)
+  const b2Tok = await login(b2.email)
   const saTok = await login(sa.email)
 
   // ═════════════ 06.1 — HAPPY PATH: full lifecycle REVENUE_SHARE ═══════════════════════
@@ -175,7 +178,10 @@ const main = async () => {
   )
 
   // Mangaka request-changes → NEGOTIATION
-  const rRC = await req('POST', `/contracts/${cHappy}/request-changes`, { token: m1Tok })
+  const rRC = await req('POST', `/contracts/${cHappy}/request-changes`, {
+    token: m1Tok,
+    body: { reason: 'Xin nâng tỉ lệ ăn chia của tác giả lên 35%' }
+  })
   ok('06.1d Mangaka request-changes → NEGOTIATION', rRC.status === 201, `got ${rRC.status}`)
   ok(
     '06.1e status DB = NEGOTIATION',
@@ -200,6 +206,24 @@ const main = async () => {
   // Mangaka approve
   const rMA = await req('PATCH', `/contracts/${cHappy}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
   ok('06.1i Mangaka approve → MANGAKA_APPROVED', rMA.status === 200, `got ${rMA.status}`)
+
+  // Board ngoài roster phiên họp KHÔNG được xem xét điều khoản (mirror guard bước ký) — chạy TRƯỚC
+  // happy path để chứng minh nó chặn thật ở đúng trạng thái MANGAKA_APPROVED (không phải chặn nhờ state).
+  const rBAOutsider = await req('POST', `/contracts/${cHappy}/board-approve`, { token: b2Tok })
+  ok(
+    '06.1j-neg board-approve bởi BOARD_MEMBER ngoài roster → 403',
+    rBAOutsider.status === 403,
+    `got ${rBAOutsider.status} ${rBAOutsider.raw.slice(0, 200)}`
+  )
+  const rBRCOutsider = await req('POST', `/contracts/${cHappy}/board-request-changes`, {
+    token: b2Tok,
+    body: { reason: 'Thử vượt quyền' }
+  })
+  ok(
+    '06.1j-neg2 board-request-changes bởi BOARD_MEMBER ngoài roster → 403',
+    rBRCOutsider.status === 403,
+    `got ${rBRCOutsider.status} ${rBRCOutsider.raw.slice(0, 200)}`
+  )
 
   // Board approve
   const rBA = await req('POST', `/contracts/${cHappy}/board-approve`, { token: b1Tok })
@@ -228,6 +252,34 @@ const main = async () => {
   ok(
     '06.1o status DB = FULLY_EXECUTED + mangakaSignedAt set',
     (await prisma.contract.findUnique({ where: { id: cHappy } }))?.status === ContractStatus.FULLY_EXECUTED
+  )
+
+  const rPdf = await req('GET', `/contracts/${cHappy}/pdf`, { token: e1Tok })
+  ok(
+    'F06-PDF-1 Editor downloads executed Contract PDF',
+    rPdf.status === 200 && typeof rPdf.json?.data?.downloadUrl === 'string' && typeof rPdf.json?.data?.key === 'string',
+    rPdf.raw.slice(0, 200)
+  )
+  const downloadedPdf = await fetch(rPdf.json.data.downloadUrl)
+  const downloadedPdfBytes = Buffer.from(await downloadedPdf.arrayBuffer())
+  ok(
+    'F06-PDF-1b presigned URL returns a real PDF',
+    downloadedPdf.status === 200 &&
+      (downloadedPdf.headers.get('content-type') ?? '').includes('application/pdf') &&
+      downloadedPdfBytes.subarray(0, 5).toString() === '%PDF-',
+    `status=${downloadedPdf.status} content-type=${downloadedPdf.headers.get('content-type')} bytes=${downloadedPdfBytes.length}`
+  )
+  const rPdf2 = await req('GET', `/contracts/${cHappy}/pdf`, { token: e1Tok })
+  ok(
+    'F06-PDF-2 export is idempotent for the same content version',
+    rPdf2.status === 200 && rPdf2.json?.data?.key === rPdf.json?.data?.key,
+    rPdf2.raw.slice(0, 200)
+  )
+  expectError(
+    await req('GET', `/contracts/${cHappy}/pdf`, { token: m2Tok }),
+    403,
+    'Error.ContractAccessDenied',
+    'F06-PDF-3 outsider mangaka cannot download'
   )
 
   // ═════════════ 06.2 — PAYMENT CONDITIONS ═══════════════════════════════════════════════
@@ -389,9 +441,9 @@ const main = async () => {
     (await prisma.paymentRecord.findUnique({ where: { id: pr.id } }))?.status === PaymentRecordStatus.APPROVED
   )
 
-  // approve lần 2 (status != TRIGGERED) → INVALID_STATUS_FOR_APPROVAL_EXPECTED_TRIGGERED
+  // approve lần 2 (status != TRIGGERED) → Error.PaymentNotApprovable
   const rAp2 = await req('PATCH', `/payments/${pr.id}/approve`, { token: b1Tok, body: { approvedBy: b1.id } })
-  expectError(rAp2, 400, 'INVALID_STATUS_FOR_APPROVAL_EXPECTED_TRIGGERED', '06.3e approve lần 2 → 400')
+  expectError(rAp2, 400, 'Error.PaymentNotApprovable', '06.3e approve lần 2 → 400')
 
   // pay → PAID (server 500 bug)
   const rPay = await req('PATCH', `/payments/${pr.id}/pay`, {
@@ -420,15 +472,11 @@ const main = async () => {
     token: b1Tok,
     body: { paymentMethod: 'CASH', transactionReference: 'TXN-FT-002' }
   })
-  ok(
-    '06.3h pay từ TRIGGERED → 400 INVALID_STATUS_FOR_PAYMENT_EXPECTED_APPROVED',
-    rPayFromTrig.status === 400,
-    `got ${rPayFromTrig.status}`
-  )
+  ok('06.3h pay từ TRIGGERED → 400 Error.PaymentNotPayable', rPayFromTrig.status === 400, `got ${rPayFromTrig.status}`)
 
-  // cancel record đã PAID → 400 PAYMENT_ALREADY_PAID_CANNOT_CANCEL
+  // cancel record đã PAID → 400 Error.PaymentAlreadyPaid
   const rCancelPaid = await req('PATCH', `/payments/${pr.id}/cancel`, { token: b1Tok, body: { cancelReason: 'oops' } })
-  expectError(rCancelPaid, 400, 'PAYMENT_ALREADY_PAID_CANNOT_CANCEL', '06.3i cancel PAID → 400')
+  expectError(rCancelPaid, 400, 'Error.PaymentAlreadyPaid', '06.3i cancel PAID → 400')
 
   // cancel TRIGGERED → CANCELLED (BE-004 đã fix → 200)
   const rCancelTrig = await req('PATCH', `/payments/${pr2.id}/cancel`, {
@@ -444,6 +492,58 @@ const main = async () => {
   // payment record rác ID → 404
   const rPayGhost = await req('GET', `/payments/aaaaaaaaaaaaaaaaaaaaaaaa`, { token: saTok })
   ok('06.3l GET payment rác → 404', rPayGhost.status === 404, `got ${rPayGhost.status}`)
+
+  // ═════════════ 06.3m — S-01 object-level authorization (BOLA) ═════════════════════════
+  // pr2 (receiver=m1, contract cHappy: mangaka m1 / editor e1). m2/e2 là người ngoài cuộc.
+  const prBola = await prisma.paymentRecord.create({
+    data: {
+      receiverId: m1.id,
+      amount: 77777,
+      paymentType: 'REVENUE_SHARE',
+      paymentSource: 'CONTRACT',
+      contractId: cHappy,
+      seriesId: happy.series.id,
+      status: 'TRIGGERED',
+      createdBy: b1.id
+    }
+  })
+  const rSelf = await req('GET', `/payments/${prBola.id}`, { token: m1Tok })
+  ok('06.3m receiver (m1) đọc payment của mình → 200', rSelf.status === 200, `got ${rSelf.status}`)
+  const rEditor = await req('GET', `/payments/${prBola.id}`, { token: e1Tok })
+  ok('06.3n editor phụ trách (e1) → 200', rEditor.status === 200, `got ${rEditor.status}`)
+  const rBoardRead = await req('GET', `/payments/${prBola.id}`, { token: b1Tok })
+  ok('06.3o board → 200', rBoardRead.status === 200, `got ${rBoardRead.status}`)
+  const rMangakaOutsider = await req('GET', `/payments/${prBola.id}`, { token: m2Tok })
+  expectError(rMangakaOutsider, 403, 'Error.PaymentAccessDenied', '06.3p 🔴 mangaka ngoài cuộc (m2) → 403 (BOLA blocked)')
+  const rEditorOutsider = await req('GET', `/payments/${prBola.id}`, { token: e2Tok })
+  expectError(rEditorOutsider, 403, 'Error.PaymentAccessDenied', '06.3q 🔴 editor không phụ trách (e2) → 403')
+  // by-user: mangaka chỉ đọc payment của chính mình
+  const rSelfList = await req('GET', `/payments/users/${m1.id}/payments`, { token: m1Tok })
+  ok('06.3r by-user chính mình → 200', rSelfList.status === 200, `got ${rSelfList.status}`)
+  const rOtherList = await req('GET', `/payments/users/${m2.id}/payments`, { token: m1Tok })
+  expectError(rOtherList, 403, 'Error.PaymentAccessDenied', '06.3s 🔴 mangaka đọc payment người khác → 403')
+  // by-series: editor không phụ trách series → 403
+  const rSeriesOutsider = await req('GET', `/payments/series/${happy.series.id}/payments`, { token: e2Tok })
+  expectError(rSeriesOutsider, 403, 'Error.PaymentAccessDenied', '06.3t 🔴 editor ngoài cuộc đọc theo series → 403')
+  // actor spoofing: approve KHÔNG còn nhận approvedBy từ body — approvedBy = token owner
+  const prSpoof = await prisma.paymentRecord.create({
+    data: {
+      receiverId: m1.id,
+      amount: 12345,
+      paymentType: 'REVENUE_SHARE',
+      paymentSource: 'CONTRACT',
+      contractId: cHappy,
+      status: 'TRIGGERED',
+      createdBy: b1.id
+    }
+  })
+  await req('PATCH', `/payments/${prSpoof.id}/approve`, { token: b1Tok, body: { approvedBy: m2.id } })
+  const spoofRow = await prisma.paymentRecord.findUnique({ where: { id: prSpoof.id } })
+  ok(
+    '06.3u 🔴 approvedBy = token owner (b1), KHÔNG phải id giả trong body (m2)',
+    spoofRow?.approvedBy === b1.id,
+    `got approvedBy=${spoofRow?.approvedBy}`
+  )
 
   // ═════════════ 06.4 — STATE MACHINE (invalid transitions) ═════════════════════════════
   section('06.4 Contract state machine — invalid transitions')
@@ -561,7 +661,7 @@ const main = async () => {
   })
   ok('06.5a M2 approve HĐ của M1 → 403', rM2Approve.status === 403, `got ${rM2Approve.status}`)
 
-  // E2 (không phải editor phụ trách) update → 403 ONLY_ASSIGNED_EDITOR_CAN_EDIT
+  // E2 (không phải editor phụ trách) update → 403 Error.NotAssignedContractEditor
   const rE2Update = await req('PATCH', `/contracts/${cRBAC}`, { token: e2Tok, body: { valuationAmount: 9999 } })
   ok('06.5b E2 (không phải editor HĐ) PATCH → 403', rE2Update.status === 403, `got ${rE2Update.status}`)
 
@@ -792,7 +892,7 @@ const main = async () => {
     token: b1Tok,
     body: { revenue: 1000, period: 'FT-FB-Q3' }
   })
-  ok('06.7c revenue trên FULL_BUYOUT → 409 REVENUE_NOT_APPLICABLE', rRevFB.status === 409, `got ${rRevFB.status}`)
+  ok('06.7c revenue trên FULL_BUYOUT → 409 Error.RevenueNotApplicable', rRevFB.status === 409, `got ${rRevFB.status}`)
 
   // revenue trên contract DRAFT (chưa execute) → 409 (e.g. InvalidContractTransition hoặc similar)
   const t7 = await setupSeriesAndDraftContract(m1, e1, b1, sa)

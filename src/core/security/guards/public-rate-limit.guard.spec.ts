@@ -38,7 +38,6 @@ describe('PublicRateLimitGuard', () => {
       status: 429,
       response: expect.objectContaining({
         message: 'Error.PublicRateLimited',
-        code: 'PUBLIC_RATE_LIMITED',
         retryAfter: 42
       })
     })

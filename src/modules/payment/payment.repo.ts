@@ -51,6 +51,14 @@ export class PaymentRecordRepo {
     })
   }
 
+  // S-01: dùng cho object-level authorization của `GET /series/:id/payments`.
+  findSeriesOwners(seriesId: string) {
+    return this.prisma.series.findUnique({
+      where: { id: seriesId },
+      select: { id: true, mangakaId: true, editorId: true, coOwnerId: true }
+    })
+  }
+
   async findMany(params: {
     status?: string
     receiverId?: string

@@ -139,8 +139,9 @@ describe('SeriesLifecycleService.changeFormat', () => {
     // message mới PHẢI nhắc Editor về deadline
     expect(SeriesMessages.notification.seriesFormatChanged).toContain('deadline')
 
-    // KHÔNG đụng Schedule
-    expect(d.repo.updateSchedule).toBeUndefined()
+    // KHÔNG đụng Schedule — repo của series không được lộ bất kỳ mutator lịch nào
+    // (đổi nhịp xuất bản KHÔNG hồi tố deadline chapter đang sản xuất — Requiment Flow 5 CHANGE_FORMAT).
+    expect(Object.keys(d.repo)).not.toContain('updateSchedule')
   })
 })
 

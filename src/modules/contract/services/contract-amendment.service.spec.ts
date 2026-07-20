@@ -352,7 +352,7 @@ describe('ContractAmendmentService', () => {
       contractRepo.findWithBoardDecision.mockResolvedValue(boardCtx())
       await expect(
         service.signBoard(CONTRACT, '64a000000000000000000003', 'outsider', 'o@x.com', '123456')
-      ).rejects.toThrow(/NOT_AUTHORIZED_IN_BOARD/)
+      ).rejects.toThrow(/Error.NotAuthorizedInBoard/)
     })
   })
 

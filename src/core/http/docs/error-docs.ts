@@ -40,12 +40,14 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.ContractMangakaMismatch': 'mangakaId must be the current owner of the series',
   'Error.OpenContractExists': 'the series or Board Decision already has a contract that is still active',
   'Error.ContractNotSignableYet': 'contract must reach BOARD_APPROVED before it can be signed (B-CON-02)',
+  'Error.ContractNotExecutedForPdf':
+    'PDF can only be exported once the contract is FULLY_EXECUTED or terminal (Spec 24)',
   'Error.NotCoOwner': 'only the series co-owner (PARTIAL_TRANSFER) can approve/reject this chapter',
   'Error.CoOwnerApprovalNotPending': 'co-owner approval is not PENDING; already decided or escalated',
   'Error.CoOwnerApprovalNotFound': 'no co-owner approval record exists for this chapter',
   'Error.InvalidTransferState': 'transfer request is not in the required state for this action (B-TRF-03)',
   'Error.ValuationRequired': 'a positive valuationAmount is required for Full Buyout re-valuation (B-TRF-02)',
-  REVENUE_NOT_APPLICABLE: 'contract must be REVENUE_SHARE and FULLY_EXECUTED to report revenue',
+  'Error.RevenueNotApplicable': 'contract must be REVENUE_SHARE and FULLY_EXECUTED to report revenue',
   'Error.DeadlineRequestAccessDenied': 'current user cannot access or mutate this deadline request',
   'Error.DeadlineRequestNotAllowed': 'deadline action is not allowed for the current chapter or request state',
   'Error.DeadlineRequestNotFound': 'deadline request, chapter, or schedule does not exist',
@@ -185,6 +187,8 @@ export const ERROR_HINTS: Record<string, string> = {
     'caller is not the mangaka of this contract (approve / request-changes / sign / signing progress)',
   'Error.ContractAccessDenied':
     'contract is outside the caller view scope (mangaka: own, editor: assigned, board: all)',
+  'Error.PaymentAccessDenied':
+    'payment is outside the caller view scope (receiver: own; editor: assigned contract; mangaka: own contract/series; board/admin: all)',
   'Error.InvalidPhaseTransition': 'session phase only moves forward: PRESENTING -> QA -> VOTING (skipping allowed)',
   'Error.VotingNotOpen': 'castVote requires session.phase = VOTING - the session creator must advance the phase first',
   'Error.DecisionAlreadyFinalized': 'decision already APPROVED/REJECTED/EXPIRED — voting closed',

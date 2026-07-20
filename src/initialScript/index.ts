@@ -8,9 +8,9 @@ config()
 
 const prisma = new PrismaService()
 const hashingService = new HashingService()
-prisma.$connect()
 
 export const main = async () => {
+  await prisma.$connect()
   const roleCount = await prisma.role.count()
   if (roleCount > 0) {
     throw new Error('Roles already exist in the database. Please clear the roles table before running this script.')
@@ -64,15 +64,14 @@ export const main = async () => {
   }
 }
 
-export const initDB = () => {
-  main()
-    .then(({ createdRoleCount }) => {
-      console.log(`Created ${createdRoleCount} roles`)
-    })
-    .catch((error) => {
-      console.error('Error seeding data:', error)
-    })
-    .finally(() => {
-      prisma.$disconnect()
-    })
+export const initDB = async () => {
+  try {
+    const { createdRoleCount } = await main()
+    console.log(`Created ${createdRoleCount} roles`)
+  } catch (error) {
+    console.error('Error seeding data:', error)
+    process.exitCode = 1
+  } finally {
+    await prisma.$disconnect()
+  }
 }

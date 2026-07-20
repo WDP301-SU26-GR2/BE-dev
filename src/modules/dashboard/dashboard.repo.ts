@@ -167,7 +167,8 @@ export class DashboardRepository {
 
   async severeRiskRankings() {
     const records = await this.prisma.rankingRecord.findMany({
-      orderBy: { recordedAt: 'desc' }
+      orderBy: { recordedAt: 'desc' },
+      select: { seriesId: true, rankPosition: true, riskLevel: true, recordedAt: true }
     })
     return this.latestPerSeries(records).filter((record) => record.riskLevel === $Enums.RiskLevel.SEVERE)
   }

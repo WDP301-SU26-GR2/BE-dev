@@ -420,7 +420,7 @@ describe('BoardService read response enrichment (Spec 16)', () => {
         { id: MEMBER_2, displayName: 'Member Two', avatar: null }
       ]
     })
-    expect(detail.creator.displayName).toBe('Creator Name')
+    expect(detail.creator?.displayName).toBe('Creator Name')
     expect(detail.members).toHaveLength(2)
   })
 

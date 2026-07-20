@@ -5,13 +5,15 @@ import { NameRepo } from 'src/modules/name/name.repo'
 import { SERIES_TRANSITIONS } from '../series.constant'
 import { InvalidSeriesTransitionException, SeriesNotFoundException } from '../errors/series.errors'
 import { SeriesRepository } from '../series.repo'
+import { CacheService } from 'src/infrastructure/redis/cache.service'
 
 @Injectable()
 export class SeriesStateService {
   constructor(
     private readonly seriesRepository: SeriesRepository,
     private readonly nameRepo: NameRepo,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    private readonly cacheService: CacheService
   ) {}
 
   async transition(seriesId: string, toStatus: SeriesStatus, opts: { changedBy: string | null; reason?: string }) {
@@ -35,6 +37,8 @@ export class SeriesStateService {
       toState: toStatus,
       reason: opts.reason
     })
+    await this.cacheService.bumpVersion('pubseries')
+    await this.cacheService.bumpVersion('votectx')
     return updated
   }
 

@@ -42,7 +42,8 @@ export const ENUM_DOCS = {
   AnnotationTargetType: 'Annotation target: PAGE, REGION, TASK, MANUSCRIPT, NAME',
   AnnotationType: 'Annotation type: TEXT, HIGHLIGHT, DRAWING',
   ReviewStage: 'Review stage: ASSISTANT, MANGAKA, EDITOR',
-  AssetType: 'Uploaded asset type',
+  AssetType:
+    'Uploaded asset type: REFERENCE, BACKGROUND, SCREENTONE, BRUSH, OTHER, DOCUMENT (system-generated documents)',
   NotificationType: 'Notification type: SYSTEM, CONTRACT, TASK, DEADLINE, SURVEY, BOARD, REVIEW',
   RevisionTargetType: 'Đối tượng của vòng yêu cầu sửa: PROPOSAL, NAME, MANUSCRIPT, TASK',
   AiJobType: 'AI job type: SEGMENT; COLOR/NUMBER are reserved for Spec 3',

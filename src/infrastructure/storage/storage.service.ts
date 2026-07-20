@@ -78,6 +78,19 @@ export class StorageService {
     }
   }
 
+  // Spec 24: server-generated artifacts (for example contract PDFs) are uploaded directly by the backend.
+  // User-originated files must continue to use createPresignedUpload.
+  async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: storageEnvConfig.R2_BUCKET,
+        Key: key,
+        Body: body,
+        ContentType: contentType
+      })
+    )
+  }
+
   async headObjectExists(key: string): Promise<boolean> {
     try {
       await this.client.send(new HeadObjectCommand({ Bucket: storageEnvConfig.R2_BUCKET, Key: key }))
