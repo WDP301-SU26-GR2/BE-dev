@@ -1146,16 +1146,44 @@ const main = async () => {
   await mkPage(2)
 
   // --- PATCH mở rộng ---
+  // originalFile là NGUỒN cho AI segment + Assistant workspace → PATCH KHÔNG được đè.
+  // Muốn thay bản gốc: xoá trang rồi upload lại.
   const patchOriginal = await req('PATCH', `/pages/${pg1.id}`, {
     token: s.tokens.mA,
     body: { originalFile: 'r2://p1-redraw.png' }
   })
-  ok('F02-P01 PATCH originalFile → 200', patchOriginal.status === 200, `got ${patchOriginal.status}`)
+  ok('F02-P01 PATCH originalFile bị từ chối → 422', patchOriginal.status === 422, `got ${patchOriginal.status}`)
   const pg1AfterFile = await prisma.page.findUnique({ where: { id: pg1.id } })
   ok(
-    'F02-P01b originalFile persisted',
-    pg1AfterFile?.originalFile === 'r2://p1-redraw.png',
+    'F02-P01b bản gốc KHÔNG bị thay đổi',
+    pg1AfterFile?.originalFile === 'r2://p1.png',
     `got ${pg1AfterFile?.originalFile}`
+  )
+
+  // displayFile = compositeFile ?? originalFile — FE chỉ đọc 1 field để render
+  const beforeComposite = await req('GET', `/chapters/${cPage.id}/pages`, { token: s.tokens.mA })
+  const pgBefore = ((beforeComposite.json?.data?.items ?? []) as Array<Record<string, unknown>>).find(
+    (item) => item.id === pg1.id
+  )
+  ok(
+    'F02-P01c chưa có composite → displayFile fallback về originalFile',
+    pgBefore?.displayFile === 'r2://p1.png',
+    `got ${String(pgBefore?.displayFile)}`
+  )
+
+  const patchComposite = await req('PATCH', `/pages/${pg1.id}`, {
+    token: s.tokens.mA,
+    body: { compositeFile: 'r2://p1-final.png' }
+  })
+  ok('F02-P01d PATCH compositeFile → 200', patchComposite.status === 200, `got ${patchComposite.status}`)
+  const afterComposite = await req('GET', `/chapters/${cPage.id}/pages`, { token: s.tokens.mA })
+  const pgAfter = ((afterComposite.json?.data?.items ?? []) as Array<Record<string, unknown>>).find(
+    (item) => item.id === pg1.id
+  )
+  ok(
+    'F02-P01e có composite → displayFile trỏ composite, originalFile vẫn còn nguyên',
+    pgAfter?.displayFile === 'r2://p1-final.png' && pgAfter?.originalFile === 'r2://p1.png',
+    `display=${String(pgAfter?.displayFile)} original=${String(pgAfter?.originalFile)}`
   )
 
   const patchDupNumber = await req('PATCH', `/pages/${pg1.id}`, { token: s.tokens.mA, body: { pageNumber: 2 } })
@@ -1222,6 +1250,26 @@ const main = async () => {
   ok('F02-P13c page đã xoá khỏi DB', (await prisma.page.findUnique({ where: { id: pgDel.id } })) === null)
   ok('F02-P13d region cascade đã xoá', (await prisma.region.findUnique({ where: { id: delRegion.id } })) === null)
   ok('F02-P13e task cascade đã xoá', (await prisma.task.findUnique({ where: { id: delTask.id } })) === null)
+
+  // Gate đồng bộ PA-03: không cho xoá mất công trợ lý ĐÃ ĐƯỢC DUYỆT
+  const pgApproved = await mkPage(12)
+  const approvedTask = await makeTaskAt({
+    pageId: pgApproved.id,
+    assistantId: studioAssistant.id,
+    status: TaskStatus.APPROVED
+  })
+  const delApprovedPage = await req('DELETE', `/pages/${pgApproved.id}`, { token: s.tokens.mA })
+  expectError(delApprovedPage, 409, 'Error.PageHasApprovedTasks', 'F02-P13f xoá trang có task APPROVED → 409')
+  ok(
+    'F02-P13g trang + task APPROVED vẫn còn nguyên',
+    (await prisma.page.findUnique({ where: { id: pgApproved.id } })) !== null &&
+      (await prisma.task.findUnique({ where: { id: approvedTask.id } })) !== null
+  )
+  const bulkApproved = await req('DELETE', `/chapters/${cPage.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageIds: [pgApproved.id] }
+  })
+  expectError(bulkApproved, 409, 'Error.PageHasApprovedTasks', 'F02-P13h bulk chứa trang có task APPROVED → 409')
 
   const delMissing = await req('DELETE', `/pages/${pgDel.id}`, { token: s.tokens.mA })
   expectError(delMissing, 404, 'Error.PageNotFound', 'F02-P14 xoá lại trang đã mất → 404')

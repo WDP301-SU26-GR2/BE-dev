@@ -42,7 +42,6 @@ export const CreatePageBodySchema = extendApi(
 export const UpdatePageBodySchema = extendApi(
   z
     .object({
-      originalFile: z.string().min(1).nullish().describe('Object key file gốc pencil/ink (A7) — thay bản vẽ lại'),
       compositeFile: z.string().min(1).nullish().describe('Object key bản tổng hợp (A7)'),
       pageNumber: z.number().int().min(1).nullish().describe('Đổi số trang; trùng số trong cùng chapter → 409')
     })
@@ -161,6 +160,10 @@ export const PageResSchema = extendApi(
     pageNumber: z.number(),
     originalFile: z.string().nullable().describe('Object key file gốc (pencil/ink) trên R2'),
     compositeFile: z.string().nullable().describe('Object key file composite trên R2'),
+    displayFile: z
+      .string()
+      .nullable()
+      .describe('Ảnh nên HIỂN THỊ = compositeFile ?? originalFile. FE dùng field này để render, khỏi tự fallback'),
     status: zEnum(PageStatus, 'PageStatus'),
     createdAt: z.string()
   }),
