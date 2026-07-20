@@ -441,9 +441,9 @@ const main = async () => {
     (await prisma.paymentRecord.findUnique({ where: { id: pr.id } }))?.status === PaymentRecordStatus.APPROVED
   )
 
-  // approve lần 2 (status != TRIGGERED) → INVALID_STATUS_FOR_APPROVAL_EXPECTED_TRIGGERED
+  // approve lần 2 (status != TRIGGERED) → Error.PaymentNotApprovable
   const rAp2 = await req('PATCH', `/payments/${pr.id}/approve`, { token: b1Tok, body: { approvedBy: b1.id } })
-  expectError(rAp2, 400, 'INVALID_STATUS_FOR_APPROVAL_EXPECTED_TRIGGERED', '06.3e approve lần 2 → 400')
+  expectError(rAp2, 400, 'Error.PaymentNotApprovable', '06.3e approve lần 2 → 400')
 
   // pay → PAID (server 500 bug)
   const rPay = await req('PATCH', `/payments/${pr.id}/pay`, {
@@ -472,15 +472,11 @@ const main = async () => {
     token: b1Tok,
     body: { paymentMethod: 'CASH', transactionReference: 'TXN-FT-002' }
   })
-  ok(
-    '06.3h pay từ TRIGGERED → 400 INVALID_STATUS_FOR_PAYMENT_EXPECTED_APPROVED',
-    rPayFromTrig.status === 400,
-    `got ${rPayFromTrig.status}`
-  )
+  ok('06.3h pay từ TRIGGERED → 400 Error.PaymentNotPayable', rPayFromTrig.status === 400, `got ${rPayFromTrig.status}`)
 
-  // cancel record đã PAID → 400 PAYMENT_ALREADY_PAID_CANNOT_CANCEL
+  // cancel record đã PAID → 400 Error.PaymentAlreadyPaid
   const rCancelPaid = await req('PATCH', `/payments/${pr.id}/cancel`, { token: b1Tok, body: { cancelReason: 'oops' } })
-  expectError(rCancelPaid, 400, 'PAYMENT_ALREADY_PAID_CANNOT_CANCEL', '06.3i cancel PAID → 400')
+  expectError(rCancelPaid, 400, 'Error.PaymentAlreadyPaid', '06.3i cancel PAID → 400')
 
   // cancel TRIGGERED → CANCELLED (BE-004 đã fix → 200)
   const rCancelTrig = await req('PATCH', `/payments/${pr2.id}/cancel`, {
@@ -613,7 +609,7 @@ const main = async () => {
   })
   ok('06.5a M2 approve HĐ của M1 → 403', rM2Approve.status === 403, `got ${rM2Approve.status}`)
 
-  // E2 (không phải editor phụ trách) update → 403 ONLY_ASSIGNED_EDITOR_CAN_EDIT
+  // E2 (không phải editor phụ trách) update → 403 Error.NotAssignedContractEditor
   const rE2Update = await req('PATCH', `/contracts/${cRBAC}`, { token: e2Tok, body: { valuationAmount: 9999 } })
   ok('06.5b E2 (không phải editor HĐ) PATCH → 403', rE2Update.status === 403, `got ${rE2Update.status}`)
 
@@ -844,7 +840,7 @@ const main = async () => {
     token: b1Tok,
     body: { revenue: 1000, period: 'FT-FB-Q3' }
   })
-  ok('06.7c revenue trên FULL_BUYOUT → 409 REVENUE_NOT_APPLICABLE', rRevFB.status === 409, `got ${rRevFB.status}`)
+  ok('06.7c revenue trên FULL_BUYOUT → 409 Error.RevenueNotApplicable', rRevFB.status === 409, `got ${rRevFB.status}`)
 
   // revenue trên contract DRAFT (chưa execute) → 409 (e.g. InvalidContractTransition hoặc similar)
   const t7 = await setupSeriesAndDraftContract(m1, e1, b1, sa)

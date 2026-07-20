@@ -138,13 +138,8 @@ const main = async () => {
       proposedType: TransferType.FULL_TRANSFER
     }
   })
-  // 400 + NO_ACTIVE_CONTRACT_FOUND_FOR_THIS_SERIES
-  expectError(
-    r3,
-    400,
-    'NO_ACTIVE_CONTRACT_FOUND_FOR_THIS_SERIES',
-    '8.3a no contract → NO_ACTIVE_CONTRACT_FOUND_FOR_THIS_SERIES'
-  )
+  // 400 + Error.NoActiveContractForSeries
+  expectError(r3, 400, 'Error.NoActiveContractForSeries', '8.3a no contract → Error.NoActiveContractForSeries')
 
   // ─── Section 8.4 — Board reject → REJECTED_BY_BOARD ────────────────────────
   section('8.4 B reject screening → REJECTED_BY_BOARD')
@@ -190,8 +185,8 @@ const main = async () => {
   expectError(
     r6,
     400,
-    'INVALID_STATUS_FOR_SCREENING',
-    '8.6a board-approve khi UNDER_REVIEW → INVALID_STATUS_FOR_SCREENING'
+    'Error.InvalidStatusForScreening',
+    '8.6a board-approve khi UNDER_REVIEW → Error.InvalidStatusForScreening'
   )
 
   // ─── Section 8.7 — Scoping: GET /transfers/requests/mine / pending-board ─
@@ -258,12 +253,7 @@ const main = async () => {
       conditions: [{ description: 'test', type: 'RECURRING_CHAPTER', value: 100 }]
     }
   })
-  expectError(
-    r11c,
-    400,
-    'THIS_ACTION_ONLY_APPLIES_TO_FULL_BUYOUT_CONTRACTS',
-    '8.11b assign-full-buyout trên RS → OnlyAppliesToFullBuyout'
-  )
+  expectError(r11c, 400, 'Error.OnlyAppliesToFullBuyout', '8.11b assign-full-buyout trên RS → OnlyAppliesToFullBuyout')
 
   // ─── Section 8.12 — assign-full-buyout hợp lệ → HĐ cũ TERMINATED + new contract ─
   section('8.12 assign-full-buyout hợp lệ → TERMINATED old + ACCEPTED + new contract')
@@ -394,15 +384,15 @@ const main = async () => {
   )
 
   // ─── Section 8.18 — accept khi không NEGOTIATING → RequestNotInNegotiatingStage ─
-  section('8.18 mangaka-accept khi ≠ NEGOTIATING → REQUEST_IS_NOT_IN_NEGOTIATING_STAGE')
+  section('8.18 mangaka-accept khi ≠ NEGOTIATING → Error.RequestNotInNegotiatingStage')
   const r18 = await req('POST', `/transfers/requests/${acceptId}/mangaka-accept`, {
     token: mB1Tok
   })
   expectError(
     r18,
     400,
-    'REQUEST_IS_NOT_IN_NEGOTIATING_STAGE',
-    '8.18a accept khi UNDER_REVIEW → REQUEST_IS_NOT_IN_NEGOTIATING_STAGE'
+    'Error.RequestNotInNegotiatingStage',
+    '8.18a accept khi UNDER_REVIEW → Error.RequestNotInNegotiatingStage'
   )
 
   // ─── Section 8.19 — Tạo TransferContract khi request chưa UNDER_REVIEW ──
@@ -518,18 +508,13 @@ const main = async () => {
   ok('8.22e 3 signatures', sigs.length === 3, `got ${sigs.length}`)
 
   // ─── Section 8.23 — Sign lần 2 với cùng role → UserHasAlreadySigned ───
-  section('8.23 sign lần 2 cùng role → USER_HAS_ALREADY_SIGNED_THIS_CONTRACT')
+  section('8.23 sign lần 2 cùng role → Error.TransferAlreadySigned')
   await seedOtp(mA.email, 'SIGNING_CONTRACT')
   const r23 = await req('POST', `/transfers/contracts/${contractTId}/sign?signerRole=MANGAKA_A`, {
     token: mATok,
     body: { otpCode: '123456' }
   })
-  expectError(
-    r23,
-    400,
-    'USER_HAS_ALREADY_SIGNED_THIS_CONTRACT',
-    '8.23a re-sign MANGAKA_A → USER_HAS_ALREADY_SIGNED_THIS_CONTRACT'
-  )
+  expectError(r23, 400, 'Error.TransferAlreadySigned', '8.23a re-sign MANGAKA_A → Error.TransferAlreadySigned')
 
   // ─── Section 8.24 — PARTIAL_TRANSFER → Series.coOwnerId = original + coOwnerApprovalRequired ─
   section('8.24 PARTIAL_TRANSFER → co-owner setup')
@@ -666,18 +651,18 @@ const main = async () => {
     ok('8.29 skipped (8.25 failed)', true)
   }
 
-  // ─── Section 8.30 — Sign contract id rác → TRANSFER_CONTRACT_NOT_FOUND ─
+  // ─── Section 8.30 — Sign contract id rác → Error.TransferContractNotFound ─
   section('8.30 sign contract id rác → 404')
   const r30a = await req('POST', `/transfers/contracts/${OBJECT_ID_RANDOM}/sign?signerRole=BOARD`, {
     token: b1Tok,
     body: { otpCode: '123456' }
   })
-  expectError(r30a, 404, 'TRANSFER_CONTRACT_NOT_FOUND', '8.30a sign contract rác → TRANSFER_CONTRACT_NOT_FOUND')
+  expectError(r30a, 404, 'Error.TransferContractNotFound', '8.30a sign contract rác → Error.TransferContractNotFound')
   const r30b = await req('POST', '/transfers/contracts/notahexid/sign?signerRole=BOARD', {
     token: b1Tok,
     body: { otpCode: '123456' }
   })
-  expectError(r30b, 404, 'TRANSFER_CONTRACT_NOT_FOUND', '8.30b sign format rác → TRANSFER_CONTRACT_NOT_FOUND')
+  expectError(r30b, 404, 'Error.TransferContractNotFound', '8.30b sign format rác → Error.TransferContractNotFound')
 
   // ─── Section 8.31 — getSignatures ────────────────────────────────────────
   section('8.31 GET /transfers/contracts/:id/signatures')
@@ -735,7 +720,7 @@ const main = async () => {
     token: mB1Tok,
     body: { otpCode: '000000' }
   })
-  // Có thể trả 422 InvalidOTP hoặc 400 USER_OR_EMAIL_NOT_FOUND nếu user lookup fail
+  // Có thể trả 422 InvalidOTP hoặc 400 Error.TransferSignerNotFound nếu user lookup fail
   ok(
     '8.32f sign OTP sai → không 500',
     r32f.status === 422 || r32f.status === 400 || r32f.status === 404,

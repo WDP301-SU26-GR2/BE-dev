@@ -58,7 +58,8 @@ export const expectStatus = (r: Res, status: number, name: string) =>
   ok(name, r.status === status, `expect ${status} got ${r.status} ${r.raw?.slice(0, 200)}`)
 
 // Check status + mã Error.* (message top-level HOẶC errors[].message).
-// Error code thường có dạng `Error.XYZ`; ngoài ra có code dạng `AUTH_OTP_RATE_LIMITED` (rate-limit).
+// Từ 2026-07-20 MỌI code đều có dạng `Error.XYZ` — các mã SCREAMING_SNAKE legacy (rate-limit,
+// contract/payment/transfer) đã được chuẩn hoá; test convention ở error-text.registry.spec chặn tái phát.
 export const expectError = (r: Res, status: number, code: string, name: string) => {
   const top = typeof r.json?.message === 'string' ? r.json.message : ''
   const arr = Array.isArray(r.json?.errors) ? (r.json.errors as unknown[]) : []

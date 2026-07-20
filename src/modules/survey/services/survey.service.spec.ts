@@ -938,7 +938,7 @@ describe('Fix-2 G-4a - OTP cooldown', () => {
       makeService(m).requestOtp({ identity: 'r@example.com', captchaToken: 't' }, '1.2.3.4')
     ).rejects.toMatchObject({
       status: 429,
-      response: expect.objectContaining({ code: 'VOTE_OTP_RATE_LIMITED', retryAfter: 42 })
+      response: expect.objectContaining({ message: 'Error.VoteOtpRateLimit', retryAfter: 42 })
     })
     expect(m.authOtpService.sendOTPService).not.toHaveBeenCalled()
   })

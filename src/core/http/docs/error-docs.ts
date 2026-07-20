@@ -47,7 +47,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.CoOwnerApprovalNotFound': 'no co-owner approval record exists for this chapter',
   'Error.InvalidTransferState': 'transfer request is not in the required state for this action (B-TRF-03)',
   'Error.ValuationRequired': 'a positive valuationAmount is required for Full Buyout re-valuation (B-TRF-02)',
-  REVENUE_NOT_APPLICABLE: 'contract must be REVENUE_SHARE and FULLY_EXECUTED to report revenue',
+  'Error.RevenueNotApplicable': 'contract must be REVENUE_SHARE and FULLY_EXECUTED to report revenue',
   'Error.DeadlineRequestAccessDenied': 'current user cannot access or mutate this deadline request',
   'Error.DeadlineRequestNotAllowed': 'deadline action is not allowed for the current chapter or request state',
   'Error.DeadlineRequestNotFound': 'deadline request, chapter, or schedule does not exist',

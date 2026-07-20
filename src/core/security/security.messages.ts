@@ -1,32 +1,32 @@
 // Centralized messages emitted by the security layer (auth/role guards).
-// Plain strings only. `mustChangePassword` is an `Error.*` code FE maps to text;
-// the others are literal guard messages kept as-is for backward compatibility.
+// Plain strings only. Mọi mã đều theo convention `Error.PascalCase` (AGENTS §7) — chuỗi ném ra CHÍNH LÀ
+// `code` mà FE phân nhánh, `errorText` bên dưới là bản dịch hiển thị.
+// Trước 2026-07-20 nhóm này dùng câu tiếng Anh nguyên văn ('Unauthorized', 'Access token is required'...)
+// làm code — đã chuẩn hoá; test convention ở error-text.registry.spec chặn tái phát.
 export const SecurityMessages = {
-  accessTokenRequired: 'Access token is required',
-  invalidAccessToken: 'Invalid access token',
-  unauthorized: 'Unauthorized',
+  accessTokenRequired: 'Error.AccessTokenRequired',
+  invalidAccessToken: 'Error.InvalidAccessToken',
+  unauthorized: 'Error.Unauthorized',
   mustChangePassword: 'Error.MustChangePassword',
   otpRateLimited: 'Error.OtpRateLimited',
   publicRateLimited: 'Error.PublicRateLimited',
-  forbiddenResource: 'You do not have permission to access this resource',
+  forbiddenResource: 'Error.ForbiddenResource',
   error: {
-    accessTokenRequired: 'Access token is required',
-    invalidAccessToken: 'Invalid access token',
-    unauthorized: 'Unauthorized',
+    accessTokenRequired: 'Error.AccessTokenRequired',
+    invalidAccessToken: 'Error.InvalidAccessToken',
+    unauthorized: 'Error.Unauthorized',
     mustChangePassword: 'Error.MustChangePassword',
     otpRateLimited: 'Error.OtpRateLimited',
     publicRateLimited: 'Error.PublicRateLimited',
-    forbiddenResource: 'You do not have permission to access this resource'
+    forbiddenResource: 'Error.ForbiddenResource'
   },
   errorText: {
-    'Access token is required': 'Vui lòng cung cấp access token',
-    'Invalid access token': 'Access token không hợp lệ',
-    Unauthorized: 'Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn',
+    'Error.AccessTokenRequired': 'Vui lòng cung cấp access token',
+    'Error.InvalidAccessToken': 'Access token không hợp lệ',
+    'Error.Unauthorized': 'Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn',
     'Error.MustChangePassword': 'Bạn cần đổi mật khẩu trước khi tiếp tục',
     'Error.OtpRateLimited': 'Bạn thao tác quá nhanh — vui lòng thử lại sau',
     'Error.PublicRateLimited': 'Bạn thao tác quá nhanh — vui lòng thử lại sau',
-    AUTH_OTP_RATE_LIMITED: 'Bạn thao tác quá nhanh — vui lòng thử lại sau',
-    PUBLIC_RATE_LIMITED: 'Bạn thao tác quá nhanh — vui lòng thử lại sau',
-    'You do not have permission to access this resource': 'Bạn không có quyền truy cập tài nguyên này'
+    'Error.ForbiddenResource': 'Bạn không có quyền truy cập tài nguyên này'
   }
 } as const
