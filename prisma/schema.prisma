@@ -1167,6 +1167,11 @@ model ContractVersion {
   note                  String?
   createdAt             DateTime
 
+  // S-05 (BACKEND_AUDIT_2026-07-20): versionNumber được cấp bằng `versions.length + 1` đọc từ
+  // snapshot NGOÀI transaction (contract.service + contract-amendment.repo) → hai lần sửa/phụ lục
+  // đồng thời cấp trùng số. Unique ép người thua nhận P2002 để retry lấy số kế tiếp.
+  @@unique([contractId, versionNumber])
+  @@index([contractId])
   @@index([editedById])
 }
 
@@ -1234,6 +1239,15 @@ model PaymentRecord {
   createdBy String?  @db.ObjectId
   createdAt DateTime @default(now())
 
+  // S-03 (BACKEND_AUDIT_2026-07-20): khoá idempotency ở tầng DB. `existsPayment` chỉ là
+  // lớp lọc rẻ và KHÔNG nguyên tử — hai event/retry đồng thời đều thấy "chưa tồn tại" rồi
+  // cùng ghi. Unique index này là nguồn sự thật: request thua nhận P2002 và bị
+  // `createPaymentOnce` nuốt thành "đã tồn tại".
+  // ⚠ Mọi field trong khoá phải được ghi null TƯỜNG MINH (xem payment.repo.createTriggeredPayment):
+  // Mongo index coi field absent như null, nhưng Prisma `where: { x: null }` KHÔNG match doc absent.
+  // Tuple an toàn vì `period` luôn có giá trị: `chapter:N` · `survey:<id>` · `termination:<seriesId>`
+  // · kỳ doanh thu — nên các mốc recurring/nhiều người nhận không đụng nhau.
+  @@unique([contractId, conditionId, receiverId, paymentType, period], name: "payment_idempotency")
   @@index([contractId])
   @@index([conditionId])
   @@index([approvedBy])

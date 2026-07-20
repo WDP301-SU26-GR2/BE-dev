@@ -40,8 +40,48 @@ export const CreatePageBodySchema = extendApi(
 )
 
 export const UpdatePageBodySchema = extendApi(
-  z.object({ compositeFile: z.string().min(1).nullish().describe('Object key bản tổng hợp (A7)') }).strict(),
-  { title: 'UpdatePageBody', description: 'Cập nhật composite key; trạng thái Page do backend quản lý' }
+  z
+    .object({
+      originalFile: z.string().min(1).nullish().describe('Object key file gốc pencil/ink (A7) — thay bản vẽ lại'),
+      compositeFile: z.string().min(1).nullish().describe('Object key bản tổng hợp (A7)'),
+      pageNumber: z.number().int().min(1).nullish().describe('Đổi số trang; trùng số trong cùng chapter → 409')
+    })
+    .strict(),
+  {
+    title: 'UpdatePageBody',
+    description: 'Cập nhật file/số trang; trạng thái Page do backend quản lý (omit/null = giữ nguyên)'
+  }
+)
+
+export const DeletePagesBulkBodySchema = extendApi(
+  z
+    .object({
+      pageIds: z
+        .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'pageId không hợp lệ'))
+        .min(1)
+        .max(50)
+        .describe('Danh sách page cần xoá (tối đa 50) — all-or-nothing')
+    })
+    .strict(),
+  { title: 'DeletePagesBulkBody', description: 'Xoá nhiều trang trong cùng chapter (all-or-nothing)' }
+)
+
+export const DeletePageResSchema = extendApi(
+  z.object({
+    pageId: z.string(),
+    deletedRegions: z.number().describe('Số vùng bị xoá theo trang'),
+    deletedTasks: z.number().describe('Số task bị xoá theo trang')
+  }),
+  { title: 'DeletePageRes', description: 'Kết quả xoá trang kèm cascade' }
+)
+
+export const DeletePagesBulkResSchema = extendApi(
+  z.object({
+    deletedPages: z.number(),
+    deletedRegions: z.number(),
+    deletedTasks: z.number()
+  }),
+  { title: 'DeletePagesBulkRes', description: 'Kết quả xoá nhiều trang' }
 )
 
 export const ReasonBodySchema = extendApi(z.object({ reason: z.string().max(1000).optional() }).strict(), {
@@ -190,6 +230,7 @@ export type SetScheduleBodyType = z.infer<typeof SetScheduleBodySchema>
 export type ExtendDeadlineBodyType = z.infer<typeof ExtendDeadlineBodySchema>
 export type CreatePageBodyType = z.infer<typeof CreatePageBodySchema>
 export type UpdatePageBodyType = z.infer<typeof UpdatePageBodySchema>
+export type DeletePagesBulkBodyType = z.infer<typeof DeletePagesBulkBodySchema>
 export type ReasonBodyType = z.infer<typeof ReasonBodySchema>
 export type RevisionReasonBodyType = z.infer<typeof RevisionReasonBodySchema>
 export type HoldChapterBodyType = z.infer<typeof HoldChapterBodySchema>

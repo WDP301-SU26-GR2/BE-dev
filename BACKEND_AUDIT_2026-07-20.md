@@ -1,5 +1,7 @@
 # Báo cáo audit toàn bộ Backend
 
+> ⚠️ **ĐỌC §13 TRƯỚC.** §1–§12 là ảnh chụp tại thời điểm audit và **đã lỗi thời một phần**: S-02 / S-03 / S-05 / F-03 / F-11 / F-12 nay ĐÃ FIX (2026-07-20, xem §13), và §3 ("full flow PASS 15/15") **sai kể từ khi S-01 land** — thực tế `cross-rbac-sweep` đỏ 1549/5. §13 ghi trạng thái đúng + 3 vấn đề chính audit này bỏ sót.
+
 **Ngày kiểm tra:** 2026-07-20  
 **Phạm vi:** toàn bộ `src/`, schema Prisma, cấu hình build/test/lint, Swagger, API HTTP, RBAC, WebSocket, cron, domain events, Redis, MongoDB và Cloudflare R2.  
 **Chuẩn đối chiếu:** `AGENTS.md` và `ARCHITECTURE.md` tại root repository.  
@@ -451,6 +453,112 @@ Lộ trình khuyến nghị:
 5. Đưa unit/e2e/dependency gates về xanh.
 6. Sau đó mới tách các service lớn và dọn nợ naming/lint/docs.
 
+## 12. Trạng thái sau đợt implement tiếp theo — re-verify 2026-07-20
+
+Quy ước: `[x] DONE` chỉ dùng khi code hiện tại và verification phù hợp đều chứng minh finding đã được xử lý; `[~] PARTIAL` là đã sửa đúng một phần nhưng gate/invariant chưa khép kín; `[ ] OPEN` là chưa có thay đổi đủ để giải quyết finding.
+
+### Checklist findings ban đầu
+
+| Finding | Trạng thái | Bằng chứng re-verify |
+|---|---|---|
+| F-01 Error-code migration | [x] **DONE phía BE** | Unit suite 151/151, 1.160/1.160 test pass; convention registry không còn fail. Việc phối hợp version/rollout với FE vẫn là công việc phát hành ngoài code BE. |
+| F-02 Jest E2E ESM/CJS | [~] **PARTIAL** | Mapper mock cho `@react-pdf/renderer` giúp 1/1 e2e test thực sự chạy và pass. Tuy nhiên Jest còn open handle, process không tự thoát và command timeout sau 180 giây; chưa đạt CI-green. |
+| F-03 Dependency advisories | [ ] **OPEN** | `pnpm audit --prod` vẫn báo 6 vulnerability: 2 high, 3 moderate, 1 low; `ws` và `multer` HIGH chưa được nâng. |
+| F-04 Service split threshold | [ ] **OPEN** | Không có đợt tách các hotspot Survey/Contract/Board/Payment; ContractService còn tăng thêm orchestration method. |
+| F-05 Atomic state boundary | [ ] **OPEN** | Việc chuyển dispatch khỏi controller là tốt nhưng transition Contract/Payment vẫn read/assert rồi update theo ID, chưa CAS/conditional update. |
+| F-06 Coverage vùng nghiệp vụ | [ ] **OPEN** | Có thêm test Payment S-01 nhưng chưa có coverage gate mới hoặc test concurrency cho các vùng rủi ro cao. |
+| F-07 Business dispatch trong ContractController | [x] **DONE** | Controller chỉ gọi `contractService.updateStatusByWorkflow()`; validate/dispatch/throw đã chuyển xuống service. Build và unit suite pass. |
+| F-08 RoleService truy cập Prisma trực tiếp | [x] **DONE** | Role lookup đã chuyển vào `AuthRepository.findRoleIdByCode()`; scan production service không còn `PrismaService` trực tiếp. |
+| F-09 Seed floating promise/lifecycle | [x] **DONE** | `$connect()` và `$disconnect()` được await; entrypoint dùng `void initDB()` và lỗi được xử lý trong `try/catch/finally`. |
+| F-10 ObjectId regex duplication | [ ] **OPEN** | Chưa có utility/schema dùng chung; bản sao regex vẫn tồn tại rộng. |
+| F-11 Lint warnings | [ ] **OPEN** | Read-only ESLint hiện báo 135 vấn đề: 1 error Prettier mới trong `flow-06-contract-payment.ts:517` và 134 warning. Gate còn tệ hơn baseline 0 error. |
+| F-12 console/docs drift | [~] **PARTIAL** | `envConfig.ts` đã bỏ `console.log`; vẫn còn `console.log` thực thi trong seed và flow README chưa được chứng minh đã cập nhật. |
+| F-13 Flow SKIP/gaps | [ ] **OPEN** | Không có thay đổi nhắm vào các case SKIP/out-of-scope đã liệt kê. |
+
+### Checklist senior deep-dive
+
+| Finding | Trạng thái | Bằng chứng re-verify |
+|---|---|---|
+| S-01 Payment BOLA + actor spoofing | [x] **DONE** | Controller truyền `ActiveUser`; service enforce receiver/contract/series ownership; approve/pay/cancel dùng actor từ token. Unit regression pass và Flow 06 chạy API/DB/R2 thật đạt 94/94, gồm outsider 403 và `approvedBy` không thể giả mạo. |
+| S-02 Contract signing atomicity/race | [ ] **OPEN** | `executeBoardSignature()` vẫn tạo signature và cập nhật Contract bằng hai write không transaction; logic vẫn đếm chữ ký trước write; chưa có concurrency test. |
+| S-03 Payment concurrency/idempotency | [ ] **OPEN** | `createPaymentOnce()` vẫn `existsPayment -> create`; schema chưa có unique idempotency key. Approve/pay/cancel vẫn update theo ID, chưa guard expected status/CAS. |
+| S-04 Durable domain events | [ ] **OPEN** | Chưa có outbox, replay hoặc reconciliation cho các event tài chính/hợp đồng. |
+| S-05 ContractVersion uniqueness | [ ] **OPEN** | Schema vẫn chưa có `@@unique([contractId, versionNumber])`; cách tính `versions.length + 1` vẫn tồn tại. |
+| S-06 Notification/cache policy | [ ] **ACCEPTED/UNCHANGED** | Vẫn best-effort/fail-open. Không phải blocker nếu product chính thức chấp nhận bounded staleness và notification loss; chưa có SLA/monitoring mới trong diff. |
+| S-07 Duplicate EventEmitter root | [x] **DONE** | `EventEmitterModule.forRoot()` chỉ còn ở `AppModule`; `CoreModule` không khởi tạo root lần hai. Build/unit/Flow 06 pass. |
+
+### Gate snapshot của lần re-verify
+
+| Gate | Kết quả mới |
+|---|---:|
+| `pnpm build` | **PASS** |
+| `prisma validate` | **PASS** |
+| Unit | **PASS — 151/151 suite, 1.160/1.160 test** |
+| E2E assertions | **PASS — 1/1**, nhưng command không thoát vì open handle → **PARTIAL** |
+| Flow 06 API + Mongo + Redis + R2 | **PASS — 94/94** |
+| ESLint read-only | **FAIL — 1 error, 134 warning** |
+| Dependency audit production | **FAIL — 2 high, 3 moderate, 1 low** |
+
+Tổng hợp: **6 finding DONE** (`F-01`, `F-07`, `F-08`, `F-09`, `S-01`, `S-07`), **2 PARTIAL** (`F-02`, `F-12`), **1 accepted nhưng chưa harden** (`S-06`), còn lại **OPEN**. P0 bảo mật S-01 đã được khép kín; rủi ro cao nhất còn lại là S-02/S-03/S-04 về contract/payment concurrency và event durability.
+
 ---
 
 **Xác nhận thay đổi:** audit không sửa source code, schema, test, cấu hình, database production hoặc Redis production. File duy nhất được tạo bởi audit là `BACKEND_AUDIT_2026-07-20.md`.
+
+---
+
+## 13. Đợt fix của BE-A — 2026-07-20 (sau audit), verify bằng output chạy thật
+
+> Scope do user chốt: **"Correctness + gate"** — sửa S-02 / S-03 / S-05 / F-03 / F-11 / F-12.
+> **Cố ý HOÃN:** S-04 (outbox) và F-04 (tách 27 service) — lý do ở §13.3.
+> Chi tiết đầy đủ + runbook deploy: `Docs/Epic-UserStory/PROGRESS-BE-A.md` §73.
+
+### 13.1. Trạng thái sau đợt fix
+
+| Finding | Trạng thái | Bằng chứng |
+|---|---|---|
+| S-02 Contract signing atomicity/race | [x] **DONE** | `recordBoardSignatureAndSettle` + `recordMangakaSignatureAndSettle` chạy trong `$transaction`, **đếm lại chữ ký bên trong tx**, CAS `settleFullyExecuted` nên chỉ một request emit `contract.executed`. Flow 06 **94/94**. Đã xoá `executeBoardSignature`. |
+| S-03 Payment concurrency/idempotency | [x] **DONE** | `@@unique payment_idempotency` + `createPaymentOnce` nuốt P2002 → trả null + CAS `updateWithExpectedStatus` cho approve/pay/cancel (người thua không audit/emit). Probe DB thật: trùng → P2002; khác receiver/period → vẫn insert. |
+| S-05 ContractVersion uniqueness | [x] **DONE** | `@@unique([contractId, versionNumber])` + `@@index([contractId])`; cấp số **trong transaction** ở cả 2 site + `withVersionRetry` (nếu không có retry thì chỉ đổi bug thầm lặng lấy lỗi 500). |
+| F-03 Dependency advisories | [x] **DONE** | overrides ở `pnpm-workspace.yaml` (⚠ pnpm 11 KHÔNG đọc `pnpm.overrides` trong package.json). `pnpm audit --prod` → **No known vulnerabilities found** (từ 6, gồm 2 HIGH). |
+| F-11 Lint error | [x] **DONE** | **0 error** / 136 warning. |
+| F-12 console/docs drift | [x] **DONE (phần console)** | `initialScript` dùng Nest `Logger`. |
+| S-04 Durable domain events | [ ] **HOÃN có chủ đích** | xem §13.3 |
+| F-04 / F-06 / F-10 / F-02 / F-13 | [ ] **OPEN** | không nằm trong scope đợt này |
+
+### 13.2. 🔴 Ba vấn đề audit này BỎ SÓT (BE-A tìm ra khi verify — đều đã fix)
+
+1. **Dedupe payment chưa bao giờ chạy — bug tiền thật, KHÔNG cần concurrency.**
+   `createTriggeredPayment` ghi `conditionId ?? undefined` (**ABSENT**) trong khi `existsPayment` query `conditionId: null`; Mongo/Prisma **không match doc absent**. Với mọi REVENUE_SHARE/COMPENSATION, lớp dedupe câm hoàn toàn.
+   **Bằng chứng:** `prisma db push` lên DB flowtest **FAIL E11000 vì đã tồn tại 4 bản REVENUE_SHARE trùng hệt nhau** do chính ứng dụng tạo ra.
+   ⇒ Audit xếp S-03 thuần "race condition" là **chưa đủ**: lỗi xảy ra ở luồng tuần tự bình thường.
+
+2. **Cùng gotcha suýt vô hiệu hoá luôn fix S-02.** CAS đầu tiên viết `where: { boardSignedAt: null }` — contract chưa ký có field ABSENT ⇒ CAS không khớp ⇒ hợp đồng không bao giờ chốt. **1176 unit test xanh hết**, chỉ flowtest DB thật bắt được. Đã sửa thành `OR: [{ x: null }, { x: { isSet: false } }]`.
+
+3. **§12 tự đánh S-01 DONE nhưng không chạy lại full flowtest.** `cross-rbac-sweep` đang **1549/5 FAIL** ngay trên baseline `bb51673` (BE-A xác minh bằng `git stash` rồi chạy lại trên code gốc). Commit S-01 thêm object-level authz cho 3 route payment read, phá giả định của sweep ("id giả → 404 trước khi so scope"); service trả **403 thay vì 404 để không lộ sự tồn tại** — đúng về bảo mật, nhưng sweep chưa được cập nhật. Đã thêm `OBJECT_SCOPED_ROUTES` → **1554/0**.
+   ⇒ Câu "Full real-data flow PASS 15/15" ở §3 đã **lỗi thời** kể từ khi S-01 land.
+
+### 13.3. Vì sao HOÃN S-04 (khác khuyến nghị của audit)
+
+Audit xếp S-04 mức HIGH và đề xuất transactional outbox. BE-A đánh giá lại:
+- Dựng outbox + worker retry + dead-letter + reconciliation là **một spec riêng cỡ Spec 23/24**, chạm mọi listener tài chính.
+- Failure mode của nó (process chết đúng khe giữa DB commit và listener) **hiếm hơn nhiều** so với S-02 vốn đang hỏng ở luồng vận hành bình thường.
+- Ưu tiên đúng phải là: khoá correctness trước (S-02/S-03/S-05), rồi mới bàn durability.
+**Khuyến nghị nếu muốn hạ rủi ro mà chưa dựng outbox:** job reconciliation đối soát `chapter.published` / `ranking.finalized` / `revenue.reported` với `PaymentRecord`, kèm metric cho listener failure.
+
+### 13.4. Gate snapshot sau đợt fix (chạy thật)
+
+| Gate | Trước (§12) | Sau (§13) |
+|---|---:|---:|
+| `pnpm build` | PASS | **PASS** |
+| `npx tsc --noEmit` | ~10 lỗi pre-existing đã dọn ở §71 | **0** |
+| Unit | 1.160 / 151 suite | **1.176 / 151 suite** (+16 so với §12, +29 so với baseline §72) |
+| `pnpm lint` | **FAIL — 1 error** | **PASS — 0 error**, 136 warning |
+| `pnpm audit --prod` | **FAIL — 2 high, 3 moderate, 1 low** | **PASS — 0 vulnerability** |
+| `pnpm flowtest` | 15/15 theo §3 nhưng **thực tế 13/15** (rbac-sweep đỏ) | **15/15 PASS, exit 0** |
+| flow-06 | 94/94 | **94/94** |
+| cross-rbac-sweep | **1549 / 5 FAIL** | **1554 / 0** |
+
+⚠️ **Có schema delta** (2 unique index + 1 index) → deploy phải theo runbook `PROGRESS-BE-A.md` §73.6: chạy `scripts/migrate-payment-idempotency.mjs --dry-run` **TRƯỚC** `db push`; script **cố tình không tự xoá** bản trùng vì đó là bản ghi tiền.
+
+**Chưa commit** — worktree giữ dirty để user tự review (17 file).

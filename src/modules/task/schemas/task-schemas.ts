@@ -139,7 +139,10 @@ export const TaskResSchema = extendApi(
     assetIds: z.array(z.string()),
     versions: z.array(TaskVersionResSchema),
     createdAt: z.string(),
-    assistant: UserMiniSchema.nullable().optional().describe('Trợ lý được giao — có ở GET list/detail')
+    assistant: UserMiniSchema.nullable().optional().describe('Trợ lý được giao — có ở GET list/detail'),
+    region: RegionResSchema.nullable()
+      .optional()
+      .describe('Vùng cần xử lý (toạ độ + loại vùng) — có ở GET list/detail; null khi task không gắn vùng')
   }),
   { title: 'TaskRes', description: 'Một task production' }
 )

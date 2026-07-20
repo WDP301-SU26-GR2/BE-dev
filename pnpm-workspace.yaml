@@ -1,6 +1,15 @@
 packages:
   - "."
 
+# Vá advisory transitive (pnpm audit --prod) — chỉ nâng patch, không đổi API.
+# Nguồn: BACKEND_AUDIT_2026-07-20.md F-03. Rà lại khi nâng NestJS/socket.io major.
+overrides:
+  multer: ">=2.2.0" # DoS deeply-nested field names (từ @nestjs/platform-express)
+  ws: ">=8.21.0" # DoS memory exhaustion — nằm trên runtime path của Board WebSocket
+  ts-deepmerge: ">=8.0.0" # Prototype method override → DoS
+  js-yaml: ">=4.1.2" # Quadratic-complexity DoS merge key (từ @nestjs/swagger)
+  esbuild: ">=0.28.1" # Arbitrary file read qua dev server (từ react-email)
+
 allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true

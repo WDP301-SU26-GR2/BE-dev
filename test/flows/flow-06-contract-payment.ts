@@ -418,7 +418,11 @@ const main = async () => {
   const rListPay = await req('GET', `/payments/contracts/${cHappy}/payments`, { token: saTok })
   ok('06.3a GET /payments/contracts/:id/payments', rListPay.status === 200, `got ${rListPay.status}`)
 
-  // Tạo payment record TRIGGERED thủ công qua Prisma để test status guards
+  // Tạo payment record TRIGGERED thủ công qua Prisma để test status guards.
+  // ⚠ S-03: PaymentRecord có unique `payment_idempotency`
+  // (contractId, conditionId, receiverId, paymentType, period). Seed nhiều record cho
+  // CÙNG contract+receiver+type thì PHẢI khác `period` — đúng như nghiệp vụ thật
+  // (mỗi kỳ doanh thu là một payment riêng). Bỏ trống period ⇒ record thứ hai đụng unique.
   const pr = await prisma.paymentRecord.create({
     data: {
       receiverId: m1.id,
@@ -426,6 +430,7 @@ const main = async () => {
       paymentType: 'REVENUE_SHARE',
       paymentSource: 'CONTRACT',
       contractId: cHappy,
+      period: 'ft-2026Q1',
       status: 'TRIGGERED',
       createdBy: b1.id
     }
@@ -456,7 +461,8 @@ const main = async () => {
     (await prisma.paymentRecord.findUnique({ where: { id: pr.id } }))?.status === PaymentRecordStatus.PAID
   )
 
-  // pay khi chưa APPROVED → tạo 1 record mới TRIGGERED thử
+  // pay khi chưa APPROVED → tạo 1 record mới TRIGGERED thử.
+  // `period` khác pr (xem chú thích 06.3b) để không đụng unique payment_idempotency.
   const pr2 = await prisma.paymentRecord.create({
     data: {
       receiverId: m1.id,
@@ -464,6 +470,7 @@ const main = async () => {
       paymentType: 'REVENUE_SHARE',
       paymentSource: 'CONTRACT',
       contractId: cHappy,
+      period: 'ft-2026Q2',
       status: 'TRIGGERED',
       createdBy: b1.id
     }
@@ -503,6 +510,7 @@ const main = async () => {
       paymentSource: 'CONTRACT',
       contractId: cHappy,
       seriesId: happy.series.id,
+      period: 'ft-bola', // khác các seed khác — unique payment_idempotency (S-03)
       status: 'TRIGGERED',
       createdBy: b1.id
     }
@@ -514,7 +522,12 @@ const main = async () => {
   const rBoardRead = await req('GET', `/payments/${prBola.id}`, { token: b1Tok })
   ok('06.3o board → 200', rBoardRead.status === 200, `got ${rBoardRead.status}`)
   const rMangakaOutsider = await req('GET', `/payments/${prBola.id}`, { token: m2Tok })
-  expectError(rMangakaOutsider, 403, 'Error.PaymentAccessDenied', '06.3p 🔴 mangaka ngoài cuộc (m2) → 403 (BOLA blocked)')
+  expectError(
+    rMangakaOutsider,
+    403,
+    'Error.PaymentAccessDenied',
+    '06.3p 🔴 mangaka ngoài cuộc (m2) → 403 (BOLA blocked)'
+  )
   const rEditorOutsider = await req('GET', `/payments/${prBola.id}`, { token: e2Tok })
   expectError(rEditorOutsider, 403, 'Error.PaymentAccessDenied', '06.3q 🔴 editor không phụ trách (e2) → 403')
   // by-user: mangaka chỉ đọc payment của chính mình
@@ -533,6 +546,7 @@ const main = async () => {
       paymentType: 'REVENUE_SHARE',
       paymentSource: 'CONTRACT',
       contractId: cHappy,
+      period: 'ft-spoof', // khác các seed khác — unique payment_idempotency (S-03)
       status: 'TRIGGERED',
       createdBy: b1.id
     }

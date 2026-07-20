@@ -704,6 +704,81 @@ const main = async () => {
   })
   ok('F03-055c EDITOR tạo task → 403 (route MANGAKA)', rTaskByEditor.status === 403, `got ${rTaskByEditor.status}`)
 
+  // ══════════════ S-REG-EMBED — Assistant lấy được toạ độ vùng qua TaskRes ══════════════
+  // Gap gốc: TaskRes chỉ có regionId trần, còn GET /pages/:id/regions là MANGAKA/EDITOR-only
+  // ⇒ Assistant nhận task theo Region nhưng KHÔNG có đường hợp lệ nào lấy toạ độ.
+  section('S-REG-EMBED region embed cho Assistant')
+
+  const embedRegionRes = await req('POST', `/pages/${page.id}/regions`, {
+    token: m1Tok,
+    body: { coordinates: { x: 120, y: 340, width: 400, height: 260 }, regionType: 'BACKGROUND' }
+  })
+  const embedRegionId = embedRegionRes.json?.data?.id as string
+  ok('F03-RE01 tạo region để giao task → 201', embedRegionRes.status === 201, `got ${embedRegionRes.status}`)
+
+  const embedTaskRes = await req('POST', '/tasks', {
+    token: m1Tok,
+    body: {
+      pageId: page.id,
+      regionId: embedRegionId,
+      assistantId: a1.id,
+      taskType: 'BACKGROUND',
+      priority: 1
+    }
+  })
+  const embedTaskId = embedTaskRes.json?.data?.id as string
+  ok(
+    'F03-RE02 giao task theo region → 201',
+    embedTaskRes.status === 201,
+    `got ${embedTaskRes.status} ${embedTaskRes.raw.slice(0, 160)}`
+  )
+
+  // Assistant vẫn KHÔNG được đọc toàn bộ region của trang (route dành cho Mangaka/Editor)
+  const assistantRegionList = await req('GET', `/pages/${page.id}/regions`, { token: a1Tok })
+  ok(
+    'F03-RE03 assistant vẫn bị chặn ở GET /pages/:id/regions (403)',
+    assistantRegionList.status === 403,
+    `got ${assistantRegionList.status}`
+  )
+
+  // …nhưng lấy được toạ độ vùng của CHÍNH task mình, qua TaskRes
+  const assistantTaskDetail = await req('GET', `/tasks/${embedTaskId}`, { token: a1Tok })
+  const embedded = assistantTaskDetail.json?.data?.region as
+    | { id: string; coordinates: { x: number; y: number; width: number; height: number }; regionType: string }
+    | null
+    | undefined
+  ok(
+    'F03-RE04 GET /tasks/:id (assistant) trả region kèm toạ độ',
+    assistantTaskDetail.status === 200 &&
+      embedded?.id === embedRegionId &&
+      embedded?.coordinates?.x === 120 &&
+      embedded?.coordinates?.y === 340 &&
+      embedded?.coordinates?.width === 400 &&
+      embedded?.coordinates?.height === 260 &&
+      embedded?.regionType === 'BACKGROUND',
+    `got ${assistantTaskDetail.status} region=${JSON.stringify(embedded)}`
+  )
+
+  const assistantTaskList = await req('GET', `/tasks?pageId=${page.id}`, { token: a1Tok })
+  const listItems = (assistantTaskList.json?.data?.items ?? []) as Array<{
+    id: string
+    regionId: string | null
+    region: { coordinates: { x: number } } | null
+  }>
+  const listed = listItems.find((t) => t.id === embedTaskId)
+  ok(
+    'F03-RE05 GET /tasks (list) cũng embed region',
+    assistantTaskList.status === 200 && listed?.region?.coordinates?.x === 120,
+    `got ${assistantTaskList.status} region=${JSON.stringify(listed?.region)}`
+  )
+
+  const noRegionTask = listItems.find((t) => t.regionId === null)
+  ok(
+    'F03-RE06 task không gắn vùng → region = null (không undefined/lỗi)',
+    noRegionTask === undefined || noRegionTask.region === null,
+    `got ${JSON.stringify(noRegionTask?.region)}`
+  )
+
   await prisma.$disconnect()
   const fail = summary(FLOW)
   await sleep(300)

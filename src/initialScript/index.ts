@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import { UserStatus } from '@prisma/client'
 import { config } from 'dotenv'
 import { env } from 'process'
@@ -8,6 +9,7 @@ config()
 
 const prisma = new PrismaService()
 const hashingService = new HashingService()
+const logger = new Logger('InitialScript')
 
 export const main = async () => {
   await prisma.$connect()
@@ -67,9 +69,9 @@ export const main = async () => {
 export const initDB = async () => {
   try {
     const { createdRoleCount } = await main()
-    console.log(`Created ${createdRoleCount} roles`)
+    logger.log(`Created ${createdRoleCount} roles`)
   } catch (error) {
-    console.error('Error seeding data:', error)
+    logger.error('Error seeding data:', error)
     process.exitCode = 1
   } finally {
     await prisma.$disconnect()

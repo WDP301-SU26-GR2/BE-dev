@@ -84,11 +84,14 @@ export class PaymentService {
       throw new InvalidStatusForApprovalException()
     }
 
-    const payment = await this.paymentRepo.update(id, {
+    // S-03: CAS thay cho update-theo-id. Người thua race nhận null → ném đúng lỗi
+    // trạng thái và KHÔNG audit/emit (nếu không, một payment bị duyệt 2 lần).
+    const payment = await this.paymentRepo.updateWithExpectedStatus(id, PaymentRecordStatus.TRIGGERED, {
       status: PaymentRecordStatus.APPROVED,
       approvedBy: actorId,
       approvedAt: new Date()
     })
+    if (!payment) throw new InvalidStatusForApprovalException()
 
     await this.auditService.record({
       actorId,
@@ -115,13 +118,16 @@ export class PaymentService {
       throw new InvalidStatusForPaymentException()
     }
 
-    const payment = await this.paymentRepo.update(id, {
+    // S-03: CAS — chặn hai request cùng PAID rồi cùng emit `payment.paid`
+    // (downstream sẽ ghi nhận chi trả hai lần).
+    const payment = await this.paymentRepo.updateWithExpectedStatus(id, PaymentRecordStatus.APPROVED, {
       status: PaymentRecordStatus.PAID,
       paidAt: new Date(),
       paymentMethod: dto.paymentMethod,
       transactionReference: dto.transactionReference,
       note: dto.note
     })
+    if (!payment) throw new InvalidStatusForPaymentException()
 
     await this.auditService.record({
       actorId,
@@ -148,11 +154,18 @@ export class PaymentService {
       throw new PaymentAlreadyPaidException()
     }
 
-    const cancelled = await this.paymentRepo.update(id, {
-      status: PaymentRecordStatus.CANCELLED,
-      cancelledAt: new Date(),
-      cancelReason: dto.cancelReason
-    })
+    // S-03: CAS với điều kiện "chưa PAID". Chặn nhánh đối nghịch cancel-vs-pay
+    // chạy song song rồi last-write-wins (huỷ một payment đã chi thật).
+    const cancelled = await this.paymentRepo.updateWithExpectedStatus(
+      id,
+      { not: PaymentRecordStatus.PAID },
+      {
+        status: PaymentRecordStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancelReason: dto.cancelReason
+      }
+    )
+    if (!cancelled) throw new PaymentAlreadyPaidException()
 
     await this.auditService.record({
       actorId,
