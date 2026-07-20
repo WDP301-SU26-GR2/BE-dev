@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-19T06:06:42.138Z — 258 routes.
+// Sinh lúc: 2026-07-20T05:00:47.534Z — 259 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -271,6 +271,12 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'PATCH', path: '/contracts/:id', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/contracts/:id/board-approve', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER] },
   { method: 'POST', path: '/contracts/:id/board-request-changes', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER] },
+  {
+    method: 'GET',
+    path: '/contracts/:id/pdf',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR, RoleCode.MANGAKA, RoleCode.BOARD_MEMBER]
+  },
   { method: 'POST', path: '/contracts/:id/request-changes', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   {
     method: 'POST',

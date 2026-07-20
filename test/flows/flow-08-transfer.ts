@@ -569,15 +569,13 @@ const main = async () => {
       mssState?.status === 'AWAITING_CO_OWNER_APPROVAL',
       `got ${mssState?.status}`
     )
+    // ⚠ Trước đây chỗ này truyền thẳng Promise (IIFE async) vào ok() → Promise LUÔN truthy
+    // ⇒ case này pass bất kể DB có record hay không (dead assertion). Phải await.
+    const coOwnerApproval = await prisma.chapterCoOwnerApproval.findFirst({ where: { chapterId: newCh.id } })
     ok(
       '8.25c ChapterCoOwnerApproval PENDING',
-      (async () => {
-        const approval = await prisma.chapterCoOwnerApproval.findFirst({
-          where: { chapterId: newCh.id }
-        })
-        return approval?.status === 'PENDING'
-      })(),
-      'no approval record'
+      coOwnerApproval?.status === 'PENDING',
+      `got ${String(coOwnerApproval?.status)}`
     )
   } else {
     finding(

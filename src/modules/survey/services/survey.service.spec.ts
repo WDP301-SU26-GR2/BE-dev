@@ -5,6 +5,7 @@ import { IdentityHashService } from 'src/infrastructure/crypto/identity-hash.ser
 import { ReaderVoteBodySchema, VoteOtpRequestBodySchema } from '../schemas/survey-schemas'
 import { AuditEntityType } from '@prisma/client'
 import { CaptchaRejectedException } from '../errors/survey.errors'
+import { asCacheService, makeCacheServiceMock } from 'src/infrastructure/redis/cache.service.mock'
 
 // Real (not mocked) so identity/ip hashing determinism is exercised end-to-end in submitVote tests.
 const identityHash = new IdentityHashService('test-pepper')
@@ -92,7 +93,8 @@ function makeService(m: Mocks) {
     m.appConfigService as never,
     m.auditService as never,
     m.recaptchaService as never,
-    m.redisService as never
+    m.redisService as never,
+    asCacheService(makeCacheServiceMock())
   )
 }
 
@@ -779,7 +781,9 @@ describe('SurveyService public ranking discovery (Spec 15 Part B)', () => {
     const spy = jest.spyOn(service, 'getVoteResults').mockResolvedValue({
       surveyPeriodId: 'p1',
       issueNumber: 7,
-      results: [{ rankPosition: 1, seriesId: 's1', seriesTitle: 'T', voteCount: 3, rankChange: null }]
+      results: [
+        { rankPosition: 1, seriesId: 's1', seriesTitle: 'T', publicationType: null, voteCount: 3, rankChange: null }
+      ]
     })
 
     const result = await service.getLatestVoteResults()

@@ -42,6 +42,12 @@ import { bottomThirdCount, computeRiskLevel, nextConsecutiveCount } from './rank
 import { AuditService } from 'src/modules/audit/audit.service'
 import { RecaptchaService } from 'src/infrastructure/captcha/recaptcha.service'
 import { RedisService } from 'src/infrastructure/redis/redis.service'
+import {
+  RANKING_IMMUTABLE_TTL_SEC,
+  RANKING_SHARED_TTL_SEC,
+  VOTE_CTX_TTL_SEC
+} from 'src/infrastructure/redis/cache.constant'
+import { CacheService } from 'src/infrastructure/redis/cache.service'
 
 // B-VOT-07 / Spec 5: per-period reliability threshold uses AppConfig.lowVoteReliabilityThreshold
 // (read at finalize time, not a static constant) — this constant is the SEED default for AppConfig
@@ -65,7 +71,8 @@ export class SurveyService {
     private readonly appConfigService: AppConfigService,
     private readonly auditService: AuditService,
     private readonly recaptchaService: RecaptchaService,
-    private readonly redisService: RedisService
+    private readonly redisService: RedisService,
+    private readonly cacheService: CacheService
   ) {}
 
   private mapSurveyPeriod(surveyPeriod: {
@@ -323,6 +330,8 @@ export class SurveyService {
         content: SurveyMessages.notification.surveyPeriodCreated
       })
     }
+    await this.cacheService.bumpVersion('votectx')
+    await this.cacheService.bumpVersion('ranking')
     return this.mapSurveyPeriod(surveyPeriod)
   }
 
@@ -348,6 +357,8 @@ export class SurveyService {
         content: SurveyMessages.notification.surveyPeriodStatusUpdated
       })
     }
+    await this.cacheService.bumpVersion('votectx')
+    await this.cacheService.bumpVersion('ranking')
     return this.mapSurveyPeriod(updated)
   }
 
@@ -508,6 +519,7 @@ export class SurveyService {
       surveyPeriodId,
       rankings: rankingItems.map((item, index) => ({ seriesId: item.seriesId, rank: index + 1 }))
     })
+    await this.cacheService.bumpVersion('ranking')
     return { message: SurveyMessages.response.rankingFinalized }
   }
 
@@ -562,20 +574,22 @@ export class SurveyService {
     if (!OBJECT_ID_RE.test(surveyPeriodId)) throw SurveyPeriodNotFoundException
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
-    const items = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
-    return {
-      items: items.map((item) => ({
-        seriesId: item.seriesId,
-        voteCount: item.voteCount,
-        rankPosition: item.rankPosition ?? undefined,
-        previousRank: item.previousRank,
-        rankChange: item.rankChange,
-        isAtRisk: item.isAtRisk,
-        riskLevel: item.riskLevel ?? 'NONE',
-        consecutiveAtRiskCount: item.consecutiveAtRiskCount ?? 0,
-        isReliable: item.isReliable
-      }))
-    }
+    return this.cacheService.getOrSet('ranking', `period:${surveyPeriodId}`, RANKING_SHARED_TTL_SEC, async () => {
+      const items = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
+      return {
+        items: items.map((item) => ({
+          seriesId: item.seriesId,
+          voteCount: item.voteCount,
+          rankPosition: item.rankPosition ?? undefined,
+          previousRank: item.previousRank,
+          rankChange: item.rankChange,
+          isAtRisk: item.isAtRisk,
+          riskLevel: item.riskLevel ?? 'NONE',
+          consecutiveAtRiskCount: item.consecutiveAtRiskCount ?? 0,
+          isReliable: item.isReliable
+        }))
+      }
+    })
   }
 
   // PB-04: bảng xếp hạng toàn tạp chí 1 kỳ — FULL cho mọi role nội bộ (không scope theo owner).
@@ -584,9 +598,11 @@ export class SurveyService {
     if (!OBJECT_ID_RE.test(surveyPeriodId)) throw SurveyPeriodNotFoundException
     const period = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
     if (!period) throw SurveyPeriodNotFoundException
-    const items = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
-    const sorted = [...items].sort((a, b) => (a.rankPosition ?? 0) - (b.rankPosition ?? 0))
-    return { items: sorted.map((r) => this.mapRankingItem(r as never)) }
+    return this.cacheService.getOrSet('ranking', `board:${surveyPeriodId}`, RANKING_SHARED_TTL_SEC, async () => {
+      const items = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
+      const sorted = [...items].sort((a, b) => (a.rankPosition ?? 0) - (b.rankPosition ?? 0))
+      return { items: sorted.map((r) => this.mapRankingItem(r as never)) }
+    })
   }
 
   // PB-04: trend xếp hạng 1 series — scoping theo owner.
@@ -602,8 +618,10 @@ export class SurveyService {
       (role === 'MANGAKA' && owner.mangakaId === caller.userId) ||
       (role === 'EDITOR' && owner.editorId === caller.userId)
     if (!allowed) throw RankingAccessDeniedException
-    const items = await this.surveyRepository.getRankingRecordsBySeries(seriesId, periods)
-    return { items: items.map((r) => this.mapRankingItem(r as never)) }
+    return this.cacheService.getOrSet('ranking', `trend:${seriesId}:${periods}`, RANKING_SHARED_TTL_SEC, async () => {
+      const items = await this.surveyRepository.getRankingRecordsBySeries(seriesId, periods)
+      return { items: items.map((r) => this.mapRankingItem(r as never)) }
+    })
   }
 
   // B-VOT-06: VotingConfig read cached via SurveyConfigService (lazy-seed §1.15).
@@ -631,32 +649,45 @@ export class SurveyService {
 
   // Fix-1 G-2 (Req 2.5#1): dữ liệu public dựng trang bình chọn — KHÔNG cần auth, KHÔNG lộ field nội bộ.
   async getVoteContext() {
-    const config = await this.surveyConfigService.get()
-    const period = await this.surveyRepository.findLatestOpenSurveyPeriod()
-    if (!period) return { period: null, series: [], maxSeriesPerVote: config.maxSeriesPerVote }
-    const series = await this.surveyRepository.findManySerializedSeriesPublic()
-    return {
-      period: {
-        id: period.id,
-        issueNumber: period.issueNumber ?? null,
-        reflectedIssueNumber: period.reflectedIssueNumber ?? null,
-        startDate: period.startDate ? period.startDate.toISOString() : null,
-        endDate: period.endDate ? period.endDate.toISOString() : null
-      },
-      series: series.map((s) => ({
-        id: s.id,
-        title: s.title,
-        coverImage: s.coverImage ?? null,
-        genres: s.genres,
-        demographic: s.demographic ?? null
-      })),
-      maxSeriesPerVote: config.maxSeriesPerVote
-    }
+    return this.cacheService.getOrSet('votectx', 'ctx', VOTE_CTX_TTL_SEC, async () => {
+      const config = await this.surveyConfigService.get()
+      const period = await this.surveyRepository.findLatestOpenSurveyPeriod()
+      if (!period) return { period: null, series: [], maxSeriesPerVote: config.maxSeriesPerVote }
+      const series = await this.surveyRepository.findManySerializedSeriesPublic()
+      return {
+        period: {
+          id: period.id,
+          issueNumber: period.issueNumber ?? null,
+          reflectedIssueNumber: period.reflectedIssueNumber ?? null,
+          startDate: period.startDate ? period.startDate.toISOString() : null,
+          endDate: period.endDate ? period.endDate.toISOString() : null
+        },
+        series: series.map((s) => ({
+          id: s.id,
+          title: s.title,
+          coverImage: s.coverImage ?? null,
+          genres: s.genres,
+          demographic: s.demographic ?? null
+        })),
+        maxSeriesPerVote: config.maxSeriesPerVote
+      }
+    })
   }
 
   // Spec 15 §3.1 — public discovery without requiring a known surveyPeriodId.
   async getLatestVoteResults(publicationType?: PublicationType) {
-    const period = await this.surveyRepository.findLatestReflectedPeriod()
+    const period = await this.cacheService.getOrSet('ranking', 'latest-period', VOTE_CTX_TTL_SEC, async () => {
+      const found = await this.surveyRepository.findLatestReflectedPeriod()
+      return found
+        ? {
+            id: found.id,
+            issueNumber: found.issueNumber ?? null,
+            reflectedIssueNumber: found.reflectedIssueNumber ?? null,
+            startDate: found.startDate?.toISOString() ?? null,
+            endDate: found.endDate?.toISOString() ?? null
+          }
+        : null
+    })
     if (!period) return { period: null, results: [] }
     const base = await this.getVoteResults(period.id, publicationType)
     return {
@@ -664,8 +695,8 @@ export class SurveyService {
         id: period.id,
         issueNumber: period.issueNumber ?? null,
         reflectedIssueNumber: period.reflectedIssueNumber ?? null,
-        startDate: period.startDate?.toISOString() ?? null,
-        endDate: period.endDate?.toISOString() ?? null
+        startDate: period.startDate,
+        endDate: period.endDate
       },
       results: base.results
     }
@@ -673,16 +704,18 @@ export class SurveyService {
 
   // Spec 15 §3.2 — expose reflected history only, never operational periods.
   async getReflectedPeriods(limit: number) {
-    const rows = await this.surveyRepository.findReflectedPeriods(limit)
-    return {
-      items: rows.map((period) => ({
-        id: period.id,
-        issueNumber: period.issueNumber ?? null,
-        reflectedIssueNumber: period.reflectedIssueNumber ?? null,
-        startDate: period.startDate?.toISOString() ?? null,
-        endDate: period.endDate?.toISOString() ?? null
-      }))
-    }
+    return this.cacheService.getOrSet('ranking', `periods:${limit}`, RANKING_IMMUTABLE_TTL_SEC, async () => {
+      const rows = await this.surveyRepository.findReflectedPeriods(limit)
+      return {
+        items: rows.map((period) => ({
+          id: period.id,
+          issueNumber: period.issueNumber ?? null,
+          reflectedIssueNumber: period.reflectedIssueNumber ?? null,
+          startDate: period.startDate?.toISOString() ?? null,
+          endDate: period.endDate?.toISOString() ?? null
+        }))
+      }
+    })
   }
 
   // Fix-1 G-2 (Req 2.5#3): kết quả public — chỉ sau khi kỳ REFLECTED; ẩn tín hiệu biên tập nội bộ.
@@ -691,35 +724,42 @@ export class SurveyService {
   // trong bảng con theo index nếu muốn hiển thị 1..N.
   async getVoteResults(surveyPeriodId: string, publicationType?: PublicationType) {
     if (!OBJECT_ID_RE.test(surveyPeriodId)) throw SurveyPeriodNotFoundException
-    const period = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
-    if (!period) throw SurveyPeriodNotFoundException
-    if (period.status !== 'REFLECTED') throw SurveyPeriodNotFinalizedException
-    const records = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
-    const titles = await this.surveyRepository.findSeriesTitlesByIds(records.map((r) => r.seriesId))
-    const seriesById = new Map<string, { title: string; publicationType: PublicationType | null }>(
-      titles.map(
-        (t: { id: string; title: string; publicationType: PublicationType | null }) =>
-          [t.id, { title: t.title, publicationType: t.publicationType ?? null }] as [
-            string,
-            { title: string; publicationType: PublicationType | null }
-          ]
-      )
+    return this.cacheService.getOrSet(
+      'ranking',
+      `results:${surveyPeriodId}:${publicationType ?? 'ALL'}`,
+      RANKING_IMMUTABLE_TTL_SEC,
+      async () => {
+        const period = await this.surveyRepository.findSurveyPeriodById(surveyPeriodId)
+        if (!period) throw SurveyPeriodNotFoundException
+        if (period.status !== 'REFLECTED') throw SurveyPeriodNotFinalizedException
+        const records = await this.surveyRepository.getRankingRecordsByPeriod(surveyPeriodId)
+        const titles = await this.surveyRepository.findSeriesTitlesByIds(records.map((r) => r.seriesId))
+        const seriesById = new Map<string, { title: string; publicationType: PublicationType | null }>(
+          titles.map(
+            (t: { id: string; title: string; publicationType: PublicationType | null }) =>
+              [t.id, { title: t.title, publicationType: t.publicationType ?? null }] as [
+                string,
+                { title: string; publicationType: PublicationType | null }
+              ]
+          )
+        )
+        const results = records
+          .map((r) => ({
+            rankPosition: r.rankPosition ?? null,
+            seriesId: r.seriesId,
+            seriesTitle: seriesById.get(r.seriesId)?.title ?? null,
+            publicationType: seriesById.get(r.seriesId)?.publicationType ?? null,
+            voteCount: r.voteCount,
+            rankChange: r.rankChange ?? null
+          }))
+          .filter((r) => !publicationType || r.publicationType === publicationType)
+        return {
+          surveyPeriodId,
+          issueNumber: period.issueNumber ?? null,
+          results
+        }
+      }
     )
-    const results = records
-      .map((r) => ({
-        rankPosition: r.rankPosition ?? null,
-        seriesId: r.seriesId,
-        seriesTitle: seriesById.get(r.seriesId)?.title ?? null,
-        publicationType: seriesById.get(r.seriesId)?.publicationType ?? null,
-        voteCount: r.voteCount,
-        rankChange: r.rankChange ?? null
-      }))
-      .filter((r) => !publicationType || r.publicationType === publicationType)
-    return {
-      surveyPeriodId,
-      issueNumber: period.issueNumber ?? null,
-      results
-    }
   }
 }
 

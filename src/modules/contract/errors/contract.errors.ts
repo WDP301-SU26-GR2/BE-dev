@@ -56,6 +56,8 @@ export const ContractErrors = {
 
   OpenContractExists: () => new ConflictException([{ message: E.openContractExists, path: 'seriesId' }]),
 
+  ContractNotExecutedForPdf: () => new ConflictException([{ message: E.contractNotExecutedForPdf, path: 'id' }]),
+
   NotAuthorizedInBoard: () =>
     new ForbiddenException(
       'NOT_AUTHORIZED_IN_BOARD',

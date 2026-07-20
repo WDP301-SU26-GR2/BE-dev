@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { AuditEntityType, ContractStatus, NotificationType } from '@prisma/client'
+import { AssetType, AuditEntityType, ContractAmendmentStatus, ContractStatus, NotificationType } from '@prisma/client'
 import { ContractRepo } from '../contract.repo'
 import { ContractErrors } from '../errors/contract.errors'
 import { CreateContractBodyDto, EditorUpdateContractBodyDto, ReportRevenueBodyDto } from '../dto/contract.dto'
@@ -12,10 +12,14 @@ import {
   canTransitionContract,
   CONTRACT_CREATION_BLOCKING_STATUSES,
   CONTRACT_EDITABLE_STATUSES,
+  PDF_EXPORTABLE_STATUSES,
   CONTRACT_SIGNABLE_STATUSES
 } from '../contract.constant'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { ContractMessages } from '../contract.messages'
+import { PdfRenderService, type ContractPdfData } from 'src/infrastructure/pdf/pdf-render.service'
+import { StorageService as ObjectStorageService } from 'src/infrastructure/storage/storage.service'
+import { StorageRepository } from 'src/modules/storage/storage.repo'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -26,7 +30,10 @@ export class ContractService {
     private readonly authOtpService: AuthOtpService,
     private readonly notificationService: NotificationService,
     private readonly domainEventBus: DomainEventBus,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    private readonly pdfRenderService: PdfRenderService,
+    private readonly objectStorageService: ObjectStorageService,
+    private readonly storageRepository: StorageRepository
   ) {}
 
   // Hàm kiểm tra trạng thái hoạt động của module
@@ -66,6 +73,94 @@ export class ContractService {
     if (!version) throw ContractErrors.NotFound()
 
     return version
+  }
+
+  async exportPdf(contractId: string, userId: string, roleName: string) {
+    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
+    const contract = await this.contractRepo.findByIdForPdf(contractId)
+    if (!contract) throw ContractErrors.NotFound()
+    if (!this.canViewContract(contract, userId, roleName)) throw ContractErrors.ContractAccessDenied()
+    if (!PDF_EXPORTABLE_STATUSES.includes(contract.status)) throw ContractErrors.ContractNotExecutedForPdf()
+
+    const executedAmendments = contract.amendments.filter(
+      (amendment) => amendment.status === ContractAmendmentStatus.FULLY_EXECUTED
+    )
+    const key = `contracts/${contract.id}/contract-v${contract.versions.length}-a${executedAmendments.length}.pdf`
+    const exists = await this.objectStorageService.headObjectExists(key)
+
+    if (!exists) {
+      const data = this.toContractPdfData(contract, executedAmendments)
+      const pdf = await this.pdfRenderService.renderContractPdf(data)
+      await this.objectStorageService.putObject(key, pdf, 'application/pdf')
+      await this.storageRepository.createAsset({
+        uploadedBy: userId,
+        name: `contract-${contract.id}-v${contract.versions.length}.pdf`,
+        filePath: key,
+        assetType: AssetType.DOCUMENT
+      })
+    }
+
+    return { ...(await this.objectStorageService.createPresignedDownload(key)), key }
+  }
+
+  private toContractPdfData(
+    contract: Awaited<ReturnType<ContractRepo['findByIdForPdf']>> & {},
+    executedAmendments: Array<{ fullyExecutedAt: Date | null }>
+  ): ContractPdfData {
+    const toIso = (value: Date | null) => value?.toISOString() ?? null
+    return {
+      id: contract.id,
+      createdAt: contract.createdAt.toISOString(),
+      contractType: contract.contractType,
+      valuationAmount: contract.valuationAmount,
+      publisherOwnershipPct: contract.publisherOwnershipPct,
+      mangakaOwnershipPct: contract.mangakaOwnershipPct,
+      terminationClause: contract.terminationClause,
+      contractStart: toIso(contract.contractStart),
+      contractEnd: toIso(contract.contractEnd),
+      status: contract.status,
+      mangakaSignedAt: toIso(contract.mangakaSignedAt),
+      boardSignedAt: toIso(contract.boardSignedAt),
+      series: contract.series,
+      mangaka: { displayName: contract.mangaka.displayName },
+      editor: contract.editor ? { displayName: contract.editor.displayName } : null,
+      boardDecision: contract.boardDecision
+        ? {
+            decisionType: contract.boardDecision.decisionType,
+            result: contract.boardDecision.result,
+            decidedAt: toIso(contract.boardDecision.decidedAt),
+            boardSession: {
+              title: contract.boardDecision.boardSession.title,
+              startTime: contract.boardDecision.boardSession.startTime.toISOString()
+            }
+          }
+        : null,
+      conditions: contract.conditions.map((condition) => ({
+        conditionType: condition.conditionType,
+        thresholdConfig: condition.thresholdConfig,
+        payoutAmount: condition.payoutAmount,
+        payoutPct: condition.payoutPct,
+        status: condition.status
+      })),
+      signatures: contract.contractSignatures
+        .filter((signature) => signature.role === 'BOARD_EDITOR')
+        .map((signature) => ({
+          displayName: signature.user?.displayName ?? signature.userId,
+          signedAt: signature.signedAt.toISOString()
+        })),
+      versionCount: contract.versions.length,
+      executedAmendmentCount: executedAmendments.length,
+      latestAmendmentAt:
+        executedAmendments
+          .reduce<Date | null>(
+            (latest, amendment) =>
+              !amendment.fullyExecutedAt || (latest && latest >= amendment.fullyExecutedAt)
+                ? latest
+                : amendment.fullyExecutedAt,
+            null
+          )
+          ?.toISOString() ?? null
+    }
   }
 
   // B-CON-02: guard chuyển trạng thái hợp lệ theo CONTRACT_TRANSITIONS.
@@ -238,7 +333,7 @@ export class ContractService {
   }
 
   // B-CON-02: Mangaka yêu cầu chỉnh sửa điều khoản (MANGAKA_REVIEW → NEGOTIATION).
-  async mangakaRequestChanges(contractId: string, userId: string) {
+  async mangakaRequestChanges(contractId: string, userId: string, reason: string) {
     if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
     const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
@@ -246,26 +341,39 @@ export class ContractService {
     this.assertTransition(contract.status, ContractStatus.NEGOTIATION)
 
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.NEGOTIATION)
-    await this.auditTransition(contractId, contract.status, ContractStatus.NEGOTIATION, userId)
+    // Lý do đi vào AuditLog = bản ghi bền (tra qua GET /audit); notification chỉ là kênh báo tức thời.
+    await this.auditTransition(contractId, contract.status, ContractStatus.NEGOTIATION, userId, reason)
     await this.notificationService.notifySafe({
       recipientId: contract.editorId ?? '',
       type: NotificationType.CONTRACT,
       referenceId: updated.id,
       referenceType: 'CONTRACT_MANGAKA_REQUESTED_CHANGES',
-      content: ContractMessages.notification.mangakaRequestedChanges
+      content: ContractMessages.notification.mangakaRequestedChanges(reason)
     })
     return updated
   }
 
-  // B-CON-02 (BOARD_REVIEW): Board duyệt điều khoản sau khi Mangaka gật (MANGAKA_APPROVED → BOARD_APPROVED).
-  async boardApprove(contractId: string) {
+  // B-CON-02: chỉ Board member thuộc roster phiên họp đã ra quyết định SERIALIZATION cho hợp đồng này
+  // mới được xem xét điều khoản — cùng nguồn sự thật `boardSession.allowedEditorIds` mà bước KÝ dùng
+  // (signByBoardWithOtp). Khác bước ký ở chỗ: xem xét = 1 đại diện là đủ, ký = cả roster.
+  // Authz đứng TRƯỚC check transition để không lộ trạng thái hợp đồng cho người ngoài hội đồng.
+  private async loadContractForBoardReview(contractId: string, userId: string) {
     if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
-    const contract = await this.contractRepo.findById(contractId)
+    const contract = await this.contractRepo.findWithBoardDecision(contractId)
     if (!contract) throw ContractErrors.NotFound()
+    if (!contract.boardDecision) throw ContractErrors.BoardDecisionNotFound()
+    if (!contract.boardDecision.boardSession.allowedEditorIds.includes(userId))
+      throw ContractErrors.NotAuthorizedInBoard()
+    return contract
+  }
+
+  // B-CON-02 (BOARD_REVIEW): Board duyệt điều khoản sau khi Mangaka gật (MANGAKA_APPROVED → BOARD_APPROVED).
+  async boardApprove(contractId: string, userId: string) {
+    const contract = await this.loadContractForBoardReview(contractId, userId)
     this.assertTransition(contract.status, ContractStatus.BOARD_APPROVED)
 
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.BOARD_APPROVED)
-    await this.auditTransition(contractId, contract.status, ContractStatus.BOARD_APPROVED, null)
+    await this.auditTransition(contractId, contract.status, ContractStatus.BOARD_APPROVED, userId)
     await Promise.all([
       this.notificationService.notifySafe({
         recipientId: contract.mangakaId,
@@ -286,23 +394,21 @@ export class ContractService {
   }
 
   // B-CON-02 (BOARD_REVIEW): Board yêu cầu chỉnh sửa (MANGAKA_APPROVED → NEGOTIATION, phải gửi lại Mangaka).
-  async boardRequestChanges(contractId: string) {
-    if (!OBJECT_ID_RE.test(contractId)) throw ContractErrors.NotFound()
-    const contract = await this.contractRepo.findById(contractId)
-    if (!contract) throw ContractErrors.NotFound()
+  async boardRequestChanges(contractId: string, userId: string, reason: string) {
+    const contract = await this.loadContractForBoardReview(contractId, userId)
     this.assertTransition(contract.status, ContractStatus.NEGOTIATION)
 
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.NEGOTIATION, {
       mangakaSignedAt: null,
       boardSignedAt: null
     })
-    await this.auditTransition(contractId, contract.status, ContractStatus.NEGOTIATION, null)
+    await this.auditTransition(contractId, contract.status, ContractStatus.NEGOTIATION, userId, reason)
     await this.notificationService.notifySafe({
       recipientId: contract.editorId ?? '',
       type: NotificationType.CONTRACT,
       referenceId: updated.id,
       referenceType: 'CONTRACT_BOARD_REQUESTED_CHANGES',
-      content: ContractMessages.notification.boardRequestedChanges
+      content: ContractMessages.notification.boardRequestedChanges(reason)
     })
     return updated
   }

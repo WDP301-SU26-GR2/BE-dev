@@ -36,7 +36,7 @@ describe('NotificationReadService', () => {
   })
 
   it('list returns items + total + unreadCount with mapped ISO dates', async () => {
-    const result = await service.list('u1', { limit: 20, offset: 0 })
+    const result = await service.list('u1', { isRead: undefined, limit: 20, offset: 0 })
 
     expect(result.total).toBe(1)
     expect(result.unreadCount).toBe(5)

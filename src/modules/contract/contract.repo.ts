@@ -4,7 +4,7 @@ import { CreateContractBodyType } from './schemas/contract-schema'
 import type { Contract, ContractVersion } from '@prisma/client'
 import { ContractStatus, Prisma } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
-import { USER_MINI_FIELDS, toUserMini } from 'src/core/models/user-mini.model'
+import { fetchUserMiniMap, USER_MINI_FIELDS, toUserMini } from 'src/core/models/user-mini.model'
 
 @Injectable()
 export class ContractRepo {
@@ -103,6 +103,47 @@ export class ContractRepo {
       mangaka: toUserMini(contract.mangaka),
       editor: contract.editor ? toUserMini(contract.editor) : null
     }))
+  }
+
+  // Spec 24: dedicated rich query for PDF export, keeping regular GET queries lean.
+  async findByIdForPdf(id: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id },
+      include: {
+        series: { select: { id: true, title: true, magazine: true } },
+        mangaka: { select: USER_MINI_FIELDS },
+        editor: { select: USER_MINI_FIELDS },
+        boardDecision: {
+          select: {
+            id: true,
+            decisionType: true,
+            result: true,
+            decidedAt: true,
+            boardSession: { select: { title: true, startTime: true } }
+          }
+        },
+        conditions: true,
+        versions: { orderBy: { versionNumber: 'desc' } },
+        amendments: { select: { status: true, fullyExecutedAt: true } },
+        contractSignatures: { select: { userId: true, role: true, signedAt: true } }
+      }
+    })
+    if (!contract) return null
+
+    // ContractSignature deliberately has no Prisma User relation; batch lookup avoids N+1.
+    const signerMap = await fetchUserMiniMap(
+      this.prisma,
+      contract.contractSignatures.map((signature) => signature.userId)
+    )
+    return {
+      ...contract,
+      mangaka: toUserMini(contract.mangaka),
+      editor: contract.editor ? toUserMini(contract.editor) : null,
+      contractSignatures: contract.contractSignatures.map((signature) => ({
+        ...signature,
+        user: signerMap.get(signature.userId) ?? null
+      }))
+    }
   }
 
   findVersionsByContractId(contractId: string): Promise<ContractVersion[]> {

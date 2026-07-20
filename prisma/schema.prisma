@@ -421,6 +421,7 @@ enum AssetType {
   SCREENTONE
   BRUSH
   OTHER
+  DOCUMENT
 }
 
 // REVIEW: inferred

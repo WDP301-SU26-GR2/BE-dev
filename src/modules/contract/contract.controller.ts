@@ -12,7 +12,9 @@ import {
   ContractHealthResDto,
   ContractSignResDto,
   ContractStatusProgressResDto,
-  ReportRevenueBodyDto
+  ReportRevenueBodyDto,
+  ContractPdfResDto,
+  ContractChangeReasonBodyDto
 } from './dto/contract.dto'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
 import {
@@ -66,6 +68,19 @@ export class ContractController {
   @ZodResponse({ status: 200, type: [ContractResDto] })
   getContracts(@ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
     return this.contractService.getContracts(userId, roleName)
+  }
+
+  @ApiOperation({ summary: 'Tải PDF hợp đồng đã ký (từ FULLY_EXECUTED trở đi) — Spec 24' })
+  @Get(':id/pdf')
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ApiErrors(
+    ContractErrors.NotFound(),
+    ContractErrors.ContractAccessDenied(),
+    ContractErrors.ContractNotExecutedForPdf()
+  )
+  @ZodResponse({ status: 200, type: ContractPdfResDto })
+  exportPdf(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
+    return this.contractService.exportPdf(id, userId, roleName)
   }
 
   @ApiOperation({ summary: 'Chi tiết hợp đồng' })
@@ -162,26 +177,44 @@ export class ContractController {
   @Roles(RoleName.MANGAKA)
   @ApiErrors(ContractErrors.NotFound(), ContractErrors.NotContractMangaka(), ContractErrors.InvalidContractTransition())
   @ZodResponse({ status: 201, type: ContractResDto })
-  requestChanges(@Param('id') id: string, @ActiveUser('userId') userId: string) {
-    return this.contractService.mangakaRequestChanges(id, userId)
+  requestChanges(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @Body() body: ContractChangeReasonBodyDto
+  ) {
+    return this.contractService.mangakaRequestChanges(id, userId, body.reason)
   }
 
   @ApiOperation({ summary: 'B-CON-02 (BOARD_REVIEW): Hội đồng duyệt điều khoản → BOARD_APPROVED' })
   @Post(':id/board-approve')
   @Roles(RoleName.BOARD_MEMBER)
-  @ApiErrors(ContractErrors.NotFound(), ContractErrors.InvalidContractTransition())
+  @ApiErrors(
+    ContractErrors.NotFound(),
+    ContractErrors.BoardDecisionNotFound(),
+    ContractErrors.NotAuthorizedInBoard(),
+    ContractErrors.InvalidContractTransition()
+  )
   @ZodResponse({ status: 201, type: ContractResDto })
-  boardApprove(@Param('id') id: string) {
-    return this.contractService.boardApprove(id)
+  boardApprove(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.contractService.boardApprove(id, userId)
   }
 
   @ApiOperation({ summary: 'B-CON-02 (BOARD_REVIEW): Hội đồng yêu cầu chỉnh sửa → NEGOTIATION' })
   @Post(':id/board-request-changes')
   @Roles(RoleName.BOARD_MEMBER)
-  @ApiErrors(ContractErrors.NotFound(), ContractErrors.InvalidContractTransition())
+  @ApiErrors(
+    ContractErrors.NotFound(),
+    ContractErrors.BoardDecisionNotFound(),
+    ContractErrors.NotAuthorizedInBoard(),
+    ContractErrors.InvalidContractTransition()
+  )
   @ZodResponse({ status: 201, type: ContractResDto })
-  boardRequestChanges(@Param('id') id: string) {
-    return this.contractService.boardRequestChanges(id)
+  boardRequestChanges(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @Body() body: ContractChangeReasonBodyDto
+  ) {
+    return this.contractService.boardRequestChanges(id, userId, body.reason)
   }
 
   @ApiOperation({ summary: 'Mangaka ký hợp đồng bằng OTP' })

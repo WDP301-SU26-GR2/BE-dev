@@ -1,6 +1,7 @@
 import { SeriesStatus } from '@prisma/client'
 import { SeriesMetadataConflictException, SeriesNotEditableException } from '../errors/series.errors'
 import { SeriesMetadataService } from './series-metadata.service'
+import { asCacheService, makeCacheServiceMock } from 'src/infrastructure/redis/cache.service.mock'
 
 const MANGAKA = '507f1f77bcf86cd799439011'
 const EDITOR = '507f1f77bcf86cd799439012'
@@ -51,7 +52,12 @@ const makeDeps = (series: any = baseSeries) => ({
 })
 
 const make = (deps: ReturnType<typeof makeDeps>) =>
-  new SeriesMetadataService(deps.repo as never, deps.audit as never, deps.notification as never)
+  new SeriesMetadataService(
+    deps.repo as never,
+    deps.audit as never,
+    deps.notification as never,
+    asCacheService(makeCacheServiceMock())
+  )
 
 describe('SeriesMetadataService.update', () => {
   it('lets the owning mangaka patch metadata and records an audit entry after the write', async () => {

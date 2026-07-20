@@ -64,3 +64,12 @@ export const CONTRACT_CREATION_BLOCKING_STATUSES: ContractStatus[] = [
   ContractStatus.MANGAKA_SIGNED,
   ContractStatus.FULLY_EXECUTED
 ]
+
+// Spec 24: a PDF is a locked, signed record. Terminal states retain that record for download.
+export const PDF_EXPORTABLE_STATUSES: ContractStatus[] = [
+  ContractStatus.FULLY_EXECUTED,
+  ContractStatus.FULFILLED,
+  ContractStatus.TERMINATED,
+  ContractStatus.TERMINATED_BY_BREACH,
+  ContractStatus.EXPIRED
+]

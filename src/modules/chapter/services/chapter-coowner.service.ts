@@ -12,6 +12,7 @@ import {
   NotCoOwnerException
 } from '../errors/chapter.errors'
 import { ManuscriptStateService } from './manuscript-state.service'
+import { CacheService } from 'src/infrastructure/redis/cache.service'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -23,7 +24,8 @@ export class ChapterCoOwnerService {
     private readonly chapterRepository: ChapterRepository,
     private readonly manuscriptStateService: ManuscriptStateService,
     private readonly eventBus: DomainEventBus,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly cacheService: CacheService
   ) {}
 
   async approve(userId: string, chapterId: string) {
@@ -44,6 +46,7 @@ export class ChapterCoOwnerService {
       chapterNumber: chapter.chapterNumber,
       publishedAt
     })
+    await this.cacheService.bumpVersion('pubseries')
     await this.notifyOwners(series, chapterId, ChapterMessages.notification.coOwnerApproved, 'CHAPTER_COOWNER_APPROVED')
     return res
   }

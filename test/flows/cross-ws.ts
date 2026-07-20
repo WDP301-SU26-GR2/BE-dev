@@ -40,7 +40,7 @@ const main = async () => {
     await sleep(1500)
     ok(
       'WS1.1 connect (no-token) → server disconnect',
-      disconnected === true || r.connected === false,
+      disconnected || r.connected === false,
       `connected=${r.connected} disconnected=${disconnected}`
     )
     s1.disconnect()
@@ -58,7 +58,7 @@ const main = async () => {
     await sleep(1500)
     ok(
       'WS2.1 connect (bad-token)',
-      disconnected === true || r.connected === false,
+      disconnected || r.connected === false,
       `connected=${r.connected} disconnected=${disconnected}`
     )
     s1.disconnect()
