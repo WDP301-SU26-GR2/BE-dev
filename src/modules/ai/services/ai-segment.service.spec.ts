@@ -121,7 +121,7 @@ describe('AiSegmentService.getJob / applyJob', () => {
 
   it('listJobs opts out of editability because it is read-only', async () => {
     const { service, region } = makeService()
-    await expect(service.listJobs(MID, PID, {})).resolves.toEqual({ items: [] })
+    await expect(service.listJobs(MID, PID, { type: 'SEGMENT' })).resolves.toEqual({ items: [] })
     expect(region.assertPageOwner).toHaveBeenCalledWith(MID, PID, { checkHold: false, checkEditable: false })
   })
 

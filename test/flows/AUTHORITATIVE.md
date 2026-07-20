@@ -201,14 +201,14 @@ Frequency table (chi tiết đầy đủ trong source):
 - `Error.SeriesNotFound, Error.NotSeriesOwner, Error.ProposalNotEditable, Error.InvalidSeriesTransition, Error.SeriesNotReadyToPitch`
 - `Error.ChapterNotFound, Error.NotSeriesEditor, Error.InvalidManuscriptTransition, Error.NoPagesToSubmit, Error.TasksNotAllApproved, Error.RevisionNotResolved, Error.PageNotEditable, Error.DuplicateChapterNumber, Error.NameNotApproved, Error.ContractNotExecuted, Error.ChapterNotHoldable, Error.ChapterAlreadyOnHold, Error.ChapterNotOnHold, Error.EndingAllowanceExceeded, Error.ChapterNumberLocked`
 - `Error.TaskNotFound, Error.NotTaskAssignee, Error.AssistantNotHired, Error.AssetNotFound, Error.TaskNotReassignable, Error.TaskNotCancellable, Error.RegionHasApprovedTasks, Error.ChapterOnHold, Error.InvalidTaskTransition`
-- `Error.ContractNotFound, Error.ContractNotSignableYet, Error.InvalidContractTransition, CONTRACT_NOT_FOUND, Error.AmendmentNotFound, Error.AmendmentNotVoidable`
-- `PAYMENT_RECORD_NOT_FOUND, INVALID_STATUS_FOR_PAYMENT_EXPECTED_APPROVED, PAYMENT_CONDITION_NOT_FOUND`
+- `Error.ContractNotFound, Error.ContractNotSignableYet, Error.InvalidContractTransition, Error.AmendmentNotFound, Error.AmendmentNotVoidable`
+- `Error.PaymentRecordNotFound, Error.PaymentNotPayable, Error.PaymentConditionNotFound`
 - `Error.ReprintRequestNotFound, Error.InvalidReprintTransition, Error.ReprintNotWithRevision`
-- `TRANSFER_REQUEST_NOT_FOUND, TRANSFER_CONTRACT_NOT_FOUND, Error.InvalidTransferState`
+- `Error.TransferRequestNotFound, Error.TransferContractNotFound, Error.InvalidTransferState`
 - `Error.DeadlineRequestNotFound, Error.OpenDeadlineRequestExists, Error.InvalidDeadlineRequestTransition`
 - `Error.BoardSessionNotFound, Error.BoardDecisionNotFound, Error.BoardSessionNotOpen, Error.VoterNotAllowed, Error.VoterAlreadyVoted`
 - `Error.SurveyPeriodNotFound, Error.SurveyPeriodNotOpen, Error.ReaderAlreadyVoted, Error.VoteIpLimitExceeded, Error.TooManySeriesSelected`
-- Rate-limit wrapper: `code: 'AUTH_OTP_RATE_LIMITED'` hoặc `'VOTE_OTP_RATE_LIMITED'` (trên `Error.OtpRateLimited` / `Error.VoteOtpRateLimit`)
+- Rate-limit: `code` = `Error.OtpRateLimited` / `Error.VoteOtpRateLimit` / `Error.PublicRateLimited` (+ `retryAfter` top-level). Từ 2026-07-20 KHÔNG còn wrapper code riêng dạng `AUTH_OTP_RATE_LIMITED`.
 - Common: `Error.InvalidOTP, Error.OTPExpired, Error.OTPLocked, Error.FailedToSendOTP, Error.EmailAlreadyExists, Error.EmailNotFound, Error.EmailAlreadyVerified, Error.EmailNotVerified, Error.InvalidPassword, Error.RefreshTokenAlreadyUsed, Error.UnauthorizedAccess, Error.AccountBanned`
 - Validation 422: `message: "Validation failed"`, các field error `errors: [{message, path}]` — không phải `Error.*`, là raw string.
 - 500: `message: "Internal server error"` (raw)
@@ -221,7 +221,7 @@ Frequency table (chi tiết đầy đủ trong source):
 POST /auth/register            body: { email, password, confirm_password, name, displayName, phoneNumber, type: 'MANGAKA'|'ASSISTANT' }
 POST /auth/login               body: { email, password }
 POST /auth/verify-email        body: { email, code }     → 201 Created (không phải 200!)
-POST /auth/send-otp            body: { email, purpose }  → rate-limit trả 429 AUTH_OTP_RATE_LIMITED
+POST /auth/send-otp            body: { email, purpose }  → rate-limit trả 429 Error.OtpRateLimited
 POST /auth/forgot-password     body: { email, code, newPassword, confirmNewPassword }
 POST /auth/change-password     body: { currentPassword, newPassword, confirmNewPassword }
 POST /auth/refresh-token       body: { refreshToken }

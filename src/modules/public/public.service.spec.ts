@@ -1,5 +1,6 @@
 import { PublicChapterNotFoundException, PublicSeriesNotFoundException } from './errors/public.errors'
 import { PublicService } from './public.service'
+import { asCacheService, makeCacheServiceMock } from 'src/infrastructure/redis/cache.service.mock'
 
 jest.mock('src/core/config/envConfig', () => ({
   __esModule: true,
@@ -37,7 +38,7 @@ describe('PublicService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    service = new PublicService(repo as never, storage as never)
+    service = new PublicService(repo as never, storage as never, asCacheService(makeCacheServiceMock()))
     storage.createPresignedDownload.mockResolvedValue({ downloadUrl: 'https://signed/x', expiresAt: 'e' })
   })
 

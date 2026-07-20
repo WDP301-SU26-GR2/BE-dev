@@ -199,7 +199,7 @@ describe('RevisionService.list', () => {
   it('scopes non-privileged callers to rows they requested or must fix', async () => {
     const deps = makeDeps()
 
-    await make(deps).list({ userId: MANGAKA, roleName: 'MANGAKA' }, { limit: 20, offset: 0 })
+    await make(deps).list({ userId: MANGAKA, roleName: 'MANGAKA' }, { isResolved: undefined, limit: 20, offset: 0 })
 
     expect(deps.repo.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ OR: [{ recipientId: MANGAKA }, { requestedBy: MANGAKA }] }),
@@ -210,7 +210,7 @@ describe('RevisionService.list', () => {
   it.each(['SUPER_ADMIN', 'BOARD_MEMBER'])('does not scope privileged caller %s', async (roleName) => {
     const deps = makeDeps()
 
-    await make(deps).list({ userId: OTHER, roleName }, { limit: 20, offset: 0 })
+    await make(deps).list({ userId: OTHER, roleName }, { isResolved: undefined, limit: 20, offset: 0 })
 
     const where = deps.repo.findMany.mock.calls[0][0]
     expect(where.OR).toBeUndefined()
@@ -221,7 +221,7 @@ describe('RevisionService.list', () => {
 
     const result = await make(deps).list(
       { userId: MANGAKA, roleName: 'MANGAKA' },
-      { targetId: 'bad-id', limit: 20, offset: 0 }
+      { targetId: 'bad-id', isResolved: undefined, limit: 20, offset: 0 }
     )
 
     expect(result).toEqual({ items: [], total: 0, limit: 20, offset: 0 })
@@ -234,7 +234,7 @@ describe('RevisionService.list', () => {
 
     const result = await make(deps).list(
       { userId: MANGAKA, roleName: 'MANGAKA' },
-      { targetId: '', limit: 20, offset: 0 }
+      { targetId: '', isResolved: undefined, limit: 20, offset: 0 }
     )
 
     expect(result).toEqual({ items: [], total: 0, limit: 20, offset: 0 })

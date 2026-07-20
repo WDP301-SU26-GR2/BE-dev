@@ -22,9 +22,11 @@ export const ContractMessages = {
     contractSentToMangaka: 'Hợp đồng đã được gửi cho bạn để xem xét và ký kết.',
     contractUpdated: 'Hợp đồng đã được editor cập nhật và cần bạn xem xét lại.',
     contractMangakaApproved: 'Mangaka đã đồng ý các điều khoản hợp đồng.',
-    mangakaRequestedChanges: 'Mangaka yêu cầu chỉnh sửa điều khoản hợp đồng.',
+    // Lý do bắt buộc (B-CON-02): Editor phải biết SỬA GÌ, không chỉ biết "có người đòi sửa".
+    mangakaRequestedChanges: (reason: string) => `Mangaka yêu cầu chỉnh sửa điều khoản hợp đồng. Lý do: ${reason}`,
     boardApproved: 'Hội đồng đã duyệt điều khoản — sẵn sàng ký.',
-    boardRequestedChanges: 'Hội đồng yêu cầu chỉnh sửa điều khoản — cần gửi lại Mangaka duyệt.',
+    boardRequestedChanges: (reason: string) =>
+      `Hội đồng yêu cầu chỉnh sửa điều khoản — cần gửi lại Mangaka duyệt. Lý do: ${reason}`,
     contractFullyExecutedMangaka: 'Hợp đồng đã được ký kết hoàn tất.',
     contractFullyExecutedEditor: 'Hợp đồng đã được ký kết hoàn tất.',
     amendmentCreated: 'Một phụ lục hợp đồng đang được soạn — vui lòng theo dõi.',
@@ -42,7 +44,21 @@ export const ContractMessages = {
     boardDecisionNotFound: 'Error.BoardDecisionNotFound',
     invalidSerializationDecision: 'Error.InvalidSerializationDecision',
     contractMangakaMismatch: 'Error.ContractMangakaMismatch',
-    openContractExists: 'Error.OpenContractExists'
+    openContractExists: 'Error.OpenContractExists',
+    contractNotExecutedForPdf: 'Error.ContractNotExecutedForPdf',
+    // Chuẩn hoá 2026-07-20: 9 mã dưới đây trước kia là raw-string SCREAMING_SNAKE khai thẳng trong
+    // errors/contract.errors.ts (lệch AGENTS §7 — errors file phải lấy text từ catalog).
+    contractNotFound: 'Error.ContractNotFound',
+    revenueNotApplicable: 'Error.RevenueNotApplicable',
+    notAssignedContractEditor: 'Error.NotAssignedContractEditor',
+    invalidContractStatus: 'Error.InvalidContractStatus',
+    contractAlreadySigned: 'Error.ContractAlreadySigned',
+    // Khác `boardDecisionNotFound` ở trên: mã này dùng khi hợp đồng ĐANG KÝ mà thiếu quyết định Board,
+    // còn `Error.BoardDecisionNotFound` dùng ở gate TẠO hợp đồng.
+    contractBoardDecisionMissing: 'Error.ContractBoardDecisionMissing',
+    notAuthorizedInBoard: 'Error.NotAuthorizedInBoard',
+    boardMemberAlreadySigned: 'Error.BoardMemberAlreadySigned',
+    mangakaSignNotRequired: 'Error.MangakaSignNotRequired'
   },
   errorText: {
     'Error.BoardDecisionNotFound': 'Không tìm thấy quyết định Hội đồng',
@@ -63,15 +79,15 @@ export const ContractMessages = {
     'Error.AmendmentNotPendingSignatures': 'Phụ lục không ở trạng thái chờ ký',
     'Error.AmendmentNotVoidable': 'Phụ lục hiện không thể hủy',
     'Error.OwnershipMismatch': 'Tỷ lệ sở hữu trong phụ lục không hợp lệ',
-    CONTRACT_NOT_FOUND: 'Không tìm thấy hợp đồng',
-    REVENUE_NOT_APPLICABLE: 'Hợp đồng này không áp dụng chia doanh thu',
-    ONLY_ASSIGNED_EDITOR_CAN_EDIT: 'Chỉ Editor phụ trách mới được chỉnh sửa hợp đồng',
-    INVALID_CONTRACT_STATUS_FOR_THIS_ACTION: 'Trạng thái hợp đồng không phù hợp với thao tác này',
-    CONTRACT_ALREADY_SIGNED_BY_THIS_PARTY: 'Bên này đã ký hợp đồng',
-    BOARD_DECISION_NOT_FOUND: 'Không tìm thấy quyết định Hội đồng của hợp đồng',
-    NOT_AUTHORIZED_IN_BOARD: 'Bạn không thuộc Hội đồng được chỉ định cho hợp đồng này',
-    BOARD_MEMBER_ALREADY_SIGNED: 'Bạn đã ký hợp đồng này',
-    MangakaSignNotRequired: 'Hợp đồng này không yêu cầu chữ ký của Mangaka',
-    'Error.MangakaSignNotRequired': 'Hợp đồng này không yêu cầu chữ ký của Mangaka'
+    'Error.ContractNotFound': 'Không tìm thấy hợp đồng',
+    'Error.RevenueNotApplicable': 'Hợp đồng này không áp dụng chia doanh thu',
+    'Error.NotAssignedContractEditor': 'Chỉ Editor phụ trách mới được chỉnh sửa hợp đồng',
+    'Error.InvalidContractStatus': 'Trạng thái hợp đồng không phù hợp với thao tác này',
+    'Error.ContractAlreadySigned': 'Bên này đã ký hợp đồng',
+    'Error.ContractBoardDecisionMissing': 'Không tìm thấy quyết định Hội đồng của hợp đồng',
+    'Error.NotAuthorizedInBoard': 'Bạn không thuộc Hội đồng được chỉ định cho hợp đồng này',
+    'Error.BoardMemberAlreadySigned': 'Bạn đã ký hợp đồng này',
+    'Error.MangakaSignNotRequired': 'Hợp đồng này không yêu cầu chữ ký của Mangaka',
+    'Error.ContractNotExecutedForPdf': 'Hợp đồng chưa ký khoá — chỉ xuất PDF từ khi FULLY_EXECUTED'
   }
 } as const

@@ -104,10 +104,11 @@ describe('CatchEverythingFilter', () => {
     warnSpy.mockRestore()
   })
 
+  // Hình dạng THẬT của rate-limit sau 2026-07-20: không override `code`, filter derive từ `message`.
   it('preserves explicit HttpException metadata such as rate-limit retryAfter', () => {
     const { filter, reply } = createFilter()
     const exception = new HttpException(
-      { message: 'Error.OtpRateLimited', code: 'AUTH_OTP_RATE_LIMITED', retryAfter: 60 },
+      { message: 'Error.OtpRateLimited', retryAfter: 60 },
       HttpStatus.TOO_MANY_REQUESTS
     )
 
@@ -118,10 +119,25 @@ describe('CatchEverythingFilter', () => {
     expect(body).toEqual({
       success: false,
       statusCode: 429,
-      code: 'AUTH_OTP_RATE_LIMITED',
+      code: 'Error.OtpRateLimited',
       message: 'Bạn thao tác quá nhanh — vui lòng thử lại sau',
       retryAfter: 60
     })
+  })
+
+  // Nhánh `extraCode` của filter vẫn còn (BE-B có thể cần override) — giữ coverage để không rơi vào
+  // vùng chết khi production đã thôi dùng.
+  it('lets an explicit code override the one derived from message', () => {
+    const { filter, reply } = createFilter()
+    const exception = new HttpException(
+      { message: 'Error.OtpRateLimited', code: 'Error.CustomOverride', retryAfter: 5 },
+      HttpStatus.TOO_MANY_REQUESTS
+    )
+
+    filter.catch(exception, createHost())
+
+    const [, body] = reply.mock.calls[0]
+    expect(body).toMatchObject({ code: 'Error.CustomOverride', retryAfter: 5 })
   })
 
   it('maps Prisma unique-constraint errors to 409 Conflict', () => {

@@ -14,6 +14,7 @@ import { SeriesMessages } from '../series.messages'
 import { SeriesRepository } from '../series.repo'
 import { SERIES_METADATA_TERMINAL_STATUSES } from '../series.constant'
 import { SeriesCaller } from './series-query.service'
+import { CacheService } from 'src/infrastructure/redis/cache.service'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -26,7 +27,8 @@ export class SeriesMetadataService {
   constructor(
     private readonly seriesRepository: SeriesRepository,
     private readonly auditService: AuditService,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly cacheService: CacheService
   ) {}
 
   async update(caller: SeriesCaller, seriesId: string, body: UpdateSeriesMetadataBodyType) {
@@ -73,6 +75,8 @@ export class SeriesMetadataService {
         content: SeriesMessages.notification.seriesMetadataUpdated(changedFields.join(', '))
       })
     }
+
+    await this.cacheService.bumpVersion('pubseries')
 
     return toSeriesRes(result.series)
   }

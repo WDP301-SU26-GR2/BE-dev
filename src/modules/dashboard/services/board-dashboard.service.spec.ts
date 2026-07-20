@@ -1,5 +1,6 @@
 import { $Enums } from '@prisma/client'
 import { BoardDashboardService } from './board-dashboard.service'
+import { asCacheService, makeCacheServiceMock } from 'src/infrastructure/redis/cache.service.mock'
 
 describe('BoardDashboardService', () => {
   it('joins pending decisions and severe rankings with session phases and series titles', async () => {
@@ -29,7 +30,11 @@ describe('BoardDashboardService', () => {
       ])
     }
     const notificationService = { countUnread: jest.fn().mockResolvedValue(1) }
-    const service = new BoardDashboardService(dashboardRepository as never, notificationService as never)
+    const service = new BoardDashboardService(
+      dashboardRepository as never,
+      notificationService as never,
+      asCacheService(makeCacheServiceMock())
+    )
 
     const result = await service.build('board-1')
 

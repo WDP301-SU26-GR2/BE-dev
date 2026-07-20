@@ -65,6 +65,12 @@ export class AuthRepository {
     })
   }
 
+  // F-08 (audit 2026-07-20): data-access cho RoleService — giữ Prisma trong repository boundary.
+  async findRoleIdByCode(code: string): Promise<string> {
+    const role = await this.prismaService.role.findUniqueOrThrow({ where: { code }, select: { id: true } })
+    return role.id
+  }
+
   async updateUserPassword(userId: string, password: string): Promise<void> {
     await this.prismaService.user.update({
       where: { id: userId },

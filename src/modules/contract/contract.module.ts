@@ -10,9 +10,11 @@ import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { AuthModule } from '../auth/auth.module'
 import { NotificationModule } from '../notification/notification.module'
 import { PaymentModule } from '../payment/payment.module'
+import { StorageModule } from '../storage/storage.module'
+import { PdfModule } from 'src/infrastructure/pdf/pdf.module'
 
 @Module({
-  imports: [EventEmitterModule, AuthModule, NotificationModule, PaymentModule],
+  imports: [EventEmitterModule, AuthModule, NotificationModule, PaymentModule, StorageModule, PdfModule],
   controllers: [ContractController],
   providers: [
     ContractService,

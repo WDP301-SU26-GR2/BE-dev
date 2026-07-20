@@ -1,6 +1,7 @@
 import { AuditEntityType } from '@prisma/client'
 import { TaskStateService } from './task-state.service'
 import { InvalidTaskTransitionException, TaskNotFoundException } from '../errors/task.errors'
+import { TaskMessages } from '../task.messages'
 
 describe('TaskStateService', () => {
   const repo = { findTaskById: jest.fn(), updateTaskStatus: jest.fn() }
@@ -31,8 +32,8 @@ describe('TaskStateService', () => {
     expect(repo.updateTaskStatus).toHaveBeenCalledWith('t', 'ASSIGNED', undefined)
 
     repo.updateTaskStatus.mockResolvedValue({ id: 't', status: 'CANCELLED' })
-    await service.transition('t', 'CANCELLED', 'Region deleted', null)
-    expect(repo.updateTaskStatus).toHaveBeenCalledWith('t', 'CANCELLED', 'Region deleted')
+    await service.transition('t', 'CANCELLED', TaskMessages.reason.regionDeleted, null)
+    expect(repo.updateTaskStatus).toHaveBeenCalledWith('t', 'CANCELLED', TaskMessages.reason.regionDeleted)
     expect(audit.record).toHaveBeenLastCalledWith({
       actorId: null,
       entityType: AuditEntityType.TASK,
@@ -40,7 +41,7 @@ describe('TaskStateService', () => {
       action: 'TRANSITION',
       fromState: 'IN_PROGRESS',
       toState: 'CANCELLED',
-      reason: 'Region deleted'
+      reason: TaskMessages.reason.regionDeleted
     })
   })
 

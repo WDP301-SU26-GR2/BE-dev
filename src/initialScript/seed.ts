@@ -1,3 +1,3 @@
 import { initDB } from './index'
 
-initDB()
+void initDB()

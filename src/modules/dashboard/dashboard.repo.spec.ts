@@ -117,7 +117,7 @@ describe('DashboardRepository role-dashboard read models', () => {
     const { repo, prisma } = makeRepo()
     const newestA = { id: 'rank-a2', seriesId: 'series-a', riskLevel: $Enums.RiskLevel.SEVERE }
     const olderA = { id: 'rank-a1', seriesId: 'series-a', riskLevel: $Enums.RiskLevel.NONE }
-    const newestB = { id: 'rank-b1', seriesId: 'series-b', riskLevel: $Enums.RiskLevel.MODERATE }
+    const newestB = { id: 'rank-b1', seriesId: 'series-b', riskLevel: $Enums.RiskLevel.MEDIUM }
     prisma.rankingRecord.findMany.mockResolvedValue([newestA, olderA, newestB])
 
     await expect(repo.latestRankingForSeries(['series-a', 'series-b'])).resolves.toEqual([newestA, newestB])
@@ -191,7 +191,10 @@ describe('DashboardRepository role-dashboard read models', () => {
     prisma.rankingRecord.findMany.mockResolvedValue([latestNotSevere, staleSevere, latestSevere])
 
     await expect(repo.severeRiskRankings()).resolves.toEqual([latestSevere])
-    expect(prisma.rankingRecord.findMany).toHaveBeenCalledWith({ orderBy: { recordedAt: 'desc' } })
+    expect(prisma.rankingRecord.findMany).toHaveBeenCalledWith({
+      orderBy: { recordedAt: 'desc' },
+      select: { seriesId: true, rankPosition: true, riskLevel: true, recordedAt: true }
+    })
     expect(prisma.rankingRecord.findMany.mock.calls[0][0]).not.toHaveProperty('where')
   })
 })

@@ -35,7 +35,7 @@ export class AuthOtpService {
   async issueOtp(email: string, purpose: OtpPurposeType): Promise<void> {
     // Spec 14 §4: email cooldown/quota is consumed only after validation and business checks have passed.
     // Guest voting already has identity/IP limits in SurveyService; applying this rule would double-limit it
-    // and return AUTH_OTP_RATE_LIMITED instead of VOTE_OTP_RATE_LIMITED.
+    // and return Error.OtpRateLimited instead of the survey-specific vote limiter error.
     if (purpose !== OtpPurpose.VOTE) {
       const decision = await this.rateLimitService.checkAndConsume(otpEmailRule(email))
       if (!decision.allowed) throw OtpRateLimitedException(decision.retryAfter)

@@ -11,16 +11,16 @@ const E = ContractMessages.error
 
 export const ContractErrors = {
   // Lỗi khi tìm kiếm một hợp đồng không tồn tại trong DB
-  NotFound: () => new NotFoundException('CONTRACT_NOT_FOUND'),
+  NotFound: () => new NotFoundException(E.contractNotFound),
 
   // B-CON-01: chỉ được tạo hợp đồng sau khi series đã được Board serial hoá (SERIALIZED)
   SeriesNotSerialized: () => new ConflictException([{ message: 'Error.SeriesNotSerialized', path: 'seriesId' }]),
 
   // B-CON-07: route revenue chỉ áp dụng cho hợp đồng REVENUE_SHARE đã FULLY_EXECUTED
-  RevenueNotApplicable: () => new ConflictException('REVENUE_NOT_APPLICABLE'),
+  RevenueNotApplicable: () => new ConflictException(E.revenueNotApplicable),
 
   // Lỗi khi Editor này cố tình sửa hợp đồng của Editor khác phụ trách
-  UnauthorizedEditor: () => new ForbiddenException('ONLY_ASSIGNED_EDITOR_CAN_EDIT'),
+  UnauthorizedEditor: () => new ForbiddenException(E.notAssignedContractEditor),
 
   // Sai Mangaka của hợp đồng (approve / request-changes / ký OTP / xem tiến độ ký) — chuẩn Error.PascalCase.
   // Trước 2026-07-17 các path này ném nhầm UnauthorizedEditor (lệch ngữ nghĩa) — đã tách.
@@ -30,7 +30,7 @@ export const ContractErrors = {
   ContractAccessDenied: () => new ForbiddenException([{ message: E.contractAccessDenied, path: 'id' }]),
 
   // Lỗi khi trạng thái hợp đồng không hợp lệ cho hành động hiện tại (ví dụ: đang DRAFT mà đòi ký)
-  InvalidStatus: () => new BadRequestException('INVALID_CONTRACT_STATUS_FOR_THIS_ACTION'),
+  InvalidStatus: () => new BadRequestException(E.invalidContractStatus),
 
   // B-CON-02: chuyển trạng thái không hợp lệ theo CONTRACT_TRANSITIONS (Requiment Flow 6)
   InvalidContractTransition: () => new ConflictException([{ message: E.invalidContractTransition, path: 'status' }]),
@@ -38,11 +38,11 @@ export const ContractErrors = {
   // B-CON-02: chưa BOARD_APPROVED thì chưa được ký
   NotSignableYet: () => new ConflictException([{ message: E.contractNotSignableYet, path: 'status' }]),
 
-  AlreadySigned: () => new BadRequestException('CONTRACT_ALREADY_SIGNED_BY_THIS_PARTY'),
+  AlreadySigned: () => new BadRequestException(E.contractAlreadySigned),
 
   BoardDecisionNotFound: () =>
     new BadRequestException(
-      'BOARD_DECISION_NOT_FOUND',
+      E.contractBoardDecisionMissing,
       'Hợp đồng này chưa có quyết định phê duyệt chính thức từ Hội đồng'
     ),
 
@@ -56,17 +56,16 @@ export const ContractErrors = {
 
   OpenContractExists: () => new ConflictException([{ message: E.openContractExists, path: 'seriesId' }]),
 
+  ContractNotExecutedForPdf: () => new ConflictException([{ message: E.contractNotExecutedForPdf, path: 'id' }]),
+
   NotAuthorizedInBoard: () =>
     new ForbiddenException(
-      'NOT_AUTHORIZED_IN_BOARD',
+      E.notAuthorizedInBoard,
       'Tài khoản của bạn không thuộc Hội đồng Ban giám đốc được chỉ định ký kết hợp đồng này'
     ),
 
   BoardMemberAlreadySigned: () =>
-    new BadRequestException(
-      'BOARD_MEMBER_ALREADY_SIGNED',
-      'Bạn đã thực hiện xác thực ký vào hợp đồng này trước đó rồi'
-    ),
+    new BadRequestException(E.boardMemberAlreadySigned, 'Bạn đã thực hiện xác thực ký vào hợp đồng này trước đó rồi'),
 
   // --- Spec 4: ContractAmendment errors (chuẩn BE-A Error.PascalCase) ---
 
@@ -93,7 +92,7 @@ export const ContractErrors = {
     new ConflictException([{ message: 'Error.AmendmentNotPendingSignatures', path: 'status' }]),
 
   // FULL_BUYOUT: Mangaka không cần ký (Board toàn quyền — BR-CONTRACT-03)
-  MangakaSignNotRequired: () => new ConflictException('MangakaSignNotRequired'),
+  MangakaSignNotRequired: () => new ConflictException(E.mangakaSignNotRequired),
 
   // Void nhưng phụ lục đã terminal (FULLY_EXECUTED/VOIDED)
   AmendmentNotVoidable: () => new ConflictException([{ message: 'Error.AmendmentNotVoidable', path: 'status' }]),

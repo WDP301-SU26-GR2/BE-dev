@@ -1,19 +1,25 @@
 import { Injectable } from '@nestjs/common'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { RANKING_SHARED_TTL_SEC } from 'src/infrastructure/redis/cache.constant'
+import { CacheService } from 'src/infrastructure/redis/cache.service'
 import { DashboardRepository } from '../dashboard.repo'
 
 @Injectable()
 export class BoardDashboardService {
   constructor(
     private readonly dashboardRepository: DashboardRepository,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly cacheService: CacheService
   ) {}
 
   async build(userId: string) {
     const [sessions, upcomingSessions, severe, unreadNotifications] = await Promise.all([
       this.dashboardRepository.boardActiveSessions(userId),
       this.dashboardRepository.boardUpcomingSessionCount(userId),
-      this.dashboardRepository.severeRiskRankings(),
+      this.cacheService.getOrSet('ranking', 'severe', RANKING_SHARED_TTL_SEC, async () => {
+        const rows = await this.dashboardRepository.severeRiskRankings()
+        return rows.map((row) => ({ seriesId: row.seriesId, rankPosition: row.rankPosition }))
+      }),
       this.notificationService.countUnread(userId)
     ])
     const phaseBySession = new Map(sessions.map((session) => [session.id, session.phase]))

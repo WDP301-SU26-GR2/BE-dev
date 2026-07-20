@@ -9,10 +9,13 @@ export const TaskMessages = {
     taskCancelled: 'Công việc của bạn đã bị huỷ',
     taskReassigned: 'Công việc đã được giao lại cho trợ lý khác'
   },
+  // Ghi vào `Task.statusReason` — field NÀY CÓ trong TaskRes nên hiển thị thẳng cho Assistant/Mangaka.
+  // Phải là tiếng Việt như mọi text user-facing khác (Spec 21). Record cũ đã lưu chuỗi tiếng Anh
+  // thì giữ nguyên (không migrate) — chấp nhận lệch lịch sử.
   reason: {
-    regionDeleted: 'Region deleted',
-    cancelledByMangaka: 'Cancelled by mangaka',
-    reassigned: 'Reassigned to another assistant'
+    regionDeleted: 'Vùng được giao đã bị xoá',
+    cancelledByMangaka: 'Mangaka đã huỷ công việc này',
+    reassigned: 'Công việc đã được chuyển cho trợ lý khác'
   },
   error: {
     pageNotFound: 'Error.PageNotFound',

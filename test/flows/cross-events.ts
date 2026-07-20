@@ -192,7 +192,7 @@ const main = async () => {
     rDraftBefore.status === 409,
     `got ${rDraftBefore.status} ${rDraftBefore.raw.slice(0, 140)}`
   )
-  await boardDecide(DecisionType.SERIALIZATION, sPitched.id, {
+  const { decisionId: approvedSerializationId } = await boardDecide(DecisionType.SERIALIZATION, sPitched.id, {
     magazine: 'EV Jump',
     startIssueNumber: 1,
     publicationType: 'WEEKLY'
@@ -205,7 +205,14 @@ const main = async () => {
       sPitchedAfter?.startIssueNumber === 1,
     `status=${String(sPitchedAfter?.status)} magazine=${String(sPitchedAfter?.magazine)}`
   )
-  const rDraftAfter = await req('POST', '/contracts', { token: e1Tok, body: draftBody })
+  // Gate createDraft (commit 6cbd57e) đòi decision phải đúng bộ ba (targetSeriesId, SERIALIZATION, APPROVED).
+  // `preDecision` ở trên cố tình để result=PENDING (nó phục vụ case EV-06a), nên KHÔNG dùng lại được ở đây —
+  // phải trỏ vào chính decision vừa được Board bỏ phiếu duyệt. Đừng "sửa cho xanh" bằng cách nới gate:
+  // hợp đồng bắt buộc phải viện dẫn đúng quyết định serial hoá đã được thông qua.
+  const rDraftAfter = await req('POST', '/contracts', {
+    token: e1Tok,
+    body: { ...draftBody, boardDecisionId: approvedSerializationId }
+  })
   ok(
     'EV-06c series.serialized → createDraft mở cổng → 201',
     rDraftAfter.status === 201,

@@ -1,5 +1,6 @@
 import { SeriesStatus } from '@prisma/client'
 import { SeriesStateService } from './series-state.service'
+import { asCacheService, makeCacheServiceMock } from 'src/infrastructure/redis/cache.service.mock'
 
 function makeRepo(overrides: Record<string, unknown> = {}) {
   return {
@@ -26,7 +27,12 @@ describe('SeriesStateService.transition', () => {
   it('allows a valid transition and records history', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: SeriesStatus.DRAFT }) })
     const audit = makeAudit()
-    const svc = new SeriesStateService(repo as never, makeNameRepo() as never, audit as never)
+    const svc = new SeriesStateService(
+      repo as never,
+      makeNameRepo() as never,
+      audit as never,
+      asCacheService(makeCacheServiceMock())
+    )
     const res = await svc.transition('s1', SeriesStatus.IN_REVIEW, { changedBy: 'u1', reason: 'ready' })
     expect(repo.updateStatusWithHistory).toHaveBeenCalledWith('s1', {
       fromStatus: SeriesStatus.DRAFT,
@@ -48,14 +54,24 @@ describe('SeriesStateService.transition', () => {
 
   it('rejects an invalid transition with 409', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: SeriesStatus.DRAFT }) })
-    const svc = new SeriesStateService(repo as never, makeNameRepo() as never, makeAudit() as never)
+    const svc = new SeriesStateService(
+      repo as never,
+      makeNameRepo() as never,
+      makeAudit() as never,
+      asCacheService(makeCacheServiceMock())
+    )
     await expect(svc.transition('s1', SeriesStatus.PITCHED, { changedBy: 'u1' })).rejects.toBeDefined()
     expect(repo.updateStatusWithHistory).not.toHaveBeenCalled()
   })
 
   it('throws when series not found', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue(null) })
-    const svc = new SeriesStateService(repo as never, makeNameRepo() as never, makeAudit() as never)
+    const svc = new SeriesStateService(
+      repo as never,
+      makeNameRepo() as never,
+      makeAudit() as never,
+      asCacheService(makeCacheServiceMock())
+    )
     await expect(svc.transition('sX', SeriesStatus.IN_REVIEW, { changedBy: 'u1' })).rejects.toBeDefined()
   })
 
@@ -70,7 +86,12 @@ describe('SeriesStateService.transition', () => {
 
     for (const [fromStatus, toStatus] of allowed) {
       const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: fromStatus }) })
-      const svc = new SeriesStateService(repo as never, makeNameRepo() as never, makeAudit() as never)
+      const svc = new SeriesStateService(
+        repo as never,
+        makeNameRepo() as never,
+        makeAudit() as never,
+        asCacheService(makeCacheServiceMock())
+      )
 
       await expect(svc.transition('s1', toStatus, { changedBy: 'u1' })).resolves.toMatchObject({ status: toStatus })
       expect(repo.updateStatusWithHistory).toHaveBeenCalledWith(
@@ -80,7 +101,12 @@ describe('SeriesStateService.transition', () => {
     }
 
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: SeriesStatus.PITCHED }) })
-    const svc = new SeriesStateService(repo as never, makeNameRepo() as never, makeAudit() as never)
+    const svc = new SeriesStateService(
+      repo as never,
+      makeNameRepo() as never,
+      makeAudit() as never,
+      asCacheService(makeCacheServiceMock())
+    )
     await expect(svc.transition('s1', SeriesStatus.DRAFT, { changedBy: 'u1' })).rejects.toBeDefined()
     expect(repo.updateStatusWithHistory).not.toHaveBeenCalled()
   })
@@ -96,7 +122,12 @@ describe('SeriesStateService.tryAdvanceToReadyToPitch', () => {
   it('advances to READY_TO_PITCH when proposal approved and name approved', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue(inReviewBothApproved) })
     const nameRepo = makeNameRepo({ findNameById: jest.fn().mockResolvedValue({ id: 'n1', status: 'APPROVED' }) })
-    const svc = new SeriesStateService(repo as never, nameRepo as never, makeAudit() as never)
+    const svc = new SeriesStateService(
+      repo as never,
+      nameRepo as never,
+      makeAudit() as never,
+      asCacheService(makeCacheServiceMock())
+    )
     await svc.tryAdvanceToReadyToPitch('s1', 'editor1')
     expect(repo.updateStatusWithHistory).toHaveBeenCalledWith('s1', {
       fromStatus: SeriesStatus.IN_REVIEW,
@@ -109,7 +140,12 @@ describe('SeriesStateService.tryAdvanceToReadyToPitch', () => {
   it('does nothing when name not yet approved', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue(inReviewBothApproved) })
     const nameRepo = makeNameRepo({ findNameById: jest.fn().mockResolvedValue({ id: 'n1', status: 'IN_REVIEW' }) })
-    const svc = new SeriesStateService(repo as never, nameRepo as never, makeAudit() as never)
+    const svc = new SeriesStateService(
+      repo as never,
+      nameRepo as never,
+      makeAudit() as never,
+      asCacheService(makeCacheServiceMock())
+    )
     await svc.tryAdvanceToReadyToPitch('s1', 'editor1')
     expect(repo.updateStatusWithHistory).not.toHaveBeenCalled()
   })
@@ -122,7 +158,12 @@ describe('SeriesStateService.tryAdvanceToReadyToPitch', () => {
         proposal: { status: 'PROPOSAL_REVIEW', nameId: 'n1' }
       })
     })
-    const svc = new SeriesStateService(repo as never, makeNameRepo() as never, makeAudit() as never)
+    const svc = new SeriesStateService(
+      repo as never,
+      makeNameRepo() as never,
+      makeAudit() as never,
+      asCacheService(makeCacheServiceMock())
+    )
     await svc.tryAdvanceToReadyToPitch('s1', 'editor1')
     expect(repo.updateStatusWithHistory).not.toHaveBeenCalled()
   })
