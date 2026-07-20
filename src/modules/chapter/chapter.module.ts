@@ -17,8 +17,10 @@ import { DeadlineWarningCron } from './services/deadline-warning.cron'
 import { ChapterCoOwnerService } from './services/chapter-coowner.service'
 import { CoOwnerEscalationCron } from './services/coowner-escalation.cron'
 import { StudioOverviewController } from './studio-overview.controller'
+import { StudioModule } from 'src/modules/studio/studio.module'
 
 @Module({
+  imports: [StudioModule],
   controllers: [ChapterController, StudioOverviewController],
   providers: [
     ChapterService,

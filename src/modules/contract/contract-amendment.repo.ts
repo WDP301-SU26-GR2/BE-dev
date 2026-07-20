@@ -98,12 +98,17 @@ export class ContractAmendmentRepo {
       })
       if (guard.count !== 1) return { applied: false }
 
-      // 2. Đọc amendment (typed term) + contract (versions để đánh số)
+      // 2. Đọc amendment (typed term)
       const amendment = await tx.contractAmendment.findUniqueOrThrow({ where: { id: amendmentId } })
-      const contract = await tx.contract.findUniqueOrThrow({
-        where: { id: contractId },
-        include: { versions: { select: { id: true } } }
+
+      // S-05: cấp số phiên bản từ bản ghi mới nhất TRONG transaction, không dùng
+      // `versions.length + 1` (đếm sai khi có phiên bản bị xoá và đụng nhau khi chạy song song).
+      const latestVersion = await tx.contractVersion.findFirst({
+        where: { contractId },
+        orderBy: { versionNumber: 'desc' },
+        select: { versionNumber: true }
       })
+      const nextVersionNumber = (latestVersion?.versionNumber ?? 0) + 1
 
       // 3. Build contract update: chỉ field !=null
       const contractData: Prisma.ContractUpdateInput = {}
@@ -120,7 +125,7 @@ export class ContractAmendmentRepo {
       await tx.contractVersion.create({
         data: {
           contractId,
-          versionNumber: contract.versions.length + 1,
+          versionNumber: nextVersionNumber,
           valuationAmount: updatedContract.valuationAmount,
           publisherOwnershipPct: updatedContract.publisherOwnershipPct,
           mangakaOwnershipPct: updatedContract.mangakaOwnershipPct,

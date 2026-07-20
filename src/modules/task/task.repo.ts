@@ -9,14 +9,27 @@ export type TaskListWhere = Prisma.TaskWhereInput
 export class TaskRepository {
   constructor(private readonly prismaService: PrismaService) {}
 
-  private async attachPeople<T extends Pick<Task, 'assistantId' | 'versions'>>(rows: T[]) {
-    const users = await fetchUserMiniMap(
-      this.prismaService,
-      rows.flatMap((row) => [row.assistantId, ...row.versions.map((version) => version.submittedBy)])
-    )
+  // Batch lookup vùng cho task theo Region — Assistant cần toạ độ để biết chỗ phải làm,
+  // mà GET /pages/:id/regions là MANGAKA/EDITOR-only. 1 query cho cả trang, không N+1.
+  private async fetchRegionMap(regionIds: Array<string | null>) {
+    const ids = [...new Set(regionIds.filter((id): id is string => Boolean(id)))]
+    if (ids.length === 0) return new Map<string, Region>()
+    const regions = await this.prismaService.region.findMany({ where: { id: { in: ids } } })
+    return new Map(regions.map((region) => [region.id, region]))
+  }
+
+  private async attachEmbeds<T extends Pick<Task, 'assistantId' | 'regionId' | 'versions'>>(rows: T[]) {
+    const [users, regions] = await Promise.all([
+      fetchUserMiniMap(
+        this.prismaService,
+        rows.flatMap((row) => [row.assistantId, ...row.versions.map((version) => version.submittedBy)])
+      ),
+      this.fetchRegionMap(rows.map((row) => row.regionId))
+    ])
     return rows.map((row) => ({
       ...row,
       assistant: row.assistantId ? (users.get(row.assistantId) ?? null) : null,
+      region: row.regionId ? (regions.get(row.regionId) ?? null) : null,
       versions: row.versions.map((version) => ({
         ...version,
         submitter: version.submittedBy ? (users.get(version.submittedBy) ?? null) : null
@@ -161,7 +174,7 @@ export class TaskRepository {
   async findTaskById(id: string) {
     const row = await this.prismaService.task.findUnique({ where: { id } })
     if (!row) return null
-    return (await this.attachPeople([row]))[0]
+    return (await this.attachEmbeds([row]))[0]
   }
 
   // single-writer status (gọi từ TaskStateService)
@@ -217,7 +230,7 @@ export class TaskRepository {
       skip: page.offset,
       take: page.limit
     })
-    return this.attachPeople(rows)
+    return this.attachEmbeds(rows)
   }
 
   async countTasks(where: TaskListWhere): Promise<number> {

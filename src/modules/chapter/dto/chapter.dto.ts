@@ -5,6 +5,9 @@ import {
   ChapterResSchema,
   CreateChapterBodySchema,
   CreatePageBodySchema,
+  DeletePageResSchema,
+  DeletePagesBulkBodySchema,
+  DeletePagesBulkResSchema,
   ExtendDeadlineBodySchema,
   HoldChapterBodySchema,
   PageListResSchema,
@@ -32,3 +35,6 @@ export class ChapterProgressResDto extends createZodDto(ChapterProgressResSchema
 export class StudioOverviewResDto extends createZodDto(StudioOverviewResSchema) {}
 export class PageResDto extends createZodDto(PageResSchema) {}
 export class PageListResDto extends createZodDto(PageListResSchema) {}
+export class DeletePagesBulkBodyDto extends createZodDto(DeletePagesBulkBodySchema) {}
+export class DeletePageResDto extends createZodDto(DeletePageResSchema) {}
+export class DeletePagesBulkResDto extends createZodDto(DeletePagesBulkResSchema) {}

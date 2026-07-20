@@ -288,8 +288,6 @@ export class ContractService {
     // B-CON-02: chỉ sửa được khi còn thương lượng (chưa ký/terminal).
     if (!CONTRACT_EDITABLE_STATUSES.includes(contract.status)) throw ContractErrors.InvalidContractTransition()
 
-    const nextVersionNumber = contract.versions.length + 1
-
     const updateData = {
       ...dto,
       status: ContractStatus.NEGOTIATION,
@@ -297,13 +295,9 @@ export class ContractService {
       boardSignedAt: null
     }
 
-    const updated = await this.contractRepo.updateAndLogVersion(
-      contractId,
-      updateData,
-      editorId,
-      nextVersionNumber,
-      note
-    )
+    // S-05: versionNumber nay do repo cấp BÊN TRONG transaction (kèm retry P2002),
+    // không tính từ snapshot đọc ngoài nữa.
+    const updated = await this.contractRepo.updateAndLogVersion(contractId, updateData, editorId, note)
 
     await this.notificationService.notifySafe({
       recipientId: contract.mangakaId,
@@ -441,19 +435,18 @@ export class ContractService {
       purpose: 'SIGNING_CONTRACT' // Đồng bộ chung một loại purpose với phía Board
     })
 
-    // LỚP 3: Mọi thứ hợp lệ -> Tiến hành ký kết
-    const updatedData = { mangakaSignedAt: new Date() }
-    let nextStatus: ContractStatus = ContractStatus.MANGAKA_SIGNED
+    // LỚP 3: Mọi thứ hợp lệ -> Tiến hành ký kết.
+    // S-02: ghi mốc ký + chốt FULLY_EXECUTED trong MỘT transaction có CAS. Bản cũ
+    // đọc `contract.boardSignedAt` từ snapshot rồi mới ghi ⇒ mangaka và board-cuối
+    // ký đồng thời thì mỗi bên thấy bên kia "chưa ký" ⇒ không ai chốt hợp đồng.
+    const settled = await this.contractRepo.recordMangakaSignatureAndSettle(contractId)
+    if (!settled.signed || !settled.contract) throw ContractErrors.AlreadySigned()
 
-    if (contract.boardSignedAt) {
-      nextStatus = ContractStatus.FULLY_EXECUTED
-    }
+    const result = settled.contract
+    await this.auditTransition(contractId, contract.status, result.status, loggedInUserId)
 
-    const result = await this.contractRepo.updateStatus(contractId, nextStatus, updatedData)
-
-    await this.auditTransition(contractId, contract.status, nextStatus, loggedInUserId)
-
-    if (nextStatus === ContractStatus.FULLY_EXECUTED) {
+    // Chỉ người thắng CAS mới emit → event không bao giờ bắn đôi.
+    if (settled.executedNow) {
       this.domainEventBus.emit(DomainEvent.ContractExecuted, { contractId: result.id, seriesId: result.seriesId })
     }
     return result
@@ -490,27 +483,22 @@ export class ContractService {
     // Lấy tổng số lượng sếp bắt buộc phải ký từ độ dài mảng ID
     const totalRequiredSigns = contract.boardDecision?.boardSession?.allowedEditorIds?.length || 0
 
-    // Gọi Repo đếm số chữ ký thực tế hiện tại có trong DB
-    const currentActualSigns = await this.contractRepo.countBoardSignatures(contractId)
-    const newTotalSigns = currentActualSigns + 1
+    // S-02: ghi chữ ký + ĐẾM LẠI BÊN TRONG transaction + CAS chốt trạng thái.
+    // Bản cũ đếm ngoài transaction rồi `count + 1`: hai người ký giữa chừng đồng thời
+    // cùng thấy số cũ ⇒ không ai đạt ngưỡng ⇒ hợp đồng kẹt vĩnh viễn (đã ký, không ký lại được).
+    const settled = await this.contractRepo.recordBoardSignatureAndSettle(
+      contractId,
+      loggedInUserId,
+      totalRequiredSigns
+    )
+    const newTotalSigns = settled.signatureCount
+    const result = settled.contract
 
-    const shouldFinalizeBoard = newTotalSigns === totalRequiredSigns
-    let result
+    if (settled.boardCompletedNow) {
+      await this.auditTransition(contractId, contract.status, result?.status ?? contract.status, loggedInUserId)
 
-    if (shouldFinalizeBoard) {
-      const updatedData = { boardSignedAt: new Date() }
-      let nextStatus: ContractStatus = ContractStatus.BOARD_APPROVED
-
-      if (contract.mangakaSignedAt) {
-        nextStatus = ContractStatus.FULLY_EXECUTED
-      }
-
-      // Gọi Repo thực thi lưu chữ ký cuối cùng và cập nhật trạng thái hợp đồng chính
-      result = await this.contractRepo.executeBoardSignature(contractId, loggedInUserId, true, nextStatus, updatedData)
-
-      await this.auditTransition(contractId, contract.status, nextStatus, loggedInUserId)
-
-      if (nextStatus === ContractStatus.FULLY_EXECUTED && result) {
+      // Chỉ người thắng CAS mới emit → không bao giờ bắn đôi ContractExecuted.
+      if (settled.executedNow && result) {
         this.domainEventBus.emit(DomainEvent.ContractExecuted, { contractId: result.id, seriesId: result.seriesId })
       }
 
@@ -538,15 +526,13 @@ export class ContractService {
         message: ContractMessages.response.boardSignaturesCompleted,
         contract: result
       }
-    } else {
-      // Gọi Repo lưu vết chữ ký riêng lẻ (chưa chốt hợp đồng)
-      result = await this.contractRepo.executeBoardSignature(contractId, loggedInUserId, false)
+    }
 
-      return {
-        status: 'PENDING_MORE_SIGNATURES',
-        message: ContractMessages.response.boardSignatureRecorded(newTotalSigns, totalRequiredSigns),
-        contract: result
-      }
+    // Chữ ký đã được ghi trong transaction ở trên — nhánh này chỉ báo tiến độ.
+    return {
+      status: 'PENDING_MORE_SIGNATURES',
+      message: ContractMessages.response.boardSignatureRecorded(newTotalSigns, totalRequiredSigns),
+      contract: result
     }
   }
 

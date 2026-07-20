@@ -24,6 +24,27 @@ const FLOW = 'cross-rbac-sweep'
 // ObjectId hợp lệ-nhưng-không-tồn-tại → route :id trả 404 (KHÔNG 500) là hành vi đúng.
 const substituteParams = (path: string): string => path.replace(/:[a-zA-Z]+/g, 'aaaaaaaaaaaaaaaaaaaaaaaa')
 
+/**
+ * Route có OBJECT-LEVEL authorization (S-01, BACKEND_AUDIT_2026-07-20).
+ *
+ * Sweep này chỉ kiểm được tầng RBAC theo VAI TRÒ. Ba route dưới đây còn một tầng nữa:
+ * service kiểm quyền sở hữu trên chính bản ghi (receiver / chủ contract / editor phụ trách).
+ * Sweep dùng id giả + user không sở hữu gì, nên **403 là kết quả ĐÚNG** — service chọn
+ * từ chối thay vì trả 404 để không lộ sự tồn tại của bản ghi tiền.
+ *
+ * Giả định cũ ở nhánh "allowed" ("id giả → 404 trước khi so scope") không còn đúng sau S-01,
+ * và đó là lý do 5 probe này đỏ. Với các route này ta chỉ khẳng định KHÔNG bị 401
+ * (tức đã qua guard xác thực); 401 vẫn là FAIL như thường.
+ *
+ * ⚠ Chỉ thêm route vào đây khi service THỰC SỰ kiểm sở hữu trước khi lộ dữ liệu —
+ * đừng dùng nó để "làm cho xanh" một route bị 403 vì cấu hình @Roles sai.
+ */
+const OBJECT_SCOPED_ROUTES = new Set([
+  'GET /payments/contracts/:id/payments',
+  'GET /payments/series/:id/payments',
+  'GET /payments/users/:id/payments'
+])
+
 const main = async () => {
   resetCounters()
   console.log(`\n##### ${FLOW} #####`)
@@ -64,8 +85,13 @@ const main = async () => {
 
       if (rule.access === 'PUBLIC' || rule.access === 'AUTH' || rule.allowed.includes(role)) {
         // Không được chặn bởi RBAC (guard). 404/409/422/429 = qua guard, OK.
-        // Dummy id → service 404 trước khi so scope nên 403 service-level không xảy ra.
-        ok(`${name} allowed`, r.status !== 401 && r.status !== 403, `got ${r.status}`)
+        // Dummy id → service thường 404 trước khi so scope nên 403 service-level không xảy ra.
+        // Ngoại lệ: route object-scoped (S-01) từ chối bằng 403 để không lộ sự tồn tại — xem chú thích trên.
+        if (OBJECT_SCOPED_ROUTES.has(`${rule.method} ${rule.path}`)) {
+          ok(`${name} allowed (object-scoped: 403 hợp lệ)`, r.status !== 401, `got ${r.status}`)
+        } else {
+          ok(`${name} allowed`, r.status !== 401 && r.status !== 403, `got ${r.status}`)
+        }
       } else {
         ok(`${name} denied → 403`, r.status === 403, `got ${r.status}`)
       }

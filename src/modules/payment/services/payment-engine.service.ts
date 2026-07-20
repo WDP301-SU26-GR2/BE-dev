@@ -10,6 +10,7 @@ import {
   PaymentType
 } from '@prisma/client'
 import { RedisService } from 'src/infrastructure/redis/redis.service'
+import { isUniqueConstrainError } from 'src/infrastructure/database/prisma-error.helper'
 import { PaymentRecordRepo } from '../payment.repo'
 
 type ChapterPublishedPayload = {
@@ -282,6 +283,9 @@ export class PaymentEngineService {
     description?: string
     paymentSource?: PaymentSource
   }) {
+    // S-03: existsPayment là lớp lọc RẺ cho đường bình thường, KHÔNG phải cơ chế
+    // đảm bảo. Hai event đồng thời có thể cùng vượt qua nó ⇒ nguồn sự thật là
+    // unique index `payment_idempotency` ở tầng DB, bắt bằng P2002 phía dưới.
     const existing = await this.paymentRepo.existsPayment({
       conditionId: params.conditionId ?? null,
       paymentType: params.paymentType,
@@ -291,10 +295,23 @@ export class PaymentEngineService {
     })
     if (existing) return null
 
-    const payment = await this.paymentRepo.createTriggeredPayment({
-      ...params,
-      paymentSource: params.paymentSource ?? PaymentSource.CONTRACT
-    })
+    let payment: Awaited<ReturnType<typeof this.paymentRepo.createTriggeredPayment>>
+    try {
+      payment = await this.paymentRepo.createTriggeredPayment({
+        ...params,
+        paymentSource: params.paymentSource ?? PaymentSource.CONTRACT
+      })
+    } catch (error) {
+      // Người thua trong race: payment đã được request kia ghi. Coi như "đã tồn tại"
+      // → trả null, KHÔNG emit lần hai, KHÔNG đẩy 500 lên client.
+      if (isUniqueConstrainError(error)) {
+        this.logger.warn(
+          `createPaymentOnce: bỏ qua bản trùng (contract=${params.contractId}, type=${params.paymentType}, period=${params.period ?? 'null'})`
+        )
+        return null
+      }
+      throw error
+    }
 
     this.eventEmitter.emit('payment.triggered', {
       paymentId: payment.id,

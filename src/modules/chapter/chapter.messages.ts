@@ -4,6 +4,7 @@
 export const ChapterMessages = {
   // In-app notification content (notification layer).
   notification: {
+    taskRemovedWithPage: 'Trang chứa công việc của bạn đã bị xoá',
     awaitingCoOwnerApproval: 'Chương đang chờ đồng sở hữu duyệt',
     chapterPublished: 'Chương đã được xuất bản',
     deadlineWarning: (chapterId: string) => `Chương ${chapterId} sắp đến hạn`,
@@ -30,6 +31,7 @@ export const ChapterMessages = {
     revisionNotResolved: 'Error.RevisionNotResolved',
     pageNotEditable: 'Error.PageNotEditable',
     duplicateChapterNumber: 'Error.DuplicateChapterNumber',
+    duplicatePageNumber: 'Error.DuplicatePageNumber',
     pageNotFound: 'Error.PageNotFound',
     nameNotApproved: 'Error.NameNotApproved',
     nameNotInSeries: 'Error.NameNotInSeries',
@@ -64,6 +66,7 @@ export const ChapterMessages = {
     'Error.RevisionNotResolved': 'Vẫn còn yêu cầu chỉnh sửa chưa hoàn tất',
     'Error.PageNotEditable': 'Trang đang được Editor duyệt, không thể chỉnh sửa',
     'Error.DuplicateChapterNumber': 'Số chương này đã tồn tại trong series',
+    'Error.DuplicatePageNumber': 'Số trang này đã tồn tại trong chương',
     'Error.PageNotFound': 'Không tìm thấy trang',
     'Error.NameNotApproved': 'Name chưa được duyệt',
     'Error.NameNotInSeries': 'Name không thuộc series này',
