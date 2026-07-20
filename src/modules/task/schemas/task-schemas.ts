@@ -84,6 +84,30 @@ export const BatchCreateTaskBodySchema = extendApi(
   { title: 'BatchCreateTaskBody', description: 'Giao nhiều task (all-or-nothing)' }
 )
 
+export const CreateTaskGroupBodySchema = extendApi(
+  z
+    .object({
+      pageIds: z
+        .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'pageId không hợp lệ'))
+        .min(1)
+        .max(50)
+        .describe('Các trang cùng nhận một đầu việc (tối đa 50) — all-or-nothing'),
+      assistantId: z.string(),
+      taskType: zEnum($Enums.Specialization, 'Specialization'),
+      groupTitle: z.string().min(1).max(200).optional().describe('Tên nhóm việc hiển thị, vd "Vẽ nền ch.5"'),
+      deadline: z.string().datetime({ offset: true }).optional(),
+      priority: z.number().int().nonnegative().default(0),
+      assetIds: z.array(z.string()).default([])
+    })
+    .strict(),
+  {
+    title: 'CreateTaskGroupBody',
+    description:
+      'Giao một đầu việc trải nhiều trang. Backend tạo N task (mỗi trang 1 task) dùng chung groupId — ' +
+      'giữ nguyên cơ chế region/tiến độ/duyệt theo trang.'
+  }
+)
+
 export const UpdateTaskBodySchema = extendApi(
   z
     .object({
@@ -139,12 +163,33 @@ export const TaskResSchema = extendApi(
     assetIds: z.array(z.string()),
     versions: z.array(TaskVersionResSchema),
     createdAt: z.string(),
+    groupId: z.string().nullable().optional().describe('Nhóm việc chứa task này; null = task lẻ'),
+    groupTitle: z.string().nullable().optional().describe('Tên nhóm việc hiển thị'),
     assistant: UserMiniSchema.nullable().optional().describe('Trợ lý được giao — có ở GET list/detail'),
     region: RegionResSchema.nullable()
       .optional()
       .describe('Vùng cần xử lý (toạ độ + loại vùng) — có ở GET list/detail; null khi task không gắn vùng')
   }),
   { title: 'TaskRes', description: 'Một task production' }
+)
+
+export const TaskGroupResSchema = extendApi(
+  z.object({
+    groupId: z.string(),
+    groupTitle: z.string().nullable(),
+    items: z.array(TaskResSchema),
+    total: z.number()
+  }),
+  { title: 'TaskGroupRes', description: 'Nhóm việc vừa tạo' }
+)
+
+export const ApproveTaskGroupResSchema = extendApi(
+  z.object({
+    groupId: z.string(),
+    approved: z.number().describe('Số task vừa được duyệt'),
+    skipped: z.array(z.string()).describe('Task id bỏ qua vì chưa ở trạng thái duyệt được')
+  }),
+  { title: 'ApproveTaskGroupRes', description: 'Kết quả duyệt cả nhóm' }
 )
 
 export const TaskListResSchema = extendApi(
@@ -159,6 +204,7 @@ export const ListTasksQuerySchema = extendApi(
       chapterId: z.string().optional().describe('Lọc task theo chapter'),
       pageId: z.string().optional(),
       regionId: z.string().optional().describe('Lọc task theo vùng (Region id)'),
+      groupId: z.string().optional().describe('Lọc task theo nhóm việc (task group)'),
       assistantId: z.string().optional(),
       status: zEnum($Enums.TaskStatus, 'TaskStatus').optional(),
       limit: z.coerce.number().int().positive().max(100).default(20),
@@ -182,4 +228,5 @@ export type SubmitTaskBodyType = z.infer<typeof SubmitTaskBodySchema>
 export type RequestRevisionBodyType = z.infer<typeof RequestRevisionBodySchema>
 export type ReassignTaskBodyType = z.infer<typeof ReassignTaskBodySchema>
 export type CancelTaskBodyType = z.infer<typeof CancelTaskBodySchema>
+export type CreateTaskGroupBodyType = z.infer<typeof CreateTaskGroupBodySchema>
 export type ListTasksQueryType = z.infer<typeof ListTasksQuerySchema>

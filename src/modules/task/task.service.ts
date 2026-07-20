@@ -7,6 +7,7 @@ import { TaskRepository, TaskListWhere } from './task.repo'
 import { toTaskRes } from './task.mapper'
 import {
   BatchCreateTaskBodyType,
+  CreateTaskGroupBodyType,
   CancelTaskBodyType,
   CreateRegionBodyType,
   CreateTaskBodyType,
@@ -50,6 +51,14 @@ export class TaskService {
   }
   createTaskBatch(userId: string, body: BatchCreateTaskBodyType) {
     return this.taskAssignService.createBatch(userId, body)
+  }
+
+  createTaskGroup(userId: string, body: CreateTaskGroupBodyType) {
+    return this.taskAssignService.createGroup(userId, body)
+  }
+
+  approveTaskGroup(userId: string, groupId: string) {
+    return this.taskReviewService.approveGroup(userId, groupId)
   }
   reassignTask(userId: string, id: string, body: ReassignTaskBodyType) {
     return this.taskAssignService.reassign(userId, id, body)
@@ -128,6 +137,7 @@ export class TaskService {
       ...(pageScope !== undefined ? { pageId: pageScope } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.regionId ? { regionId: query.regionId } : {}),
+      ...(query.groupId ? { groupId: query.groupId } : {}),
       ...(!isAssistant && query.assistantId ? { assistantId: query.assistantId } : {})
     }
 

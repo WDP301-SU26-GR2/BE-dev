@@ -43,6 +43,8 @@ export function toTaskRes(t: TaskWithPeople) {
       ...(v.submitter !== undefined ? { submitter: v.submitter } : {})
     })),
     createdAt: t.createdAt.toISOString(),
+    groupId: t.groupId ?? null,
+    groupTitle: t.groupTitle ?? null,
     ...(t.assistant !== undefined ? { assistant: t.assistant } : {}),
     ...(t.region !== undefined ? { region: t.region ? toRegionRes(t.region) : null } : {})
   }

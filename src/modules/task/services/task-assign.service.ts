@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Injectable } from '@nestjs/common'
 import { NotificationType, TaskStatus } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
@@ -19,6 +20,7 @@ import { TaskRepository } from '../task.repo'
 import { TaskStateService } from './task-state.service'
 import { toTaskRes } from '../task.mapper'
 import {
+  CreateTaskGroupBodyType,
   BatchCreateTaskBodyType,
   CancelTaskBodyType,
   CreateTaskBodyType,
@@ -101,6 +103,44 @@ export class TaskAssignService {
     const limit = 20
     const offset = 0
     return { items: tasks.map(toTaskRes), total: tasks.length, limit, offset }
+  }
+
+  // Task group: một đầu việc trải nhiều trang. Dưới DB vẫn là N task 1-trang dùng chung groupId
+  // ⇒ giữ nguyên region / pagesReady / cascade / duyệt-từng-trang. Group chỉ để gom hiển thị + thao tác hàng loạt.
+  async createGroup(mangakaId: string, body: CreateTaskGroupBodyType) {
+    const pageIds = [...new Set(body.pageIds)]
+    // Validate TOÀN BỘ trước khi ghi (all-or-nothing, mẫu createBatch)
+    for (const pageId of pageIds) {
+      await this.validateAssign(mangakaId, {
+        pageId,
+        assistantId: body.assistantId,
+        taskType: body.taskType,
+        priority: body.priority,
+        assetIds: body.assetIds
+      })
+    }
+
+    const groupId = randomUUID()
+    const tasks = await this.taskRepository.createTasksBatch(
+      pageIds.map((pageId) => ({
+        pageId,
+        regionId: null,
+        assistantId: body.assistantId,
+        taskType: body.taskType,
+        deadline: body.deadline ? new Date(body.deadline) : null,
+        priority: body.priority,
+        assetIds: body.assetIds,
+        groupId,
+        groupTitle: body.groupTitle ?? null
+      }))
+    )
+    for (const task of tasks) await this.notifyAssigned(task.assistantId as string, task.id)
+    return {
+      groupId,
+      groupTitle: body.groupTitle ?? null,
+      items: tasks.map(toTaskRes),
+      total: tasks.length
+    }
   }
 
   async reassign(mangakaId: string, taskId: string, body: ReassignTaskBodyType) {

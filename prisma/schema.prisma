@@ -971,12 +971,19 @@ model Task {
   assetIds     String[]        @default([]) @db.ObjectId
   statusReason String?
 
+  // Task group: giao MỘT lần cho nhiều trang. Task vẫn thuộc ĐÚNG 1 trang (giữ region /
+  // pagesReady / cascade / duyệt-từng-trang); groupId chỉ để gom hiển thị + thao tác hàng loạt.
+  // ⚠ Optional field: lọc "task chưa có nhóm" phải dùng { groupId: { isSet: false } }, KHÔNG { groupId: null }.
+  groupId    String?
+  groupTitle String?
+
   versions    TaskVersion[]
   annotations Annotation[]
 
   @@index([pageId])
   @@index([regionId])
   @@index([assistantId])
+  @@index([groupId])
 }
 
 model AiJob {

@@ -845,6 +845,100 @@ const main = async () => {
     `got ${assistantScoped.status} n=${assistantScopedItems.length}`
   )
 
+  // ══════════════ S-TASK-GROUP — 1 đầu việc trải nhiều trang ══════════════
+  // Dưới DB vẫn là N task 1-trang dùng chung groupId ⇒ region/pagesReady/cascade/duyệt-từng-trang giữ nguyên.
+  section('S-TASK-GROUP giao 1 đầu việc cho nhiều trang')
+
+  const gPage1 = await makePageAt({ chapterId: chapter.id, pageNumber: 90 })
+  const gPage2 = await makePageAt({ chapterId: chapter.id, pageNumber: 91 })
+
+  const groupRes = await req('POST', '/tasks/group', {
+    token: m1Tok,
+    body: {
+      pageIds: [gPage1.id, gPage2.id],
+      assistantId: a1.id,
+      taskType: 'BACKGROUND',
+      groupTitle: 'Vẽ nền ch.5'
+    }
+  })
+  const groupBody = (groupRes.json?.data ?? groupRes.json) as {
+    groupId: string
+    groupTitle: string
+    total: number
+    items: Array<{ id: string; pageId: string; groupId: string }>
+  }
+  ok(
+    'F03-TG01 tạo group cho 2 trang → 201, mỗi trang 1 task',
+    groupRes.status === 201 && groupBody?.total === 2,
+    `got ${groupRes.status} ${groupRes.raw.slice(0, 200)}`
+  )
+  ok(
+    'F03-TG02 cả 2 task dùng CHUNG groupId + đúng groupTitle',
+    groupBody?.items?.length === 2 &&
+      groupBody.items[0].groupId === groupBody.groupId &&
+      groupBody.items[1].groupId === groupBody.groupId &&
+      groupBody.groupTitle === 'Vẽ nền ch.5',
+    `got ${JSON.stringify(groupBody?.items?.map((t) => t.groupId))}`
+  )
+  const dbGroupTasks = await prisma.task.findMany({ where: { groupId: groupBody.groupId } })
+  ok(
+    'F03-TG03 DB: đúng 2 task, mỗi task vẫn thuộc ĐÚNG 1 trang',
+    dbGroupTasks.length === 2 && dbGroupTasks.every((t) => typeof t.pageId === 'string'),
+    `got ${dbGroupTasks.length}`
+  )
+
+  const groupFilter = await req('GET', `/tasks?groupId=${groupBody.groupId}`, { token: m1Tok })
+  ok(
+    'F03-TG04 lọc GET /tasks?groupId= → đúng 2 task',
+    groupFilter.status === 200 && (groupFilter.json?.data?.total ?? 0) === 2,
+    `got ${groupFilter.status} total=${groupFilter.json?.data?.total}`
+  )
+
+  // all-or-nothing: 1 trang không thuộc mình → không tạo task nào
+  const foreignSeries = await makeSeriesAt(SeriesStatus.SERIALIZED, { mangakaId: m2.id, editorId: e1.id })
+  const foreignChapter = await makeChapterAt({
+    seriesId: foreignSeries.id,
+    chapterNumber: 1,
+    manuscriptStatus: ManuscriptStatus.IN_PRODUCTION
+  })
+  const foreignPage = await makePageAt({ chapterId: foreignChapter.id, pageNumber: 95 })
+  const beforeCount = await prisma.task.count()
+  const groupBad = await req('POST', '/tasks/group', {
+    token: m1Tok,
+    body: { pageIds: [gPage1.id, foreignPage.id], assistantId: a1.id, taskType: 'BACKGROUND' }
+  })
+  ok('F03-TG05 group có trang không thuộc mình → lỗi', groupBad.status >= 400, `got ${groupBad.status}`)
+  ok(
+    'F03-TG05b all-or-nothing: KHÔNG task nào được tạo',
+    (await prisma.task.count()) === beforeCount,
+    `before=${beforeCount} after=${await prisma.task.count()}`
+  )
+
+  // duyệt cả nhóm: chỉ task đã nộp mới được duyệt
+  await req('POST', `/tasks/${groupBody.items[0].id}/start`, { token: a1Tok, body: {} })
+  await req('POST', `/tasks/${groupBody.items[0].id}/submit`, { token: a1Tok, body: { file: 'r2/g1.png' } })
+
+  const approveGroup = await req('POST', `/tasks/group/${groupBody.groupId}/approve`, { token: m1Tok, body: {} })
+  const approveBody = (approveGroup.json?.data ?? approveGroup.json) as { approved: number; skipped: string[] }
+  ok(
+    'F03-TG06 duyệt cả nhóm → duyệt 1, bỏ qua 1 (chưa nộp)',
+    approveGroup.status === 201 && approveBody?.approved === 1 && approveBody?.skipped?.length === 1,
+    `got ${approveGroup.status} ${JSON.stringify(approveBody)}`
+  )
+  const t1After = await prisma.task.findUnique({ where: { id: groupBody.items[0].id } })
+  const t2After = await prisma.task.findUnique({ where: { id: groupBody.items[1].id } })
+  ok(
+    'F03-TG06b DB: task đã nộp → APPROVED, task chưa nộp giữ nguyên ASSIGNED',
+    t1After?.status === TaskStatus.APPROVED && t2After?.status === TaskStatus.ASSIGNED,
+    `t1=${t1After?.status} t2=${t2After?.status}`
+  )
+
+  const approveForeign = await req('POST', `/tasks/group/${groupBody.groupId}/approve`, { token: m2Tok, body: {} })
+  ok('F03-TG07 mangaka khác duyệt nhóm → 403', approveForeign.status === 403, `got ${approveForeign.status}`)
+
+  const approveMissing = await req('POST', '/tasks/group/khong-ton-tai/approve', { token: m1Tok, body: {} })
+  ok('F03-TG08 group không tồn tại → 404', approveMissing.status === 404, `got ${approveMissing.status}`)
+
   await prisma.$disconnect()
   const fail = summary(FLOW)
   await sleep(300)

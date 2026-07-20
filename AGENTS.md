@@ -249,6 +249,23 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   Pattern dùng ở `series-query`/`series-claim`/`series-proposal`/`admin-user-query`/`mangaka-profile` service — bám theo.
   (Unit test malformed-id bắt được; nhưng dễ quên khi thêm route `:id` mới → luôn thêm guard + 1 test id rác → 404.)
 
+- **🔴 pnpm auto-install có thể regenerate Prisma Client thành bản `--no-engine` → app KHÔNG boot được, mà
+  `build`/`test`/`tsc`/`lint` VẪN XANH.** Triệu chứng: boot chết với
+  `InvalidDatasourceError: the URL must start with the protocol 'prisma://'` dù `DATABASE_URL` là `mongodb://` đúng.
+  Nguyên nhân: generated client bị sinh lại với `"copyEngine": false` (chế độ Accelerate/Data Proxy — chỉ nhận `prisma://`).
+  **Chẩn đoán 1 lệnh:**
+  `grep -oE 'copyEngine": *(true|false)' node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/index.js`
+  → `false` là hỏng. **Fix:** `pnpm prisma:generate` (kiểm lại thành `true`), rồi boot lại.
+  Vì sao build/test không bắt: chúng chỉ cần **type** + enum của generated client, KHÔNG cần query-engine binary.
+  Dấu hiệu nhận biết sớm: mọi file trong `.prisma/client` có mtime mới tinh, riêng `query_engine-*.node` thì cũ.
+  (Liên quan §72.8: hạn chế lệnh pnpm kích hoạt deps-status-check.)
+  🔴 **NGUYÊN NHÂN GỐC (Windows) — TẮT SERVER TRƯỚC KHI `prisma generate`:** app đang chạy **giữ khoá**
+  `query_engine-windows.dll.node` (DLL đã nạp) ⇒ generate ném
+  `EPERM: operation not permitted, rename ...query_engine-windows.dll.node.tmpNNNNN -> ...node`,
+  bỏ lại file `*.tmp*` rác và **có thể để client ở trạng thái thiếu engine**. Quy trình đúng:
+  `kill server (4000/4100)` → `rm -f .prisma/client/*.tmp*` → `pnpm prisma:generate` → verify `copyEngine: true`
+  → boot lại. **Đừng chạy generate khi server đang lên.**
+
 ## 11. Migration / Done Checklist
 
 Mỗi refactor/feature phải giữ:
