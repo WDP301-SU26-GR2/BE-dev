@@ -9,6 +9,7 @@ import { RegionService } from './services/region.service'
 import { TaskStateService } from './services/task-state.service'
 import { TaskAssignService } from './services/task-assign.service'
 import { TaskReviewService } from './services/task-review.service'
+import { TaskMediaService } from './services/task-media.service'
 import { AssistantAvailabilityListener } from './services/assistant-availability.listener'
 
 @Module({
@@ -21,6 +22,7 @@ import { AssistantAvailabilityListener } from './services/assistant-availability
     TaskStateService,
     TaskAssignService,
     TaskReviewService,
+    TaskMediaService,
     AssistantAvailabilityListener
   ],
   exports: [RegionService]

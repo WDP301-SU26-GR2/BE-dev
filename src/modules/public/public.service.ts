@@ -31,6 +31,7 @@ export class PublicService {
         genre: query.genre,
         demographic: query.demographic,
         publicationType: query.publicationType,
+        status: query.status,
         limit: query.limit,
         offset: query.offset
       })
@@ -43,7 +44,9 @@ export class PublicService {
         }))
       }
     }
-    const suffix = `list:${query.q ?? ''}:${query.genre ?? ''}:${query.demographic ?? ''}:${query.publicationType ?? ''}:${query.limit}`
+    // status PHẢI nằm trong cache key — nếu không, ?status=SERIALIZED và ?status=COMPLETED sẽ
+    // dùng chung 1 entry cache → trả nhầm kết quả (bẫy cache Spec 23).
+    const suffix = `list:${query.q ?? ''}:${query.genre ?? ''}:${query.demographic ?? ''}:${query.publicationType ?? ''}:${query.status ?? ''}:${query.limit}`
     const data =
       query.offset === 0
         ? await this.cacheService.getOrSet('pubseries', suffix, PUB_SERIES_TTL_SEC, load)

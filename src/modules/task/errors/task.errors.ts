@@ -20,3 +20,4 @@ export const PageNotEditableTaskException = new ConflictException([{ message: E.
 export const InvalidTaskTransitionException = new ConflictException([
   { message: E.invalidTaskTransition, path: 'status' }
 ])
+export const TaskFileForbiddenException = new ForbiddenException([{ message: E.taskFileForbidden, path: 'key' }])
