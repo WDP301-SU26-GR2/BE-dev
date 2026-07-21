@@ -348,7 +348,7 @@ const main = async () => {
   const mkTask = async (assistantId: string, regionId?: string) => {
     const r = await req('POST', '/tasks', {
       token: m1Tok,
-      body: { pageId: page.id, assistantId, taskType: Spec.INKING, ...(regionId ? { regionId } : {}) }
+      body: { pageId: page.id, assistantId, taskType: Spec.INKING, ...(regionId ? { regionIds: [regionId] } : {}) }
     })
     return { status: r.status, raw: r.raw, id: r.json?.data?.id as string | undefined }
   }
@@ -705,7 +705,7 @@ const main = async () => {
   ok('F03-055c EDITOR tạo task → 403 (route MANGAKA)', rTaskByEditor.status === 403, `got ${rTaskByEditor.status}`)
 
   // ══════════════ S-REG-EMBED — Assistant lấy được toạ độ vùng qua TaskRes ══════════════
-  // Gap gốc: TaskRes chỉ có regionId trần, còn GET /pages/:id/regions là MANGAKA/EDITOR-only
+  // Gap gốc: TaskRes chỉ có regionIds trần, còn GET /pages/:id/regions là MANGAKA/EDITOR-only
   // ⇒ Assistant nhận task theo Region nhưng KHÔNG có đường hợp lệ nào lấy toạ độ.
   section('S-REG-EMBED region embed cho Assistant')
 
@@ -720,7 +720,7 @@ const main = async () => {
     token: m1Tok,
     body: {
       pageId: page.id,
-      regionId: embedRegionId,
+      regionIds: [embedRegionId],
       assistantId: a1.id,
       taskType: 'BACKGROUND',
       priority: 1
@@ -743,12 +743,13 @@ const main = async () => {
 
   // …nhưng lấy được toạ độ vùng của CHÍNH task mình, qua TaskRes
   const assistantTaskDetail = await req('GET', `/tasks/${embedTaskId}`, { token: a1Tok })
-  const embedded = assistantTaskDetail.json?.data?.region as
-    | { id: string; coordinates: { x: number; y: number; width: number; height: number }; regionType: string }
-    | null
-    | undefined
+  const embedded = (
+    assistantTaskDetail.json?.data?.regions as
+      | Array<{ id: string; coordinates: { x: number; y: number; width: number; height: number }; regionType: string }>
+      | undefined
+  )?.[0]
   ok(
-    'F03-RE04 GET /tasks/:id (assistant) trả region kèm toạ độ',
+    'F03-RE04 GET /tasks/:id (assistant) trả regions[] kèm toạ độ',
     assistantTaskDetail.status === 200 &&
       embedded?.id === embedRegionId &&
       embedded?.coordinates?.x === 120 &&
@@ -756,27 +757,27 @@ const main = async () => {
       embedded?.coordinates?.width === 400 &&
       embedded?.coordinates?.height === 260 &&
       embedded?.regionType === 'BACKGROUND',
-    `got ${assistantTaskDetail.status} region=${JSON.stringify(embedded)}`
+    `got ${assistantTaskDetail.status} regions=${JSON.stringify(assistantTaskDetail.json?.data?.regions)}`
   )
 
   const assistantTaskList = await req('GET', `/tasks?pageId=${page.id}`, { token: a1Tok })
   const listItems = (assistantTaskList.json?.data?.items ?? []) as Array<{
     id: string
-    regionId: string | null
-    region: { coordinates: { x: number } } | null
+    regionIds: string[]
+    regions: Array<{ coordinates: { x: number } }>
   }>
   const listed = listItems.find((t) => t.id === embedTaskId)
   ok(
-    'F03-RE05 GET /tasks (list) cũng embed region',
-    assistantTaskList.status === 200 && listed?.region?.coordinates?.x === 120,
-    `got ${assistantTaskList.status} region=${JSON.stringify(listed?.region)}`
+    'F03-RE05 GET /tasks (list) cũng embed regions[]',
+    assistantTaskList.status === 200 && listed?.regions?.[0]?.coordinates?.x === 120,
+    `got ${assistantTaskList.status} regions=${JSON.stringify(listed?.regions)}`
   )
 
-  const noRegionTask = listItems.find((t) => t.regionId === null)
+  const noRegionTask = listItems.find((t) => t.regionIds.length === 0)
   ok(
-    'F03-RE06 task không gắn vùng → region = null (không undefined/lỗi)',
-    noRegionTask === undefined || noRegionTask.region === null,
-    `got ${JSON.stringify(noRegionTask?.region)}`
+    'F03-RE06 task không gắn vùng → regions = [] (không undefined/lỗi)',
+    noRegionTask === undefined || noRegionTask.regions.length === 0,
+    `got ${JSON.stringify(noRegionTask?.regions)}`
   )
 
   // ══════════════ S-TASK-MEDIA — Task 2 (embed ảnh gốc) + Task 3 (download scope theo task) ══════════════
@@ -798,7 +799,7 @@ const main = async () => {
   })
   const mediaTaskRes = await req('POST', '/tasks', {
     token: m1Tok,
-    body: { pageId: mediaPage.id, regionId: mediaRegionRes.json?.data?.id, assistantId: a1.id, taskType: 'BACKGROUND' }
+    body: { pageId: mediaPage.id, regionIds: [mediaRegionRes.json?.data?.id], assistantId: a1.id, taskType: 'BACKGROUND' }
   })
   const mediaTaskId = mediaTaskRes.json?.data?.id as string
 
@@ -832,6 +833,33 @@ const main = async () => {
   // Assistant tải ảnh GỐC của trang để làm việc (cũng bị chặn ở sign-download vì Mangaka là uploader).
   const dlAsst = await req('POST', `/tasks/${mediaTaskId}/download-url`, { token: a1Tok, body: { key: pageOrig } })
   ok('F03-TM05 Assistant tải ảnh gốc trang → 201', dlAsst.status === 201, `got ${dlAsst.status}`)
+  // Assistant tải ảnh REFERENCE Mangaka đính khi giao task (assetIds) — trước KHÔNG có đường tải.
+  const refKey = 'r2/reference-material.png'
+  const refAsset = await prisma.asset.create({
+    data: { name: 'ref', filePath: refKey, assetType: 'REFERENCE', uploadedBy: m1.id }
+  })
+  const refTaskRes = await req('POST', '/tasks', {
+    token: m1Tok,
+    body: { pageId: mediaPage.id, assistantId: a1.id, taskType: 'BACKGROUND', assetIds: [refAsset.id] }
+  })
+  const refTaskId = refTaskRes.json?.data?.id as string
+  // Assistant khám phá key reference qua embed TaskRes.assets[].filePath (assetIds chỉ là ObjectId).
+  const refTaskDetail = await req('GET', `/tasks/${refTaskId}`, { token: a1Tok })
+  const refAssets = (refTaskDetail.json?.data?.assets ?? []) as Array<{ id: string; filePath: string }>
+  ok(
+    'F03-TM05b TaskRes.assets embed resolve assetIds → filePath (Assistant lấy được key)',
+    refTaskDetail.status === 200 && refAssets.some((a) => a.id === refAsset.id && a.filePath === refKey),
+    `got ${refTaskDetail.status} assets=${JSON.stringify(refAssets)}`
+  )
+  const dlRef = await req('POST', `/tasks/${refTaskId}/download-url`, {
+    token: a1Tok,
+    body: { key: refAssets[0]?.filePath }
+  })
+  ok(
+    'F03-TM05c Assistant tải ảnh reference qua key từ embed → 201',
+    dlRef.status === 201,
+    `got ${dlRef.status} ${dlRef.raw.slice(0, 160)}`
+  )
   // Mangaka khác (không sở hữu series) → 403.
   const dlOther = await req('POST', `/tasks/${mediaTaskId}/download-url`, { token: m2Tok, body: { key: versionKey } })
   expectError(dlOther, 403, 'Error.TaskFileForbidden', 'F03-TM06 mangaka khác tải → 403')

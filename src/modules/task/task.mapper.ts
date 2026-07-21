@@ -1,5 +1,7 @@
-import { Region, Task } from '@prisma/client'
+import { Asset, Region, Task } from '@prisma/client'
 import { UserMiniType } from 'src/core/models/user-mini.model'
+
+type TaskAssetEmbed = Pick<Asset, 'id' | 'filePath' | 'name' | 'assetType'>
 
 export function toRegionRes(r: Region) {
   return {
@@ -17,7 +19,8 @@ export function toRegionRes(r: Region) {
 
 type TaskWithPeople = Omit<Task, 'versions'> & {
   assistant?: UserMiniType | null
-  region?: Region | null
+  regions?: Region[]
+  assets?: TaskAssetEmbed[]
   pageOriginalFile?: string | null
   pageDisplayFile?: string | null
   versions: Array<Task['versions'][number] & { submitter?: UserMiniType | null }>
@@ -27,7 +30,7 @@ export function toTaskRes(t: TaskWithPeople) {
   return {
     id: t.id,
     pageId: t.pageId,
-    regionId: t.regionId ?? null,
+    regionIds: t.regionIds ?? [],
     assistantId: t.assistantId ?? null,
     taskType: t.taskType ?? null,
     status: t.status,
@@ -48,7 +51,17 @@ export function toTaskRes(t: TaskWithPeople) {
     groupId: t.groupId ?? null,
     groupTitle: t.groupTitle ?? null,
     ...(t.assistant !== undefined ? { assistant: t.assistant } : {}),
-    ...(t.region !== undefined ? { region: t.region ? toRegionRes(t.region) : null } : {}),
+    ...(t.regions !== undefined ? { regions: t.regions.map(toRegionRes) } : {}),
+    ...(t.assets !== undefined
+      ? {
+          assets: t.assets.map((a) => ({
+            id: a.id,
+            filePath: a.filePath,
+            name: a.name,
+            assetType: a.assetType ?? null
+          }))
+        }
+      : {}),
     ...(t.pageOriginalFile !== undefined ? { pageOriginalFile: t.pageOriginalFile } : {}),
     ...(t.pageDisplayFile !== undefined ? { pageDisplayFile: t.pageDisplayFile } : {})
   }

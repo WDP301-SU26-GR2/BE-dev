@@ -4,7 +4,7 @@ import { TaskService } from './task.service'
 const makeTask = (over: Record<string, unknown> = {}) => ({
   id: '507f1f77bcf86cd799439011',
   pageId: '507f1f77bcf86cd799439012',
-  regionId: '507f1f77bcf86cd799439013',
+  regionIds: ['507f1f77bcf86cd799439013'],
   assistantId: '507f1f77bcf86cd799439014',
   taskType: 'BACKGROUND',
   status: 'ASSIGNED',
@@ -41,11 +41,16 @@ describe('TaskService.listTasks', () => {
 
     await svc.listTasks('assistant-1', RoleName.ASSISTANT, { regionId, limit: 20, offset: 0 })
 
-    expect(repo.listTasks).toHaveBeenCalledWith(expect.objectContaining({ assistantId: 'assistant-1', regionId }), {
-      limit: 20,
-      offset: 0
-    })
-    expect(repo.countTasks).toHaveBeenCalledWith(expect.objectContaining({ assistantId: 'assistant-1', regionId }))
+    expect(repo.listTasks).toHaveBeenCalledWith(
+      expect.objectContaining({ assistantId: 'assistant-1', regionIds: { has: regionId } }),
+      {
+        limit: 20,
+        offset: 0
+      }
+    )
+    expect(repo.countTasks).toHaveBeenCalledWith(
+      expect.objectContaining({ assistantId: 'assistant-1', regionIds: { has: regionId } })
+    )
   })
 
   it('applies regionId filter for mangaka-owned page', async () => {
@@ -57,10 +62,13 @@ describe('TaskService.listTasks', () => {
     await svc.listTasks('mangaka-1', RoleName.MANGAKA, { pageId, regionId, limit: 20, offset: 0 })
 
     expect(repo.findPageWithOwner).toHaveBeenCalledWith(pageId)
-    expect(repo.listTasks).toHaveBeenCalledWith(expect.objectContaining({ pageId, regionId }), {
-      limit: 20,
-      offset: 0
-    })
+    expect(repo.listTasks).toHaveBeenCalledWith(
+      expect.objectContaining({ pageId, regionIds: { has: regionId } }),
+      {
+        limit: 20,
+        offset: 0
+      }
+    )
   })
 
   it('returns empty for malformed assistant pageId or regionId without repository calls', async () => {

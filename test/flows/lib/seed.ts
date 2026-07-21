@@ -396,7 +396,7 @@ export const makeTaskAt = async (o: {
   return prisma.task.create({
     data: {
       pageId: o.pageId,
-      regionId: o.regionId ?? null,
+      regionIds: o.regionId ? [o.regionId] : [],
       assistantId: o.assistantId,
       status: o.status ?? TaskStatus.ASSIGNED,
       priority: o.priority ?? 0,
