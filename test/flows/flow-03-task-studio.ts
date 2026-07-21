@@ -799,7 +799,12 @@ const main = async () => {
   })
   const mediaTaskRes = await req('POST', '/tasks', {
     token: m1Tok,
-    body: { pageId: mediaPage.id, regionIds: [mediaRegionRes.json?.data?.id], assistantId: a1.id, taskType: 'BACKGROUND' }
+    body: {
+      pageId: mediaPage.id,
+      regionIds: [mediaRegionRes.json?.data?.id],
+      assistantId: a1.id,
+      taskType: 'BACKGROUND'
+    }
   })
   const mediaTaskId = mediaTaskRes.json?.data?.id as string
 
@@ -821,7 +826,11 @@ const main = async () => {
   await req('POST', `/tasks/${mediaTaskId}/start`, { token: a1Tok, body: {} })
   const versionKey = 'r2/assistant-result-tm.png'
   const submitTm = await req('POST', `/tasks/${mediaTaskId}/submit`, { token: a1Tok, body: { file: versionKey } })
-  ok('F03-TM03 assistant nộp version → 201', submitTm.status === 201, `got ${submitTm.status} ${submitTm.raw.slice(0, 160)}`)
+  ok(
+    'F03-TM03 assistant nộp version → 201',
+    submitTm.status === 201,
+    `got ${submitTm.status} ${submitTm.raw.slice(0, 160)}`
+  )
 
   // Task 3: Mangaka tải bản Assistant nộp (trước đây bị 403 ở /uploads/sign-download).
   const dlMangaka = await req('POST', `/tasks/${mediaTaskId}/download-url`, { token: m1Tok, body: { key: versionKey } })
@@ -870,7 +879,10 @@ const main = async () => {
   })
   expectError(dlBadKey, 403, 'Error.TaskFileForbidden', 'F03-TM07 key không thuộc task → 403')
   // Task id rác → 404.
-  const dlBadTask = await req('POST', '/tasks/not-an-object-id/download-url', { token: m1Tok, body: { key: versionKey } })
+  const dlBadTask = await req('POST', '/tasks/not-an-object-id/download-url', {
+    token: m1Tok,
+    body: { key: versionKey }
+  })
   ok('F03-TM08 task id rác → 404', dlBadTask.status === 404, `got ${dlBadTask.status}`)
 
   // ══════════════ S-TASK-SCOPE — Mangaka list task không cần bám flow page ══════════════

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { AssetType } from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { StorageService as StorageInfra } from 'src/infrastructure/storage/storage.service'
@@ -59,10 +60,16 @@ export class StorageService {
     const asset = await this.storageRepository.findAssetByKey(key)
     if (!asset) throw AssetNotFoundException
 
-    const isOwner = asset.uploadedBy === user.userId
-    // STORAGE-RBAC-SCOPE: privileged roles can view all assets in MVP because Asset has no series link yet.
-    const isPrivileged = PRIVILEGED_DOWNLOAD_ROLES.includes(user.roleName)
-    if (!isOwner && !isPrivileged) throw DownloadForbiddenException
+    // STORAGE-RBAC-SCOPE: chỉ gác quyền tải cho DOCUMENT (hợp đồng...) — thứ thực sự nhạy cảm
+    // và đã có route riêng RBAC (GET /contracts/:id/pdf). Ảnh hiển thị chung (avatar/cover/portfolio/
+    // page/task file) cho mọi user đã đăng nhập tải nếu có object key: bucket private + key random
+    // + URL hết hạn ngắn, và key chỉ lộ qua các endpoint đã scope. Trước đây owner-only chặn cả
+    // Mangaka xem avatar Assistant trong danh bạ (key trả về là object key thô).
+    if (asset.assetType === AssetType.DOCUMENT) {
+      const isOwner = asset.uploadedBy === user.userId
+      const isPrivileged = PRIVILEGED_DOWNLOAD_ROLES.includes(user.roleName)
+      if (!isOwner && !isPrivileged) throw DownloadForbiddenException
+    }
 
     return await this.storageInfra.createPresignedDownload(key)
   }
