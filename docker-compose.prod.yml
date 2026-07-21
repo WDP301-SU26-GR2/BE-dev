@@ -34,10 +34,10 @@ services:
       - "3000"
 
   ai-service:
-    # Enable with: docker compose --profile ai up -d
+    # Image is built and published by GitHub Actions; this profile is enabled by the deploy workflow.
     # Keep AI_SERVICE_URL empty in .env when this profile is disabled.
     profiles: ["ai"]
-    build: ./ai-service
+    image: ghcr.io/wdp301-su26-gr2/mangaka-ai:latest
     container_name: mangaka-ai
     restart: unless-stopped
     # RAM cap: cách ly AI khỏi api/redis trên VPS 2GB — vượt 1.2GB RAM thì tràn swap,
