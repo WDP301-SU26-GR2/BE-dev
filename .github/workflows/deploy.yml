@@ -31,9 +31,10 @@ jobs:
         run: |
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "image=ghcr.io/${OWNER}/mangaka-api" >> $GITHUB_OUTPUT
+          echo "ai_image=ghcr.io/${OWNER}/mangaka-ai" >> $GITHUB_OUTPUT
           echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
-      - name: Build & push
+      - name: Build & push API image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -42,6 +43,18 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.image }}:latest
             ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push AI image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ai-service
+          file: ./ai-service/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.ai_image }}:latest
+            ${{ steps.meta.outputs.ai_image }}:${{ steps.meta.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -72,6 +85,6 @@ jobs:
           script: |
             set -e
             cd ${{ secrets.VPS_APP_DIR }}
-            docker compose -f docker-compose.prod.yml pull api
-            docker compose -f docker-compose.prod.yml up -d --force-recreate api
-            docker image prune -f
+            docker compose -f docker-compose.prod.yml --profile ai pull api ai-service
+            docker compose -f docker-compose.prod.yml --profile ai up -d --force-recreate api ai-service
+            docker image prune -f

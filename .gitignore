@@ -82,10 +82,11 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # ---- AI service (Python) — runtime/generated, never commit ----
 ai-service/.venv/
 ai-service/.pytest_cache/
+ai-service/.env
 # model weights (~tens of MB) — pulled via ai-service/scripts/download_models.py
 ai-service/models/
-__pycache__/
-*.py[cod]
+ai-service/**/__pycache__/
+ai-service/**/*.py[cod]
 *.egg-info/
 
 # Flowtest run logs (local-only)
