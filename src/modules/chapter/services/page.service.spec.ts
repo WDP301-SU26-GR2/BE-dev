@@ -40,6 +40,10 @@ function makeAudit() {
   return { record: jest.fn().mockResolvedValue(undefined) }
 }
 
+function makeStorage() {
+  return { deleteObject: jest.fn().mockResolvedValue(undefined) }
+}
+
 describe('PageService.createPage', () => {
   it('creates page and moves Manuscript DRAFT→IN_PRODUCTION on first page', async () => {
     const { repo, manuscriptState } = makeDeps()
@@ -48,7 +52,8 @@ describe('PageService.createPage', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     const result = await svc.createPage('u1', 'c1', { pageNumber: 1, originalFile: 'uploads/u1/a.png' })
     expect(result.status).toBe('DRAFT')
@@ -65,7 +70,8 @@ describe('PageService.createPage', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await svc.createPage('u1', 'c1', { pageNumber: 2, originalFile: 'k' })
     expect(manuscriptState.transition).not.toHaveBeenCalled()
@@ -80,7 +86,8 @@ describe('PageService.createPage', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await expect(svc.createPage('u1', 'c1', { pageNumber: 1, originalFile: 'k' })).rejects.toBeDefined()
   })
@@ -92,7 +99,8 @@ describe('PageService.createPage', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await svc.updatePage('u1', 'p1', { compositeFile: 'k2' })
     expect(repo.updatePage).toHaveBeenCalledWith('p1', { compositeFile: 'k2' })
@@ -107,7 +115,8 @@ describe('PageService.createPage', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
 
     await expect(svc.updatePage('u1', 'p1', { compositeFile: 'k2' })).rejects.toBe(PageNotEditableException)
@@ -127,7 +136,8 @@ describe('PageService.createPage', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
 
     await expect(svc.updatePage('u1', 'p1', { compositeFile: 'k2' })).resolves.toMatchObject({ status })
@@ -150,7 +160,8 @@ describe('PageService.deletePage', () => {
     const manuscriptState = { transition: jest.fn() }
     const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
-    return { repo, manuscriptState, notification, audit }
+    const storage = makeStorage()
+    return { repo, manuscriptState, notification, audit, storage }
   }
 
   function makeSvc(d: ReturnType<typeof makeDeleteDeps>) {
@@ -159,7 +170,8 @@ describe('PageService.deletePage', () => {
       d.manuscriptState as never,
       makeStudio() as never,
       d.notification as never,
-      d.audit as never
+      d.audit as never,
+      d.storage as never
     )
   }
 
@@ -171,7 +183,7 @@ describe('PageService.deletePage', () => {
 
     const result = await makeSvc(d).deletePage('u1', PG)
 
-    expect(d.repo.deletePageCascade).toHaveBeenCalledWith(PG)
+    expect(d.repo.deletePageCascade).toHaveBeenCalledWith('c1', PG)
     expect(result).toEqual({ pageId: PG, deletedRegions: 2, deletedTasks: 1 })
   })
 
@@ -220,7 +232,7 @@ describe('PageService.deletePage', () => {
     })
 
     await expect(makeSvc(d).deletePage('u1', PG)).resolves.toBeDefined()
-    expect(d.repo.deletePageCascade).toHaveBeenCalledWith(PG)
+    expect(d.repo.deletePageCascade).toHaveBeenCalledWith('c1', PG)
   })
 
   it('refuses to delete a COMPLETED page', async () => {
@@ -248,6 +260,45 @@ describe('PageService.deletePage', () => {
     const d = makeDeleteDeps({ findPageById: jest.fn().mockResolvedValue(null) })
     await expect(makeSvc(d).deletePage('u1', PG)).rejects.toBe(PageNotFoundException)
   })
+
+  // Task C: xoá page → dọn file vật lý trên R2 (bản gốc + composite), tránh orphan bucket.
+  it('deletes the R2 objects for both originalFile and compositeFile', async () => {
+    const d = makeDeleteDeps({
+      findPageById: jest.fn().mockResolvedValue({
+        id: PG,
+        chapterId: 'c1',
+        status: 'DRAFT',
+        originalFile: 'orig-key',
+        compositeFile: 'comp-key'
+      })
+    })
+    await makeSvc(d).deletePage('u1', PG)
+    expect(d.storage.deleteObject).toHaveBeenCalledWith('orig-key')
+    expect(d.storage.deleteObject).toHaveBeenCalledWith('comp-key')
+  })
+
+  it('deletes only originalFile when there is no compositeFile', async () => {
+    const d = makeDeleteDeps({
+      findPageById: jest
+        .fn()
+        .mockResolvedValue({ id: PG, chapterId: 'c1', status: 'DRAFT', originalFile: 'orig-key', compositeFile: null })
+    })
+    await makeSvc(d).deletePage('u1', PG)
+    expect(d.storage.deleteObject).toHaveBeenCalledTimes(1)
+    expect(d.storage.deleteObject).toHaveBeenCalledWith('orig-key')
+  })
+
+  // R2 cleanup là best-effort (side-effect sau commit) — lỗi R2 KHÔNG được phá việc xoá page đã commit.
+  it('still succeeds when R2 deleteObject throws (best-effort)', async () => {
+    const d = makeDeleteDeps({
+      findPageById: jest
+        .fn()
+        .mockResolvedValue({ id: PG, chapterId: 'c1', status: 'DRAFT', originalFile: 'orig-key', compositeFile: null })
+    })
+    d.storage.deleteObject = jest.fn().mockRejectedValue(new Error('R2 down'))
+    await expect(makeSvc(d).deletePage('u1', PG)).resolves.toBeDefined()
+    expect(d.repo.deletePageCascade).toHaveBeenCalled()
+  })
 })
 
 describe('PageService.deletePagesBulk', () => {
@@ -270,7 +321,8 @@ describe('PageService.deletePagesBulk', () => {
     const manuscriptState = { transition: jest.fn() }
     const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
-    return { repo, manuscriptState, notification, audit }
+    const storage = makeStorage()
+    return { repo, manuscriptState, notification, audit, storage }
   }
 
   function makeSvc(d: ReturnType<typeof makeBulkDeps>) {
@@ -279,7 +331,8 @@ describe('PageService.deletePagesBulk', () => {
       d.manuscriptState as never,
       makeStudio() as never,
       d.notification as never,
-      d.audit as never
+      d.audit as never,
+      d.storage as never
     )
   }
 
@@ -288,7 +341,7 @@ describe('PageService.deletePagesBulk', () => {
 
     const result = await makeSvc(d).deletePagesBulk('u1', CH, { pageIds: [P1, P2] })
 
-    expect(d.repo.deletePagesCascade).toHaveBeenCalledWith([P1, P2])
+    expect(d.repo.deletePagesCascade).toHaveBeenCalledWith(CH, [P1, P2])
     expect(result).toEqual({ deletedPages: 2, deletedRegions: 3, deletedTasks: 2 })
   })
 
@@ -341,6 +394,21 @@ describe('PageService.deletePagesBulk', () => {
     await expect(makeSvc(d).deletePagesBulk('u1', CH, { pageIds: [P1] })).rejects.toBe(NotSeriesOwnerException)
     expect(d.repo.deletePagesCascade).not.toHaveBeenCalled()
   })
+
+  // Task C: bulk xoá cũng dọn R2 cho mọi key (bản gốc + composite) của mọi page bị xoá.
+  it('deletes the R2 objects for every removed page', async () => {
+    const d = makeBulkDeps({
+      findPagesByIds: jest.fn().mockResolvedValue([
+        { id: P1, chapterId: CH, status: 'DRAFT', originalFile: 'o1', compositeFile: 'c1key' },
+        { id: P2, chapterId: CH, status: 'DRAFT', originalFile: 'o2', compositeFile: null }
+      ])
+    })
+    await makeSvc(d).deletePagesBulk('u1', CH, { pageIds: [P1, P2] })
+    expect(d.storage.deleteObject).toHaveBeenCalledWith('o1')
+    expect(d.storage.deleteObject).toHaveBeenCalledWith('c1key')
+    expect(d.storage.deleteObject).toHaveBeenCalledWith('o2')
+    expect(d.storage.deleteObject).toHaveBeenCalledTimes(3)
+  })
 })
 
 describe('DeletePagesBulkBodySchema', () => {
@@ -384,7 +452,8 @@ describe('PageService.listPages scoping', () => {
       manuscriptState as never,
       studioAssignment as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await expect(svc.listPages('mangaka', 'MANGAKA', CH)).resolves.toHaveLength(1)
   })
@@ -396,7 +465,8 @@ describe('PageService.listPages scoping', () => {
       manuscriptState as never,
       studioAssignment as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await expect(svc.listPages('other-mangaka', 'MANGAKA', CH)).rejects.toBe(ChapterAccessDeniedException)
   })
@@ -408,7 +478,8 @@ describe('PageService.listPages scoping', () => {
       manuscriptState as never,
       studioAssignment as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await expect(svc.listPages('editor', 'EDITOR', CH)).resolves.toHaveLength(1)
   })
@@ -420,7 +491,8 @@ describe('PageService.listPages scoping', () => {
       manuscriptState as never,
       studioAssignment as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await expect(svc.listPages('other-editor', 'EDITOR', CH)).rejects.toBe(ChapterAccessDeniedException)
   })
@@ -432,7 +504,8 @@ describe('PageService.listPages scoping', () => {
       manuscriptState as never,
       studioAssignment as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
 
     await expect(svc.listPages('assistant', 'ASSISTANT', CH)).resolves.toHaveLength(1)
@@ -446,7 +519,8 @@ describe('PageService.listPages scoping', () => {
       manuscriptState as never,
       studioAssignment as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await expect(svc.listPages('assistant', 'ASSISTANT', CH)).rejects.toBe(ChapterAccessDeniedException)
   })
@@ -458,7 +532,8 @@ describe('PageService.listPages scoping', () => {
       manuscriptState as never,
       studioAssignment as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await expect(svc.listPages('oversight', roleName, CH)).resolves.toHaveLength(1)
   })
@@ -470,7 +545,8 @@ describe('PageService.listPages scoping', () => {
       manuscriptState as never,
       studioAssignment as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
 
     await expect(svc.listPages('mangaka', 'MANGAKA', 'not-an-object-id')).rejects.toBe(ChapterNotFoundException)
@@ -486,7 +562,8 @@ describe('PageService.listPages scoping', () => {
       manuscriptState as never,
       studioAssignment as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await expect(svc.listPages('mangaka', 'MANGAKA', CH)).rejects.toBe(ChapterNotFoundException)
   })
@@ -520,7 +597,8 @@ describe('PageService.updatePage extended fields', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
 
     await svc.updatePage('u1', 'p1', { originalFile: 'uploads/u1/redraw.png' } as never)
@@ -537,7 +615,8 @@ describe('PageService.updatePage extended fields', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
 
     await svc.updatePage('u1', 'p1', { pageNumber: 4 })
@@ -555,7 +634,8 @@ describe('PageService.updatePage extended fields', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
 
     await expect(svc.updatePage('u1', 'p1', { pageNumber: 4 })).rejects.toBe(DuplicatePageNumberException)
@@ -571,7 +651,8 @@ describe('PageService.updatePage extended fields', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
 
     await expect(svc.updatePage('u1', 'p1', { pageNumber: 4 })).resolves.toBeDefined()
@@ -586,7 +667,8 @@ describe('PageService.updatePage extended fields', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
 
     await svc.updatePage('u1', 'p1', { compositeFile: 'k2', pageNumber: 7 })
@@ -612,7 +694,8 @@ describe('PageService.createPage gate (Name APPROVED)', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await expect(svc.createPage('u1', CH, { pageNumber: 1, originalFile: 'f.png' })).rejects.toThrow()
   })
@@ -628,7 +711,8 @@ describe('PageService.createPage gate (Name APPROVED)', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await expect(svc.createPage('u1', CH, { pageNumber: 1, originalFile: 'f.png' })).rejects.toThrow()
   })
@@ -645,7 +729,8 @@ describe('PageService.createPage gate (Name APPROVED)', () => {
       manuscriptState as never,
       makeStudio() as never,
       makeNotification() as never,
-      makeAudit() as never
+      makeAudit() as never,
+      makeStorage() as never
     )
     await svc.createPage('u1', CH, { pageNumber: 1, originalFile: 'uploads/u1/p1.png' })
     expect(repo.createPage).toHaveBeenCalledWith(CH, { pageNumber: 1, originalFile: 'uploads/u1/p1.png' })
