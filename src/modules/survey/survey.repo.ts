@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { PublicationType } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { CreateSurveyPeriodBodyDto, ImportSurveyDataBodyDto } from './dto/survey.dto'
 
@@ -34,6 +35,7 @@ export class SurveyRepository {
     surveyPeriodId: string
     seriesIds: string[]
     identityHash: string
+    publicationType: PublicationType | null
     authMethod?: 'EMAIL_OTP' | 'PHONE_OTP' | 'CAPTCHA_ONLY' | null
     ipHash?: string
     captchaScore?: number | null
@@ -45,6 +47,7 @@ export class SurveyRepository {
         surveyPeriodId: data.surveyPeriodId,
         seriesIds: data.seriesIds,
         identityHash: data.identityHash,
+        publicationType: data.publicationType,
         authMethod: data.authMethod ?? null,
         ipHash: data.ipHash ?? null,
         captchaScore: data.captchaScore ?? null,
@@ -54,14 +57,22 @@ export class SurveyRepository {
     })
   }
 
-  findReaderVoteByPeriodAndIdentity(surveyPeriodId: string, identityHash: string) {
-    return this.prisma.readerVote.findUnique({
-      where: { surveyPeriodId_identityHash: { surveyPeriodId, identityHash } }
-    })
+  // Option B: dedup per (period, type, identity). findFirst (không findUnique) vì publicationType
+  // nullable trong compound unique — findUnique không nhận null ở compound key.
+  findReaderVoteByPeriodAndIdentity(
+    surveyPeriodId: string,
+    identityHash: string,
+    publicationType: PublicationType | null
+  ) {
+    return this.prisma.readerVote.findFirst({ where: { surveyPeriodId, identityHash, publicationType } })
   }
 
-  countReaderVotesByPeriodAndIp(surveyPeriodId: string, ipHash: string): Promise<number> {
-    return this.prisma.readerVote.count({ where: { surveyPeriodId, ipHash } })
+  countReaderVotesByPeriodAndIp(
+    surveyPeriodId: string,
+    ipHash: string,
+    publicationType: PublicationType | null
+  ): Promise<number> {
+    return this.prisma.readerVote.count({ where: { surveyPeriodId, ipHash, publicationType } })
   }
 
   createSurveyData(data: ImportSurveyDataBodyDto & { importedBy: string }) {
@@ -150,10 +161,12 @@ export class SurveyRepository {
   }
 
   // Fix-1 G-2: danh sách series đang phát hành — CHỈ field public-safe, TUYỆT ĐỐI không thêm select.
-  findManySerializedSeriesPublic() {
+  // Option B: filter theo publicationType cho tab Tuần/Tháng. Không truyền → mọi series SERIALIZED
+  // CÓ nhịp xuất bản (publicationType != null — series chưa gán nhịp không vote được).
+  findManySerializedSeriesPublic(publicationType?: PublicationType) {
     return this.prisma.series.findMany({
-      where: { status: 'SERIALIZED' },
-      select: { id: true, title: true, coverImage: true, genres: true, demographic: true },
+      where: { status: 'SERIALIZED', publicationType: publicationType ?? { not: null } },
+      select: { id: true, title: true, coverImage: true, genres: true, demographic: true, publicationType: true },
       orderBy: { title: 'asc' }
     })
   }
@@ -205,10 +218,10 @@ export class SurveyRepository {
   }
 
   findSeriesOwnershipByIds(seriesIds: string[]) {
-    if (seriesIds.length === 0) return Promise.resolve([])
+    // `in: []` → Prisma trả [] (không cần early-return; early-return `Promise.resolve([])` làm kiểu ra any[]).
     return this.prisma.series.findMany({
       where: { id: { in: seriesIds } },
-      select: { id: true, status: true, mangakaId: true, editorId: true }
+      select: { id: true, status: true, mangakaId: true, editorId: true, publicationType: true }
     })
   }
 

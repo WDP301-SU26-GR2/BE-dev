@@ -609,15 +609,33 @@ const main = async () => {
   const rDlMissing = await req('POST', '/uploads/sign-download', { token: m1Tok, body: { key: 'no/such/key.png' } })
   expectError(rDlMissing, 404, 'Error.AssetNotFound', 'F03-048 sign-download key không tồn tại → 404 AssetNotFound')
 
-  const rDlForbidden = await req('POST', '/uploads/sign-download', {
+  // Q3 (2026-07-21): sign-download BỎ chặn owner-only cho asset ẢNH (non-DOCUMENT) — ai đã đăng nhập
+  // có key thì tải được (avatar/cover/page/task hiển thị chung). a2 KHÔNG phải uploader vẫn tải được ảnh.
+  const rDlImage = await req('POST', '/uploads/sign-download', {
     token: a2Tok, // không phải uploader, không phải E/B/SA
     body: { key: signData?.key ?? '' }
   })
+  ok(
+    'F03-049 sign-download ảnh (non-DOCUMENT) của người khác → 200 (Q3: cho mọi user đã login)',
+    rDlImage.status === 200 || rDlImage.status === 201,
+    `got ${rDlImage.status} ${rDlImage.raw.slice(0, 160)}`
+  )
+
+  // Q3: nhưng DOCUMENT (hợp đồng...) VẪN gác — chỉ uploader HOẶC EDITOR/BOARD/SUPER_ADMIN.
+  const rSignDoc = await req('POST', '/uploads/sign', {
+    token: m1Tok,
+    body: { fileName: 'contract.pdf', contentType: 'application/pdf', contentLength: 2048, assetType: 'DOCUMENT' }
+  })
+  const docKey = (rSignDoc.json?.data as { key?: string } | undefined)?.key ?? ''
+  const rDlDoc = await req('POST', '/uploads/sign-download', {
+    token: a2Tok, // không phải uploader, không phải E/B/SA
+    body: { key: docKey }
+  })
   expectError(
-    rDlForbidden,
+    rDlDoc,
     403,
     'Error.DownloadForbidden',
-    'F03-049 sign-download asset người khác (không E/B/SA) → 403 DownloadForbidden'
+    'F03-049b sign-download DOCUMENT của người khác (không E/B/SA) → 403 DownloadForbidden'
   )
 
   // MANGAKA BẮT BUỘC truyền pageId (scoping theo sở hữu page); ASSISTANT không cần (lọc theo assistantId).

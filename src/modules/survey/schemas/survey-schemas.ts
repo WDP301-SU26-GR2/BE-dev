@@ -207,6 +207,9 @@ export const ReaderVoteResSchema = extendApi(
       surveyPeriodId: z.string(),
       seriesIds: z.array(z.string()),
       identityHash: z.string().nullable(),
+      publicationType: zEnum(PublicationType, 'PublicationType')
+        .nullable()
+        .describe('Option B: nhịp series được vote (null = phiếu cũ trước Option B)'),
       authMethod: z.enum(['EMAIL_OTP', 'PHONE_OTP', 'CAPTCHA_ONLY']).nullable(),
       ipHash: z.string().nullable(),
       captchaScore: z.number().nullable(),
@@ -284,7 +287,10 @@ export const VoteContextResSchema = extendApi(
               .nullable()
               .describe('Object key R2 — xem catalog public /public/series để lấy signed URL'),
             genres: z.array(zEnum(Genre, 'Genre')),
-            demographic: zEnum(Demographic, 'Demographic').nullable()
+            demographic: zEnum(Demographic, 'Demographic').nullable(),
+            publicationType: zEnum(PublicationType, 'PublicationType').describe(
+              'Nhịp xuất bản — Option B: FE tách tab Tuần/Tháng, mỗi tab vote series cùng type'
+            )
           })
           .strict()
       ),
@@ -340,6 +346,13 @@ export const VoteResultsQuerySchema = z
 
 // Spec 15.2 — query riêng cho /vote/results/latest (1 field optional → thỏa ràng buộc non-empty strict query).
 export const LatestVoteResultsQuerySchema = z
+  .object({
+    publicationType: zEnum(PublicationType, 'PublicationType').optional()
+  })
+  .strict()
+
+// Option B: tab Tuần/Tháng cho trang vote Guest. Optional → không truyền = mọi type có nhịp.
+export const VoteContextQuerySchema = z
   .object({
     publicationType: zEnum(PublicationType, 'PublicationType').optional()
   })
