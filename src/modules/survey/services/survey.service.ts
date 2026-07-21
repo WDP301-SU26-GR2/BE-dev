@@ -222,20 +222,26 @@ export class SurveyService {
     )
     if (body.seriesIds.some((id) => votableStatusById.get(id) !== 'SERIALIZED')) throw SeriesNotVotableException
 
+    // Option B: type của phiếu = type CHUNG của các series được chọn (nguồn sự thật = series, KHÔNG
+    // field body). Ballot trộn Tuần+Tháng → 422. Dùng cho dedup/quota/lưu — mỗi type 1 phiếu/kỳ/danh tính.
+    const voteTypes = new Set(votableSeries.map((s) => s.publicationType ?? null))
+    if (voteTypes.size > 1) throw SeriesNotVotableException
+    const voteType: PublicationType | null = votableSeries[0]?.publicationType ?? null
+
     // Deterministic HMAC (NOT bcrypt) so the (surveyPeriodId, identityHash) dedup + unique
     // constraint actually catch repeat votes — see B-VOT-03 fix / IdentityHashService.
     const identityHash = this.identityHashService.hash(body.identity)
     const ipHash = this.identityHashService.hash(ip)
 
     // Lớp 1 (nguồn sự thật steady-state): đếm phiếu ĐÃ GHI trong DB — đúng cả khi Redis flush/restart.
-    const ipVotes = await this.surveyRepository.countReaderVotesByPeriodAndIp(body.surveyPeriodId, ipHash)
+    const ipVotes = await this.surveyRepository.countReaderVotesByPeriodAndIp(body.surveyPeriodId, ipHash, voteType)
     if (ipVotes >= config.ipVotesPerPeriod) throw VoteIpLimitExceededException
 
     // Lớp 2 (Spec 15.1 hardening): count → insert KHÔNG nguyên tử — 2 request song song sát trần cùng
     // thấy count < cap rồi cùng insert → vượt quota 1 phiếu. Reservation Redis INCR (Lua + TTL) đóng
     // race này; Redis lỗi → null → FAIL-OPEN về lớp 1 (triết lý AGENTS §10). Refund khi phiếu KHÔNG
     // ghi được (409/403/OTP sai) để quota giữ ngữ nghĩa cũ: chỉ đếm phiếu ghi thật.
-    const ipQuotaKey = `survey:vote:ipq:${body.surveyPeriodId}:${ipHash}`
+    const ipQuotaKey = `survey:vote:ipq:${body.surveyPeriodId}:${voteType ?? 'NONE'}:${ipHash}`
     const reservedCount = await this.redisService.incrWithTtl(ipQuotaKey, VOTE_IP_QUOTA_TTL_SEC)
     if (reservedCount != null && reservedCount > config.ipVotesPerPeriod) {
       await this.redisService.decrSafe(ipQuotaKey)
@@ -245,7 +251,8 @@ export class SurveyService {
     try {
       const existingVote = await this.surveyRepository.findReaderVoteByPeriodAndIdentity(
         body.surveyPeriodId,
-        identityHash
+        identityHash,
+        voteType
       )
       if (existingVote) throw ReaderAlreadyVotedException
 
@@ -278,6 +285,7 @@ export class SurveyService {
         surveyPeriodId: body.surveyPeriodId,
         seriesIds: body.seriesIds,
         identityHash,
+        publicationType: voteType,
         authMethod: 'EMAIL_OTP',
         ipHash,
         captchaScore: captcha.score,
@@ -441,6 +449,7 @@ export class SurveyService {
       seriesIds.length > 0 ? await this.surveyRepository.countPublishedChaptersBySeriesIds(seriesIds) : new Map()
     const ownership = seriesIds.length > 0 ? await this.surveyRepository.findSeriesOwnershipByIds(seriesIds) : []
     const statusById = new Map(ownership.map((o) => [o.id, o.status]))
+    const typeById = new Map(ownership.map((o) => [o.id, o.publicationType ?? null]))
     const heldThreshold = new Date(Date.now() - appConfig.hiatusTooLongDays * 86_400_000)
     const heldSeries =
       seriesIds.length > 0
@@ -448,8 +457,22 @@ export class SurveyService {
         : new Set<string>()
 
     // 3. Compute per-record state — Spec 5 §3 (tiering) + §4 (reliability).
-    const N = rankingItems.length
-    const bottom = bottomThirdCount(N)
+    // Option B: bottom-1/3 at-risk tính TRONG TỪNG publicationType (Tuần xét trong Tuần, Tháng trong
+    // Tháng — 2 tạp chí khác reader pool). rankPosition vẫn GLOBAL (giữ read-path bảng tổng).
+    // rankingItems đã sort global desc → thứ tự trong mỗi bucket cũng là hạng nội-type.
+    const inBottomOfType = new Map<string, boolean>()
+    const typeBuckets = new Map<PublicationType | null, string[]>()
+    for (const it of rankingItems) {
+      const t = typeById.get(it.seriesId) ?? null
+      const bucket = typeBuckets.get(t) ?? []
+      bucket.push(it.seriesId)
+      typeBuckets.set(t, bucket)
+    }
+    for (const ids of typeBuckets.values()) {
+      const n = ids.length
+      const bottom = bottomThirdCount(n)
+      ids.forEach((id, j) => inBottomOfType.set(id, j >= n - bottom))
+    }
     const periodTotal = rankingItems.reduce((s, i) => s + i.score, 0)
     const periodLowData = periodTotal < appConfig.lowVoteReliabilityThreshold
 
@@ -469,7 +492,7 @@ export class SurveyService {
         (publishedCounts.get(item.seriesId) ?? 0) < SURVEY_CONFIG.minChaptersForRiskEvaluation ||
         statusById.get(item.seriesId) === 'HIATUS'
 
-      const isAtRisk = !excluded && index >= N - bottom
+      const isAtRisk = !excluded && inBottomOfType.get(item.seriesId) === true
       const prevCount = previous?.consecutiveAtRiskCount ?? 0
       const consecutiveAtRiskCount = nextConsecutiveCount(prevCount, isAtRisk)
       const riskLevel = computeRiskLevel(isAtRisk, consecutiveAtRiskCount)
@@ -648,12 +671,14 @@ export class SurveyService {
   }
 
   // Fix-1 G-2 (Req 2.5#1): dữ liệu public dựng trang bình chọn — KHÔNG cần auth, KHÔNG lộ field nội bộ.
-  async getVoteContext() {
-    return this.cacheService.getOrSet('votectx', 'ctx', VOTE_CTX_TTL_SEC, async () => {
+  // Option B: publicationType filter → tab Tuần/Tháng. Cache key PHẢI kèm type (nếu không
+  // ?type=WEEKLY và =MONTHLY share entry → trả nhầm — bẫy cache Spec 23).
+  async getVoteContext(publicationType?: PublicationType) {
+    return this.cacheService.getOrSet('votectx', `ctx:${publicationType ?? 'ALL'}`, VOTE_CTX_TTL_SEC, async () => {
       const config = await this.surveyConfigService.get()
       const period = await this.surveyRepository.findLatestOpenSurveyPeriod()
       if (!period) return { period: null, series: [], maxSeriesPerVote: config.maxSeriesPerVote }
-      const series = await this.surveyRepository.findManySerializedSeriesPublic()
+      const series = await this.surveyRepository.findManySerializedSeriesPublic(publicationType)
       return {
         period: {
           id: period.id,
@@ -667,7 +692,9 @@ export class SurveyService {
           title: s.title,
           coverImage: s.coverImage ?? null,
           genres: s.genres,
-          demographic: s.demographic ?? null
+          demographic: s.demographic ?? null,
+          // repo lọc `publicationType: { not: null }` → luôn non-null ở runtime (assert cho TS + schema non-null).
+          publicationType: s.publicationType as PublicationType
         })),
         maxSeriesPerVote: config.maxSeriesPerVote
       }

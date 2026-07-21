@@ -173,8 +173,8 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
     captchaToken: 'tok'
   }
   const IP = '203.0.113.9'
-  const serializedOwnership = (ids: string[]) =>
-    ids.map((id) => ({ id, status: 'SERIALIZED', mangakaId: 'm', editorId: null }))
+  const serializedOwnership = (ids: string[], publicationType: string | null = 'WEEKLY') =>
+    ids.map((id) => ({ id, status: 'SERIALIZED', mangakaId: 'm', editorId: null, publicationType }))
 
   it('uses HMAC identityHash for BOTH the dedup lookup and the stored vote (so one identity = one vote/period)', async () => {
     const m = makeMocks()
@@ -187,15 +187,52 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
     const expectedIdentityHash = identityHash.hash(VOTE_BODY.identity)
     const expectedIpHash = identityHash.hash(IP)
 
-    // dedup lookup keyed by the deterministic hash
+    // dedup lookup keyed by the deterministic hash + derived publicationType (Option B: per-type dedup)
     expect(m.surveyRepository.findReaderVoteByPeriodAndIdentity).toHaveBeenCalledWith(
       '507f1f77bcf86cd799439011',
-      expectedIdentityHash
+      expectedIdentityHash,
+      'WEEKLY'
     )
-    // stored vote carries the SAME deterministic hash (unique constraint can now catch repeats)
+    // stored vote carries the SAME deterministic hash + the derived type (unique now (period,type,identity))
     expect(m.surveyRepository.createReaderVote).toHaveBeenCalledWith(
-      expect.objectContaining({ identityHash: expectedIdentityHash, ipHash: expectedIpHash })
+      expect.objectContaining({ identityHash: expectedIdentityHash, ipHash: expectedIpHash, publicationType: 'WEEKLY' })
     )
+  })
+
+  // Option B: type suy từ series được vote; 1 danh tính bỏ được 1 phiếu MỖI type / kỳ.
+  it('derives publicationType from the voted series and dedups PER TYPE', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
+    m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue(serializedOwnership([SERIES_A], 'MONTHLY'))
+    // Reader đã vote WEEKLY kỳ này; dedup MONTHLY vẫn null → cho vote.
+    m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue(null)
+
+    await makeService(m).submitVote(VOTE_BODY, IP)
+
+    expect(m.surveyRepository.findReaderVoteByPeriodAndIdentity).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439011',
+      identityHash.hash(VOTE_BODY.identity),
+      'MONTHLY'
+    )
+    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledWith(
+      expect.objectContaining({ publicationType: 'MONTHLY' })
+    )
+  })
+
+  it('rejects a ballot mixing publicationTypes (422, OTP untouched)', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue(OPEN_PERIOD)
+    m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue([
+      { id: SERIES_A, status: 'SERIALIZED', mangakaId: 'm', editorId: null, publicationType: 'WEEKLY' },
+      { id: SERIES_B, status: 'SERIALIZED', mangakaId: 'm', editorId: null, publicationType: 'MONTHLY' }
+    ])
+
+    await expect(
+      makeService(m).submitVote({ ...VOTE_BODY, seriesIds: [SERIES_A, SERIES_B] }, IP)
+    ).rejects.toMatchObject({ status: 422 })
+    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
+    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
+    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
   })
 
   it('rejects a second vote from the same identity in the same period (dedup hit)', async () => {
@@ -311,6 +348,54 @@ describe('SurveyService.finalizeRanking — at-risk tiering + exclusion + reliab
     expect(sC.isAtRisk).toBe(false)
     expect(sC.riskLevel).toBe('NONE')
     expect(sC.consecutiveAtRiskCount).toBe(0)
+  })
+
+  // Option B: bottom-1/3 tính TRONG TỪNG type. WEEKLY [wA10,wB9,wC8] + MONTHLY [mA3,mB2,mC1].
+  // Global (SAI) sẽ flag mB,mC (2 thấp nhất/6). Per-type (ĐÚNG): wC (đáy WEEKLY) + mC (đáy MONTHLY),
+  // và mB KHÔNG at-risk (hạng 2/3 MONTHLY). 2 assert (wC=true, mB=false) phân biệt per-type vs global.
+  it('computes bottom-1/3 at-risk WITHIN each publicationType (not globally)', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue(CLOSED)
+    m.surveyRepository.getReaderVotesByPeriod.mockResolvedValue([
+      { seriesIds: ['wA'], voteWeight: 10 },
+      { seriesIds: ['wB'], voteWeight: 9 },
+      { seriesIds: ['wC'], voteWeight: 8 },
+      { seriesIds: ['mA'], voteWeight: 3 },
+      { seriesIds: ['mB'], voteWeight: 2 },
+      { seriesIds: ['mC'], voteWeight: 1 }
+    ])
+    m.surveyRepository.countPublishedChaptersBySeriesIds.mockResolvedValue(
+      new Map([
+        ['wA', 20],
+        ['wB', 20],
+        ['wC', 20],
+        ['mA', 20],
+        ['mB', 20],
+        ['mC', 20]
+      ])
+    )
+    m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue([
+      { id: 'wA', status: 'SERIALIZED', mangakaId: 'm', editorId: null, publicationType: 'WEEKLY' },
+      { id: 'wB', status: 'SERIALIZED', mangakaId: 'm', editorId: null, publicationType: 'WEEKLY' },
+      { id: 'wC', status: 'SERIALIZED', mangakaId: 'm', editorId: null, publicationType: 'WEEKLY' },
+      { id: 'mA', status: 'SERIALIZED', mangakaId: 'm', editorId: null, publicationType: 'MONTHLY' },
+      { id: 'mB', status: 'SERIALIZED', mangakaId: 'm', editorId: null, publicationType: 'MONTHLY' },
+      { id: 'mC', status: 'SERIALIZED', mangakaId: 'm', editorId: null, publicationType: 'MONTHLY' }
+    ])
+
+    await makeService(m).finalizeRanking('507f1f77bcf86cd799439011')
+
+    const byId = new Map(
+      (m.surveyRepository.createRankingRecord.mock.calls as unknown[][])
+        .map(([a]) => a as Record<string, unknown>)
+        .map((c) => [c.seriesId as string, c])
+    )
+    expect(byId.get('wC')?.isAtRisk).toBe(true) // đáy WEEKLY (global sẽ là false)
+    expect(byId.get('mC')?.isAtRisk).toBe(true) // đáy MONTHLY
+    expect(byId.get('mB')?.isAtRisk).toBe(false) // hạng 2/3 MONTHLY (global sẽ là true)
+    // rankPosition vẫn GLOBAL (giữ read-path): wA=1 … mC=6
+    expect(byId.get('wA')?.rankPosition).toBe(1)
+    expect(byId.get('mC')?.rankPosition).toBe(6)
   })
 
   it('tiers a qualifying at-risk series to SEVERE after 5 consecutive periods', async () => {
@@ -546,9 +631,16 @@ describe('SurveyService.getVoteContext (Fix-1 G-2)', () => {
       endDate: new Date('2026-07-15T00:00:00.000Z'),
       status: 'OPEN'
     })
-    m.surveyRepository.findManySerializedSeriesPublic = jest
-      .fn()
-      .mockResolvedValue([{ id: 'ser1', title: 'One', coverImage: null, genres: ['ACTION'], demographic: 'SHONEN' }])
+    m.surveyRepository.findManySerializedSeriesPublic = jest.fn().mockResolvedValue([
+      {
+        id: 'ser1',
+        title: 'One',
+        coverImage: null,
+        genres: ['ACTION'],
+        demographic: 'SHONEN',
+        publicationType: 'WEEKLY'
+      }
+    ])
     const out = await makeService(m).getVoteContext()
     expect(out.period).toMatchObject({
       id: P,
@@ -557,10 +649,35 @@ describe('SurveyService.getVoteContext (Fix-1 G-2)', () => {
       startDate: '2026-07-01T00:00:00.000Z',
       endDate: '2026-07-15T00:00:00.000Z'
     })
+    // Option B: item nay kèm publicationType để FE dựng tab Tuần/Tháng.
     expect(out.series).toEqual([
-      { id: 'ser1', title: 'One', coverImage: null, genres: ['ACTION'], demographic: 'SHONEN' }
+      {
+        id: 'ser1',
+        title: 'One',
+        coverImage: null,
+        genres: ['ACTION'],
+        demographic: 'SHONEN',
+        publicationType: 'WEEKLY'
+      }
     ])
     expect(out.maxSeriesPerVote).toBe(3)
+  })
+
+  it('passes publicationType filter through to the series query (Option B tab)', async () => {
+    const m = makeMocks()
+    m.surveyRepository.findLatestOpenSurveyPeriod = jest.fn().mockResolvedValue({
+      id: P,
+      issueNumber: 12,
+      reflectedIssueNumber: 10,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2026-07-15T00:00:00.000Z'),
+      status: 'OPEN'
+    })
+    m.surveyRepository.findManySerializedSeriesPublic = jest.fn().mockResolvedValue([])
+
+    await makeService(m).getVoteContext('MONTHLY')
+
+    expect(m.surveyRepository.findManySerializedSeriesPublic).toHaveBeenCalledWith('MONTHLY')
   })
 
   it('no OPEN period → period null + series rỗng, vẫn 200-shape, KHÔNG gọi series query', async () => {
