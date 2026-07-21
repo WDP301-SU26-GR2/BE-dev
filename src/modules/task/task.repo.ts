@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { Prisma, Region, Specialization, Task, TaskStatus } from '@prisma/client'
+import { Asset, Prisma, Region, Specialization, Task, TaskStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { fetchUserMiniMap } from 'src/core/models/user-mini.model'
 
@@ -18,6 +18,19 @@ export class TaskRepository {
     return new Map(regions.map((region) => [region.id, region]))
   }
 
+  // Batch lookup Asset reference theo assetIds — Assistant cần object key (filePath) để tải ảnh reference
+  // Mangaka đính khi giao task (assetIds chỉ là ObjectId, không phải key). 1 query/danh sách, không N+1.
+  private async fetchAssetMap(assetIds: string[]) {
+    const ids = [...new Set(assetIds)]
+    if (ids.length === 0)
+      return new Map<string, { id: string; filePath: string; name: string; assetType: Asset['assetType'] }>()
+    const assets = await this.prismaService.asset.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, filePath: true, name: true, assetType: true }
+    })
+    return new Map(assets.map((asset) => [asset.id, asset]))
+  }
+
   // Batch key ảnh gốc/composite của trang theo pageId — màn review Mangaka cần bản gốc (Mangaka giao)
   // bên cạnh versions[].file (Assistant nộp) để so 2 ảnh. 1 query/trang, không N+1.
   private async fetchPageFileMap(pageIds: string[]) {
@@ -32,21 +45,27 @@ export class TaskRepository {
     )
   }
 
-  private async attachEmbeds<T extends Pick<Task, 'assistantId' | 'regionId' | 'versions' | 'pageId'>>(rows: T[]) {
-    const [users, regions, pageFiles] = await Promise.all([
+  private async attachEmbeds<
+    T extends Pick<Task, 'assistantId' | 'regionIds' | 'versions' | 'pageId' | 'assetIds'>
+  >(rows: T[]) {
+    const [users, regions, pageFiles, assets] = await Promise.all([
       fetchUserMiniMap(
         this.prismaService,
         rows.flatMap((row) => [row.assistantId, ...row.versions.map((version) => version.submittedBy)])
       ),
-      this.fetchRegionMap(rows.map((row) => row.regionId)),
-      this.fetchPageFileMap(rows.map((row) => row.pageId))
+      this.fetchRegionMap(rows.flatMap((row) => row.regionIds)),
+      this.fetchPageFileMap(rows.map((row) => row.pageId)),
+      this.fetchAssetMap(rows.flatMap((row) => row.assetIds))
     ])
     return rows.map((row) => {
       const page = pageFiles.get(row.pageId)
       return {
         ...row,
         assistant: row.assistantId ? (users.get(row.assistantId) ?? null) : null,
-        region: row.regionId ? (regions.get(row.regionId) ?? null) : null,
+        // Task 1 trang → trả các vùng đã chọn; task nhóm có regionIds=[] → regions=[] (chỉ hiển thị theo trang).
+        regions: row.regionIds.map((id) => regions.get(id)).filter((r): r is Region => Boolean(r)),
+        // assets = ref Mangaka đính khi giao task: FE dùng filePath làm `key` cho POST /tasks/:id/download-url.
+        assets: row.assetIds.map((id) => assets.get(id)).filter((a): a is NonNullable<typeof a> => Boolean(a)),
         pageOriginalFile: page?.originalFile ?? null,
         // displayFile = composite ?? original (cùng công thức PageRes.displayFile) — ảnh nên hiển thị.
         pageDisplayFile: page ? (page.compositeFile ?? page.originalFile) : null,
@@ -63,18 +82,24 @@ export class TaskRepository {
   async findTaskDownloadContext(taskId: string) {
     const task = await this.prismaService.task.findUnique({
       where: { id: taskId },
-      select: { id: true, pageId: true, assistantId: true, versions: true }
+      select: { id: true, pageId: true, assistantId: true, assetIds: true, versions: true }
     })
     if (!task) return null
-    const page = await this.prismaService.page.findUnique({
-      where: { id: task.pageId },
-      select: {
-        originalFile: true,
-        compositeFile: true,
-        chapter: { select: { series: { select: { mangakaId: true, editorId: true } } } }
-      }
-    })
-    return { task, page }
+    const [page, assets] = await Promise.all([
+      this.prismaService.page.findUnique({
+        where: { id: task.pageId },
+        select: {
+          originalFile: true,
+          compositeFile: true,
+          chapter: { select: { series: { select: { mangakaId: true, editorId: true } } } }
+        }
+      }),
+      task.assetIds.length > 0
+        ? this.prismaService.asset.findMany({ where: { id: { in: task.assetIds } }, select: { filePath: true } })
+        : Promise.resolve([])
+    ])
+    // assetKeys = object key của ảnh reference Mangaka đính lúc giao task (A-TSK-09) → Assistant tải được.
+    return { task, page, assetKeys: assets.map((a) => a.filePath) }
   }
 
   // ---- Read-only precondition (KHÔNG ghi status A3) ----
@@ -171,13 +196,22 @@ export class TaskRepository {
   }
 
   async countTasksByRegion(regionId: string): Promise<number> {
-    return await this.prismaService.task.count({ where: { regionId } })
+    return await this.prismaService.task.count({ where: { regionIds: { has: regionId } } })
   }
 
   async findTasksByRegion(regionId: string): Promise<Array<Pick<Task, 'id' | 'status' | 'assistantId'>>> {
     return await this.prismaService.task.findMany({
-      where: { regionId },
+      where: { regionIds: { has: regionId } },
       select: { id: true, status: true, assistantId: true }
+    })
+  }
+
+  // Validate vùng khi tạo task: mọi regionId phải tồn tại và cùng thuộc pageId.
+  async findRegionsByIds(ids: string[]): Promise<Array<Pick<Region, 'id' | 'pageId'>>> {
+    if (ids.length === 0) return []
+    return await this.prismaService.region.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, pageId: true }
     })
   }
 
@@ -227,7 +261,7 @@ export class TaskRepository {
   // ---- Task (A-TSK-03/04/05/09) ----
   async createTask(data: {
     pageId: string
-    regionId: string | null
+    regionIds: string[]
     assistantId: string
     taskType: Specialization
     deadline: Date | null
@@ -240,7 +274,7 @@ export class TaskRepository {
   async createTasksBatch(
     items: Array<{
       pageId: string
-      regionId: string | null
+      regionIds: string[]
       assistantId: string
       taskType: Specialization
       deadline: Date | null

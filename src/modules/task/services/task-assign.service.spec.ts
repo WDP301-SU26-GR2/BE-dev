@@ -5,6 +5,7 @@ import {
   AssistantNotHiredException,
   NotSeriesOwnerException,
   PageNotEditableTaskException,
+  RegionNotFoundException,
   TaskNotCancellableException,
   TaskNotReassignableException
 } from '../errors/task.errors'
@@ -24,8 +25,10 @@ describe('TaskAssignService', () => {
     createTask: jest.fn(),
     findTaskById: jest.fn(),
     setAssistant: jest.fn(),
-    updateTaskFields: jest.fn()
+    updateTaskFields: jest.fn(),
+    findRegionsByIds: jest.fn()
   }
+  const REG = 'b'.repeat(24)
   const studio = { findActiveForPair: jest.fn() }
   const storage = { findAssetsByIds: jest.fn() }
   const taskState = { transition: jest.fn() }
@@ -118,6 +121,51 @@ describe('TaskAssignService', () => {
         content: expect.any(String)
       })
     )
+  })
+
+  it('validates + passes multiple regionIds (same page) through to createTask', async () => {
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+    studio.findActiveForPair.mockResolvedValue({ id: 'sa' })
+    repo.findRegionsByIds.mockResolvedValue([
+      { id: REG, pageId: PAGE.id },
+      { id: 'c'.repeat(24), pageId: PAGE.id }
+    ])
+    repo.createTask.mockResolvedValue({
+      id: 't',
+      pageId: PAGE.id,
+      regionIds: [REG, 'c'.repeat(24)],
+      status: 'ASSIGNED',
+      priority: 0,
+      assetIds: [],
+      versions: [],
+      createdAt: new Date()
+    })
+    await service.create('m', {
+      pageId: PAGE.id,
+      assistantId: ID,
+      taskType: 'BACKGROUND',
+      priority: 0,
+      assetIds: [],
+      regionIds: [REG, 'c'.repeat(24)]
+    } as never)
+    expect(repo.createTask).toHaveBeenCalledWith(expect.objectContaining({ regionIds: [REG, 'c'.repeat(24)] }))
+  })
+
+  it('rejects a regionId that belongs to another page → RegionNotFound', async () => {
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+    studio.findActiveForPair.mockResolvedValue({ id: 'sa' })
+    repo.findRegionsByIds.mockResolvedValue([{ id: REG, pageId: 'd'.repeat(24) }])
+    await expect(
+      service.create('m', {
+        pageId: PAGE.id,
+        assistantId: ID,
+        taskType: 'BACKGROUND',
+        priority: 0,
+        assetIds: [],
+        regionIds: [REG]
+      } as never)
+    ).rejects.toBe(RegionNotFoundException)
+    expect(repo.createTask).not.toHaveBeenCalled()
   })
 
   it('reassign rejects non-ON_HOLD task → 409', async () => {

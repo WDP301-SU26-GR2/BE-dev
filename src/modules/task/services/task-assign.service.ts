@@ -12,6 +12,7 @@ import {
   NotSeriesOwnerException,
   PageNotEditableTaskException,
   PageNotFoundException,
+  RegionNotFoundException,
   TaskNotFoundException,
   TaskNotCancellableException,
   TaskNotReassignableException
@@ -51,7 +52,10 @@ export class TaskAssignService {
     return page
   }
 
-  private async validateAssign(mangakaId: string, body: CreateTaskBodyType) {
+  private async validateAssign(
+    mangakaId: string,
+    body: { pageId: string; assistantId: string; assetIds: string[] }
+  ) {
     await this.requirePageOwner(mangakaId, body.pageId)
     const active = await this.studioAssignmentService.findActiveForPair(mangakaId, body.assistantId)
     if (!active) throw AssistantNotHiredException
@@ -59,6 +63,16 @@ export class TaskAssignService {
       const found = await this.storageRepository.findAssetsByIds(body.assetIds)
       if (found.length !== body.assetIds.length) throw AssetNotFoundException
     }
+  }
+
+  // Mọi regionId phải là 24-hex, tồn tại, và cùng thuộc pageId (chống gắn vùng của trang khác). Trả về mảng dedupe.
+  private async resolveRegionIds(pageId: string, regionIds: string[]): Promise<string[]> {
+    const ids = [...new Set(regionIds)]
+    if (ids.length === 0) return []
+    if (ids.some((id) => !OBJECT_ID_RE.test(id))) throw RegionNotFoundException
+    const regions = await this.taskRepository.findRegionsByIds(ids)
+    if (regions.length !== ids.length || regions.some((r) => r.pageId !== pageId)) throw RegionNotFoundException
+    return ids
   }
 
   private async notifyAssigned(assistantId: string, taskId: string) {
@@ -73,9 +87,10 @@ export class TaskAssignService {
 
   async create(mangakaId: string, body: CreateTaskBodyType) {
     await this.validateAssign(mangakaId, body)
+    const regionIds = await this.resolveRegionIds(body.pageId, body.regionIds)
     const task = await this.taskRepository.createTask({
       pageId: body.pageId,
-      regionId: body.regionId ?? null,
+      regionIds,
       assistantId: body.assistantId,
       taskType: body.taskType,
       deadline: body.deadline ? new Date(body.deadline) : null,
@@ -91,7 +106,7 @@ export class TaskAssignService {
     const tasks = await this.taskRepository.createTasksBatch(
       body.items.map((b) => ({
         pageId: b.pageId,
-        regionId: b.regionId ?? null,
+        regionIds: b.regionId ? [b.regionId] : [],
         assistantId: b.assistantId,
         taskType: b.taskType,
         deadline: b.deadline ? new Date(b.deadline) : null,
@@ -114,8 +129,6 @@ export class TaskAssignService {
       await this.validateAssign(mangakaId, {
         pageId,
         assistantId: body.assistantId,
-        taskType: body.taskType,
-        priority: body.priority,
         assetIds: body.assetIds
       })
     }
@@ -124,7 +137,7 @@ export class TaskAssignService {
     const tasks = await this.taskRepository.createTasksBatch(
       pageIds.map((pageId) => ({
         pageId,
-        regionId: null,
+        regionIds: [],
         assistantId: body.assistantId,
         taskType: body.taskType,
         deadline: body.deadline ? new Date(body.deadline) : null,

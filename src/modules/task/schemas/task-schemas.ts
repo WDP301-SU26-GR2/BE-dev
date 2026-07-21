@@ -64,7 +64,28 @@ export const DeleteRegionResSchema = extendApi(
 )
 
 // ---- Task (A-TSK-03/04/09) ----
+// POST /tasks: MỘT task gắn với MỘT trang, chọn 0..N vùng (region) trên trang đó.
 export const CreateTaskBodySchema = extendApi(
+  z
+    .object({
+      pageId: z.string(),
+      regionIds: z
+        .array(z.string())
+        .max(50)
+        .default([])
+        .describe('Các vùng trên trang cần xử lý (đều phải thuộc pageId); rỗng = giao cả trang'),
+      assistantId: z.string(),
+      taskType: zEnum($Enums.Specialization, 'Specialization'),
+      deadline: z.string().datetime({ offset: true }).optional(),
+      priority: z.number().int().nonnegative().default(0),
+      assetIds: z.array(z.string()).default([])
+    })
+    .strict(),
+  { title: 'CreateTaskBody', description: 'Giao 1 task cho Assistant trên 1 trang (0..N vùng) — enforce BR-ASSIST-01' }
+)
+
+// Item của batch: MỖI task 1 vùng (giữ nguyên contract cũ để không breaking `POST /tasks/batch`).
+export const BatchTaskItemSchema = extendApi(
   z
     .object({
       pageId: z.string(),
@@ -76,11 +97,11 @@ export const CreateTaskBodySchema = extendApi(
       assetIds: z.array(z.string()).default([])
     })
     .strict(),
-  { title: 'CreateTaskBody', description: 'Giao task cho Assistant (enforce BR-ASSIST-01)' }
+  { title: 'BatchTaskItem', description: 'Một task trong batch (1 vùng)' }
 )
 
 export const BatchCreateTaskBodySchema = extendApi(
-  z.object({ items: z.array(CreateTaskBodySchema).min(1).max(50) }).strict(),
+  z.object({ items: z.array(BatchTaskItemSchema).min(1).max(50) }).strict(),
   { title: 'BatchCreateTaskBody', description: 'Giao nhiều task (all-or-nothing)' }
 )
 
@@ -166,7 +187,7 @@ export const TaskResSchema = extendApi(
   z.object({
     id: z.string(),
     pageId: z.string(),
-    regionId: z.string().nullable(),
+    regionIds: z.array(z.string()).describe('Các vùng (Region id) mà task này xử lý; rỗng = cả trang / task nhóm'),
     assistantId: z.string().nullable(),
     taskType: zEnum($Enums.Specialization, 'Specialization').nullable(),
     status: zEnum($Enums.TaskStatus, 'TaskStatus'),
@@ -179,9 +200,24 @@ export const TaskResSchema = extendApi(
     groupId: z.string().nullable().optional().describe('Nhóm việc chứa task này; null = task lẻ'),
     groupTitle: z.string().nullable().optional().describe('Tên nhóm việc hiển thị'),
     assistant: UserMiniSchema.nullable().optional().describe('Trợ lý được giao — có ở GET list/detail'),
-    region: RegionResSchema.nullable()
+    assets: z
+      .array(
+        z.object({
+          id: z.string().describe('ObjectId Asset (= một phần tử của assetIds)'),
+          filePath: z.string().describe('Object key R2 — truyền vào POST /tasks/:id/download-url để tải reference'),
+          name: z.string(),
+          assetType: zEnum($Enums.AssetType, 'AssetType').nullable()
+        })
+      )
       .optional()
-      .describe('Vùng cần xử lý (toạ độ + loại vùng) — có ở GET list/detail; null khi task không gắn vùng'),
+      .describe('Ảnh reference Mangaka đính khi giao task (resolve từ assetIds → key) — có ở GET list/detail'),
+    regions: z
+      .array(RegionResSchema)
+      .optional()
+      .describe(
+        'Các vùng cần xử lý (toạ độ + loại vùng) — có ở GET list/detail. ' +
+          'Task 1 trang trả đủ vùng; task nhóm (nhiều trang) trả [] (chỉ hiển thị theo trang).'
+      ),
     pageOriginalFile: z
       .string()
       .nullable()
@@ -245,6 +281,7 @@ export type CreateRegionBodyType = z.infer<typeof CreateRegionBodySchema>
 export type UpdateRegionBodyType = z.infer<typeof UpdateRegionBodySchema>
 export type DeleteRegionResType = z.infer<typeof DeleteRegionResSchema>
 export type CreateTaskBodyType = z.infer<typeof CreateTaskBodySchema>
+export type BatchTaskItemType = z.infer<typeof BatchTaskItemSchema>
 export type BatchCreateTaskBodyType = z.infer<typeof BatchCreateTaskBodySchema>
 export type UpdateTaskBodyType = z.infer<typeof UpdateTaskBodySchema>
 export type SubmitTaskBodyType = z.infer<typeof SubmitTaskBodySchema>

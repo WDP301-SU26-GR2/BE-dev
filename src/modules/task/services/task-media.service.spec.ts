@@ -11,6 +11,8 @@ function makeCtx(over: Record<string, unknown> = {}) {
       compositeFile: 'r2://page-composite.png',
       chapter: { series: { mangakaId: 'mangaka', editorId: 'editor' } }
     },
+    // Key ảnh reference Mangaka đính khi giao task (A-TSK-09) — resolve từ Task.assetIds → Asset.filePath.
+    assetKeys: ['r2://reference-a.png'],
     ...over
   }
 }
@@ -36,6 +38,12 @@ describe('TaskMediaService.getDownloadUrl', () => {
     const { svc, storage } = makeSvc(makeCtx())
     await svc.getDownloadUrl({ userId: 'assistant', roleName: 'ASSISTANT' }, TASK, 'r2://page-original.png')
     expect(storage.createPresignedDownload).toHaveBeenCalledWith('r2://page-original.png')
+  })
+
+  it('lets the assignee Assistant download a reference asset the Mangaka attached (assetIds)', async () => {
+    const { svc, storage } = makeSvc(makeCtx())
+    await svc.getDownloadUrl({ userId: 'assistant', roleName: 'ASSISTANT' }, TASK, 'r2://reference-a.png')
+    expect(storage.createPresignedDownload).toHaveBeenCalledWith('r2://reference-a.png')
   })
 
   it('lets the series Editor download a task file', async () => {
