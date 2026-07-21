@@ -30,7 +30,7 @@ function makeRepo(over: Record<string, unknown> = {}) {
 }
 
 function makeService(repo: ReturnType<typeof makeRepo>) {
-  return new TaskService({} as never, {} as never, {} as never, repo as never)
+  return new TaskService({} as never, {} as never, {} as never, {} as never, repo as never)
 }
 
 describe('TaskService.listTasks', () => {
@@ -130,7 +130,7 @@ describe('TaskService.listTasks — mangaka scope toàn bộ series của mình'
   }
 
   function makeSvc(repo: Record<string, unknown>) {
-    return new TaskService({} as never, {} as never, {} as never, repo as never)
+    return new TaskService({} as never, {} as never, {} as never, {} as never, repo as never)
   }
 
   const baseQuery = { limit: 20, offset: 0 }

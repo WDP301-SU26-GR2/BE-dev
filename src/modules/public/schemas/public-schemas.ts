@@ -12,6 +12,21 @@ export const PublicSeriesListQuerySchema = extendApi(
       publicationType: zEnum(PublicationType, 'PublicationType')
         .optional()
         .describe('Lọc theo nhịp xuất bản: WEEKLY / MONTHLY / IRREGULAR'),
+      // Chỉ nhận trạng thái đã-serial-hóa (subset public). "Đang phát hành" = SERIALIZED (±HIATUS);
+      // "Đã hoàn thành" = COMPLETED; đã huỷ = CANCELLED. Omit = trả toàn bộ public set.
+      status: z
+        .enum([
+          SeriesStatus.SERIALIZED,
+          SeriesStatus.HIATUS,
+          SeriesStatus.COMPLETING,
+          SeriesStatus.CANCELLING,
+          SeriesStatus.COMPLETED,
+          SeriesStatus.CANCELLED
+        ])
+        .optional()
+        .describe(
+          'Lọc theo trạng thái (chỉ trạng thái công khai): SERIALIZED=đang phát hành · COMPLETED=đã hoàn thành · CANCELLED=đã huỷ ...'
+        ),
       limit: z.coerce.number().int().min(1).max(50).default(20),
       offset: z.coerce.number().int().min(0).default(0)
     })

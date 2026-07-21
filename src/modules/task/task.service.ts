@@ -3,6 +3,7 @@ import { RoleName } from 'src/core/security/constants/role.constant'
 import { RegionService } from './services/region.service'
 import { TaskAssignService } from './services/task-assign.service'
 import { TaskReviewService } from './services/task-review.service'
+import { TaskMediaService } from './services/task-media.service'
 import { TaskRepository, TaskListWhere } from './task.repo'
 import { toTaskRes } from './task.mapper'
 import {
@@ -28,8 +29,14 @@ export class TaskService {
     private readonly regionService: RegionService,
     private readonly taskAssignService: TaskAssignService,
     private readonly taskReviewService: TaskReviewService,
+    private readonly taskMediaService: TaskMediaService,
     private readonly taskRepository: TaskRepository
   ) {}
+
+  // Task-scoped signed download (bản gốc trang Mangaka giao + file version Assistant nộp).
+  getTaskFileDownloadUrl(user: { userId: string; roleName: string }, taskId: string, key: string) {
+    return this.taskMediaService.getDownloadUrl(user, taskId, key)
+  }
 
   // Region
   createRegion(userId: string, pageId: string, body: CreateRegionBodyType) {

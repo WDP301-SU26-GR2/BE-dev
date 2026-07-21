@@ -124,6 +124,19 @@ export const SubmitTaskBodySchema = extendApi(z.object({ file: z.string().min(1)
   description: 'Assistant nộp kết quả (object key R2)'
 })
 
+export const TaskFileDownloadBodySchema = extendApi(z.object({ key: z.string().min(1) }).strict(), {
+  title: 'TaskFileDownloadBody',
+  description: 'Object key cần tải — phải thuộc task (ảnh gốc/composite trang hoặc file version); khác → 403'
+})
+
+export const TaskFileDownloadResSchema = extendApi(
+  z.object({
+    downloadUrl: z.string().describe('Presigned GET URL có hạn'),
+    expiresAt: z.string().describe('ISO 8601 thời điểm hết hạn')
+  }),
+  { title: 'TaskFileDownloadRes', description: 'Presigned download cho file của task' }
+)
+
 export const RequestRevisionBodySchema = extendApi(z.object({ reviewerNote: z.string().min(1).max(1000) }).strict(), {
   title: 'RequestRevisionBody',
   description: 'Mangaka yêu cầu sửa (markup tạo riêng qua POST /annotations)'
@@ -168,7 +181,17 @@ export const TaskResSchema = extendApi(
     assistant: UserMiniSchema.nullable().optional().describe('Trợ lý được giao — có ở GET list/detail'),
     region: RegionResSchema.nullable()
       .optional()
-      .describe('Vùng cần xử lý (toạ độ + loại vùng) — có ở GET list/detail; null khi task không gắn vùng')
+      .describe('Vùng cần xử lý (toạ độ + loại vùng) — có ở GET list/detail; null khi task không gắn vùng'),
+    pageOriginalFile: z
+      .string()
+      .nullable()
+      .optional()
+      .describe('Object key ảnh GỐC của trang (bản Mangaka giao) — dùng ký signed URL để review; có ở GET list/detail'),
+    pageDisplayFile: z
+      .string()
+      .nullable()
+      .optional()
+      .describe('Object key ảnh NÊN HIỂN THỊ của trang = compositeFile ?? originalFile; có ở GET list/detail')
   }),
   { title: 'TaskRes', description: 'Một task production' }
 )

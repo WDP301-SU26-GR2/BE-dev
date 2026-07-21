@@ -20,6 +20,8 @@ import {
   RegionResDto,
   RequestRevisionBodyDto,
   SubmitTaskBodyDto,
+  TaskFileDownloadBodyDto,
+  TaskFileDownloadResDto,
   TaskListResDto,
   TaskResDto,
   UpdateRegionBodyDto,
@@ -36,6 +38,7 @@ import {
   PageNotFoundException,
   RegionHasApprovedTasksException,
   RegionNotFoundException,
+  TaskFileForbiddenException,
   TaskNotFoundException,
   TaskNotCancellableException,
   TaskNotReassignableException
@@ -220,6 +223,24 @@ export class TaskController {
     @ActiveUser('roleName') roleName: string
   ): Promise<InstanceType<typeof TaskResDto>> {
     return this.taskService.getTask(userId, roleName, id)
+  }
+
+  // Task-scoped download: Mangaka tải bản Assistant nộp, Assistant tải bản gốc trang — chỗ mà
+  // /uploads/sign-download (uploader-only) không phủ được. Authz theo quan hệ task + verify key thuộc task.
+  @Post('tasks/:id/download-url')
+  @ApiOperation({
+    summary: 'Ký signed URL tải file của task (ảnh gốc trang Mangaka giao / file version Assistant nộp)'
+  })
+  @ApiErrors(TaskNotFoundException, TaskFileForbiddenException)
+  @Roles(RoleName.MANGAKA, RoleName.ASSISTANT, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 201, type: TaskFileDownloadResDto })
+  getTaskFileDownloadUrl(
+    @Param('id') id: string,
+    @Body() body: TaskFileDownloadBodyDto,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ): Promise<InstanceType<typeof TaskFileDownloadResDto>> {
+    return this.taskService.getTaskFileDownloadUrl({ userId, roleName }, id, body.key)
   }
 
   @Get('tasks')
