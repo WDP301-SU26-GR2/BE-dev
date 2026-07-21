@@ -1420,16 +1420,18 @@ model ReaderVote {
   surveyPeriodId String       @db.ObjectId
   surveyPeriod   SurveyPeriod @relation(fields: [surveyPeriodId], references: [id])
 
-  seriesIds    String[]          @db.ObjectId
-  identityHash String?
-  authMethod   ReaderAuthMethod?
-  ipHash       String?
-  captchaScore Float?
-  voteWeight   Float             @default(1)
-  isFlagged    Boolean           @default(false)
-  votedAt      DateTime          @default(now())
+  seriesIds       String[]          @db.ObjectId
+  identityHash    String?
+  publicationType PublicationType?  // Option B: type độc giả vote (null = dữ liệu cũ trước Option B)
+  authMethod      ReaderAuthMethod?
+  ipHash          String?
+  captchaScore    Float?
+  voteWeight      Float             @default(1)
+  isFlagged       Boolean           @default(false)
+  votedAt         DateTime          @default(now())
 
-  @@unique([surveyPeriodId, identityHash])
+  // Option B: 1 phiếu / (kỳ, type, danh tính) — độc giả vote Tuần + Tháng độc lập.
+  @@unique([surveyPeriodId, publicationType, identityHash])
   @@index([surveyPeriodId])
 }
 

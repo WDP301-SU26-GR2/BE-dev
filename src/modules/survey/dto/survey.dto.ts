@@ -17,6 +17,7 @@ import {
   SurveyDataResSchema,
   SurveyDataListResSchema,
   VoteContextResSchema,
+  VoteContextQuerySchema,
   VoteResultsResSchema,
   VoteResultsQuerySchema,
   LatestVoteResultsResSchema,
@@ -42,6 +43,7 @@ export class ReaderVoteListResDto extends createZodDto(ReaderVoteListResSchema) 
 export class SurveyDataResDto extends createZodDto(SurveyDataResSchema) {}
 export class SurveyDataListResDto extends createZodDto(SurveyDataListResSchema) {}
 export class VoteContextResDto extends createZodDto(VoteContextResSchema) {}
+export class VoteContextQueryDto extends createZodDto(VoteContextQuerySchema) {}
 export class VoteResultsResDto extends createZodDto(VoteResultsResSchema) {}
 export class VoteResultsQueryDto extends createZodDto(VoteResultsQuerySchema) {}
 export class LatestVoteResultsResDto extends createZodDto(LatestVoteResultsResSchema) {}

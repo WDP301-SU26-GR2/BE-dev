@@ -23,6 +23,7 @@ import {
   VotingConfigBodyDto,
   VotingConfigResDto,
   VoteContextResDto,
+  VoteContextQueryDto,
   VoteOtpRequestBodyDto,
   VotePeriodsQueryDto,
   VotePeriodsResDto,
@@ -90,11 +91,12 @@ export class SurveyController {
   @Get('vote/context')
   @IsPublic()
   @ApiOperation({
-    summary: 'Public — kỳ bình chọn OPEN hiện tại + danh sách series SERIALIZED cho trang vote Guest'
+    summary:
+      'Public — kỳ bình chọn OPEN hiện tại + danh sách series SERIALIZED cho trang vote Guest. Option B: ?publicationType=WEEKLY|MONTHLY|IRREGULAR để tách tab; item kèm publicationType'
   })
   @ZodResponse({ status: 200, type: VoteContextResDto })
-  getVoteContext() {
-    return this.surveyService.getVoteContext()
+  getVoteContext(@Query() query: VoteContextQueryDto) {
+    return this.surveyService.getVoteContext(query.publicationType)
   }
 
   // Spec 15 §3.1 — discover the latest public ranking without a known period id.
