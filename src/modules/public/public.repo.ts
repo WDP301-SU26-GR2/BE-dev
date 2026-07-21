@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { ChapterStatus, Demographic, Genre, PublicationType } from '@prisma/client'
+import { ChapterStatus, Demographic, Genre, PublicationType, SeriesStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { PUBLIC_SERIES_STATUSES } from './public.constant'
 
@@ -18,10 +18,15 @@ export class PublicRepository {
     genre?: Genre
     demographic?: Demographic
     publicationType?: PublicationType
+    status?: SeriesStatus
     limit: number
     offset: number
   }) {
+    // status truyền vào ĐÃ được schema giới hạn trong PUBLIC_SERIES_STATUSES (subset enum) → an toàn
+    // override guard `{ in: [...] }`. Không có → giữ toàn bộ public set. Cho FE tách tab
+    // "đang phát hành" (status=SERIALIZED) khỏi "đã hoàn thành" (status=COMPLETED) bằng 1 param.
     const where = this.publicSeriesWhere({
+      ...(input.status ? { status: input.status } : {}),
       ...(input.q ? { title: { contains: escapeMongoRegex(input.q), mode: 'insensitive' as const } } : {}),
       ...(input.genre ? { genres: { has: input.genre } } : {}),
       ...(input.demographic ? { demographic: input.demographic } : {}),

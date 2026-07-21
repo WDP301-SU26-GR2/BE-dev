@@ -18,6 +18,8 @@ export function toRegionRes(r: Region) {
 type TaskWithPeople = Omit<Task, 'versions'> & {
   assistant?: UserMiniType | null
   region?: Region | null
+  pageOriginalFile?: string | null
+  pageDisplayFile?: string | null
   versions: Array<Task['versions'][number] & { submitter?: UserMiniType | null }>
 }
 
@@ -46,6 +48,8 @@ export function toTaskRes(t: TaskWithPeople) {
     groupId: t.groupId ?? null,
     groupTitle: t.groupTitle ?? null,
     ...(t.assistant !== undefined ? { assistant: t.assistant } : {}),
-    ...(t.region !== undefined ? { region: t.region ? toRegionRes(t.region) : null } : {})
+    ...(t.region !== undefined ? { region: t.region ? toRegionRes(t.region) : null } : {}),
+    ...(t.pageOriginalFile !== undefined ? { pageOriginalFile: t.pageOriginalFile } : {}),
+    ...(t.pageDisplayFile !== undefined ? { pageDisplayFile: t.pageDisplayFile } : {})
   }
 }

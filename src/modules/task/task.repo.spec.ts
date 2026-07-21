@@ -36,6 +36,7 @@ describe('TaskRepository response enrichment', () => {
           { id: 'submitter', name: 'Submitter', displayName: 'Version owner', avatar: null }
         ])
       },
+      page: { findMany: jest.fn().mockResolvedValue([]) },
       series: { findMany: jest.fn() }
     }
 
@@ -84,6 +85,7 @@ describe('TaskRepository response enrichment', () => {
           }
         ])
       },
+      page: { findMany: jest.fn().mockResolvedValue([]) },
       series: { findMany: jest.fn() }
     }
 
@@ -101,6 +103,92 @@ describe('TaskRepository response enrichment', () => {
       detectedSubtype: null,
       aiModelVersion: null
     })
+  })
+
+  // Màn review Mangaka cần 2 ảnh: bản gốc trang (Mangaka giao) + bản Assistant nộp (versions[].file).
+  // TaskRes trước chỉ có versions → embed thêm key ảnh gốc trang để lấy đủ 2 ảnh trong 1 response.
+  it('embeds the page base image keys (pageOriginalFile + pageDisplayFile = composite ?? original)', async () => {
+    const createdAt = new Date('2026-07-21T00:00:00.000Z')
+    const task = {
+      id: 't1',
+      pageId: 'p1',
+      regionId: null,
+      assistantId: 'assistant',
+      taskType: 'BACKGROUND',
+      status: 'SUBMITTED',
+      statusReason: null,
+      priority: 0,
+      deadline: null,
+      assetIds: [],
+      versions: [
+        {
+          submittedBy: 'assistant',
+          versionNumber: 1,
+          file: 'r2://assistant-result.png',
+          reviewStatus: 'PENDING',
+          reviewerNote: null,
+          submittedAt: createdAt
+        }
+      ],
+      createdAt
+    }
+    const prisma = {
+      task: { findUnique: jest.fn().mockResolvedValue(task) },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+      region: { findMany: jest.fn().mockResolvedValue([]) },
+      page: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { id: 'p1', originalFile: 'r2://page-original.png', compositeFile: 'r2://page-composite.png' }
+          ])
+      },
+      series: { findMany: jest.fn() }
+    }
+
+    const row = await new TaskRepository(prisma as unknown as PrismaService).findTaskById('t1')
+    const response = toTaskRes(row!)
+
+    expect(prisma.page.findMany).toHaveBeenCalledTimes(1)
+    expect(response.pageOriginalFile).toBe('r2://page-original.png')
+    // displayFile = composite ?? original → có composite thì trỏ composite
+    expect(response.pageDisplayFile).toBe('r2://page-composite.png')
+    expect(response.versions[0].file).toBe('r2://assistant-result.png')
+  })
+
+  it('pageDisplayFile falls back to originalFile when the page has no composite yet', async () => {
+    const createdAt = new Date('2026-07-21T00:00:00.000Z')
+    const task = {
+      id: 't1',
+      pageId: 'p1',
+      regionId: null,
+      assistantId: 'a',
+      taskType: 'BACKGROUND',
+      status: 'ASSIGNED',
+      statusReason: null,
+      priority: 0,
+      deadline: null,
+      assetIds: [],
+      versions: [],
+      createdAt
+    }
+    const prisma = {
+      task: { findUnique: jest.fn().mockResolvedValue(task) },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+      region: { findMany: jest.fn().mockResolvedValue([]) },
+      page: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'p1', originalFile: 'r2://only-original.png', compositeFile: null }])
+      },
+      series: { findMany: jest.fn() }
+    }
+
+    const row = await new TaskRepository(prisma as unknown as PrismaService).findTaskById('t1')
+    const response = toTaskRes(row!)
+
+    expect(response.pageOriginalFile).toBe('r2://only-original.png')
+    expect(response.pageDisplayFile).toBe('r2://only-original.png')
   })
 
   it('resolves regions in one batched query and yields null for tasks without a region', async () => {
@@ -140,6 +228,7 @@ describe('TaskRepository response enrichment', () => {
             }))
         )
       },
+      page: { findMany: jest.fn().mockResolvedValue([]) },
       series: { findMany: jest.fn() }
     }
 

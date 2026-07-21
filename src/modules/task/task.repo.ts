@@ -18,23 +18,63 @@ export class TaskRepository {
     return new Map(regions.map((region) => [region.id, region]))
   }
 
-  private async attachEmbeds<T extends Pick<Task, 'assistantId' | 'regionId' | 'versions'>>(rows: T[]) {
-    const [users, regions] = await Promise.all([
+  // Batch key ảnh gốc/composite của trang theo pageId — màn review Mangaka cần bản gốc (Mangaka giao)
+  // bên cạnh versions[].file (Assistant nộp) để so 2 ảnh. 1 query/trang, không N+1.
+  private async fetchPageFileMap(pageIds: string[]) {
+    const ids = [...new Set(pageIds)]
+    if (ids.length === 0) return new Map<string, { originalFile: string | null; compositeFile: string | null }>()
+    const pages = await this.prismaService.page.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, originalFile: true, compositeFile: true }
+    })
+    return new Map(
+      pages.map((page) => [page.id, { originalFile: page.originalFile, compositeFile: page.compositeFile }])
+    )
+  }
+
+  private async attachEmbeds<T extends Pick<Task, 'assistantId' | 'regionId' | 'versions' | 'pageId'>>(rows: T[]) {
+    const [users, regions, pageFiles] = await Promise.all([
       fetchUserMiniMap(
         this.prismaService,
         rows.flatMap((row) => [row.assistantId, ...row.versions.map((version) => version.submittedBy)])
       ),
-      this.fetchRegionMap(rows.map((row) => row.regionId))
+      this.fetchRegionMap(rows.map((row) => row.regionId)),
+      this.fetchPageFileMap(rows.map((row) => row.pageId))
     ])
-    return rows.map((row) => ({
-      ...row,
-      assistant: row.assistantId ? (users.get(row.assistantId) ?? null) : null,
-      region: row.regionId ? (regions.get(row.regionId) ?? null) : null,
-      versions: row.versions.map((version) => ({
-        ...version,
-        submitter: version.submittedBy ? (users.get(version.submittedBy) ?? null) : null
-      }))
-    }))
+    return rows.map((row) => {
+      const page = pageFiles.get(row.pageId)
+      return {
+        ...row,
+        assistant: row.assistantId ? (users.get(row.assistantId) ?? null) : null,
+        region: row.regionId ? (regions.get(row.regionId) ?? null) : null,
+        pageOriginalFile: page?.originalFile ?? null,
+        // displayFile = composite ?? original (cùng công thức PageRes.displayFile) — ảnh nên hiển thị.
+        pageDisplayFile: page ? (page.compositeFile ?? page.originalFile) : null,
+        versions: row.versions.map((version) => ({
+          ...version,
+          submitter: version.submittedBy ? (users.get(version.submittedBy) ?? null) : null
+        }))
+      }
+    })
+  }
+
+  // Task-scoped download (task-media.service): task (versions + assignee) + ảnh trang + chủ series/editor.
+  // Task KHÔNG có relation tới Page (pageId scalar) → 2 query.
+  async findTaskDownloadContext(taskId: string) {
+    const task = await this.prismaService.task.findUnique({
+      where: { id: taskId },
+      select: { id: true, pageId: true, assistantId: true, versions: true }
+    })
+    if (!task) return null
+    const page = await this.prismaService.page.findUnique({
+      where: { id: task.pageId },
+      select: {
+        originalFile: true,
+        compositeFile: true,
+        chapter: { select: { series: { select: { mangakaId: true, editorId: true } } } }
+      }
+    })
+    return { task, page }
   }
 
   // ---- Read-only precondition (KHÔNG ghi status A3) ----
