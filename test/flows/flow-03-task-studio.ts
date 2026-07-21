@@ -779,6 +779,72 @@ const main = async () => {
     `got ${JSON.stringify(noRegionTask?.region)}`
   )
 
+  // ══════════════ S-TASK-MEDIA — Task 2 (embed ảnh gốc) + Task 3 (download scope theo task) ══════════════
+  // Màn review cần 2 ảnh: bản gốc trang (Mangaka giao) + bản Assistant nộp. TaskRes embed key ảnh gốc,
+  // và /uploads/sign-download (uploader-only) KHÔNG cho Mangaka tải bản Assistant → cần endpoint scope theo task.
+  section('S-TASK-MEDIA embed pageOriginalFile + download-url')
+
+  const pageOrig = 'r2/media-base.png'
+  const mediaPage = await makePageAt({
+    chapterId: chapter.id,
+    pageNumber: 50,
+    status: PageStatus.DRAFT,
+    originalFile: pageOrig
+  })
+
+  const mediaRegionRes = await req('POST', `/pages/${mediaPage.id}/regions`, {
+    token: m1Tok,
+    body: { coordinates: { x: 5, y: 6, width: 7, height: 8 }, regionType: 'BACKGROUND' }
+  })
+  const mediaTaskRes = await req('POST', '/tasks', {
+    token: m1Tok,
+    body: { pageId: mediaPage.id, regionId: mediaRegionRes.json?.data?.id, assistantId: a1.id, taskType: 'BACKGROUND' }
+  })
+  const mediaTaskId = mediaTaskRes.json?.data?.id as string
+
+  // Task 2: TaskRes embed bản gốc trang.
+  const mediaDetail = await req('GET', `/tasks/${mediaTaskId}`, { token: m1Tok })
+  const mtd = mediaDetail.json?.data as { pageOriginalFile?: string; pageDisplayFile?: string }
+  ok(
+    'F03-TM01 TaskRes.pageOriginalFile = originalFile của trang',
+    mediaDetail.status === 200 && mtd?.pageOriginalFile === pageOrig,
+    `got ${mediaDetail.status} pageOriginalFile=${mtd?.pageOriginalFile} want=${pageOrig}`
+  )
+  ok(
+    'F03-TM02 pageDisplayFile = composite ?? original (chưa có composite → = original)',
+    mtd?.pageDisplayFile === pageOrig,
+    `got ${mtd?.pageDisplayFile}`
+  )
+
+  // Assistant nộp 1 version để có file cho Mangaka tải.
+  await req('POST', `/tasks/${mediaTaskId}/start`, { token: a1Tok, body: {} })
+  const versionKey = 'r2/assistant-result-tm.png'
+  const submitTm = await req('POST', `/tasks/${mediaTaskId}/submit`, { token: a1Tok, body: { file: versionKey } })
+  ok('F03-TM03 assistant nộp version → 201', submitTm.status === 201, `got ${submitTm.status} ${submitTm.raw.slice(0, 160)}`)
+
+  // Task 3: Mangaka tải bản Assistant nộp (trước đây bị 403 ở /uploads/sign-download).
+  const dlMangaka = await req('POST', `/tasks/${mediaTaskId}/download-url`, { token: m1Tok, body: { key: versionKey } })
+  ok(
+    'F03-TM04 Mangaka tải file Assistant nộp → 201 + downloadUrl',
+    dlMangaka.status === 201 && typeof dlMangaka.json?.data?.downloadUrl === 'string',
+    `got ${dlMangaka.status} ${dlMangaka.raw.slice(0, 160)}`
+  )
+  // Assistant tải ảnh GỐC của trang để làm việc (cũng bị chặn ở sign-download vì Mangaka là uploader).
+  const dlAsst = await req('POST', `/tasks/${mediaTaskId}/download-url`, { token: a1Tok, body: { key: pageOrig } })
+  ok('F03-TM05 Assistant tải ảnh gốc trang → 201', dlAsst.status === 201, `got ${dlAsst.status}`)
+  // Mangaka khác (không sở hữu series) → 403.
+  const dlOther = await req('POST', `/tasks/${mediaTaskId}/download-url`, { token: m2Tok, body: { key: versionKey } })
+  expectError(dlOther, 403, 'Error.TaskFileForbidden', 'F03-TM06 mangaka khác tải → 403')
+  // Key không thuộc task (anti-spoof) → 403.
+  const dlBadKey = await req('POST', `/tasks/${mediaTaskId}/download-url`, {
+    token: m1Tok,
+    body: { key: 'r2/not-part-of-task.png' }
+  })
+  expectError(dlBadKey, 403, 'Error.TaskFileForbidden', 'F03-TM07 key không thuộc task → 403')
+  // Task id rác → 404.
+  const dlBadTask = await req('POST', '/tasks/not-an-object-id/download-url', { token: m1Tok, body: { key: versionKey } })
+  ok('F03-TM08 task id rác → 404', dlBadTask.status === 404, `got ${dlBadTask.status}`)
+
   // ══════════════ S-TASK-SCOPE — Mangaka list task không cần bám flow page ══════════════
   section('S-TASK-SCOPE Mangaka lọc task theo assistant/series/chapter/page')
 

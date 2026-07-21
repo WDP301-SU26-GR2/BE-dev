@@ -30,7 +30,8 @@ export const TaskMessages = {
     regionHasApprovedTasks: 'Error.RegionHasApprovedTasks',
     chapterOnHold: 'Error.ChapterOnHold',
     pageNotEditable: 'Error.PageNotEditable',
-    invalidTaskTransition: 'Error.InvalidTaskTransition'
+    invalidTaskTransition: 'Error.InvalidTaskTransition',
+    taskFileForbidden: 'Error.TaskFileForbidden'
   },
   errorText: {
     'Error.PageNotFound': 'Không tìm thấy trang',
@@ -45,6 +46,7 @@ export const TaskMessages = {
     'Error.RegionHasApprovedTasks': 'Vùng này có công việc đã được duyệt nên không thể xoá',
     'Error.ChapterOnHold': 'Chương đang tạm dừng sản xuất',
     'Error.PageNotEditable': 'Trang đang được Editor duyệt, không thể chỉnh sửa',
-    'Error.InvalidTaskTransition': 'Không thể chuyển công việc sang trạng thái này'
+    'Error.InvalidTaskTransition': 'Không thể chuyển công việc sang trạng thái này',
+    'Error.TaskFileForbidden': 'Bạn không có quyền tải tệp của công việc này'
   }
 } as const

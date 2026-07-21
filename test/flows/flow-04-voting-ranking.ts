@@ -672,6 +672,22 @@ const main = async () => {
     !(pubHidden.json?.data?.items ?? []).some((s: { id: string }) => s.id === sDraft.id)
   )
 
+  // Task 1: lọc theo status (tab "đang phát hành" vs "đã hoàn thành").
+  const pubSerialized = await req('GET', '/public/series?q=FT%20A&status=SERIALIZED')
+  ok(
+    'PUB1d1 ?status=SERIALIZED trả series đang phát hành',
+    pubSerialized.status === 200 && (pubSerialized.json?.data?.items ?? []).some((s: { id: string }) => s.id === s1.id),
+    `got ${pubSerialized.status}`
+  )
+  const pubCompleted = await req('GET', '/public/series?q=FT%20A&status=COMPLETED')
+  ok(
+    'PUB1d2 ?status=COMPLETED KHÔNG chứa series đang SERIALIZED',
+    pubCompleted.status === 200 && !(pubCompleted.json?.data?.items ?? []).some((s: { id: string }) => s.id === s1.id),
+    `got ${pubCompleted.status}`
+  )
+  const pubBadStatus = await req('GET', '/public/series?status=DRAFT')
+  ok('PUB1d3 status ngoài public set (DRAFT) → 422', pubBadStatus.status === 422, `got ${pubBadStatus.status}`)
+
   const pubDetail = await req('GET', `/public/series/${s1.id}`)
   ok(
     'PUB1e detail 200 with only published chapters',
