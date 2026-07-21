@@ -134,6 +134,17 @@ const main = async () => {
   })
   await seedCh(s4.id, 8)
 
+  // Option B: 1 series MONTHLY để test vote theo type (tách khỏi 4 series WEEKLY trên).
+  const sMonthly = await makeSeriesAt(SeriesStatus.SERIALIZED, {
+    mangakaId: m1.id,
+    editorId: e1.id,
+    title: 'FT MONTHLY',
+    magazine: 'Monthly Mag',
+    startIssueNumber: 1,
+    publicationType: PublicationType.MONTHLY
+  })
+  await seedCh(sMonthly.id, 8)
+
   const sDraft = await makeSeriesAt(SeriesStatus.DRAFT, {
     mangakaId: m1.id,
     editorId: e1.id,
@@ -286,6 +297,101 @@ const main = async () => {
     }
   })
   expectError(r12, 422, 'Error.SeriesNotVotable', '04.12a seriesId rác → SeriesNotVotable')
+
+  // ===== Option B: vote theo publicationType (quota per type) =====
+  section('F04.13 [Option B] context filter ?publicationType')
+  const rWeekly = await req('GET', '/vote/context?publicationType=WEEKLY')
+  const weeklySeries = (rWeekly.json?.data ?? rWeekly.json ?? {}).series ?? []
+  ok(
+    '04.13a ?publicationType=WEEKLY chỉ trả series WEEKLY',
+    Array.isArray(weeklySeries) &&
+      weeklySeries.length >= 1 &&
+      weeklySeries.every((s: { publicationType?: string }) => s.publicationType === 'WEEKLY'),
+    `count=${weeklySeries.length} types=${weeklySeries.map((s: { publicationType?: string }) => s.publicationType).join(',')}`
+  )
+  const rMonthly = await req('GET', '/vote/context?publicationType=MONTHLY')
+  const monthlySeries = (rMonthly.json?.data ?? rMonthly.json ?? {}).series ?? []
+  ok(
+    '04.13b ?publicationType=MONTHLY chỉ trả series MONTHLY',
+    Array.isArray(monthlySeries) &&
+      monthlySeries.length >= 1 &&
+      monthlySeries.every((s: { publicationType?: string }) => s.publicationType === 'MONTHLY'),
+    `count=${monthlySeries.length}`
+  )
+  ok(
+    '04.13c context item kèm publicationType',
+    monthlySeries.length > 0 && monthlySeries[0].publicationType === 'MONTHLY',
+    `keys=${monthlySeries.length ? Object.keys(monthlySeries[0]).join(',') : 'empty'}`
+  )
+
+  section('F04.13b [Option B] mixed-type ballot → 422')
+  const readerMix = `reader-mix-${Date.now()}@flowtest.local`
+  await req('POST', '/vote/otp', { body: { identity: readerMix, captchaToken: 'tok' }, xff: '203.0.113.150' })
+  await sleep(50)
+  await seedOtp(readerMix, OtpPurpose.VOTE)
+  const rMix = await req('POST', '/vote', {
+    body: {
+      surveyPeriodId: periodId,
+      identity: readerMix,
+      otpCode: '123456',
+      seriesIds: [s1.id, sMonthly.id],
+      captchaToken: 'tok'
+    },
+    xff: '203.0.113.150'
+  })
+  expectError(rMix, 422, 'Error.SeriesNotVotable', '04.13d ballot trộn WEEKLY+MONTHLY → SeriesNotVotable')
+
+  section('F04.13c [Option B] 1 danh tính vote CẢ WEEKLY + MONTHLY (dedup per type)')
+  const readerBoth = `reader-both-${Date.now()}@flowtest.local`
+  // vote WEEKLY
+  await req('POST', '/vote/otp', { body: { identity: readerBoth, captchaToken: 'tok' }, xff: '203.0.113.151' })
+  await sleep(50)
+  await seedOtp(readerBoth, OtpPurpose.VOTE)
+  const rW = await req('POST', '/vote', {
+    body: { surveyPeriodId: periodId, identity: readerBoth, otpCode: '123456', seriesIds: [s1.id], captchaToken: 'tok' },
+    xff: '203.0.113.151'
+  })
+  ok('04.13e vote WEEKLY 200', rW.status === 200, `got ${rW.status} ${rW.raw.slice(0, 200)}`)
+  // cùng danh tính vote MONTHLY → PHẢI cho phép (dedup per type)
+  await seedOtp(readerBoth, OtpPurpose.VOTE)
+  const rM = await req('POST', '/vote', {
+    body: {
+      surveyPeriodId: periodId,
+      identity: readerBoth,
+      otpCode: '123456',
+      seriesIds: [sMonthly.id],
+      captchaToken: 'tok'
+    },
+    xff: '203.0.113.151'
+  })
+  ok('04.13f cùng danh tính vote MONTHLY 200 (per-type)', rM.status === 200, `got ${rM.status} ${rM.raw.slice(0, 200)}`)
+  // DB: 2 phiếu cùng identityHash, khác publicationType
+  const bothVotes = await prisma.readerVote.findMany({
+    where: { surveyPeriodId: periodId, ipHash: { not: null } }
+  })
+  const typesForBoth = new Set(
+    bothVotes
+      .filter((v) => v.seriesIds.includes(sMonthly.id) || v.seriesIds.includes(s1.id))
+      .map((v) => v.publicationType)
+  )
+  ok(
+    '04.13g DB có phiếu cả WEEKLY lẫn MONTHLY',
+    typesForBoth.has('WEEKLY') && typesForBoth.has('MONTHLY'),
+    `types=${[...typesForBoth].join(',')}`
+  )
+  // vote MONTHLY lần 2 cùng danh tính → ReaderAlreadyVoted (dedup per type vẫn chặn trùng CÙNG type)
+  await seedOtp(readerBoth, OtpPurpose.VOTE)
+  const rM2 = await req('POST', '/vote', {
+    body: {
+      surveyPeriodId: periodId,
+      identity: readerBoth,
+      otpCode: '123456',
+      seriesIds: [sMonthly.id],
+      captchaToken: 'tok'
+    },
+    xff: '203.0.113.151'
+  })
+  expectError(rM2, 409, 'Error.ReaderAlreadyVoted', '04.13h vote MONTHLY lần 2 cùng danh tính → ReaderAlreadyVoted')
 
   section('F04.13 DRAFT series not votable')
   const reader6 = `reader6-${Date.now()}@flowtest.local`
