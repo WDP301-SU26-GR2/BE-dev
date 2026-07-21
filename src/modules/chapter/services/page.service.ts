@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { AuditEntityType, ManuscriptStatus, NameStatus, NotificationType, TaskStatus } from '@prisma/client'
 import {
   ChapterAccessDeniedException,
@@ -14,6 +14,7 @@ import {
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { StorageService } from 'src/infrastructure/storage/storage.service'
 import { StudioAssignmentService } from 'src/modules/studio/services/studio-assignment.service'
 import { ChapterRepository } from '../chapter.repo'
 import { PAGE_EDITABLE_STATUSES } from '../chapter.constant'
@@ -25,13 +26,30 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class PageService {
+  private readonly logger = new Logger(PageService.name)
+
   constructor(
     private readonly chapterRepository: ChapterRepository,
     private readonly manuscriptStateService: ManuscriptStateService,
     private readonly studioAssignmentService: StudioAssignmentService,
     private readonly notificationService: NotificationService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    private readonly storageService: StorageService
   ) {}
+
+  // Task C: dọn file vật lý trên R2 (bản gốc + composite) khi xoá page — tránh orphan bucket.
+  // Best-effort SAU khi DB commit: R2 lỗi KHÔNG được phá việc xoá đã ghi (mirror notifySafe/audit).
+  // Record `Asset` (DB) còn lại sẽ được OrphanAssetCron dọn (headObject miss → xoá) ở lần chạy kế.
+  private async deleteObjectsSafe(keys: Array<string | null | undefined>) {
+    for (const key of keys) {
+      if (!key) continue
+      try {
+        await this.storageService.deleteObject(key)
+      } catch (err) {
+        this.logger.warn(`R2 deleteObject failed for key ${key}: ${String(err)}`)
+      }
+    }
+  }
 
   // Cascade Page → Region → Task (mẫu PA-03 xoá Region): audit + notify SAU khi DB commit.
   private async notifyRemovedTasks(tasks: Array<{ id: string; assistantId: string | null }>) {
@@ -104,7 +122,7 @@ export class PageService {
     const tasks = await this.chapterRepository.findTasksByPage(pageId)
     // Đồng bộ PA-03 (xoá Region): không cho xoá mất công trợ lý đã được duyệt.
     if (tasks.some((task) => task.status === TaskStatus.APPROVED)) throw PageHasApprovedTasksException
-    const { deletedRegions, deletedTasks } = await this.chapterRepository.deletePageCascade(pageId)
+    const { deletedRegions, deletedTasks } = await this.chapterRepository.deletePageCascade(page.chapterId, pageId)
 
     await this.auditService.record({
       actorId: userId,
@@ -114,6 +132,7 @@ export class PageService {
       reason: `deleted regions: ${deletedRegions}, deleted tasks: ${deletedTasks}`
     })
     await this.notifyRemovedTasks(tasks)
+    await this.deleteObjectsSafe([page.originalFile, page.compositeFile])
 
     return { pageId, deletedRegions, deletedTasks }
   }
@@ -129,7 +148,7 @@ export class PageService {
 
     const tasks = await this.chapterRepository.findTasksByPages(body.pageIds)
     if (tasks.some((task) => task.status === TaskStatus.APPROVED)) throw PageHasApprovedTasksException
-    const { deletedRegions, deletedTasks } = await this.chapterRepository.deletePagesCascade(body.pageIds)
+    const { deletedRegions, deletedTasks } = await this.chapterRepository.deletePagesCascade(chapterId, body.pageIds)
 
     await this.auditService.record({
       actorId: userId,
@@ -139,6 +158,7 @@ export class PageService {
       reason: `deleted pages: ${body.pageIds.join(',')}`
     })
     await this.notifyRemovedTasks(tasks)
+    await this.deleteObjectsSafe(pages.flatMap((page) => [page.originalFile, page.compositeFile]))
 
     return { deletedPages: pages.length, deletedRegions, deletedTasks }
   }
