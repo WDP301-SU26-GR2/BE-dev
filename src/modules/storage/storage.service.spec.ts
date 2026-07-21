@@ -86,9 +86,25 @@ describe('StorageService.signDownload', () => {
     expect(storageInfra.createPresignedDownload).toHaveBeenCalledWith('k')
   })
 
-  it('forbids non-owner non-privileged users', async () => {
-    const { service } = make({ id: 'a1', uploadedBy: 'someone', filePath: 'k' })
+  it('allows a non-owner non-privileged user to download a non-DOCUMENT asset (e.g. avatar/cover)', async () => {
+    const { service, storageInfra } = make({ id: 'a1', uploadedBy: 'someone', filePath: 'k', assetType: null })
+
+    await service.signDownload({ userId: 'u1', roleName: RoleName.MANGAKA }, 'k')
+
+    expect(storageInfra.createPresignedDownload).toHaveBeenCalledWith('k')
+  })
+
+  it('forbids non-owner non-privileged users from downloading a DOCUMENT asset (e.g. contract)', async () => {
+    const { service } = make({ id: 'a1', uploadedBy: 'someone', filePath: 'k', assetType: 'DOCUMENT' })
 
     await expect(service.signDownload({ userId: 'u1', roleName: RoleName.MANGAKA }, 'k')).rejects.toBeDefined()
+  })
+
+  it('allows privileged roles to download a DOCUMENT asset of another user', async () => {
+    const { service, storageInfra } = make({ id: 'a1', uploadedBy: 'someone', filePath: 'k', assetType: 'DOCUMENT' })
+
+    await service.signDownload({ userId: 'u1', roleName: RoleName.EDITOR }, 'k')
+
+    expect(storageInfra.createPresignedDownload).toHaveBeenCalledWith('k')
   })
 })
