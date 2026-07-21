@@ -37,10 +37,21 @@ describe('task-schemas', () => {
     })
   })
 
-  it('CreateTaskBody applies defaults (priority=0, assetIds=[])', () => {
+  it('CreateTaskBody applies defaults (priority=0, assetIds=[], regionIds=[])', () => {
     const parsed = CreateTaskBodySchema.parse({ pageId: 'p', assistantId: 'a', taskType: 'BACKGROUND' })
     expect(parsed.priority).toBe(0)
     expect(parsed.assetIds).toEqual([])
+    expect(parsed.regionIds).toEqual([])
+  })
+
+  it('CreateTaskBody accepts multiple regionIds on one page', () => {
+    const parsed = CreateTaskBodySchema.parse({
+      pageId: 'p',
+      assistantId: 'a',
+      taskType: 'BACKGROUND',
+      regionIds: ['r1', 'r2']
+    })
+    expect(parsed.regionIds).toEqual(['r1', 'r2'])
   })
 
   it('CreateTaskBody rejects unknown key (.strict)', () => {
@@ -62,7 +73,7 @@ describe('task-schemas', () => {
     const r = TaskResSchema.parse({
       id: '1',
       pageId: 'p',
-      regionId: null,
+      regionIds: [],
       assistantId: 'a',
       taskType: 'BACKGROUND',
       status: 'ASSIGNED',

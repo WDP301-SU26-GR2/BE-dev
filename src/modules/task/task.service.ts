@@ -143,7 +143,7 @@ export class TaskService {
       ...(isAssistant ? { assistantId: userId } : {}),
       ...(pageScope !== undefined ? { pageId: pageScope } : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.regionId ? { regionId: query.regionId } : {}),
+      ...(query.regionId ? { regionIds: { has: query.regionId } } : {}),
       ...(query.groupId ? { groupId: query.groupId } : {}),
       ...(!isAssistant && query.assistantId ? { assistantId: query.assistantId } : {})
     }

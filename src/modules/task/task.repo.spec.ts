@@ -8,7 +8,7 @@ describe('TaskRepository response enrichment', () => {
     const tasks = Array.from({ length: 20 }, (_, index) => ({
       id: `t${index}`,
       pageId: 'p1',
-      regionId: null,
+      regionIds: [],
       assistantId: 'assistant',
       taskType: 'CLEANER',
       status: 'ASSIGNED',
@@ -56,7 +56,7 @@ describe('TaskRepository response enrichment', () => {
     const task = {
       id: 't1',
       pageId: 'p1',
-      regionId: 'r1',
+      regionIds: ['r1'],
       assistantId: 'assistant',
       taskType: 'BACKGROUND',
       status: 'ASSIGNED',
@@ -92,17 +92,19 @@ describe('TaskRepository response enrichment', () => {
     const row = await new TaskRepository(prisma as unknown as PrismaService).findTaskById('t1')
     const response = toTaskRes(row!)
 
-    expect(response.region).toEqual({
-      id: 'r1',
-      pageId: 'p1',
-      coordinates: { x: 120, y: 340, width: 400, height: 260 },
-      regionType: 'BACKGROUND',
-      createdBy: 'MANUAL',
-      confirmedByMangaka: true,
-      confidenceScore: null,
-      detectedSubtype: null,
-      aiModelVersion: null
-    })
+    expect(response.regions).toEqual([
+      {
+        id: 'r1',
+        pageId: 'p1',
+        coordinates: { x: 120, y: 340, width: 400, height: 260 },
+        regionType: 'BACKGROUND',
+        createdBy: 'MANUAL',
+        confirmedByMangaka: true,
+        confidenceScore: null,
+        detectedSubtype: null,
+        aiModelVersion: null
+      }
+    ])
   })
 
   // Màn review Mangaka cần 2 ảnh: bản gốc trang (Mangaka giao) + bản Assistant nộp (versions[].file).
@@ -112,7 +114,7 @@ describe('TaskRepository response enrichment', () => {
     const task = {
       id: 't1',
       pageId: 'p1',
-      regionId: null,
+      regionIds: [],
       assistantId: 'assistant',
       taskType: 'BACKGROUND',
       status: 'SUBMITTED',
@@ -161,7 +163,7 @@ describe('TaskRepository response enrichment', () => {
     const task = {
       id: 't1',
       pageId: 'p1',
-      regionId: null,
+      regionIds: [],
       assistantId: 'a',
       taskType: 'BACKGROUND',
       status: 'ASSIGNED',
@@ -191,13 +193,13 @@ describe('TaskRepository response enrichment', () => {
     expect(response.pageDisplayFile).toBe('r2://only-original.png')
   })
 
-  it('resolves regions in one batched query and yields null for tasks without a region', async () => {
+  it('resolves regions in one batched query and yields [] for tasks without a region', async () => {
     const createdAt = new Date('2026-07-20T00:00:00.000Z')
     const tasks = Array.from({ length: 20 }, (_, index) => ({
       id: `t${index}`,
       pageId: 'p1',
       // xen kẽ: task theo vùng và task không gắn vùng
-      regionId: index % 2 === 0 ? `r${index}` : null,
+      regionIds: index % 2 === 0 ? [`r${index}`] : [],
       assistantId: 'assistant',
       taskType: 'SCREENTONE',
       status: 'ASSIGNED',
@@ -214,9 +216,9 @@ describe('TaskRepository response enrichment', () => {
       region: {
         findMany: jest.fn().mockResolvedValue(
           tasks
-            .filter((t) => t.regionId)
-            .map((t) => ({
-              id: t.regionId,
+            .flatMap((t) => t.regionIds)
+            .map((id) => ({
+              id,
               pageId: 'p1',
               coordinates: { x: 1, y: 2, width: 3, height: 4 },
               regionType: 'SCREENTONE',
@@ -248,7 +250,7 @@ describe('TaskRepository response enrichment', () => {
       'r16',
       'r18'
     ])
-    expect(responses[0].region?.coordinates).toEqual({ x: 1, y: 2, width: 3, height: 4 })
-    expect(responses[1].region).toBeNull()
+    expect(responses[0].regions?.[0]?.coordinates).toEqual({ x: 1, y: 2, width: 3, height: 4 })
+    expect(responses[1].regions).toEqual([])
   })
 })
