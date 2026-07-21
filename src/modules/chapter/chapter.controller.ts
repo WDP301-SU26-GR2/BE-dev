@@ -44,6 +44,7 @@ import {
   NoPagesToSubmitException,
   NotSeriesEditorException,
   NotSeriesOwnerException,
+  PagesNotReadyForPublishException,
   PageNotFoundException,
   PageNotEditableException,
   PageHasApprovedTasksException,
@@ -306,7 +307,8 @@ export class ChapterController {
     ChapterNotFoundException,
     InvalidManuscriptTransitionException,
     ContractNotExecutedException,
-    ChapterOnHoldException
+    ChapterOnHoldException,
+    PagesNotReadyForPublishException
   )
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ChapterResDto })

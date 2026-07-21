@@ -9,6 +9,7 @@ function makeDeps(series: Record<string, unknown>) {
     findSeriesById: jest.fn().mockResolvedValue(series),
     findManuscriptByChapterId: jest.fn().mockResolvedValue({ id: 'm1', status: ManuscriptStatus.READY_FOR_PRINT }),
     findExecutedContractBySeriesId: jest.fn().mockResolvedValue({ id: 'k1' }),
+    countPagesNotCompleted: jest.fn().mockResolvedValue(0),
     createCoOwnerApproval: jest.fn().mockResolvedValue({})
   }
   const manuscriptState = {
@@ -96,6 +97,47 @@ describe('ChapterPublishService.publish', () => {
     expect(eventBus.emit).not.toHaveBeenCalled()
   })
 
+  it('throws PagesNotReadyForPublish (409) when a page is not COMPLETED', async () => {
+    const { repo, manuscriptState, eventBus, notification, appConfig } = makeDeps({
+      id: 's1',
+      mangakaId: 'u1',
+      editorId: 'e1',
+      coOwnerId: null
+    })
+    repo.countPagesNotCompleted = jest.fn().mockResolvedValue(2)
+    const svc = new ChapterPublishService(
+      repo as never,
+      manuscriptState as never,
+      eventBus as never,
+      notification as never,
+      appConfig as never,
+      asCacheService(makeCacheServiceMock())
+    )
+    await expect(svc.publish('e1', 'c1')).rejects.toMatchObject({ status: 409 })
+    expect(manuscriptState.transition).not.toHaveBeenCalled()
+    expect(eventBus.emit).not.toHaveBeenCalled()
+  })
+
+  it('publishes when all pages COMPLETED (countPagesNotCompleted = 0)', async () => {
+    const { repo, manuscriptState, eventBus, notification, appConfig } = makeDeps({
+      id: 's1',
+      mangakaId: 'u1',
+      editorId: 'e1',
+      coOwnerId: null
+    })
+    const svc = new ChapterPublishService(
+      repo as never,
+      manuscriptState as never,
+      eventBus as never,
+      notification as never,
+      appConfig as never,
+      asCacheService(makeCacheServiceMock())
+    )
+    await expect(svc.publish('e1', 'c1')).resolves.toBeDefined()
+    expect(repo.countPagesNotCompleted).toHaveBeenCalledWith('c1')
+    expect(manuscriptState.transition).toHaveBeenCalledWith('c1', ManuscriptStatus.PUBLISHED, { changedBy: 'e1' })
+  })
+
   it('non-editor cannot publish (403)', async () => {
     const { repo, manuscriptState, eventBus, notification, appConfig } = makeDeps({
       id: 's1',
@@ -127,6 +169,7 @@ describe('ChapterPublishService.publish — ending phase (Fix-1 G-1)', () => {
       }),
       findManuscriptByChapterId: jest.fn().mockResolvedValue({ id: 'm1', status: ManuscriptStatus.READY_FOR_PRINT }),
       findExecutedContractBySeriesId: jest.fn().mockResolvedValue(null),
+      countPagesNotCompleted: jest.fn().mockResolvedValue(0),
       createCoOwnerApproval: jest.fn().mockResolvedValue({})
     }
     const manuscriptState = {

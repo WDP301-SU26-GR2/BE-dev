@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common'
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client
+} from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import envConfig from 'src/core/config/envConfig'
 
@@ -89,6 +95,12 @@ export class StorageService {
         ContentType: contentType
       })
     )
+  }
+
+  // Xoá object khỏi R2 (dùng khi xoá page → dọn file gốc/composite khỏi bucket).
+  // R2/S3 DeleteObject là idempotent: xoá key không tồn tại vẫn trả 204, không ném.
+  async deleteObject(key: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({ Bucket: storageEnvConfig.R2_BUCKET, Key: key }))
   }
 
   async headObjectExists(key: string): Promise<boolean> {

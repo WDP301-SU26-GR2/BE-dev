@@ -1337,6 +1337,54 @@ const main = async () => {
   expectError(bulkCompleted, 409, 'Error.PageNotEditable', 'F02-P22 bulk chứa page COMPLETED → 409')
   ok('F02-P22b page COMPLETED vẫn còn', (await prisma.page.findUnique({ where: { id: lockedPage.id } })) !== null)
 
+  // --- Task B: auto-renumber sau khi xoá 1 page ở giữa (DB thật — Mongo semantics, §73.9) ---
+  const cRenum = (await createChapterWithApprovedName(s, s.seriesA.id, 33, 'ChRenum')).chapter
+  const mkRenumPage = async (pageNumber: number) => {
+    const r = await req('POST', `/chapters/${cRenum.id}/pages`, {
+      token: s.tokens.mA,
+      body: { pageNumber, originalFile: `r2://renum-${pageNumber}.png` }
+    })
+    return (r.json?.data ?? r.json) as { id: string; pageNumber: number }
+  }
+  await mkRenumPage(1)
+  await mkRenumPage(2)
+  const rp3 = await mkRenumPage(3)
+  const rp4 = await mkRenumPage(4)
+  const delMid = await req('DELETE', `/pages/${rp3.id}`, { token: s.tokens.mA })
+  ok('F02-P23 xoá page giữa (số 3) → 200', delMid.status === 200, `got ${delMid.status}`)
+  const afterRenum = await prisma.page.findMany({
+    where: { chapterId: cRenum.id },
+    orderBy: { pageNumber: 'asc' },
+    select: { id: true, pageNumber: true }
+  })
+  ok('F02-P23b còn 3 page', afterRenum.length === 3, `got ${afterRenum.length}`)
+  ok(
+    'F02-P23c dồn số liên tục 1,2,3 (không còn khoảng trống)',
+    afterRenum.map((p) => p.pageNumber).join(',') === '1,2,3',
+    `got ${afterRenum.map((p) => p.pageNumber).join(',')}`
+  )
+  ok(
+    'F02-P23d page cũ số 4 nay mang số 3',
+    afterRenum.find((p) => p.id === rp4.id)?.pageNumber === 3,
+    `got ${afterRenum.find((p) => p.id === rp4.id)?.pageNumber}`
+  )
+
+  // --- Task A: publish bị chặn khi chương còn page chưa COMPLETED (chưa duyệt) ---
+  const cGate = (await createChapterWithApprovedName(s, s.seriesA.id, 34, 'ChGate')).chapter
+  await req('POST', `/chapters/${cGate.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageNumber: 1, originalFile: 'r2://gate-1.png' }
+  })
+  await req('POST', `/chapters/${cGate.id}/manuscript/submit`, { token: s.tokens.mA })
+  await req('POST', `/chapters/${cGate.id}/manuscript/approve`, { token: s.tokens.e1 })
+  // Thêm 1 page DRAFT SAU khi manuscript đã READY_FOR_PRINT (createPage không chặn) → page chưa duyệt.
+  await req('POST', `/chapters/${cGate.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageNumber: 2, originalFile: 'r2://gate-2.png' }
+  })
+  const gatePub = await req('POST', `/chapters/${cGate.id}/publish`, { token: s.tokens.e1 })
+  expectError(gatePub, 409, 'Error.PagesNotReadyForPublish', 'F02-P24 publish khi còn page chưa COMPLETED → 409')
+
   await prisma.$disconnect()
   const fail = summary(FLOW)
   process.exit(fail > 0 ? 1 : 0)

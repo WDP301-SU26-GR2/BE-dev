@@ -42,6 +42,21 @@ export function deriveChapterStatus(manuscript: ManuscriptStatus): ChapterStatus
   return ChapterStatus.IN_PRODUCTION
 }
 
+// Task B: sau khi xoá page, dồn số các page còn lại về 1..N liên tục theo thứ tự pageNumber hiện tại.
+// Trả về CHỈ các page cần đổi số (id + số mới) để giảm số lệnh update trong transaction.
+// Pure function → unit-test được; repo áp dụng trong 1 transaction (atomic với lệnh xoá).
+export function computePageRenumber(
+  pages: Array<{ id: string; pageNumber: number }>
+): Array<{ id: string; pageNumber: number }> {
+  const sorted = [...pages].sort((a, b) => a.pageNumber - b.pageNumber)
+  const updates: Array<{ id: string; pageNumber: number }> = []
+  sorted.forEach((page, index) => {
+    const desired = index + 1
+    if (page.pageNumber !== desired) updates.push({ id: page.id, pageNumber: desired })
+  })
+  return updates
+}
+
 export const WARNING_LEVEL = {
   NONE: 'NONE',
   YELLOW: 'YELLOW',
