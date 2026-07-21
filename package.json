@@ -8,6 +8,8 @@
   "scripts": {
     "prisma:generate": "prisma generate",
     "seed": "ts-node -r tsconfig-paths/register src/initialScript/seed.ts",
+    "seed:demo": "ts-node -r tsconfig-paths/register src/initialScript/seed-demo.ts",
+    "seed:demo:verify": "ts-node -r tsconfig-paths/register src/initialScript/verify-demo.ts",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"test/**/*.{ts,tsx}\"",
     "start": "nest start",
