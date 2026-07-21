@@ -30,10 +30,14 @@ export class TaskMediaService {
     const isPrivileged = user.roleName === RoleName.BOARD_MEMBER || user.roleName === RoleName.SUPER_ADMIN
     if (!isOwner && !isAssignee && !isEditor && !isPrivileged) throw TaskFileForbiddenException
 
-    // Chỉ cho ký các key THỰC SỰ thuộc task: ảnh gốc/composite của trang + mọi file version Assistant nộp.
-    const allowedKeys = [page.originalFile, page.compositeFile, ...task.versions.map((v) => v.file)].filter(
-      (k): k is string => Boolean(k)
-    )
+    // Chỉ cho ký các key THỰC SỰ thuộc task: ảnh gốc/composite của trang + mọi file version Assistant nộp
+    // + ảnh reference Mangaka đính khi giao task (assetIds) — để Assistant tải được tài liệu tham khảo.
+    const allowedKeys = [
+      page.originalFile,
+      page.compositeFile,
+      ...task.versions.map((v) => v.file),
+      ...ctx.assetKeys
+    ].filter((k): k is string => Boolean(k))
     if (!allowedKeys.includes(key)) throw TaskFileForbiddenException
 
     return this.storageService.createPresignedDownload(key)

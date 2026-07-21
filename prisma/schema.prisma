@@ -959,9 +959,9 @@ model Region {
 
 model Task {
   id          String  @id @default(auto()) @map("_id") @db.ObjectId
-  pageId      String  @db.ObjectId
-  regionId    String? @db.ObjectId
-  assistantId String? @db.ObjectId
+  pageId      String   @db.ObjectId
+  regionIds   String[] @default([]) @db.ObjectId
+  assistantId String?  @db.ObjectId
 
   taskType     Specialization?
   status       TaskStatus      @default(ASSIGNED)
@@ -981,7 +981,7 @@ model Task {
   annotations Annotation[]
 
   @@index([pageId])
-  @@index([regionId])
+  @@index([regionIds])
   @@index([assistantId])
   @@index([groupId])
 }
