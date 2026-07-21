@@ -9,7 +9,7 @@ import {
   TaskStatus
 } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
-import { deriveChapterStatus } from './chapter.constant'
+import { computePageRenumber, deriveChapterStatus } from './chapter.constant'
 
 @Injectable()
 export class ChapterRepository {
@@ -369,6 +369,11 @@ export class ChapterRepository {
   findPageByChapterAndNumber(chapterId: string, pageNumber: number) {
     return this.prismaService.page.findFirst({ where: { chapterId, pageNumber } })
   }
+  // Publish gate: mọi page phải COMPLETED (đã qua duyệt). Page DRAFT/REVISING lọt vào lúc publish
+  // = trang chưa duyệt → chặn (Task A). `{ not: COMPLETED }` an toàn với Mongo (status luôn được set).
+  countPagesNotCompleted(chapterId: string) {
+    return this.prismaService.page.count({ where: { chapterId, status: { not: PageStatus.COMPLETED } } })
+  }
 
   findPagesByIds(ids: string[]) {
     return this.prismaService.page.findMany({ where: { id: { in: ids } } })
@@ -389,17 +394,29 @@ export class ChapterRepository {
   }
 
   // Cascade Page → Region → Task trong 1 transaction (AGENTS §10: cascade nhiều collection phải nguyên tử).
-  async deletePagesCascade(pageIds: string[]) {
-    const [tasks, regions] = await this.prismaService.$transaction([
-      this.prismaService.task.deleteMany({ where: { pageId: { in: pageIds } } }),
-      this.prismaService.region.deleteMany({ where: { pageId: { in: pageIds } } }),
-      this.prismaService.page.deleteMany({ where: { id: { in: pageIds } } })
-    ])
-    return { deletedTasks: tasks.count, deletedRegions: regions.count }
+  // Task B: SAU khi xoá, dồn số các page còn lại của chapter về 1..N (atomic cùng lệnh xoá → không để
+  // lộ khoảng trống số). Interactive transaction vì cần read-modify-write (đọc remaining rồi update).
+  async deletePagesCascade(chapterId: string, pageIds: string[]) {
+    return this.prismaService.$transaction(async (tx) => {
+      const tasks = await tx.task.deleteMany({ where: { pageId: { in: pageIds } } })
+      const regions = await tx.region.deleteMany({ where: { pageId: { in: pageIds } } })
+      await tx.page.deleteMany({ where: { id: { in: pageIds } } })
+
+      const remaining = await tx.page.findMany({
+        where: { chapterId },
+        orderBy: { pageNumber: 'asc' },
+        select: { id: true, pageNumber: true }
+      })
+      for (const { id, pageNumber } of computePageRenumber(remaining)) {
+        await tx.page.update({ where: { id }, data: { pageNumber } })
+      }
+
+      return { deletedTasks: tasks.count, deletedRegions: regions.count }
+    })
   }
 
-  deletePageCascade(pageId: string) {
-    return this.deletePagesCascade([pageId])
+  deletePageCascade(chapterId: string, pageId: string) {
+    return this.deletePagesCascade(chapterId, [pageId])
   }
 
   updatePage(id: string, data: { originalFile?: string; compositeFile?: string; pageNumber?: number }) {

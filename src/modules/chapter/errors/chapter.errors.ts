@@ -29,6 +29,9 @@ export const DuplicatePageNumberException = new ConflictException([
 export const PageHasApprovedTasksException = new ConflictException([
   { message: E.pageHasApprovedTasks, path: 'pageId' }
 ])
+export const PagesNotReadyForPublishException = new ConflictException([
+  { message: E.pagesNotReadyForPublish, path: 'chapterId' }
+])
 export const ChapterAccessDeniedException = new ForbiddenException([{ message: E.chapterAccessDenied, path: 'id' }])
 export const ChapterNotHoldableException = new ConflictException([{ message: E.chapterNotHoldable, path: 'id' }])
 export const ChapterAlreadyOnHoldException = new ConflictException([{ message: E.chapterAlreadyOnHold, path: 'id' }])

@@ -7,7 +7,8 @@ import {
   ChapterNotFoundException,
   ChapterOnHoldException,
   ContractNotExecutedException,
-  NotSeriesEditorException
+  NotSeriesEditorException,
+  PagesNotReadyForPublishException
 } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { ManuscriptStateService } from './manuscript-state.service'
@@ -34,6 +35,17 @@ export class ChapterPublishService {
     if (!series || series.editorId !== userId) throw NotSeriesEditorException
     // PA-04: hold check SAU editor check — người ngoài cuộc nhận 403, không lộ trạng thái hold
     if (chapter.hold) throw ChapterOnHoldException
+
+    // Task A (siết displayFile khi xuất bản): khi manuscript ĐÃ READY_FOR_PRINT mà vẫn còn page chưa
+    // COMPLETED (page DRAFT thêm sau lúc submit → lọt vào chương, không qua duyệt Editor), chặn publish —
+    // nếu không độc giả đọc `compositeFile ?? originalFile` của page đó = bản chưa duyệt.
+    // Chỉ gate khi manuscript READY_FOR_PRINT: nếu manuscript chưa ready thì để transition báo đúng
+    // InvalidManuscriptTransition (đừng "cướp" lỗi của bước sau). Áp cả nhánh co-owner (cùng nguồn READY_FOR_PRINT).
+    const manuscript = await this.chapterRepository.findManuscriptByChapterId(chapterId)
+    if (manuscript?.status === ManuscriptStatus.READY_FOR_PRINT) {
+      const notCompleted = await this.chapterRepository.countPagesNotCompleted(chapterId)
+      if (notCompleted > 0) throw PagesNotReadyForPublishException
+    }
 
     // A3 (BR-CONTRACT-05): gate chỉ áp khi CHƯA vào ending phase (Fix-1 G-1).
     // CANCELLING/COMPLETING: contract đã bị B-CON-09 terminate ngay lúc cancel — ending chapters
