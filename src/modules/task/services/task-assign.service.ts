@@ -52,10 +52,7 @@ export class TaskAssignService {
     return page
   }
 
-  private async validateAssign(
-    mangakaId: string,
-    body: { pageId: string; assistantId: string; assetIds: string[] }
-  ) {
+  private async validateAssign(mangakaId: string, body: { pageId: string; assistantId: string; assetIds: string[] }) {
     await this.requirePageOwner(mangakaId, body.pageId)
     const active = await this.studioAssignmentService.findActiveForPair(mangakaId, body.assistantId)
     if (!active) throw AssistantNotHiredException

@@ -62,13 +62,10 @@ describe('TaskService.listTasks', () => {
     await svc.listTasks('mangaka-1', RoleName.MANGAKA, { pageId, regionId, limit: 20, offset: 0 })
 
     expect(repo.findPageWithOwner).toHaveBeenCalledWith(pageId)
-    expect(repo.listTasks).toHaveBeenCalledWith(
-      expect.objectContaining({ pageId, regionIds: { has: regionId } }),
-      {
-        limit: 20,
-        offset: 0
-      }
-    )
+    expect(repo.listTasks).toHaveBeenCalledWith(expect.objectContaining({ pageId, regionIds: { has: regionId } }), {
+      limit: 20,
+      offset: 0
+    })
   })
 
   it('returns empty for malformed assistant pageId or regionId without repository calls', async () => {

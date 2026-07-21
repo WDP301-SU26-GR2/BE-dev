@@ -45,9 +45,9 @@ export class TaskRepository {
     )
   }
 
-  private async attachEmbeds<
-    T extends Pick<Task, 'assistantId' | 'regionIds' | 'versions' | 'pageId' | 'assetIds'>
-  >(rows: T[]) {
+  private async attachEmbeds<T extends Pick<Task, 'assistantId' | 'regionIds' | 'versions' | 'pageId' | 'assetIds'>>(
+    rows: T[]
+  ) {
     const [users, regions, pageFiles, assets] = await Promise.all([
       fetchUserMiniMap(
         this.prismaService,
@@ -96,7 +96,7 @@ export class TaskRepository {
       }),
       task.assetIds.length > 0
         ? this.prismaService.asset.findMany({ where: { id: { in: task.assetIds } }, select: { filePath: true } })
-        : Promise.resolve([])
+        : Promise.resolve([] as { filePath: string }[])
     ])
     // assetKeys = object key của ảnh reference Mangaka đính lúc giao task (A-TSK-09) → Assistant tải được.
     return { task, page, assetKeys: assets.map((a) => a.filePath) }
