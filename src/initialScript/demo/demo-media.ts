@@ -24,7 +24,7 @@ export const DEMO_MEDIA_PREFIX = 'demo-seed/v1'
 
 // All files are real works hosted by Wikimedia Commons. The seed downloads the
 // original file and mirrors it into the configured private R2 bucket. Keep the
-// attribution fields in sync with docs/DEMO-SEED-GUIDE.md.
+// attribution fields in sync with src/initialScript/DEMO-SEED-GUIDE.md.
 export const DEMO_MEDIA: readonly DemoMediaSource[] = [
   {
     slug: 'mangaka-live-drawing',
