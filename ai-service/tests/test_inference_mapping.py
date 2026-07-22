@@ -1,4 +1,15 @@
+import importlib
+
+import app.inference as inference
 from app.inference import dedupe_text_vs_bubble, map_m109_class
+
+
+def test_empty_conf_threshold_uses_default(monkeypatch):
+    monkeypatch.setenv("CONF_THRESHOLD", "")
+    reloaded = importlib.reload(inference)
+    assert reloaded.CONF_THRESHOLD == 0.25
+    monkeypatch.delenv("CONF_THRESHOLD", raising=False)
+    importlib.reload(reloaded)
 
 
 def test_map_m109_class():
