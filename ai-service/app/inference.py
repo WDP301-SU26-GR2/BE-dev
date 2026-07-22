@@ -2,7 +2,9 @@ import os
 from functools import lru_cache
 
 MODEL_VERSION = "m109-yolo_n@2023.12.07+bubble-seg_m@1.0"
-CONF_THRESHOLD = float(os.environ.get("CONF_THRESHOLD", "0.25"))
+# Docker Compose may explicitly pass an empty value. Treat it the same as an
+# unset variable so MODEL mode still receives the documented default.
+CONF_THRESHOLD = float(os.environ.get("CONF_THRESHOLD") or "0.25")
 IOU_DEDUPE = 0.5
 
 M109_CLASS_MAP = {

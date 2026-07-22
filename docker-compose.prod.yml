@@ -48,7 +48,7 @@ services:
       API_KEY: ${AI_SERVICE_API_KEY}
       # Model paths đã bake sẵn trong ai-service/Dockerfile (/srv/models/...).
       # CONF_THRESHOLD optional — bỏ trống dùng mặc định của model.
-      CONF_THRESHOLD: ${AI_CONF_THRESHOLD:-}
+      CONF_THRESHOLD: ${AI_CONF_THRESHOLD:-0.25}
     expose:
       - "8000"
     healthcheck:
