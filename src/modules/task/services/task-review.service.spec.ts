@@ -14,7 +14,9 @@ describe('TaskReviewService', () => {
     findTaskById: jest.fn(),
     findPageWithOwner: jest.fn(),
     pushTaskVersion: jest.fn(),
-    setLatestVersionReview: jest.fn()
+    setLatestVersionReview: jest.fn(),
+    setStartedAtIfUnset: jest.fn(),
+    setCompletedAt: jest.fn()
   }
   const taskState = { transition: jest.fn() }
   const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -45,6 +47,7 @@ describe('TaskReviewService', () => {
       })
     await service.start('me', ID)
     expect(taskState.transition).toHaveBeenCalledWith(ID, 'IN_PROGRESS', undefined, 'me')
+    expect(repo.setStartedAtIfUnset).toHaveBeenCalledWith(ID, expect.any(Date))
   })
 
   it('start rejects non-assignee → 403', async () => {
@@ -153,6 +156,7 @@ describe('TaskReviewService', () => {
     await service.approve('m', ID)
     expect(taskState.transition).toHaveBeenNthCalledWith(1, ID, 'UNDER_REVIEW', undefined, 'm')
     expect(taskState.transition).toHaveBeenNthCalledWith(2, ID, 'APPROVED', undefined, 'm')
+    expect(repo.setCompletedAt).toHaveBeenCalledWith(ID, expect.any(Date))
     expect(repo.setLatestVersionReview).toHaveBeenCalledWith(ID, { reviewStatus: 'APPROVED', reviewerNote: null })
     expect(notification.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'a', type: 'TASK', referenceType: 'TASK_APPROVED' })

@@ -5,14 +5,18 @@ import { GUARDS_METADATA } from '@nestjs/common/constants'
 import { PublicRateLimitGuard } from 'src/core/security/guards/public-rate-limit.guard'
 
 describe('SurveyController public routes', () => {
-  it.each(['getVoteContext', 'getVoteResults', 'getLatestVoteResults', 'getVotePeriods'])(
-    '%s route is @IsPublic',
-    (method) => {
-      const handler = Object.getOwnPropertyDescriptor(SurveyController.prototype, method)?.value as object
-      const meta = Reflect.getMetadata(envConfig.AUTH_TYPE_KEY, handler) as { authType: string[] } | undefined
-      expect(meta?.authType).toContain('None')
-    }
-  )
+  it.each([
+    'getVoteContext',
+    'getVoteLive',
+    'getVoteResults',
+    'getLatestVoteResults',
+    'getVotePeriods',
+    'getRankingAggregate'
+  ])('%s route is @IsPublic', (method) => {
+    const handler = Object.getOwnPropertyDescriptor(SurveyController.prototype, method)?.value as object
+    const meta = Reflect.getMetadata(envConfig.AUTH_TYPE_KEY, handler) as { authType: string[] } | undefined
+    expect(meta?.authType).toContain('None')
+  })
 
   it.each(['getLatestVoteResults', 'getVotePeriods'])('%s is protected by PublicRateLimitGuard', (method) => {
     const handler = Object.getOwnPropertyDescriptor(SurveyController.prototype, method)?.value as object
@@ -20,9 +24,12 @@ describe('SurveyController public routes', () => {
     expect(guards).toContain(PublicRateLimitGuard)
   })
 
-  it.each(['getLatestVoteResults', 'getVotePeriods'])('%s clears the class-level bearer requirement', (method) => {
-    const handler = Object.getOwnPropertyDescriptor(SurveyController.prototype, method)?.value as object
-    const operation = Reflect.getMetadata('swagger/apiOperation', handler) as { security?: unknown[] } | undefined
-    expect(operation?.security).toEqual([])
-  })
+  it.each(['getVoteLive', 'getLatestVoteResults', 'getVotePeriods', 'getRankingAggregate'])(
+    '%s clears the class-level bearer requirement',
+    (method) => {
+      const handler = Object.getOwnPropertyDescriptor(SurveyController.prototype, method)?.value as object
+      const operation = Reflect.getMetadata('swagger/apiOperation', handler) as { security?: unknown[] } | undefined
+      expect(operation?.security).toEqual([])
+    }
+  )
 })

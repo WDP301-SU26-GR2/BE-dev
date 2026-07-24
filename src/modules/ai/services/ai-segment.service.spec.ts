@@ -2,19 +2,24 @@ import {
   AiEnqueueFailedException,
   AiJobNotApplicableException,
   AiJobNotFoundException,
+  AiJobSourceStaleException,
   AiNotEnabledException,
+  AiSourceCanvasMismatchException,
   PageHasNoFileException,
   SegmentJobAlreadyRunningException
 } from '../errors/ai.errors'
+import { StageLockedException, StageRequiredException } from 'src/modules/chapter/errors/production-stage.errors'
 import { AiSegmentService } from './ai-segment.service'
 
 const MID = 'e'.repeat(24)
 const PID = 'b'.repeat(24)
 const JID = 'a'.repeat(24)
-const page = { id: PID, originalFile: 'uploads/x.png', chapter: { series: { mangakaId: MID } } }
+const CID = 'c'.repeat(24)
+const SID = 'd'.repeat(24)
+const page = { id: PID, chapterId: CID, originalFile: 'uploads/x.png', chapter: { series: { mangakaId: MID } } }
 
 function makeService(
-  overrides: { repo?: object; region?: object; queue?: object; state?: object; enabled?: boolean } = {}
+  overrides: { repo?: object; region?: object; queue?: object; state?: object; stages?: object; enabled?: boolean } = {}
 ) {
   const repo = {
     createJob: jest.fn().mockResolvedValue({ id: JID, status: 'QUEUED' }),
@@ -22,6 +27,12 @@ function makeService(
     findJobById: jest.fn(),
     listJobsByPage: jest.fn().mockResolvedValue([]),
     markApplied: jest.fn().mockResolvedValue({}),
+    findPageCanvas: jest.fn().mockResolvedValue({
+      id: PID,
+      originalFile: 'uploads/x.png',
+      canvasWidth: 100,
+      canvasHeight: 200
+    }),
     ...overrides.repo
   }
   const region = {
@@ -31,18 +42,34 @@ function makeService(
   }
   const queue = { enqueue: jest.fn().mockResolvedValue(undefined), ...overrides.queue }
   const state = { transition: jest.fn().mockResolvedValue(true), ...overrides.state }
-  const service = new AiSegmentService(repo as never, region as never, queue as never, state as never)
+  const stages = {
+    countByChapter: jest.fn().mockResolvedValue(0),
+    findById: jest.fn(),
+    findStagePage: jest.fn(),
+    ...(overrides.stages ?? {})
+  }
+  const service = new AiSegmentService(repo as never, region as never, queue as never, state as never, stages as never)
   jest.spyOn(service as unknown as { isEnabled: () => boolean }, 'isEnabled').mockReturnValue(overrides.enabled ?? true)
-  return { service, repo, region, queue, state }
+  return { service, repo, region, queue, state, stages }
 }
 
 describe('AiSegmentService.requestSegment', () => {
   afterEach(() => jest.restoreAllMocks())
 
   it('creates job, enqueues, and returns jobId', async () => {
-    const { service, queue } = makeService()
+    const { service, queue, repo } = makeService()
     const result = await service.requestSegment(MID, PID, { mode: 'MODEL' })
     expect(result).toEqual({ jobId: JID, status: 'QUEUED' })
+    expect(repo.createJob).toHaveBeenCalledWith({
+      type: 'SEGMENT',
+      mode: 'MODEL',
+      pageId: PID,
+      requestedBy: MID,
+      sourceType: 'ORIGINAL',
+      sourceFileKey: 'uploads/x.png',
+      sourceRevision: 1,
+      sourceStageId: undefined
+    })
     expect(queue.enqueue).toHaveBeenCalledWith('ai', 'segment-page', { aiJobId: JID }, expect.any(Object))
   })
 
@@ -61,6 +88,39 @@ describe('AiSegmentService.requestSegment', () => {
   it('409 when a segment job is already open', async () => {
     const { service } = makeService({ repo: { findOpenSegmentJob: jest.fn().mockResolvedValue({ id: 'x' }) } })
     await expect(service.requestSegment(MID, PID, { mode: 'MODEL' })).rejects.toBe(SegmentJobAlreadyRunningException)
+  })
+
+  it('snapshots the active StagePage composite input', async () => {
+    const stage = { id: SID, chapterId: CID, status: 'ACTIVE', name: 'DETAILING', isFinalCheck: false }
+    const { service, repo } = makeService({
+      stages: {
+        countByChapter: jest.fn().mockResolvedValue(1),
+        findById: jest.fn().mockResolvedValue(stage),
+        findStagePage: jest.fn().mockResolvedValue({
+          inputSourceType: 'COMPOSITE',
+          inputFileKey: 'uploads/inking-output.png',
+          inputRevision: 2
+        })
+      }
+    })
+    await service.requestSegment(MID, PID, { mode: 'MODEL', stageId: SID })
+    expect(repo.createJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: 'COMPOSITE',
+        sourceFileKey: 'uploads/inking-output.png',
+        sourceRevision: 2,
+        sourceStageId: SID
+      })
+    )
+  })
+
+  it('requires stageId for a stage-mode chapter and rejects a locked stage', async () => {
+    const stage = { id: SID, chapterId: CID, status: 'LOCKED', name: 'DETAILING', isFinalCheck: false }
+    const { service } = makeService({
+      stages: { countByChapter: jest.fn().mockResolvedValue(1), findById: jest.fn().mockResolvedValue(stage) }
+    })
+    await expect(service.requestSegment(MID, PID, { mode: 'MODEL' })).rejects.toBe(StageRequiredException)
+    await expect(service.requestSegment(MID, PID, { mode: 'MODEL', stageId: SID })).rejects.toBe(StageLockedException)
   })
 
   it('marks job FAILED and throws 503 when enqueue rejects', async () => {
@@ -92,6 +152,12 @@ describe('AiSegmentService.getJob / applyJob', () => {
     finishedAt: new Date(),
     durationMs: 1200,
     createdAt: new Date(),
+    sourceType: 'ORIGINAL',
+    sourceFileKey: 'uploads/x.png',
+    sourceRevision: 1,
+    sourceStageId: null,
+    sourceWidth: 100,
+    sourceHeight: 200,
     proposedRegions: [
       {
         regionType: 'PANEL',
@@ -130,5 +196,27 @@ describe('AiSegmentService.getJob / applyJob', () => {
       repo: { findJobById: jest.fn().mockResolvedValue({ ...successJob, status: 'FAILED' }) }
     })
     await expect(service.applyJob(MID, JID)).rejects.toBe(AiJobNotApplicableException)
+  })
+
+  it('applyJob rejects stale stage snapshots and canvas mismatches', async () => {
+    const stageJob = { ...successJob, sourceStageId: SID, sourceType: 'COMPOSITE', sourceRevision: 2 }
+    const { service: staleService } = makeService({
+      repo: { findJobById: jest.fn().mockResolvedValue(stageJob) },
+      stages: { findById: jest.fn().mockResolvedValue({ id: SID, status: 'COMPLETED' }) }
+    })
+    await expect(staleService.applyJob(MID, JID)).rejects.toBe(AiJobSourceStaleException)
+
+    const { service: mismatchService } = makeService({
+      repo: {
+        findJobById: jest.fn().mockResolvedValue(successJob),
+        findPageCanvas: jest.fn().mockResolvedValue({
+          id: PID,
+          originalFile: 'uploads/x.png',
+          canvasWidth: 120,
+          canvasHeight: 200
+        })
+      }
+    })
+    await expect(mismatchService.applyJob(MID, JID)).rejects.toBe(AiSourceCanvasMismatchException)
   })
 })

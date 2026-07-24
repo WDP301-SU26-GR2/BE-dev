@@ -49,6 +49,8 @@ export const ENUM_DOCS = {
   AiJobType: 'AI job type: SEGMENT; COLOR/NUMBER are reserved for Spec 3',
   AiJobStatus: 'AI job lifecycle: QUEUED -> RUNNING -> SUCCEEDED | FAILED',
   AiSegmentMode: 'Segmentation mode: MODEL (YOLO deep learning) or HEURISTIC (OpenCV baseline)',
+  ProductionStageStatus: 'Production stage lifecycle: LOCKED -> ACTIVE -> COMPLETED',
+  AiSegmentSource: 'Immutable stage input/output source: ORIGINAL or COMPOSITE',
   WarningLevel: 'Deadline warning: NONE an toan, YELLOW nguy co, RED kho kip, CRITICAL qua han',
   DeadlineRequestStatus:
     'Deadline negotiation status: PROPOSED, COUNTER_PROPOSED, AGREED_BY_PARTIES, APPROVED, REJECTED, ESCALATED, BOARD_REVIEW',

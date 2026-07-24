@@ -10,7 +10,10 @@ export class SurveyRepository {
   createSurveyPeriod(data: CreateSurveyPeriodBodyDto) {
     return this.prisma.surveyPeriod.create({
       data: {
-        issueNumber: data.issueNumber ?? null,
+        magazine: data.magazine.trim(),
+        publicationType: data.publicationType,
+        eligibleSeriesIds: data.eligibleSeriesIds,
+        issueNumber: data.issueNumber,
         reflectedIssueNumber: data.reflectedIssueNumber ?? null,
         startDate: new Date(data.startDate),
         endDate: new Date(data.endDate),
@@ -25,6 +28,12 @@ export class SurveyRepository {
 
   findSurveyPeriodById(id: string) {
     return this.prisma.surveyPeriod.findUnique({ where: { id } })
+  }
+
+  findScopedSurveyPeriod(magazine: string, publicationType: PublicationType, issueNumber: number) {
+    return this.prisma.surveyPeriod.findFirst({
+      where: { magazine, publicationType, issueNumber }
+    })
   }
 
   updateSurveyPeriodStatus(id: string, status: 'OPEN' | 'CLOSED' | 'REFLECTED') {
@@ -126,7 +135,15 @@ export class SurveyRepository {
   }
 
   getRankingRecordsByPeriod(surveyPeriodId: string) {
-    return this.prisma.rankingRecord.findMany({ where: { surveyPeriodId }, orderBy: { rankPosition: 'asc' } })
+    return this.prisma.rankingRecord.findMany({
+      where: { surveyPeriodId },
+      orderBy: { rankPosition: 'asc' },
+      include: {
+        surveyPeriod: {
+          select: { magazine: true, publicationType: true, issueNumber: true, status: true }
+        }
+      }
+    })
   }
 
   // Fix-1 G-2: kỳ OPEN mới nhất cho trang vote public.
@@ -141,6 +158,13 @@ export class SurveyRepository {
   findLatestReflectedPeriod() {
     return this.prisma.surveyPeriod.findFirst({
       where: { status: 'REFLECTED' },
+      orderBy: [{ endDate: 'desc' }, { id: 'desc' }]
+    })
+  }
+
+  findLatestReflectedScopedPeriod(magazine: string, publicationType: PublicationType) {
+    return this.prisma.surveyPeriod.findFirst({
+      where: { status: 'REFLECTED', magazine, publicationType },
       orderBy: [{ endDate: 'desc' }, { id: 'desc' }]
     })
   }
@@ -181,12 +205,45 @@ export class SurveyRepository {
     })
   }
 
+  findReflectedScopedPeriods(magazine: string, publicationType: PublicationType, limit: number) {
+    return this.prisma.surveyPeriod.findMany({
+      where: { status: 'REFLECTED', magazine, publicationType },
+      orderBy: [{ endDate: 'desc' }, { id: 'desc' }],
+      take: limit,
+      select: {
+        id: true,
+        issueNumber: true,
+        reflectedIssueNumber: true,
+        startDate: true,
+        endDate: true
+      }
+    })
+  }
+
+  // Public-safe projection used by the vote context/tally. Callers must supply the
+  // frozen eligibility snapshot; this method never widens it to all serialized series.
+  findPublicSeriesByIds(seriesIds: string[]) {
+    if (seriesIds.length === 0) return Promise.resolve([])
+    return this.prisma.series.findMany({
+      // Eligibility is frozen by SurveyPeriod. Do not re-filter a live tally
+      // by the series' current status or an already-voted entry could vanish.
+      where: { id: { in: seriesIds } },
+      select: { id: true, title: true, coverImage: true, genres: true, demographic: true, publicationType: true },
+      orderBy: { title: 'asc' }
+    })
+  }
+
   // PB-04 trend: N record gần nhất của 1 series (mới→cũ).
   getRankingRecordsBySeries(seriesId: string, take: number) {
     return this.prisma.rankingRecord.findMany({
       where: { seriesId },
       orderBy: { recordedAt: 'desc' },
-      take
+      take,
+      include: {
+        surveyPeriod: {
+          select: { magazine: true, publicationType: true, issueNumber: true, status: true }
+        }
+      }
     })
   }
 
@@ -221,7 +278,7 @@ export class SurveyRepository {
     // `in: []` → Prisma trả [] (không cần early-return; early-return `Promise.resolve([])` làm kiểu ra any[]).
     return this.prisma.series.findMany({
       where: { id: { in: seriesIds } },
-      select: { id: true, status: true, mangakaId: true, editorId: true, publicationType: true }
+      select: { id: true, status: true, mangakaId: true, editorId: true, magazine: true, publicationType: true }
     })
   }
 
@@ -240,6 +297,64 @@ export class SurveyRepository {
     return this.prisma.surveyPeriod.findFirst({
       where: { id: { not: currentSurveyPeriodId }, status: 'REFLECTED' },
       orderBy: { endDate: 'desc' }
+    })
+  }
+
+  findPreviousScopedSurveyPeriod(currentSurveyPeriodId: string, magazine: string, publicationType: PublicationType) {
+    return this.prisma.surveyPeriod.findFirst({
+      where: { id: { not: currentSurveyPeriodId }, status: 'REFLECTED', magazine, publicationType },
+      orderBy: [{ endDate: 'desc' }, { id: 'desc' }]
+    })
+  }
+
+  findReflectedScopedPeriodsInRange(magazine: string, publicationType: PublicationType, from: Date, to: Date) {
+    return this.prisma.surveyPeriod.findMany({
+      where: {
+        status: 'REFLECTED',
+        magazine,
+        publicationType,
+        startDate: { gte: from, lt: to }
+      },
+      select: { id: true }
+    })
+  }
+
+  findRankingRecordsByPeriodIds(surveyPeriodIds: string[]) {
+    if (surveyPeriodIds.length === 0) return Promise.resolve([])
+    return this.prisma.rankingRecord.findMany({
+      where: { surveyPeriodId: { in: surveyPeriodIds } },
+      select: { seriesId: true, surveyPeriodId: true, voteCount: true, normalizedScore: true }
+    })
+  }
+
+  async finalizeScopedRanking(
+    surveyPeriodId: string,
+    records: Array<{
+      seriesId: string
+      rankPosition: number
+      voteCount: number
+      normalizedScore: number
+      previousRank: number | null
+      rankChange: number | null
+      isAtRisk: boolean
+      riskLevel: 'NONE' | 'LOW' | 'MEDIUM' | 'SEVERE'
+      consecutiveAtRiskCount: number
+      isReliable: boolean
+    }>
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      // Conditional transition is the idempotency claim. A concurrent/retried
+      // finalizer cannot create another set of records once CLOSED is claimed.
+      const claimed = await tx.surveyPeriod.updateMany({
+        where: { id: surveyPeriodId, status: 'CLOSED' },
+        data: { status: 'REFLECTED' }
+      })
+      if (claimed.count !== 1) return false
+
+      await tx.rankingRecord.createMany({
+        data: records.map((record) => ({ ...record, surveyPeriodId }))
+      })
+      return true
     })
   }
 

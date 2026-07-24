@@ -659,6 +659,17 @@ enum AiSegmentMode {
   HEURISTIC
 }
 
+enum ProductionStageStatus {
+  LOCKED
+  ACTIVE
+  COMPLETED
+}
+
+enum AiSegmentSource {
+  ORIGINAL
+  COMPOSITE
+}
+
 enum BoardSessionStatus {
   UPCOMING
   ACTIVE
@@ -815,6 +826,7 @@ model Chapter {
   schedule        Schedule?
   manuscript      Manuscript?
   pages           Page[]
+  productionStages ProductionStage[]
   boardDecision   BoardDecision? @relation(fields: [boardDecisionId], references: [id])
   boardDecisionId String?        @db.ObjectId
 
@@ -933,10 +945,14 @@ model Page {
   pageNumber    Int
   originalFile  String?
   compositeFile String?
+  compositeRevision Int @default(0)
+  canvasWidth       Int?
+  canvasHeight      Int?
   status        PageStatus @default(DRAFT)
   createdAt     DateTime   @default(now())
 
-  regions Region[]
+  regions               Region[]
+  productionStagePages  ProductionStagePage[]
 
   @@index([chapterId])
 }
@@ -976,6 +992,10 @@ model Task {
   // ⚠ Optional field: lọc "task chưa có nhóm" phải dùng { groupId: { isSet: false } }, KHÔNG { groupId: null }.
   groupId    String?
   groupTitle String?
+  stageId     String?   @db.ObjectId
+  startedAt   DateTime?
+  completedAt DateTime?
+  description String?
 
   versions    TaskVersion[]
   annotations Annotation[]
@@ -984,6 +1004,51 @@ model Task {
   @@index([regionIds])
   @@index([assistantId])
   @@index([groupId])
+  @@index([stageId])
+}
+
+model ProductionStage {
+  id           String                @id @default(auto()) @map("_id") @db.ObjectId
+  chapterId    String                @db.ObjectId
+  chapter      Chapter               @relation(fields: [chapterId], references: [id])
+  order        Int
+  name         String
+  taskTypes    Specialization[]      @default([])
+  isFinalCheck Boolean               @default(false)
+  status       ProductionStageStatus @default(LOCKED)
+  deadline     DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  pages        ProductionStagePage[]
+
+  @@index([chapterId])
+  @@index([chapterId, order])
+}
+
+model ProductionStagePage {
+  id      String          @id @default(auto()) @map("_id") @db.ObjectId
+  stageId String          @db.ObjectId
+  stage   ProductionStage @relation(fields: [stageId], references: [id])
+  pageId  String          @db.ObjectId
+  page    Page            @relation(fields: [pageId], references: [id])
+
+  inputSourceType AiSegmentSource
+  inputFileKey    String
+  inputRevision   Int
+
+  outputSourceType  AiSegmentSource?
+  outputFileKey     String?
+  outputRevision    Int?
+  outputConfirmedAt DateTime?
+  outputConfirmedBy String?         @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([stageId, pageId])
+  @@index([pageId])
 }
 
 model AiJob {
@@ -1004,8 +1069,16 @@ model AiJob {
   durationMs      Int?
   createdAt       DateTime    @default(now())
 
+  sourceType     AiSegmentSource @default(ORIGINAL)
+  sourceFileKey  String?
+  sourceRevision Int?
+  sourceStageId  String?         @db.ObjectId
+  sourceWidth    Int?
+  sourceHeight   Int?
+
   @@index([pageId, type, status])
   @@index([requestedBy])
+  @@index([pageId, sourceType, sourceRevision, sourceStageId])
 }
 
 type TaskVersion {
@@ -1402,6 +1475,11 @@ model SurveyPeriod {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
   createdBy String? @db.ObjectId
 
+  // Scoped periods freeze the exact issue cohort. Legacy rows omit the scope fields and
+  // remain readable, but are intentionally excluded from new ranking aggregates.
+  magazine          String?
+  publicationType   PublicationType?
+  eligibleSeriesIds String[] @db.ObjectId @default([])
   issueNumber          Int?
   reflectedIssueNumber Int?
   startDate            DateTime?
@@ -1413,6 +1491,7 @@ model SurveyPeriod {
   rankingRecords RankingRecord[]
 
   @@index([createdBy])
+  @@index([magazine, publicationType, startDate])
 }
 
 model ReaderVote {
@@ -1477,6 +1556,7 @@ model RankingRecord {
 
   rankPosition           Int?
   voteCount              Float     @default(0)
+  normalizedScore        Float     @default(0)
   previousRank           Int?
   rankChange             Int?
   isAtRisk               Boolean   @default(false)
@@ -1487,6 +1567,7 @@ model RankingRecord {
 
   @@index([seriesId])
   @@index([surveyPeriodId])
+  @@index([surveyPeriodId, seriesId])
 }
 
 model BoardSession {
@@ -1608,6 +1689,7 @@ model AppConfig {
   reputationRecommendThreshold Float @default(4)
   hiatusTooLongDays            Int   @default(30)
   lowVoteReliabilityThreshold  Int   @default(10)
+  rankingAggregateMinCoverageRatio Float @default(0.5)
   maxUploadBytes               Int   @default(15728640)
   assignmentGraceDays          Int   @default(0)
 

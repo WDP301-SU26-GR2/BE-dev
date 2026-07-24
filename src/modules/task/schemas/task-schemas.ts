@@ -76,6 +76,8 @@ export const CreateTaskBodySchema = extendApi(
         .describe('Các vùng trên trang cần xử lý (đều phải thuộc pageId); rỗng = giao cả trang'),
       assistantId: z.string(),
       taskType: zEnum($Enums.Specialization, 'Specialization'),
+      stageId: z.string().optional().describe('Giai đoạn sản xuất đang mở của chapter'),
+      description: z.string().trim().min(1).max(2000).optional(),
       deadline: z.string().datetime({ offset: true }).optional(),
       priority: z.number().int().nonnegative().default(0),
       assetIds: z.array(z.string()).default([])
@@ -92,6 +94,8 @@ export const BatchTaskItemSchema = extendApi(
       regionId: z.string().optional(),
       assistantId: z.string(),
       taskType: zEnum($Enums.Specialization, 'Specialization'),
+      stageId: z.string().optional().describe('Giai đoạn sản xuất đang mở của chapter'),
+      description: z.string().trim().min(1).max(2000).optional(),
       deadline: z.string().datetime({ offset: true }).optional(),
       priority: z.number().int().nonnegative().default(0),
       assetIds: z.array(z.string()).default([])
@@ -115,6 +119,8 @@ export const CreateTaskGroupBodySchema = extendApi(
         .describe('Các trang cùng nhận một đầu việc (tối đa 50) — all-or-nothing'),
       assistantId: z.string(),
       taskType: zEnum($Enums.Specialization, 'Specialization'),
+      stageId: z.string().optional().describe('Giai đoạn sản xuất đang mở của chapter'),
+      description: z.string().trim().min(1).max(2000).optional(),
       groupTitle: z.string().min(1).max(200).optional().describe('Tên nhóm việc hiển thị, vd "Vẽ nền ch.5"'),
       deadline: z.string().datetime({ offset: true }).optional(),
       priority: z.number().int().nonnegative().default(0),
@@ -133,6 +139,7 @@ export const UpdateTaskBodySchema = extendApi(
   z
     .object({
       assetIds: z.array(z.string()).nullish().describe('[] = clear; omit/null = giữ nguyên'),
+      description: z.string().trim().min(1).max(2000).nullish(),
       deadline: z.string().datetime({ offset: true }).nullish(),
       priority: z.number().int().nonnegative().nullish()
     })
@@ -192,6 +199,16 @@ export const TaskResSchema = extendApi(
     taskType: zEnum($Enums.Specialization, 'Specialization').nullable(),
     status: zEnum($Enums.TaskStatus, 'TaskStatus'),
     statusReason: z.string().nullable().describe('Latest status-change reason for cancel/reassign'),
+    description: z.string().nullable(),
+    stageId: z.string().nullable().optional().describe('null = task legacy chưa gắn giai đoạn'),
+    startedAt: z.string().nullable().optional().describe('Mốc Assistant bắt đầu task lần đầu'),
+    completedAt: z.string().nullable().optional().describe('Mốc Mangaka duyệt task'),
+    stageInputFile: z.string().nullable().optional().describe('Object key input snapshot bất biến của stage'),
+    stageInputSourceType: zEnum($Enums.AiSegmentSource, 'AiSegmentSource')
+      .nullable()
+      .optional()
+      .describe('Nguồn input snapshot của stage'),
+    stageInputRevision: z.number().int().nullable().optional().describe('Revision của input snapshot stage'),
     priority: z.number(),
     deadline: z.string().nullable(),
     assetIds: z.array(z.string()),

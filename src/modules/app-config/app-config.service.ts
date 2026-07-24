@@ -14,6 +14,7 @@ const CONFIG_KEYS = [
   'reputationRecommendThreshold',
   'hiatusTooLongDays',
   'lowVoteReliabilityThreshold',
+  'rankingAggregateMinCoverageRatio',
   'maxUploadBytes',
   'assignmentGraceDays'
 ] as const
@@ -66,7 +67,10 @@ export class AppConfigService {
 
     const row =
       (await this.appConfigRepository.findFirst()) ??
-      (await this.appConfigRepository.createDefaults({ nameMaxReviewRounds: envConfig.NAME_MAX_REVIEW_ROUNDS }))
+      (await this.appConfigRepository.createDefaults({
+        nameMaxReviewRounds: envConfig.NAME_MAX_REVIEW_ROUNDS,
+        rankingAggregateMinCoverageRatio: 0.5
+      }))
     this.cached = { row, expiresAt: now + CACHE_TTL_MS }
     return row
   }

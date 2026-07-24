@@ -125,7 +125,52 @@ const createChapterWithApprovedName = async (
     token: s.tokens.e1
   })
   if (aRes.status !== 201) throw new Error(`approve Name failed: ${aRes.status} ${aRes.raw}`)
+  await sleep(100)
   return { chapter, name }
+}
+
+// Stage-mode chapters must explicitly confirm every page output before a stage
+// can advance. This helper intentionally drives the public API (rather than
+// mutating ProductionStage rows) so the production flow remains end-to-end.
+const advanceToFinalCheck = async (token: string, chapterId: string, label: string) => {
+  const listed = await req('GET', `/chapters/${chapterId}/stages`, { token })
+  const data = listed.json?.data ?? listed.json
+  const stages = (data?.stages ?? []) as Array<{ id: string; name: string; status: string; isFinalCheck: boolean }>
+  ok(
+    `${label} list seeded stages`,
+    listed.status === 200 && stages.length === 4,
+    `got ${listed.status} ${listed.raw.slice(0, 200)}`
+  )
+
+  for (const stage of stages.filter((item) => !item.isFinalCheck)) {
+    const pages = await req('GET', `/chapters/${chapterId}/stages/${stage.id}/pages`, { token })
+    const items = ((pages.json?.data ?? pages.json)?.items ?? []) as Array<{ pageId: string }>
+    ok(`${label} ${stage.name} input snapshots`, pages.status === 200, `got ${pages.status} ${pages.raw.slice(0, 200)}`)
+    const outputs = await req('PUT', `/chapters/${chapterId}/stages/${stage.id}/outputs`, {
+      token,
+      body: { items: items.map((item) => ({ pageId: item.pageId, reuseInput: true })) }
+    })
+    ok(
+      `${label} ${stage.name} confirm outputs`,
+      outputs.status === 200,
+      `got ${outputs.status} ${outputs.raw.slice(0, 200)}`
+    )
+    const complete = await req('POST', `/chapters/${chapterId}/stages/${stage.id}/complete`, { token })
+    ok(
+      `${label} ${stage.name} complete`,
+      complete.status === 201,
+      `got ${complete.status} ${complete.raw.slice(0, 200)}`
+    )
+  }
+
+  const finalStages = await prisma.productionStage.findMany({ where: { chapterId }, orderBy: { order: 'asc' } })
+  const finalCheck = finalStages.find((stage) => stage.isFinalCheck)
+  ok(`${label} FINAL_CHECK ACTIVE in Mongo`, finalCheck?.status === 'ACTIVE', `got ${finalCheck?.status ?? 'missing'}`)
+}
+
+const submitAfterStages = async (token: string, chapterId: string, label: string) => {
+  await advanceToFinalCheck(token, chapterId, label)
+  return req('POST', `/chapters/${chapterId}/manuscript/submit`, { token })
 }
 
 const main = async () => {
@@ -183,6 +228,19 @@ const main = async () => {
   ok('F02-003 Name approve 201', c1naRes.status === 201, `got ${c1naRes.status} ${c1naRes.raw.slice(0, 200)}`)
   const c1nameDB = await prisma.name.findUnique({ where: { id: c1name.id } })
   ok('F02-003b Name.status=APPROVED', c1nameDB?.status === NameStatus.APPROVED, `got ${c1nameDB?.status}`)
+  await sleep(100)
+  const c1SeededStages = await prisma.productionStage.findMany({
+    where: { chapterId: c1.id },
+    orderBy: { order: 'asc' }
+  })
+  ok(
+    'F02-STG01 API Name approval seeded 4 stages with INKING ACTIVE in Mongo',
+    c1SeededStages.length === 4 &&
+      c1SeededStages[0]?.name === 'INKING' &&
+      c1SeededStages[0]?.status === 'ACTIVE' &&
+      c1SeededStages[3]?.isFinalCheck === true,
+    `got ${c1SeededStages.map((stage) => `${stage.name}:${stage.status}`).join(',')}`
+  )
 
   // F02-004 — M upload page (sau approve Name) → Manuscript DRAFT→IN_PRODUCTION
   const p1Res = await req('POST', `/chapters/${c1.id}/pages`, {
@@ -201,7 +259,7 @@ const main = async () => {
   )
 
   // F02-007 — M submit manuscript → EDITOR_REVIEW
-  const subRes = await req('POST', `/chapters/${c1.id}/manuscript/submit`, { token: s.tokens.mA })
+  const subRes = await submitAfterStages(s.tokens.mA, c1.id, 'F02-STG')
   ok('F02-007 manuscript submit 201', subRes.status === 201, `got ${subRes.status} ${subRes.raw.slice(0, 200)}`)
   const ms1d = await prisma.manuscript.findFirst({ where: { chapterId: c1.id } })
   ok('F02-007b Manuscript=EDITOR_REVIEW', ms1d?.status === ManuscriptStatus.EDITOR_REVIEW, `got ${ms1d?.status}`)
@@ -211,7 +269,7 @@ const main = async () => {
     token: s.tokens.mA,
     body: { compositeFile: 'r2://locked.png' }
   })
-  expectError(completedPageMutation, 409, 'Error.PageNotEditable', 'F02-007d completed page is read-only')
+  expectError(completedPageMutation, 422, 'Error.StageOutputInvalid', 'F02-007d stage-mode composite PATCH is rejected')
   const clientStatusMutation = await req('PATCH', `/pages/${p1.id}`, {
     token: s.tokens.mA,
     body: { status: 'REVISING' }
@@ -246,7 +304,12 @@ const main = async () => {
     token: s.tokens.mA,
     body: { compositeFile: 'r2://revision-v2.png' }
   })
-  ok('F02-008d REVISING page is editable', revisingPageMutation.status === 200)
+  expectError(
+    revisingPageMutation,
+    422,
+    'Error.StageOutputInvalid',
+    'F02-008d stage-mode composite PATCH remains rejected'
+  )
 
   const manuscriptRevisions = await req('GET', `/revision-requests?targetType=MANUSCRIPT&targetId=${c1.id}`, {
     token: s.tokens.mA
@@ -467,7 +530,7 @@ const main = async () => {
   const p4Id = (p4Res.json?.data ?? p4Res.json).id as string
   await makeTaskAt({ pageId: p4Id, assistantId: gateAssistant.id, status: TaskStatus.ASSIGNED })
   const cr2Res = await req('POST', `/chapters/${c4.id}/manuscript/submit`, { token: s.tokens.mA })
-  expectError(cr2Res, 409, 'Error.TasksNotAllApproved', 'F02-020 submit with blocking task')
+  expectError(cr2Res, 409, 'Error.ProductionNotFinalized', 'F02-020 submit before FINAL_CHECK')
 
   // F02-021 — Approve manuscript khi EDITOR_REVISION → InvalidManuscriptTransition
   // c1 is currently PUBLISHED so we need a fresh chapter.
@@ -478,7 +541,7 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
-  await req('POST', `/chapters/${c5.id}/manuscript/submit`, { token: s.tokens.mA })
+  await submitAfterStages(s.tokens.mA, c5.id, 'F02-STG-C5')
   await req('POST', `/chapters/${c5.id}/manuscript/request-revision`, {
     token: s.tokens.e1,
     body: { reason: 'redo' }
@@ -509,7 +572,7 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
-  await req('POST', `/chapters/${c6.id}/manuscript/submit`, { token: s.tokens.mA })
+  await submitAfterStages(s.tokens.mA, c6.id, 'F02-STG-C6')
   await req('POST', `/chapters/${c6.id}/manuscript/approve`, { token: s.tokens.e1 })
   const noContractPub = await req('POST', `/chapters/${c6.id}/publish`, { token: s.tokens.e1 })
   expectError(noContractPub, 409, 'Error.ContractNotExecuted', 'F02-023 publish without contract')
@@ -669,7 +732,7 @@ const main = async () => {
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
   ok('F02-038a setup page created', c11p1.status === 201)
-  await req('POST', `/chapters/${c11forPub.id}/manuscript/submit`, { token: s.tokens.mA })
+  await submitAfterStages(s.tokens.mA, c11forPub.id, 'F02-STG-C11')
   await req('POST', `/chapters/${c11forPub.id}/manuscript/approve`, { token: s.tokens.e1 })
   // Now terminate contract
   await prisma.contract.updateMany({
@@ -732,7 +795,7 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
-  await req('POST', `/chapters/${c8.id}/manuscript/submit`, { token: s.tokens.mA })
+  await submitAfterStages(s.tokens.mA, c8.id, 'F02-STG-C8')
   await req('POST', `/chapters/${c8.id}/manuscript/approve`, { token: s.tokens.e1 })
   const e2PubRes2 = await req('POST', `/chapters/${c8.id}/publish`, { token: s.tokens.e2 })
   expectError(e2PubRes2, 403, 'Error.NotSeriesEditor', 'F02-042 other editor publish')
@@ -819,7 +882,7 @@ const main = async () => {
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
   ok('F02-051a setup page created', p9Res.status === 201)
-  await req('POST', `/chapters/${c9.id}/manuscript/submit`, { token: s.tokens.mA })
+  await submitAfterStages(s.tokens.mA, c9.id, 'F02-STG-C9')
   await req('POST', `/chapters/${c9.id}/manuscript/approve`, { token: s.tokens.e1 })
   const pubCoRes = await req('POST', `/chapters/${c9.id}/publish`, { token: s.tokens.e1 })
   ok(
@@ -852,7 +915,7 @@ const main = async () => {
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
   ok('F02-054a setup page created', p10Res.status === 201)
-  await req('POST', `/chapters/${c10.id}/manuscript/submit`, { token: s.tokens.mA })
+  await submitAfterStages(s.tokens.mA, c10.id, 'F02-STG-C10')
   await req('POST', `/chapters/${c10.id}/manuscript/approve`, { token: s.tokens.e1 })
   await req('POST', `/chapters/${c10.id}/publish`, { token: s.tokens.e1 })
   const coRejRes = await req('POST', `/chapters/${c10.id}/co-owner-reject`, {
@@ -1175,7 +1238,23 @@ const main = async () => {
     token: s.tokens.mA,
     body: { compositeFile: 'r2://p1-final.png' }
   })
-  ok('F02-P01d PATCH compositeFile → 200', patchComposite.status === 200, `got ${patchComposite.status}`)
+  expectError(patchComposite, 422, 'Error.StageOutputInvalid', 'F02-P01d stage-mode rejects PATCH compositeFile')
+  const cPageInking = await prisma.productionStage.findFirst({ where: { chapterId: cPage.id, order: 1 } })
+  const cPagePage2 = await prisma.page.findFirstOrThrow({ where: { chapterId: cPage.id, pageNumber: 2 } })
+  const cPageOutputs = await req('PUT', `/chapters/${cPage.id}/stages/${cPageInking!.id}/outputs`, {
+    token: s.tokens.mA,
+    body: {
+      items: [
+        { pageId: pg1.id, fileKey: 'r2://p1-final.png' },
+        { pageId: cPagePage2.id, reuseInput: true }
+      ]
+    }
+  })
+  ok(
+    'F02-P01d2 stage output replaces composite through canonical API',
+    cPageOutputs.status === 200,
+    `got ${cPageOutputs.status}`
+  )
   const afterComposite = await req('GET', `/chapters/${cPage.id}/pages`, { token: s.tokens.mA })
   const pgAfter = ((afterComposite.json?.data?.items ?? []) as Array<Record<string, unknown>>).find(
     (item) => item.id === pg1.id
@@ -1323,18 +1402,18 @@ const main = async () => {
     body: { pageNumber: 1, originalFile: 'r2://lock.png' }
   })
   const lockedPage = (lockRes.json?.data ?? lockRes.json) as { id: string }
-  await req('POST', `/chapters/${cLocked.id}/manuscript/submit`, { token: s.tokens.mA })
+  await submitAfterStages(s.tokens.mA, cLocked.id, 'F02-STG-CLOCKED')
   const lockedNow = await prisma.page.findUnique({ where: { id: lockedPage.id } })
   ok('F02-P20 page đã COMPLETED sau submit', lockedNow?.status === PageStatus.COMPLETED, `got ${lockedNow?.status}`)
 
   const delCompleted = await req('DELETE', `/pages/${lockedPage.id}`, { token: s.tokens.mA })
-  expectError(delCompleted, 409, 'Error.PageNotEditable', 'F02-P21 DELETE page COMPLETED → 409')
+  expectError(delCompleted, 409, 'Error.ProductionPageSetLocked', 'F02-P21 DELETE page after production starts → 409')
 
   const bulkCompleted = await req('DELETE', `/chapters/${cLocked.id}/pages`, {
     token: s.tokens.mA,
     body: { pageIds: [lockedPage.id] }
   })
-  expectError(bulkCompleted, 409, 'Error.PageNotEditable', 'F02-P22 bulk chứa page COMPLETED → 409')
+  expectError(bulkCompleted, 409, 'Error.ProductionPageSetLocked', 'F02-P22 bulk after production starts → 409')
   ok('F02-P22b page COMPLETED vẫn còn', (await prisma.page.findUnique({ where: { id: lockedPage.id } })) !== null)
 
   // --- Task B: auto-renumber sau khi xoá 1 page ở giữa (DB thật — Mongo semantics, §73.9) ---
@@ -1375,15 +1454,14 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://gate-1.png' }
   })
-  await req('POST', `/chapters/${cGate.id}/manuscript/submit`, { token: s.tokens.mA })
+  await submitAfterStages(s.tokens.mA, cGate.id, 'F02-STG-CGATE')
   await req('POST', `/chapters/${cGate.id}/manuscript/approve`, { token: s.tokens.e1 })
   // Thêm 1 page DRAFT SAU khi manuscript đã READY_FOR_PRINT (createPage không chặn) → page chưa duyệt.
-  await req('POST', `/chapters/${cGate.id}/pages`, {
+  const additionalDraftPage = await req('POST', `/chapters/${cGate.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 2, originalFile: 'r2://gate-2.png' }
   })
-  const gatePub = await req('POST', `/chapters/${cGate.id}/publish`, { token: s.tokens.e1 })
-  expectError(gatePub, 409, 'Error.PagesNotReadyForPublish', 'F02-P24 publish khi còn page chưa COMPLETED → 409')
+  expectError(additionalDraftPage, 409, 'Error.ProductionPageSetLocked', 'F02-P24 production page set is locked')
 
   await prisma.$disconnect()
   const fail = summary(FLOW)

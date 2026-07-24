@@ -39,6 +39,7 @@ import {
   RegionHasApprovedTasksException,
   RegionNotFoundException,
   TaskFileForbiddenException,
+  TaskDescriptionLockedException,
   TaskNotFoundException,
   TaskNotCancellableException,
   TaskNotReassignableException
@@ -193,12 +194,13 @@ export class TaskController {
   }
 
   @Patch('tasks/:id')
-  @ApiOperation({ summary: 'Sửa task (assetIds/deadline/priority)' })
+  @ApiOperation({ summary: 'Sửa task (assetIds/description/deadline/priority; description chỉ khi ASSIGNED)' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
   @ApiErrors(
     TaskNotFoundException,
     NotSeriesOwnerException,
     AssetNotFoundException,
+    TaskDescriptionLockedException,
     ChapterOnHoldTaskException,
     PageNotEditableTaskException
   )

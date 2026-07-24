@@ -193,6 +193,57 @@ describe('TaskRepository response enrichment', () => {
     expect(response.pageDisplayFile).toBe('r2://only-original.png')
   })
 
+  it('embeds the immutable StagePage input instead of using the latest page composite as task input', async () => {
+    const createdAt = new Date('2026-07-21T00:00:00.000Z')
+    const task = {
+      id: 't1',
+      pageId: 'p1',
+      stageId: 's1',
+      regionIds: [],
+      assistantId: 'assistant',
+      taskType: 'BACKGROUND',
+      status: 'ASSIGNED',
+      statusReason: null,
+      priority: 0,
+      deadline: null,
+      assetIds: [],
+      versions: [],
+      createdAt
+    }
+    const prisma = {
+      task: { findUnique: jest.fn().mockResolvedValue(task) },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+      region: { findMany: jest.fn().mockResolvedValue([]) },
+      page: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { id: 'p1', originalFile: 'r2://page-original.png', compositeFile: 'r2://latest-composite.png' }
+          ])
+      },
+      productionStagePage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            stageId: 's1',
+            pageId: 'p1',
+            inputFileKey: 'r2://stage-input-v1.png',
+            inputSourceType: 'COMPOSITE',
+            inputRevision: 1
+          }
+        ])
+      },
+      series: { findMany: jest.fn() }
+    }
+
+    const row = await new TaskRepository(prisma as unknown as PrismaService).findTaskById('t1')
+    const response = toTaskRes(row!)
+
+    expect(response.stageInputFile).toBe('r2://stage-input-v1.png')
+    expect(response.stageInputSourceType).toBe('COMPOSITE')
+    expect(response.stageInputRevision).toBe(1)
+    expect(response.pageDisplayFile).toBe('r2://latest-composite.png')
+  })
+
   it('resolves regions in one batched query and yields [] for tasks without a region', async () => {
     const createdAt = new Date('2026-07-20T00:00:00.000Z')
     const tasks = Array.from({ length: 20 }, (_, index) => ({
@@ -252,5 +303,33 @@ describe('TaskRepository response enrichment', () => {
     ])
     expect(responses[0].regions?.[0]?.coordinates).toEqual({ x: 1, y: 2, width: 3, height: 4 })
     expect(responses[1].regions).toEqual([])
+  })
+})
+
+describe('TaskRepository timing writes', () => {
+  it('sets startedAt only when the Mongo optional field is absent', async () => {
+    const prisma = { task: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) } }
+    const repo = new TaskRepository(prisma as unknown as PrismaService)
+    const at = new Date('2026-07-24T10:00:00.000Z')
+
+    await repo.setStartedAtIfUnset('0123456789abcdef01234567', at)
+
+    expect(prisma.task.updateMany).toHaveBeenCalledWith({
+      where: { id: '0123456789abcdef01234567', startedAt: { isSet: false } },
+      data: { startedAt: at }
+    })
+  })
+
+  it('records completedAt on approval', async () => {
+    const prisma = { task: { update: jest.fn().mockResolvedValue({ id: 't' }) } }
+    const repo = new TaskRepository(prisma as unknown as PrismaService)
+    const at = new Date('2026-07-24T10:00:00.000Z')
+
+    await repo.setCompletedAt('0123456789abcdef01234567', at)
+
+    expect(prisma.task.update).toHaveBeenCalledWith({
+      where: { id: '0123456789abcdef01234567' },
+      data: { completedAt: at }
+    })
   })
 })

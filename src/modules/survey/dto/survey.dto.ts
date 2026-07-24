@@ -23,7 +23,11 @@ import {
   LatestVoteResultsResSchema,
   LatestVoteResultsQuerySchema,
   VotePeriodsQuerySchema,
-  VotePeriodsResSchema
+  VotePeriodsResSchema,
+  RankingAggregateQuerySchema,
+  RankingAggregateResSchema,
+  VoteLiveQuerySchema,
+  VoteTallyResSchema
 } from '../schemas/survey-schemas'
 
 export class VoteOtpRequestBodyDto extends createZodDto(VoteOtpRequestBodySchema) {}
@@ -50,6 +54,10 @@ export class LatestVoteResultsResDto extends createZodDto(LatestVoteResultsResSc
 export class LatestVoteResultsQueryDto extends createZodDto(LatestVoteResultsQuerySchema) {}
 export class VotePeriodsQueryDto extends createZodDto(VotePeriodsQuerySchema) {}
 export class VotePeriodsResDto extends createZodDto(VotePeriodsResSchema) {}
+export class RankingAggregateQueryDto extends createZodDto(RankingAggregateQuerySchema) {}
+export class RankingAggregateResDto extends createZodDto(RankingAggregateResSchema) {}
+export class VoteLiveQueryDto extends createZodDto(VoteLiveQuerySchema) {}
+export class VoteTallyResDto extends createZodDto(VoteTallyResSchema) {}
 
 export type GetSeriesTrendQueryType = {
   seriesId: string

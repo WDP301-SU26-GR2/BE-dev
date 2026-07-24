@@ -55,6 +55,11 @@ import {
   CoOwnerApprovalNotPendingException,
   CoOwnerApprovalNotFoundException
 } from './errors/chapter.errors'
+import {
+  ProductionNotFinalizedException,
+  ProductionPageSetLockedException,
+  StageOutputInvalidException
+} from './errors/production-stage.errors'
 import { ChapterService } from './chapter.service'
 
 @ApiTags('chapters')
@@ -172,7 +177,13 @@ export class ChapterController {
 
   @Post('chapters/:id/pages')
   @ApiOperation({ summary: 'Mangaka upload trang (pencil/ink) → tạo Page (DRAFT)' })
-  @ApiErrors(NotSeriesOwnerException, ChapterNotFoundException, ChapterOnHoldException, ChapterNameNotApprovedException)
+  @ApiErrors(
+    NotSeriesOwnerException,
+    ChapterNotFoundException,
+    ChapterOnHoldException,
+    ChapterNameNotApprovedException,
+    ProductionPageSetLockedException
+  )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: PageResDto })
   createPage(@Param('id') id: string, @Body() body: CreatePageBodyDto, @ActiveUser('userId') userId: string) {
@@ -197,7 +208,8 @@ export class ChapterController {
     PageNotFoundException,
     PageNotEditableException,
     ChapterOnHoldException,
-    DuplicatePageNumberException
+    DuplicatePageNumberException,
+    StageOutputInvalidException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: PageResDto })
@@ -212,7 +224,8 @@ export class ChapterController {
     PageNotFoundException,
     PageNotEditableException,
     PageHasApprovedTasksException,
-    ChapterOnHoldException
+    ChapterOnHoldException,
+    ProductionPageSetLockedException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: DeletePageResDto })
@@ -228,7 +241,8 @@ export class ChapterController {
     PageNotFoundException,
     PageNotEditableException,
     PageHasApprovedTasksException,
-    ChapterOnHoldException
+    ChapterOnHoldException,
+    ProductionPageSetLockedException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: DeletePagesBulkResDto })
@@ -244,7 +258,8 @@ export class ChapterController {
     InvalidManuscriptTransitionException,
     ChapterOnHoldException,
     NoPagesToSubmitException,
-    TasksNotAllApprovedException
+    TasksNotAllApprovedException,
+    ProductionNotFinalizedException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
