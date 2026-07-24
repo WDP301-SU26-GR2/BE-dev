@@ -50,5 +50,5 @@ export interface DomainEventPayload {
     trigger: 'FORMAT_CHANGE' | 'COMPLETION'
     summary: string
   }
-  [DomainEvent.NameApproved]: { seriesId: string; nameId: string; kind: 'PROPOSAL' | 'CHAPTER' }
+  [DomainEvent.NameApproved]: { seriesId: string; nameId: string; kind: 'PROPOSAL' | 'CHAPTER'; chapterId?: string }
 }

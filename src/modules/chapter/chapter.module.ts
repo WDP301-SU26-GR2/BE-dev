@@ -18,10 +18,16 @@ import { ChapterCoOwnerService } from './services/chapter-coowner.service'
 import { CoOwnerEscalationCron } from './services/coowner-escalation.cron'
 import { StudioOverviewController } from './studio-overview.controller'
 import { StudioModule } from 'src/modules/studio/studio.module'
+import { ProductionStageController } from './production-stage.controller'
+import { ProductionStageRepository } from './production-stage.repo'
+import { ProductionStagePageService } from './services/production-stage-page.service'
+import { ProductionStageSeedListener } from './services/production-stage-seed.listener'
+import { ProductionStageService } from './services/production-stage.service'
+import { ProductionStageStateService } from './services/production-stage-state.service'
 
 @Module({
   imports: [StudioModule],
-  controllers: [ChapterController, StudioOverviewController],
+  controllers: [ChapterController, StudioOverviewController, ProductionStageController],
   providers: [
     ChapterService,
     ChapterRepository,
@@ -38,8 +44,20 @@ import { StudioModule } from 'src/modules/studio/studio.module'
     ChapterCoOwnerService,
     ChapterPublishedListener,
     DeadlineWarningCron,
-    CoOwnerEscalationCron
+    CoOwnerEscalationCron,
+    ProductionStageRepository,
+    ProductionStageStateService,
+    ProductionStageService,
+    ProductionStagePageService,
+    ProductionStageSeedListener
   ],
-  exports: [PageStateService, ManuscriptStateService, ScheduleService, ChapterProgressService]
+  exports: [
+    PageStateService,
+    ManuscriptStateService,
+    ScheduleService,
+    ChapterProgressService,
+    ProductionStageRepository,
+    ProductionStageStateService
+  ]
 })
 export class ChapterModule {}

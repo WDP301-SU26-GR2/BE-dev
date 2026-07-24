@@ -76,6 +76,7 @@ export class TaskReviewService {
     if (task.assistantId !== assistantId) throw NotTaskAssigneeException
     await this.requireEditablePage(task.pageId)
     await this.taskStateService.transition(taskId, 'IN_PROGRESS', undefined, assistantId)
+    await this.taskRepository.setStartedAtIfUnset(taskId, new Date())
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException
     return toTaskRes(updated)
@@ -126,6 +127,7 @@ export class TaskReviewService {
     await this.requireOwner(mangakaId, task.pageId)
     await this.taskStateService.transition(taskId, 'UNDER_REVIEW', undefined, mangakaId)
     await this.taskStateService.transition(taskId, 'APPROVED', undefined, mangakaId)
+    await this.taskRepository.setCompletedAt(taskId, new Date())
     await this.taskRepository.setLatestVersionReview(taskId, { reviewStatus: 'APPROVED', reviewerNote: null })
     const updated = await this.taskRepository.findTaskById(taskId)
     if (!updated) throw TaskNotFoundException

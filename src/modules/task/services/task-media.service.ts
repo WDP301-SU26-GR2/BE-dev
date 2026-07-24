@@ -35,6 +35,7 @@ export class TaskMediaService {
     const allowedKeys = [
       page.originalFile,
       page.compositeFile,
+      ctx.stageInputKey,
       ...task.versions.map((v) => v.file),
       ...ctx.assetKeys
     ].filter((k): k is string => Boolean(k))

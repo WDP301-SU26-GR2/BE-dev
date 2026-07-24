@@ -1,4 +1,4 @@
-import { Asset, Region, Task } from '@prisma/client'
+import { AiSegmentSource, Asset, Region, Task } from '@prisma/client'
 import { UserMiniType } from 'src/core/models/user-mini.model'
 
 type TaskAssetEmbed = Pick<Asset, 'id' | 'filePath' | 'name' | 'assetType'>
@@ -23,6 +23,9 @@ type TaskWithPeople = Omit<Task, 'versions'> & {
   assets?: TaskAssetEmbed[]
   pageOriginalFile?: string | null
   pageDisplayFile?: string | null
+  stageInputFile?: string | null
+  stageInputSourceType?: AiSegmentSource | null
+  stageInputRevision?: number | null
   versions: Array<Task['versions'][number] & { submitter?: UserMiniType | null }>
 }
 
@@ -35,6 +38,13 @@ export function toTaskRes(t: TaskWithPeople) {
     taskType: t.taskType ?? null,
     status: t.status,
     statusReason: t.statusReason ?? null,
+    description: t.description ?? null,
+    stageId: t.stageId ?? null,
+    startedAt: t.startedAt ? t.startedAt.toISOString() : null,
+    completedAt: t.completedAt ? t.completedAt.toISOString() : null,
+    stageInputFile: t.stageInputFile ?? null,
+    stageInputSourceType: t.stageInputSourceType ?? null,
+    stageInputRevision: t.stageInputRevision ?? null,
     priority: t.priority,
     deadline: t.deadline ? t.deadline.toISOString() : null,
     assetIds: t.assetIds ?? [],

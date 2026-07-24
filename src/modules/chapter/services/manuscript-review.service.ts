@@ -1,5 +1,11 @@
-import { Injectable } from '@nestjs/common'
-import { ManuscriptStatus, NotificationType, PageStatus, RevisionTargetType } from '@prisma/client'
+import { Injectable, Optional } from '@nestjs/common'
+import {
+  ManuscriptStatus,
+  NotificationType,
+  PageStatus,
+  ProductionStageStatus,
+  RevisionTargetType
+} from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { RevisionService } from 'src/modules/revision/revision.service'
 import { BLOCKING_TASK_STATUSES } from '../chapter.constant'
@@ -14,7 +20,10 @@ import {
   RevisionNotResolvedException,
   TasksNotAllApprovedException
 } from '../errors/chapter.errors'
+import { ProductionNotFinalizedException } from '../errors/production-stage.errors'
+import { ProductionStageRepository } from '../production-stage.repo'
 import { ManuscriptStateService } from './manuscript-state.service'
+import { ProductionStageStateService } from './production-stage-state.service'
 
 @Injectable()
 export class ManuscriptReviewService {
@@ -22,7 +31,9 @@ export class ManuscriptReviewService {
     private readonly chapterRepository: ChapterRepository,
     private readonly manuscriptStateService: ManuscriptStateService,
     private readonly notificationService: NotificationService,
-    private readonly revisionService: RevisionService
+    private readonly revisionService: RevisionService,
+    @Optional() private readonly stageRepo?: ProductionStageRepository,
+    @Optional() private readonly stageStateService?: ProductionStageStateService
   ) {}
 
   private async loadOwned(chapterId: string) {
@@ -37,12 +48,21 @@ export class ManuscriptReviewService {
     if (chapter.hold) throw ChapterOnHoldException
   }
 
-  private async assertReadyForEditor(chapterId: string) {
+  private async assertReadyForEditor(chapterId: string, requireActiveFinalCheck = true): Promise<boolean> {
     const pages = await this.chapterRepository.findPagesByChapterId(chapterId)
     if (pages.length === 0) throw NoPagesToSubmitException
+    const stageCount = this.stageRepo ? await this.stageRepo.countByChapter(chapterId) : 0
+    if (stageCount > 0) {
+      const finalCheck = await this.stageRepo!.findFinalCheck(chapterId)
+      if (requireActiveFinalCheck && (!finalCheck || finalCheck.status !== ProductionStageStatus.ACTIVE)) {
+        throw ProductionNotFinalizedException
+      }
+      return true
+    }
     const counts = await this.chapterRepository.countTasksByStatusForChapter(chapterId)
     const blocking = BLOCKING_TASK_STATUSES.reduce((sum, status) => sum + (counts[status] ?? 0), 0)
     if (blocking > 0) throw TasksNotAllApprovedException
+    return false
   }
 
   async submit(userId: string, chapterId: string) {
@@ -50,7 +70,7 @@ export class ManuscriptReviewService {
     if (series.mangakaId !== userId) throw NotSeriesOwnerException
     this.assertNotOnHold(chapter)
     await this.manuscriptStateService.assertCanTransition(chapterId, ManuscriptStatus.EDITOR_REVIEW)
-    await this.assertReadyForEditor(chapterId)
+    const stageMode = await this.assertReadyForEditor(chapterId)
 
     const result = await this.manuscriptStateService.transitionWithPages(
       chapterId,
@@ -59,6 +79,7 @@ export class ManuscriptReviewService {
       [PageStatus.DRAFT],
       PageStatus.COMPLETED
     )
+    if (stageMode) await this.stageStateService?.markFinalCheckCompleted(chapterId)
     if (series.editorId) {
       await this.notificationService.notifySafe({
         recipientId: series.editorId,
@@ -110,7 +131,7 @@ export class ManuscriptReviewService {
     if (await this.revisionService.hasOpenRequest(RevisionTargetType.MANUSCRIPT, chapterId)) {
       throw RevisionNotResolvedException
     }
-    await this.assertReadyForEditor(chapterId)
+    await this.assertReadyForEditor(chapterId, false)
 
     const result = await this.manuscriptStateService.transitionWithPages(
       chapterId,

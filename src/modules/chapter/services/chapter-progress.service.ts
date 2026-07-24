@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Optional } from '@nestjs/common'
 import { $Enums, ManuscriptStatus, NameStatus, TaskStatus } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { ChapterRepository } from '../chapter.repo'
@@ -10,6 +10,7 @@ import {
   WarningLevel
 } from '../chapter.constant'
 import { ChapterAccessDeniedException, ChapterNotFoundException } from '../errors/chapter.errors'
+import { ProductionStageRepository } from '../production-stage.repo'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -62,7 +63,10 @@ export function computeProgressPct(
 
 @Injectable()
 export class ChapterProgressService {
-  constructor(private readonly chapterRepository: ChapterRepository) {}
+  constructor(
+    private readonly chapterRepository: ChapterRepository,
+    @Optional() private readonly stageRepo?: ProductionStageRepository
+  ) {}
 
   async getProgress(user: { userId: string; roleName: string }, chapterId: string) {
     if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
@@ -78,7 +82,7 @@ export class ChapterProgressService {
       user.roleName === RoleName.SUPER_ADMIN
     if (!allowed) throw ChapterAccessDeniedException
 
-    const [pages, pageTaskRows, manuscript, taskCounts, nameStatus, schedule] = await Promise.all([
+    const [pages, pageTaskRows, manuscript, taskCounts, nameStatus, schedule, activeStage] = await Promise.all([
       this.chapterRepository.findPagesByChapterId(chapterId),
       this.chapterRepository.groupTasksByPageForChapter(chapterId),
       this.chapterRepository.findManuscriptByChapterId(chapterId),
@@ -86,7 +90,8 @@ export class ChapterProgressService {
       chapter.nameId
         ? this.chapterRepository.findNameStatus(chapter.nameId)
         : Promise.resolve(null as NameStatus | null),
-      this.chapterRepository.findScheduleByChapterId(chapterId)
+      this.chapterRepository.findScheduleByChapterId(chapterId),
+      this.stageRepo ? this.stageRepo.findActiveByChapter(chapterId) : Promise.resolve(null)
     ])
     const totalPages = pages.length
     const pagesReady = computeReadyPages(
@@ -116,7 +121,10 @@ export class ChapterProgressService {
       remainingHours: roundHours(deadline, now),
       progressPct,
       warningLevel: computeWarningLevel(series.publicationType ?? null, deadline, progressPct, now),
-      onHold: chapter.hold != null
+      onHold: chapter.hold != null,
+      currentStage: activeStage
+        ? { id: activeStage.id, name: activeStage.name, order: activeStage.order, status: activeStage.status }
+        : null
     }
   }
 
