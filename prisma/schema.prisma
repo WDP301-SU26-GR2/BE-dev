@@ -1475,6 +1475,11 @@ model SurveyPeriod {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
   createdBy String? @db.ObjectId
 
+  // Scoped periods freeze the exact issue cohort. Legacy rows omit the scope fields and
+  // remain readable, but are intentionally excluded from new ranking aggregates.
+  magazine          String?
+  publicationType   PublicationType?
+  eligibleSeriesIds String[] @db.ObjectId @default([])
   issueNumber          Int?
   reflectedIssueNumber Int?
   startDate            DateTime?
@@ -1486,6 +1491,7 @@ model SurveyPeriod {
   rankingRecords RankingRecord[]
 
   @@index([createdBy])
+  @@index([magazine, publicationType, startDate])
 }
 
 model ReaderVote {
@@ -1550,6 +1556,7 @@ model RankingRecord {
 
   rankPosition           Int?
   voteCount              Float     @default(0)
+  normalizedScore        Float     @default(0)
   previousRank           Int?
   rankChange             Int?
   isAtRisk               Boolean   @default(false)
@@ -1560,6 +1567,7 @@ model RankingRecord {
 
   @@index([seriesId])
   @@index([surveyPeriodId])
+  @@index([surveyPeriodId, seriesId])
 }
 
 model BoardSession {
@@ -1681,6 +1689,7 @@ model AppConfig {
   reputationRecommendThreshold Float @default(4)
   hiatusTooLongDays            Int   @default(30)
   lowVoteReliabilityThreshold  Int   @default(10)
+  rankingAggregateMinCoverageRatio Float @default(0.5)
   maxUploadBytes               Int   @default(15728640)
   assignmentGraceDays          Int   @default(0)
 

@@ -197,10 +197,21 @@ const main = async () => {
     startIssueNumber: 1,
     publicationType: 'WEEKLY'
   })
+  // Series transition (SERIALIZED + slot) chạy qua listener SAU khi BoardDecisionFinalized emit —
+  // poll thay vì tin sleep cố định (chống flake dưới tải, §74.8). Assertion GIỮ NGUYÊN.
+  const serializedOk = await waitUntil(
+    async () => {
+      const s = await prisma.series.findUnique({ where: { id: sPitched.id } })
+      return s?.status === SeriesStatus.SERIALIZED && s?.magazine === 'EV Jump' && s?.startIssueNumber === 1
+    },
+    8_000,
+    400
+  )
   const sPitchedAfter = await prisma.series.findUnique({ where: { id: sPitched.id } })
   ok(
     'EV-06b BoardDecisionFinalized(SERIALIZATION) → Series SERIALIZED + slot set',
-    sPitchedAfter?.status === SeriesStatus.SERIALIZED &&
+    serializedOk &&
+      sPitchedAfter?.status === SeriesStatus.SERIALIZED &&
       sPitchedAfter?.magazine === 'EV Jump' &&
       sPitchedAfter?.startIssueNumber === 1,
     `status=${String(sPitchedAfter?.status)} magazine=${String(sPitchedAfter?.magazine)}`
@@ -265,15 +276,26 @@ const main = async () => {
     token: b4Tok,
     body: { voteValue: 'APPROVE' }
   })
-  await sleep(900)
-  await sleep(900)
+  // Phiếu 4 → quorum đủ → decision APPROVED → listener transition series SERIALIZED (async).
+  // Poll tới khi đúng 1 entry SERIALIZED (chống flake, thay 2×sleep cố định). Assertion GIỮ NGUYÊN.
+  const flipSerializedOk = await waitUntil(
+    async () => {
+      const s = await prisma.series.findUnique({ where: { id: sFlip.id } })
+      const entries = (s?.statusHistory ?? []).filter(
+        (h) => (h as unknown as { toStatus?: string }).toStatus === SeriesStatus.SERIALIZED
+      )
+      return s?.status === SeriesStatus.SERIALIZED && entries.length === 1
+    },
+    10_000,
+    400
+  )
   const sFlipAfter = await prisma.series.findUnique({ where: { id: sFlip.id } })
   const serializedEntries = (sFlipAfter?.statusHistory ?? []).filter(
     (h) => (h as unknown as { toStatus?: string }).toStatus === SeriesStatus.SERIALIZED
   )
   ok(
     'EV-10b phiếu 4 → APPROVED → series SERIALIZED (1 entry)',
-    sFlipAfter?.status === SeriesStatus.SERIALIZED && serializedEntries.length === 1,
+    flipSerializedOk && sFlipAfter?.status === SeriesStatus.SERIALIZED && serializedEntries.length === 1,
     `status=${sFlipAfter?.status} entries=${serializedEntries.length}`
   )
 

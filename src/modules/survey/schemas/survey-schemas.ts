@@ -11,8 +11,8 @@ const SurveyCreateStatusSchema = zEnum(SurveyStatus, 'SurveyStatus').refine(
 )
 
 const SurveyUpdateStatusSchema = zEnum(SurveyStatus, 'SurveyStatus').refine(
-  (status): status is typeof SurveyStatus.OPEN | typeof SurveyStatus.CLOSED | typeof SurveyStatus.REFLECTED =>
-    status !== SurveyStatus.DRAFT,
+  (status): status is typeof SurveyStatus.OPEN | typeof SurveyStatus.CLOSED =>
+    status === SurveyStatus.OPEN || status === SurveyStatus.CLOSED,
   { message: 'status chỉ được là OPEN, CLOSED hoặc REFLECTED khi cập nhật kỳ bình chọn.' }
 )
 
@@ -45,13 +45,25 @@ export const ReaderVoteBodySchema = extendApi(
 export const CreateSurveyPeriodBodySchema = extendApi(
   z
     .object({
-      issueNumber: z.number().int().positive().optional(),
+      issueNumber: z.number().int().positive(),
       reflectedIssueNumber: z.number().int().positive().optional(),
+      magazine: z.string().trim().min(1, { message: 'magazine is required.' }),
+      publicationType: zEnum(PublicationType, 'PublicationType'),
+      eligibleSeriesIds: z
+        .array(z.string().regex(/^[0-9a-fA-F]{24}$/, { message: 'eligibleSeriesIds must be ObjectIds.' }))
+        .min(1, { message: 'eligibleSeriesIds must contain at least one series.' })
+        .refine((ids) => new Set(ids).size === ids.length, {
+          message: 'eligibleSeriesIds must not contain duplicates.'
+        }),
       startDate: z.string().datetime({ message: 'startDate phải là chuỗi ISO 8601.' }),
       endDate: z.string().datetime({ message: 'endDate phải là chuỗi ISO 8601.' }),
       status: SurveyCreateStatusSchema.optional()
     })
-    .strict(),
+    .strict()
+    .refine((body) => new Date(body.startDate) < new Date(body.endDate), {
+      message: 'startDate must be before endDate.',
+      path: ['endDate']
+    }),
   { title: 'CreateSurveyPeriodBody', description: 'Editor tạo kỳ bình chọn mới' }
 )
 
@@ -107,6 +119,9 @@ export const SurveyPeriodResSchema = extendApi(
   z
     .object({
       id: z.string(),
+      magazine: z.string().nullable(),
+      publicationType: zEnum(PublicationType, 'PublicationType').nullable(),
+      eligibleSeriesIds: z.array(z.string()),
       issueNumber: z.number().int().optional(),
       reflectedIssueNumber: z.number().int().optional(),
       startDate: z.string().datetime(),
@@ -140,8 +155,15 @@ export const RankingRecordResSchema = extendApi(
   z
     .object({
       seriesId: z.string(),
+      surveyPeriodId: z.string().describe('Reflected scoped survey period that produced this ranking row'),
+      magazine: z.string().nullable().describe('Magazine scope; null only for legacy ranking rows'),
+      publicationType: zEnum(PublicationType, 'PublicationType')
+        .nullable()
+        .describe('Publication type scope; null only for legacy ranking rows'),
+      issueNumber: z.number().int().nullable().describe('Issue number of the source survey period'),
       rankPosition: z.number().int().optional(),
       voteCount: z.number(),
+      normalizedScore: z.number(),
       previousRank: z.number().int().nullable(),
       rankChange: z.number().int().nullable(),
       isAtRisk: z.boolean(),
@@ -167,8 +189,15 @@ export const BoardRankingItemSchema = extendApi(
   z
     .object({
       seriesId: z.string(),
+      surveyPeriodId: z.string(),
+      magazine: z.string().nullable().describe('Magazine scope; null only for legacy ranking rows'),
+      publicationType: zEnum(PublicationType, 'PublicationType')
+        .nullable()
+        .describe('Publication type scope; null only for legacy ranking rows'),
+      issueNumber: z.number().int().nullable(),
       rankPosition: z.number().int().optional(),
       voteCount: z.number(),
+      normalizedScore: z.number(),
       previousRank: z.number().int().nullable(),
       rankChange: z.number().int().nullable(),
       isAtRisk: z.boolean(),
@@ -270,6 +299,8 @@ export const VoteContextResSchema = extendApi(
       period: z
         .object({
           id: z.string(),
+          magazine: z.string().optional(),
+          publicationType: zEnum(PublicationType, 'PublicationType').optional(),
           issueNumber: z.number().int().nullable(),
           reflectedIssueNumber: z.number().int().nullable(),
           startDate: z.string().nullable().describe('ISO 8601 UTC'),
@@ -338,25 +369,60 @@ export const VoteResultsResSchema = extendApi(
 
 export const VoteResultsQuerySchema = z
   .object({
-    surveyPeriodId: z.string().min(1, { message: 'surveyPeriodId là bắt buộc.' }),
-    // Spec 15.2: bảng con theo nhịp xuất bản (WEEKLY/MONTHLY/IRREGULAR); omit = bảng tổng.
-    publicationType: zEnum(PublicationType, 'PublicationType').optional()
+    surveyPeriodId: z.string().min(1, { message: 'surveyPeriodId là bắt buộc.' })
   })
   .strict()
 
 // Spec 15.2 — query riêng cho /vote/results/latest (1 field optional → thỏa ràng buộc non-empty strict query).
 export const LatestVoteResultsQuerySchema = z
   .object({
-    publicationType: zEnum(PublicationType, 'PublicationType').optional()
+    magazine: z.string().trim().min(1),
+    publicationType: zEnum(PublicationType, 'PublicationType')
   })
   .strict()
 
 // Option B: tab Tuần/Tháng cho trang vote Guest. Optional → không truyền = mọi type có nhịp.
 export const VoteContextQuerySchema = z
   .object({
-    publicationType: zEnum(PublicationType, 'PublicationType').optional()
+    periodId: z.string().regex(/^[0-9a-fA-F]{24}$/)
   })
   .strict()
+
+export const VoteLiveQuerySchema = extendApi(
+  z
+    .object({
+      periodId: z
+        .string()
+        .regex(/^[0-9a-fA-F]{24}$/, { message: 'periodId must be an ObjectId.' })
+        .describe('OPEN scoped SurveyPeriod id')
+    })
+    .strict(),
+  { title: 'VoteLiveQuery', description: 'Public live raw-tally query for exactly one OPEN issue' }
+)
+
+export const VoteTallyResSchema = extendApi(
+  z
+    .object({
+      periodId: z.string(),
+      magazine: z.string(),
+      publicationType: zEnum(PublicationType, 'PublicationType'),
+      issueNumber: z.number().int().nullable(),
+      tally: z.array(
+        z
+          .object({
+            seriesId: z.string(),
+            title: z.string(),
+            coverImage: z.string().nullable(),
+            count: z.number().int().min(0).describe('Raw ReaderVote selection count, not weighted ranking score')
+          })
+          .strict()
+      ),
+      totalVotes: z.number().int().min(0).describe('Valid ballot count; it can differ from sum(tally[].count)'),
+      updatedAt: z.string().datetime()
+    })
+    .strict(),
+  { title: 'VoteTallyRes', description: 'Public live raw tally for an OPEN scoped issue; this is not a final ranking.' }
+)
 
 export const LatestVoteResultsResSchema = extendApi(
   z
@@ -384,6 +450,8 @@ export const LatestVoteResultsResSchema = extendApi(
 export const VotePeriodsQuerySchema = extendApi(
   z
     .object({
+      magazine: z.string().trim().min(1),
+      publicationType: zEnum(PublicationType, 'PublicationType'),
       limit: z.coerce.number().int().min(1).max(24).default(12)
     })
     .strict(),
@@ -409,5 +477,64 @@ export const VotePeriodsResSchema = extendApi(
   {
     title: 'VotePeriodsRes',
     description: 'Kỳ REFLECTED (lịch sử) cho dropdown — Spec 15 §3.2'
+  }
+)
+
+const RankingAggregateBaseQuerySchema = {
+  magazine: z.string().trim().min(1, { message: 'magazine is required.' }),
+  publicationType: zEnum(PublicationType, 'PublicationType'),
+  year: z.coerce.number().int().min(1970).max(9999)
+}
+
+export const RankingAggregateQuerySchema = extendApi(
+  z
+    .object({
+      ...RankingAggregateBaseQuerySchema,
+      level: z.enum(['MONTH', 'YEAR']),
+      month: z.coerce.number().int().min(1).max(12).optional()
+    })
+    .strict()
+    .superRefine((query, context) => {
+      if (query.level === 'MONTH' && query.month == null) {
+        context.addIssue({ code: 'custom', message: 'month is required when level is MONTH.', path: ['month'] })
+      }
+    }),
+  {
+    title: 'RankingAggregateQuery',
+    description:
+      'Public aggregate range. MONTH requires month; YEAR aggregates every reflected issue in the UTC calendar year.'
+  }
+)
+
+export const RankingAggregateResSchema = extendApi(
+  z
+    .object({
+      magazine: z.string(),
+      publicationType: zEnum(PublicationType, 'PublicationType'),
+      level: z.enum(['MONTH', 'YEAR']),
+      year: z.number().int(),
+      month: z.number().int().min(1).max(12).optional(),
+      reflectedIssueCount: z.number().int().nonnegative(),
+      items: z.array(
+        z
+          .object({
+            rankPosition: z.number().int().positive(),
+            seriesId: z.string(),
+            seriesTitle: z.string().nullable(),
+            reflectedIssueCount: z.number().int().nonnegative(),
+            totalWeightedVoteCount: z.number(),
+            participatedIssueCount: z.number().int().positive(),
+            participationCoverage: z.number().min(0).max(1),
+            averageNormalizedScore: z.number(),
+            isProvisional: z.boolean()
+          })
+          .strict()
+      )
+    })
+    .strict(),
+  {
+    title: 'RankingAggregateRes',
+    description:
+      'Public participation-adjusted ranking. Rank uses average normalized score; total weighted votes are informational and provisional flags low coverage.'
   }
 )
