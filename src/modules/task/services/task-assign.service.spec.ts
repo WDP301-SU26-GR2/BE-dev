@@ -9,6 +9,13 @@ import {
   TaskNotCancellableException,
   TaskNotReassignableException
 } from '../errors/task.errors'
+import { TaskDescriptionLockedException } from '../errors/task.errors'
+import {
+  StageLockedException,
+  StagePageNotFoundException,
+  StageRequiredException,
+  TaskTypeNotInStageException
+} from 'src/modules/chapter/errors/production-stage.errors'
 import { TaskMessages } from '../task.messages'
 
 const PAGE = {
@@ -18,6 +25,7 @@ const PAGE = {
   chapter: { seriesId: 's', series: { mangakaId: 'm' } }
 }
 const ID = 'a'.repeat(24)
+const STAGE_ID = 'd'.repeat(24)
 
 describe('TaskAssignService', () => {
   const repo = {
@@ -33,14 +41,23 @@ describe('TaskAssignService', () => {
   const storage = { findAssetsByIds: jest.fn() }
   const taskState = { transition: jest.fn() }
   const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+  const stageRepo = {
+    countByChapter: jest.fn().mockResolvedValue(0),
+    findById: jest.fn(),
+    findStagePage: jest.fn()
+  }
   const service = new TaskAssignService(
     repo as never,
     studio as never,
     storage as never,
     taskState as never,
-    notification as never
+    notification as never,
+    stageRepo as never
   )
-  beforeEach(() => jest.clearAllMocks())
+  beforeEach(() => {
+    jest.clearAllMocks()
+    stageRepo.countByChapter.mockResolvedValue(0)
+  })
 
   it('rejects non-owner → 403', async () => {
     repo.findPageWithOwner.mockResolvedValue(PAGE)
@@ -151,6 +168,123 @@ describe('TaskAssignService', () => {
     expect(repo.createTask).toHaveBeenCalledWith(expect.objectContaining({ regionIds: [REG, 'c'.repeat(24)] }))
   })
 
+  it('requires stageId when the page chapter has production stages', async () => {
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+    studio.findActiveForPair.mockResolvedValue({ id: 'sa' })
+    stageRepo.countByChapter.mockResolvedValue(4)
+
+    await expect(
+      service.create('m', { pageId: ID, assistantId: ID, taskType: 'BACKGROUND', priority: 0, assetIds: [] } as never)
+    ).rejects.toBe(StageRequiredException)
+  })
+
+  it('rejects a task bound to a locked stage', async () => {
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+    studio.findActiveForPair.mockResolvedValue({ id: 'sa' })
+    stageRepo.countByChapter.mockResolvedValue(4)
+    stageRepo.findById.mockResolvedValue({
+      id: STAGE_ID,
+      chapterId: PAGE.chapterId,
+      status: 'LOCKED',
+      taskTypes: ['BACKGROUND']
+    })
+
+    await expect(
+      service.create('m', {
+        pageId: ID,
+        assistantId: ID,
+        taskType: 'BACKGROUND',
+        stageId: STAGE_ID,
+        priority: 0,
+        assetIds: []
+      } as never)
+    ).rejects.toBe(StageLockedException)
+  })
+
+  it('rejects a task type not allowed by the active stage', async () => {
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+    studio.findActiveForPair.mockResolvedValue({ id: 'sa' })
+    stageRepo.countByChapter.mockResolvedValue(4)
+    stageRepo.findById.mockResolvedValue({
+      id: STAGE_ID,
+      chapterId: PAGE.chapterId,
+      status: 'ACTIVE',
+      taskTypes: ['INKING']
+    })
+
+    await expect(
+      service.create('m', {
+        pageId: ID,
+        assistantId: ID,
+        taskType: 'BACKGROUND',
+        stageId: STAGE_ID,
+        priority: 0,
+        assetIds: []
+      } as never)
+    ).rejects.toBe(TaskTypeNotInStageException)
+  })
+
+  it('rejects an active stage without an immutable StagePage input', async () => {
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+    studio.findActiveForPair.mockResolvedValue({ id: 'sa' })
+    stageRepo.countByChapter.mockResolvedValue(4)
+    stageRepo.findById.mockResolvedValue({
+      id: STAGE_ID,
+      chapterId: PAGE.chapterId,
+      status: 'ACTIVE',
+      taskTypes: ['BACKGROUND']
+    })
+    stageRepo.findStagePage.mockResolvedValue(null)
+
+    await expect(
+      service.create('m', {
+        pageId: ID,
+        assistantId: ID,
+        taskType: 'BACKGROUND',
+        stageId: STAGE_ID,
+        priority: 0,
+        assetIds: []
+      } as never)
+    ).rejects.toBe(StagePageNotFoundException)
+  })
+
+  it('persists stageId and the trimmed per-task description when stage binding is valid', async () => {
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+    studio.findActiveForPair.mockResolvedValue({ id: 'sa' })
+    stageRepo.countByChapter.mockResolvedValue(4)
+    stageRepo.findById.mockResolvedValue({
+      id: STAGE_ID,
+      chapterId: PAGE.chapterId,
+      status: 'ACTIVE',
+      taskTypes: ['BACKGROUND']
+    })
+    stageRepo.findStagePage.mockResolvedValue({ stageId: STAGE_ID, pageId: ID })
+    repo.createTask.mockResolvedValue({
+      id: 't',
+      pageId: ID,
+      stageId: STAGE_ID,
+      status: 'ASSIGNED',
+      priority: 0,
+      assetIds: [],
+      versions: [],
+      createdAt: new Date()
+    })
+
+    await service.create('m', {
+      pageId: ID,
+      assistantId: ID,
+      taskType: 'BACKGROUND',
+      stageId: STAGE_ID,
+      description: 'Keep bubbles intact.',
+      priority: 0,
+      assetIds: []
+    } as never)
+
+    expect(repo.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ stageId: STAGE_ID, description: 'Keep bubbles intact.' })
+    )
+  })
+
   it('rejects a regionId that belongs to another page → RegionNotFound', async () => {
     repo.findPageWithOwner.mockResolvedValue(PAGE)
     studio.findActiveForPair.mockResolvedValue({ id: 'sa' })
@@ -172,6 +306,58 @@ describe('TaskAssignService', () => {
     repo.findTaskById.mockResolvedValue({ id: 't', pageId: 'a'.repeat(24), status: 'SUBMITTED' })
     repo.findPageWithOwner.mockResolvedValue(PAGE)
     await expect(service.reassign('m', ID, { assistantId: ID })).rejects.toBe(TaskNotReassignableException)
+  })
+
+  it('updates description only while task remains ASSIGNED', async () => {
+    repo.findTaskById.mockResolvedValue({
+      id: ID,
+      pageId: ID,
+      status: 'ASSIGNED',
+      priority: 0,
+      assetIds: [],
+      versions: [],
+      createdAt: new Date()
+    })
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+    repo.updateTaskFields.mockResolvedValue({
+      id: ID,
+      pageId: ID,
+      status: 'ASSIGNED',
+      priority: 0,
+      assetIds: [],
+      versions: [],
+      createdAt: new Date()
+    })
+
+    await service.update('m', ID, { description: 'Keep the line art.' })
+    expect(repo.updateTaskFields).toHaveBeenCalledWith(ID, { description: 'Keep the line art.' })
+  })
+
+  it('locks description after the assistant starts', async () => {
+    repo.findTaskById.mockResolvedValue({ id: ID, pageId: ID, status: 'IN_PROGRESS', assetIds: [] })
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+
+    await expect(service.update('m', ID, { description: 'Changed silently.' })).rejects.toBe(
+      TaskDescriptionLockedException
+    )
+    expect(repo.updateTaskFields).not.toHaveBeenCalled()
+  })
+
+  it('keeps description untouched when PATCH omits or nulls it', async () => {
+    const task = {
+      id: ID,
+      pageId: ID,
+      status: 'ASSIGNED',
+      priority: 0,
+      assetIds: [],
+      versions: [],
+      createdAt: new Date()
+    }
+    repo.findTaskById.mockResolvedValue(task)
+    repo.findPageWithOwner.mockResolvedValue(PAGE)
+
+    await service.update('m', ID, { description: null })
+    expect(repo.updateTaskFields).not.toHaveBeenCalled()
   })
 
   it('cancels cancellable task with reason and notifies assistant', async () => {
@@ -287,7 +473,19 @@ describe('TaskAssignService.createGroup', () => {
     const storageRepository = { findAssetsByIds: jest.fn().mockResolvedValue([]) }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
     const taskStateService = { transition: jest.fn() }
-    return { taskRepository, studioAssignmentService, storageRepository, notificationService, taskStateService }
+    const productionStageRepository = {
+      countByChapter: jest.fn().mockResolvedValue(0),
+      findById: jest.fn(),
+      findStagePage: jest.fn()
+    }
+    return {
+      taskRepository,
+      studioAssignmentService,
+      storageRepository,
+      notificationService,
+      taskStateService,
+      productionStageRepository
+    }
   }
 
   function makeSvc(d: ReturnType<typeof makeDeps>) {
@@ -296,7 +494,8 @@ describe('TaskAssignService.createGroup', () => {
       d.studioAssignmentService as never,
       d.storageRepository as never,
       d.taskStateService as never,
-      d.notificationService as never
+      d.notificationService as never,
+      d.productionStageRepository as never
     )
   }
 
@@ -316,6 +515,14 @@ describe('TaskAssignService.createGroup', () => {
     expect(created[0].groupTitle).toBe('Nền ch.5')
     expect(res.groupId).toBe(created[0].groupId)
     expect(res.items).toHaveLength(2)
+  })
+
+  it('copies the shared group description into every child task', async () => {
+    const d = makeDeps()
+    await makeSvc(d).createGroup('mangaka', { ...body, description: 'Keep backgrounds monochrome.' } as never)
+
+    const created = d.taskRepository.createTasksBatch.mock.calls[0][0] as Array<Record<string, unknown>>
+    expect(created.every((task) => task.description === 'Keep backgrounds monochrome.')).toBe(true)
   })
 
   it('validate TOÀN BỘ trang trước khi tạo (all-or-nothing)', async () => {

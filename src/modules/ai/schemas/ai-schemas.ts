@@ -12,11 +12,20 @@ export const ProposedRegionSchema = z.object({
   regionType: zEnum($Enums.RegionType, 'RegionType'),
   detectedSubtype: z.string().nullable(),
   coordinates: CoordinatesSchema,
-  confidenceScore: z.number().min(0).max(1)
+  confidenceScore: z.number().min(0).max(1),
+  suggestedForStage: z.boolean().describe('Whether this region type is suggested for the job source stage')
 })
 
 export const SegmentPageBodySchema = extendApi(
-  z.object({ mode: zEnum($Enums.AiSegmentMode, 'AiSegmentMode').default('MODEL') }).strict(),
+  z
+    .object({
+      mode: zEnum($Enums.AiSegmentMode, 'AiSegmentMode').default('MODEL'),
+      stageId: z
+        .string()
+        .regex(/^[0-9a-fA-F]{24}$/)
+        .optional()
+    })
+    .strict(),
   { title: 'SegmentPageBody', description: 'Run async AI segmentation on one page and return a job id' }
 )
 
@@ -26,6 +35,12 @@ export const AiJobResSchema = extendApi(
     type: zEnum($Enums.AiJobType, 'AiJobType'),
     mode: zEnum($Enums.AiSegmentMode, 'AiSegmentMode').nullable(),
     pageId: z.string(),
+    sourceType: zEnum($Enums.AiSegmentSource, 'AiSegmentSource'),
+    sourceFileKey: z.string().nullable(),
+    sourceRevision: z.number().int().nullable(),
+    sourceStageId: z.string().nullable(),
+    sourceWidth: z.number().int().positive().nullable(),
+    sourceHeight: z.number().int().positive().nullable(),
     status: zEnum($Enums.AiJobStatus, 'AiJobStatus'),
     error: z.string().nullable().describe('Error message when FAILED'),
     modelVersion: z.string().nullable(),

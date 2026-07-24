@@ -1,10 +1,12 @@
 import { AiSegmentResponseSchema, SegmentPageBodySchema } from './ai-schemas'
 
 describe('ai-schemas', () => {
-  it('SegmentPageBody defaults mode to MODEL and rejects unknown keys', () => {
+  it('SegmentPageBody defaults mode, accepts stageId, and rejects client-selected sources', () => {
     expect(SegmentPageBodySchema.parse({}).mode).toBe('MODEL')
+    expect(SegmentPageBodySchema.parse({ stageId: 'a'.repeat(24) }).stageId).toBe('a'.repeat(24))
     expect(() => SegmentPageBodySchema.parse({ mode: 'MAGIC' })).toThrow()
     expect(() => SegmentPageBodySchema.parse({ foo: 1 })).toThrow()
+    expect(() => SegmentPageBodySchema.parse({ sourceFileKey: 'uploads/latest.png' })).toThrow()
   })
 
   it('AiSegmentResponse validates contract and caps regions', () => {

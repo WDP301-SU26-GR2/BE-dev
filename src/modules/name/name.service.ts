@@ -183,7 +183,12 @@ export class NameService {
     const updated = await this.nameRepo.updateNameStatus(nameId, { status: NameStatus.APPROVED })
     // Cắt coupling Name → Series: emit SAU commit. Series listener advance READY_TO_PITCH nếu
     // kind=PROPOSAL; kind=CHAPTER → no-op (gate page đọc trực tiếp Name.status).
-    this.eventBus.emit(DomainEvent.NameApproved, { seriesId, nameId, kind: updated.kind })
+    this.eventBus.emit(DomainEvent.NameApproved, {
+      seriesId,
+      nameId,
+      kind: updated.kind,
+      ...(updated.kind === NameKind.CHAPTER && updated.chapterId ? { chapterId: updated.chapterId } : {})
+    })
     await this.notify(series.mangakaId, seriesId, 'NAME_APPROVED', N.nameApproved)
     return toNameRes(updated)
   }

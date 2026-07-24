@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-21T06:56:50.023Z — 264 routes.
+// Sinh lúc: 2026-07-24T11:02:32.891Z — 271 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -197,6 +197,23 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'POST', path: '/chapters/:id/resume', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'PUT', path: '/chapters/:id/schedule', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'PATCH', path: '/chapters/:id/schedule/extend', access: 'ROLES', allowed: [RoleCode.EDITOR] },
+  {
+    method: 'GET',
+    path: '/chapters/:id/stages',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
+  { method: 'POST', path: '/chapters/:id/stages', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'DELETE', path: '/chapters/:id/stages/:stageId', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'PATCH', path: '/chapters/:id/stages/:stageId', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'POST', path: '/chapters/:id/stages/:stageId/complete', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'PUT', path: '/chapters/:id/stages/:stageId/outputs', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  {
+    method: 'GET',
+    path: '/chapters/:id/stages/:stageId/pages',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR]
+  },
   { method: 'GET', path: '/collaboration-invites', access: 'ROLES', allowed: [RoleCode.MANGAKA, RoleCode.ASSISTANT] },
   { method: 'POST', path: '/collaboration-invites', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   {

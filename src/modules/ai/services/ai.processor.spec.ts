@@ -2,7 +2,14 @@ import { AiProcessor } from './ai.processor'
 
 const JID = 'a'.repeat(24)
 const PID = 'b'.repeat(24)
-const aiJob = { id: JID, pageId: PID, mode: 'MODEL', status: 'QUEUED', startedAt: null }
+const aiJob = {
+  id: JID,
+  pageId: PID,
+  mode: 'MODEL',
+  status: 'QUEUED',
+  startedAt: null,
+  sourceFileKey: 'uploads/snapshot.png'
+}
 const segmentResult = {
   modelVersion: 'm109@1',
   imageWidth: 100,
@@ -16,6 +23,10 @@ function makeProcessor(overrides: { repo?: object; client?: object } = {}) {
   const repo = {
     findJobById: jest.fn().mockResolvedValue(aiJob),
     findPageFile: jest.fn().mockResolvedValue({ id: PID, originalFile: 'uploads/x.png' }),
+    findPageCanvas: jest
+      .fn()
+      .mockResolvedValue({ id: PID, originalFile: 'uploads/x.png', canvasWidth: 100, canvasHeight: 200 }),
+    setCanvasIfUnset: jest.fn().mockResolvedValue(1),
     ...overrides.repo
   }
   const state = { transition: jest.fn().mockResolvedValue(true) }
@@ -34,7 +45,7 @@ describe('AiProcessor', () => {
   it('success transitions RUNNING to SUCCEEDED with mapped proposedRegions', async () => {
     const { processor, state, client, storage } = makeProcessor()
     await processor.process(makeJob())
-    expect(storage.createPresignedDownload).toHaveBeenCalledWith('uploads/x.png')
+    expect(storage.createPresignedDownload).toHaveBeenCalledWith('uploads/snapshot.png')
     expect(client.segment).toHaveBeenCalledWith({ imageUrl: 'https://r2/signed', mode: 'MODEL' })
     expect(state.transition).toHaveBeenCalledWith(JID, ['QUEUED', 'RUNNING'], 'RUNNING', expect.any(Object))
     expect(state.transition).toHaveBeenLastCalledWith(
@@ -44,6 +55,8 @@ describe('AiProcessor', () => {
       expect.objectContaining({
         modelVersion: 'm109@1',
         regionCount: 1,
+        sourceWidth: 100,
+        sourceHeight: 200,
         proposedRegions: [
           {
             regionType: 'PANEL',
@@ -56,9 +69,12 @@ describe('AiProcessor', () => {
     )
   })
 
-  it('page without originalFile fails without calling client', async () => {
+  it('legacy job without a source snapshot and no originalFile fails without calling client', async () => {
     const { processor, state, client } = makeProcessor({
-      repo: { findPageFile: jest.fn().mockResolvedValue({ id: PID, originalFile: null }) }
+      repo: {
+        findJobById: jest.fn().mockResolvedValue({ ...aiJob, sourceFileKey: null }),
+        findPageFile: jest.fn().mockResolvedValue({ id: PID, originalFile: null })
+      }
     })
     await processor.process(makeJob())
     expect(client.segment).not.toHaveBeenCalled()
@@ -67,6 +83,26 @@ describe('AiProcessor', () => {
       ['QUEUED', 'RUNNING'],
       'FAILED',
       expect.objectContaining({ error: expect.any(String) })
+    )
+  })
+
+  it('fails the job when AI dimensions do not match the existing page canvas', async () => {
+    const { processor, state } = makeProcessor({
+      repo: {
+        findPageCanvas: jest.fn().mockResolvedValue({
+          id: PID,
+          originalFile: 'uploads/x.png',
+          canvasWidth: 99,
+          canvasHeight: 200
+        })
+      }
+    })
+    await processor.process(makeJob())
+    expect(state.transition).toHaveBeenLastCalledWith(
+      JID,
+      ['RUNNING'],
+      'FAILED',
+      expect.objectContaining({ error: 'Error.AiSourceCanvasMismatch' })
     )
   })
 

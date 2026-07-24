@@ -40,6 +40,12 @@ describe('TaskMediaService.getDownloadUrl', () => {
     expect(storage.createPresignedDownload).toHaveBeenCalledWith('r2://page-original.png')
   })
 
+  it('lets the assignee Assistant download the immutable stage input snapshot', async () => {
+    const { svc, storage } = makeSvc({ ...makeCtx(), stageInputKey: 'r2://stage-input-v1.png' })
+    await svc.getDownloadUrl({ userId: 'assistant', roleName: 'ASSISTANT' }, TASK, 'r2://stage-input-v1.png')
+    expect(storage.createPresignedDownload).toHaveBeenCalledWith('r2://stage-input-v1.png')
+  })
+
   it('lets the assignee Assistant download a reference asset the Mangaka attached (assetIds)', async () => {
     const { svc, storage } = makeSvc(makeCtx())
     await svc.getDownloadUrl({ userId: 'assistant', roleName: 'ASSISTANT' }, TASK, 'r2://reference-a.png')

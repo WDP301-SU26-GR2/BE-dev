@@ -1,4 +1,4 @@
-import { AiJob } from '@prisma/client'
+import { AiJob, RegionType } from '@prisma/client'
 import { ProposedRegionType } from './schemas/ai-schemas'
 
 function base(job: AiJob) {
@@ -7,6 +7,12 @@ function base(job: AiJob) {
     type: job.type,
     mode: job.mode ?? null,
     pageId: job.pageId,
+    sourceType: job.sourceType,
+    sourceFileKey: job.sourceFileKey ?? null,
+    sourceRevision: job.sourceRevision ?? null,
+    sourceStageId: job.sourceStageId ?? null,
+    sourceWidth: job.sourceWidth ?? null,
+    sourceHeight: job.sourceHeight ?? null,
     status: job.status,
     error: job.error ?? null,
     modelVersion: job.modelVersion ?? null,
@@ -19,8 +25,14 @@ function base(job: AiJob) {
   }
 }
 
-export function toAiJobRes(job: AiJob) {
-  return { ...base(job), proposedRegions: (job.proposedRegions as unknown as ProposedRegionType[] | null) ?? null }
+export function toAiJobRes(job: AiJob, suggestedTypes?: readonly RegionType[]) {
+  const proposedRegions = (
+    job.proposedRegions as unknown as Omit<ProposedRegionType, 'suggestedForStage'>[] | null
+  )?.map((region) => ({
+    ...region,
+    suggestedForStage: suggestedTypes == null || suggestedTypes.includes(region.regionType)
+  }))
+  return { ...base(job), proposedRegions: proposedRegions ?? null }
 }
 
 export function toAiJobListItem(job: AiJob) {
