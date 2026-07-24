@@ -48,7 +48,8 @@ export class AdminUserQueryService {
       roleCode: query.roleCode,
       status: query.status,
       search: query.search,
-      includeDeleted: query.includeDeleted
+      includeDeleted: query.includeDeleted,
+      onlyDeleted: query.onlyDeleted
     }
     const [rows, total] = await Promise.all([
       this.usersRepository.findUsersForAdmin(filter, { limit: query.limit, offset: query.offset }),

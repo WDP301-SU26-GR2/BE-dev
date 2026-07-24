@@ -131,6 +131,9 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.UserNotFound': 'user does not exist',
   'Error.UserAlreadyDeleted': 'user has already been soft-deleted',
   'Error.UserNotDeleted': 'user is not soft-deleted',
+  'Error.UserHasActiveCommitments':
+    'delete/ban/block is blocked while the user has active series, executed contracts, open tasks, active assignments, or pending board decisions',
+  'Error.RosterSizeTooLarge': 'rosterSize phải ≤ min(boardTotalMembers, 9) và là số lẻ ≥ 3.',
   'Error.RegionNotFound': 'region not found or invalid id',
   'Error.RegionHasApprovedTasks': 'region has approved task(s); cannot delete',
   'Error.TaskNotFound': 'task not found or invalid id',

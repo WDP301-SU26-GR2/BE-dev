@@ -10,6 +10,7 @@ import { AdminModerationService } from './admin-moderation.service'
 function makeService() {
   const usersRepository = {
     findModerationTargetById: jest.fn(),
+    countActiveCommitments: jest.fn().mockResolvedValue({ total: 0 }),
     updateUserStatus: jest.fn(),
     softDeleteUser: jest.fn(),
     restoreUser: jest.fn(),
@@ -151,6 +152,27 @@ describe('AdminModerationService.updateStatus', () => {
     expect(usersRepository.revokeRefreshTokensByUserId).not.toHaveBeenCalled()
     expect(notificationService.notifySafe).not.toHaveBeenCalled()
   })
+
+  it('blocks banning a user with active commitments before all side effects', async () => {
+    const { service, usersRepository } = makeService()
+    usersRepository.findModerationTargetById.mockResolvedValue(activeTarget)
+    usersRepository.countActiveCommitments.mockResolvedValue({ total: 1 })
+
+    await expect(service.updateStatus(UID, { status: $Enums.UserStatus.BANNED }, ADMIN_ID)).rejects.toThrow()
+
+    expect(usersRepository.updateUserStatus).not.toHaveBeenCalled()
+    expect(usersRepository.revokeRefreshTokensByUserId).not.toHaveBeenCalled()
+  })
+
+  it('does not check commitments when reactivating a user', async () => {
+    const { service, usersRepository } = makeService()
+    usersRepository.findModerationTargetById.mockResolvedValue({ ...activeTarget, status: $Enums.UserStatus.BANNED })
+    usersRepository.updateUserStatus.mockResolvedValue(adminUserRow($Enums.UserStatus.ACTIVE))
+
+    await service.updateStatus(UID, { status: $Enums.UserStatus.ACTIVE }, ADMIN_ID)
+
+    expect(usersRepository.countActiveCommitments).not.toHaveBeenCalled()
+  })
 })
 
 describe('AdminModerationService.deleteUser', () => {
@@ -177,6 +199,17 @@ describe('AdminModerationService.deleteUser', () => {
       entityId: UID,
       action: 'SOFT_DELETE'
     })
+  })
+
+  it('does not soft-delete a user with active commitments', async () => {
+    const { service, usersRepository } = makeService()
+    usersRepository.findModerationTargetById.mockResolvedValue(activeTarget)
+    usersRepository.countActiveCommitments.mockResolvedValue({ total: 2 })
+
+    await expect(service.deleteUser(UID, ADMIN_ID)).rejects.toThrow()
+
+    expect(usersRepository.softDeleteUser).not.toHaveBeenCalled()
+    expect(usersRepository.revokeRefreshTokensByUserId).not.toHaveBeenCalled()
   })
 })
 
