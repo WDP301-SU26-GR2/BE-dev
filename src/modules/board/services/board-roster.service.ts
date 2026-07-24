@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common'
 import { Genre } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
+import { BOARD_ROSTER_HARD_MAX } from '../board.constant'
 import { BoardRepository } from '../board.repo'
-import { NotEnoughBoardMembersException, SeriesNotFoundException } from '../errors/board.errors'
+import {
+  NotEnoughBoardMembersException,
+  RosterSizeTooLargeException,
+  SeriesNotFoundException
+} from '../errors/board.errors'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -33,6 +38,12 @@ export class BoardRosterService {
     if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
     const series = await this.boardRepo.findSeriesGenres(seriesId)
     if (!series) throw SeriesNotFoundException
+
+    const config = await this.boardRepo.getActiveConfig()
+    const requested = size ?? config.quorumMin
+    const configuredCap = Math.min(config.boardTotalMembers, BOARD_ROSTER_HARD_MAX)
+    const cap = configuredCap % 2 === 0 ? configuredCap - 1 : configuredCap
+    if (requested > cap) throw RosterSizeTooLargeException
 
     const roleId = await this.boardRepo.findRoleIdByCode(RoleName.BOARD_MEMBER)
     if (!roleId) throw NotEnoughBoardMembersException
@@ -67,8 +78,6 @@ export class BoardRosterService {
     if (available < MIN_ROSTER) throw NotEnoughBoardMembersException
 
     // `getActiveConfig()` = method CÓ SẴN trong board.repo (boardConfig.findFirst). KHÔNG đổi tên.
-    const config = await this.boardRepo.getActiveConfig()
-    const requested = size ?? config?.quorumMin ?? 0
     let target = Math.max(MIN_ROSTER, requested)
     if (target % 2 === 0) target += 1
     if (target > available) target = available % 2 === 1 ? available : available - 1

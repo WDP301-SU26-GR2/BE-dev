@@ -220,7 +220,12 @@ export const ListUsersQuerySchema = extendApi(
       includeDeleted: z
         .enum(['true', 'false'])
         .optional()
+        .transform((v) => v === 'true'),
+      onlyDeleted: z
+        .enum(['true', 'false'])
+        .optional()
         .transform((v) => v === 'true')
+        .describe('Chỉ hiển thị user đã xoá mềm (thùng rác). Thắng includeDeleted nếu gửi cả hai.')
     })
     .strict(),
   { title: 'ListUsersQuery', description: 'Admin filter danh sách user' }

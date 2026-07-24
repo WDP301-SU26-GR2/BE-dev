@@ -32,6 +32,7 @@ import {
   CannotModifyAdminUserException,
   ProfileNotFoundException,
   UserAlreadyDeletedException,
+  UserHasActiveCommitmentsException,
   UserEmailExistsException,
   UserNotDeletedException,
   UserNotFoundException
@@ -80,7 +81,18 @@ export class UsersController {
     summary: 'Super Admin ban/block/unban user (ACTIVE/BANNED/BLOCKED) — phạt thì revoke refresh + notify'
   })
   @ApiResponse({ status: 422, description: 'Validation fail (status không nhận INACTIVE)' })
-  @ApiErrors(UserNotFoundException, CannotModifyAdminUserException)
+  @ApiErrors(
+    UserNotFoundException,
+    CannotModifyAdminUserException,
+    UserHasActiveCommitmentsException({
+      total: 0,
+      activeSeries: 0,
+      executedContracts: 0,
+      openTasks: 0,
+      activeAssignments: 0,
+      pendingBoardDecisions: 0
+    })
+  )
   @Roles(RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: AdminUserResDto })
   updateUserStatus(
@@ -93,7 +105,19 @@ export class UsersController {
 
   @Delete('admin/users/:id')
   @ApiOperation({ summary: 'Super Admin xóa mềm user (set deletedAt) + thu hồi toàn bộ refresh token' })
-  @ApiErrors(UserNotFoundException, CannotModifyAdminUserException, UserAlreadyDeletedException)
+  @ApiErrors(
+    UserNotFoundException,
+    CannotModifyAdminUserException,
+    UserAlreadyDeletedException,
+    UserHasActiveCommitmentsException({
+      total: 0,
+      activeSeries: 0,
+      executedContracts: 0,
+      openTasks: 0,
+      activeAssignments: 0,
+      pendingBoardDecisions: 0
+    })
+  )
   @Roles(RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: MessageResDto })
   deleteUser(@Param('id') id: string, @ActiveUser('userId') adminId: string) {

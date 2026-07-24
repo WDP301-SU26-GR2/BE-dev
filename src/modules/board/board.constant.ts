@@ -8,6 +8,8 @@ export const BOARD_DEFAULT_CONFIG = {
   APPROVE_MAJORITY_RATIO: 0.51 // Tỷ lệ đồng thuận đạt trên 51%
 }
 
+export const BOARD_ROSTER_HARD_MAX = 9
+
 /**
  * Tên các sự kiện (Event Bus) được phát ra toàn hệ thống
  * khi trạng thái cuộc họp hoặc quyết định thay đổi.

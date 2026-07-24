@@ -35,6 +35,9 @@ export const NotSessionCreatorException = new ForbiddenException([{ message: E.n
 export const NotEnoughBoardMembersException = new UnprocessableEntityException([
   { message: E.notEnoughBoardMembers, path: 'allowedEditorIds' }
 ])
+export const RosterSizeTooLargeException = new UnprocessableEntityException([
+  { message: E.rosterSizeTooLarge, path: 'rosterSize' }
+])
 export const RosterSourceRequiredException = new UnprocessableEntityException([
   { message: E.rosterSourceRequired, path: 'seriesId' }
 ])

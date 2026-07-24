@@ -1,5 +1,9 @@
 import { BoardRosterService } from './board-roster.service'
-import { NotEnoughBoardMembersException, SeriesNotFoundException } from '../errors/board.errors'
+import {
+  NotEnoughBoardMembersException,
+  RosterSizeTooLargeException,
+  SeriesNotFoundException
+} from '../errors/board.errors'
 
 const SERIES_ID = '012345678901234567890123'
 
@@ -17,7 +21,7 @@ function makeDeps() {
       findSeriesGenres: jest.fn().mockResolvedValue({ id: SERIES_ID, genres: ['ACTION', 'FANTASY'] }),
       findRoleIdByCode: jest.fn().mockResolvedValue('roleid'),
       findActiveBoardMembers: jest.fn().mockResolvedValue([]),
-      getActiveConfig: jest.fn().mockResolvedValue({ quorumMin: 0 })
+      getActiveConfig: jest.fn().mockResolvedValue({ boardTotalMembers: 5, quorumMin: 0 })
     }
   }
 }
@@ -67,8 +71,40 @@ describe('BoardRosterService.suggest', () => {
     expect(out.size).toBe(5)
   })
 
+  it('rejects a requested roster above min(boardTotalMembers, 9) before clamping available members', async () => {
+    const d = makeDeps()
+    d.repo.getActiveConfig.mockResolvedValue({ boardTotalMembers: 5, quorumMin: 3 })
+    d.repo.findActiveBoardMembers.mockResolvedValue(
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => member(id, ['ACTION'], '2020-01-01'))
+    )
+
+    await expect(make(d).suggest(SERIES_ID, 7)).rejects.toBe(RosterSizeTooLargeException)
+  })
+
+  it('allows a request within the cap and still rounds it up to an odd roster', async () => {
+    const d = makeDeps()
+    d.repo.getActiveConfig.mockResolvedValue({ boardTotalMembers: 9, quorumMin: 3 })
+    d.repo.findActiveBoardMembers.mockResolvedValue(
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((id) => member(id, ['ACTION'], '2020-01-01'))
+    )
+
+    const out = await make(d).suggest(SERIES_ID, 4)
+    expect(out.size).toBe(5)
+  })
+
+  it('uses the largest odd cap if legacy config contains an even board total', async () => {
+    const d = makeDeps()
+    d.repo.getActiveConfig.mockResolvedValue({ boardTotalMembers: 4, quorumMin: 3 })
+    d.repo.findActiveBoardMembers.mockResolvedValue(
+      ['a', 'b', 'c', 'd', 'e'].map((id) => member(id, ['ACTION'], '2020-01-01'))
+    )
+
+    await expect(make(d).suggest(SERIES_ID, 4)).rejects.toBe(RosterSizeTooLargeException)
+  })
+
   it('caps the roster at the largest odd number <= available', async () => {
     const d = makeDeps()
+    d.repo.getActiveConfig.mockResolvedValue({ boardTotalMembers: 9, quorumMin: 3 })
     d.repo.findActiveBoardMembers.mockResolvedValue(
       ['a', 'b', 'c', 'd'].map((id) => member(id, ['ACTION'], '2020-01-01'))
     )
