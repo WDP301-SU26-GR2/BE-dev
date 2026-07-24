@@ -1,8 +1,16 @@
+x-default-logging: &default-logging
+  # Bound container logs so a noisy service cannot exhaust the VPS disk.
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   redis:
     image: redis:7-alpine
     container_name: mangaka-redis
     restart: unless-stopped
+    logging: *default-logging
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis-data:/data
@@ -16,6 +24,7 @@ services:
     image: ghcr.io/wdp301-su26-gr2/mangaka-api:latest
     container_name: mangaka-api
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       redis:
         condition: service_healthy
@@ -40,6 +49,7 @@ services:
     image: ghcr.io/wdp301-su26-gr2/mangaka-ai:latest
     container_name: mangaka-ai
     restart: unless-stopped
+    logging: *default-logging
     # RAM cap: cách ly AI khỏi api/redis trên VPS 2GB — vượt 1.2GB RAM thì tràn swap,
     # vượt 2.5GB (RAM+swap) thì kernel giết ĐÚNG container này (job FAILED sạch, BE không sao — AC3).
     mem_limit: 1200m
@@ -61,6 +71,7 @@ services:
     image: caddy:2-alpine
     container_name: mangaka-caddy
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "80:80"
       - "443:443"
