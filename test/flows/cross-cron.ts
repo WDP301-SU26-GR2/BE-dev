@@ -126,10 +126,29 @@ const main = async () => {
     })
     await clearCronLocks()
     await ctx.getByName('OrphanAssetCron').run()
-    ok(
-      'C-03 asset stale + object không tồn tại trên R2 → bị xoá',
-      (await prisma.asset.count({ where: { id: staleAsset.id } })) === 0
-    )
+    const staleGone = (await prisma.asset.count({ where: { id: staleAsset.id } })) === 0
+    if (staleGone) {
+      ok('C-03 asset stale + object không tồn tại trên R2 → bị xoá', true)
+    } else {
+      // OrphanAssetCron GIỮ asset khi `headObjectExists` NÉM lỗi (an toàn — không xoá nhầm asset thật
+      // lúc R2 blip; xem orphan-asset.cron.spec.ts:39). Phân biệt cho hết flake env (§74.8):
+      //   • R2 unreachable  → precondition không thoả → SKIP (không phải bug).
+      //   • R2 reachable (headObject trả về được) mà asset vẫn còn → cron KHÔNG xoá orphan thật = BUG → FAIL.
+      const storage = ctx.getByName<{ headObjectExists: (k: string) => Promise<boolean> }>('StorageService')
+      let r2Reachable = true
+      try {
+        await storage.headObjectExists(staleAsset.filePath)
+      } catch {
+        r2Reachable = false
+      }
+      ok(
+        r2Reachable
+          ? 'C-03 asset stale + object không tồn tại trên R2 → bị xoá'
+          : 'C-03 SKIP — R2 không reachable ở env này (cron giữ asset an toàn, không phải bug)',
+        !r2Reachable,
+        r2Reachable ? 'R2 reachable nhưng asset KHÔNG bị xoá — BUG cron OrphanAsset' : 'SKIP'
+      )
+    }
     ok(
       'C-04 asset chưa stale (trong TTL) → giữ nguyên',
       (await prisma.asset.count({ where: { id: freshAsset.id } })) === 1
@@ -342,8 +361,19 @@ const main = async () => {
     5_000
   )
   ok('C-18 session ACTIVE quá endTime → auto CONCLUDED (≤120s)', sessBConcluded)
+  // Session→CONCLUDED và decision→EXPIRED có thể lệch vài chục ms (2 write trong cùng tick, hoặc
+  // decision expiry ở bước sau). Poll thay vì đọc ngay sau C-18 (chống flake §74.8). Assertion GIỮ NGUYÊN.
+  const decExpired = await waitUntil(
+    async () =>
+      (await prisma.boardDecision.findUnique({ where: { id: decB.id } }))?.result === BoardDecisionResult.EXPIRED,
+    120_000,
+    5_000
+  )
   const decAfter = await prisma.boardDecision.findUnique({ where: { id: decB.id } })
-  ok('C-19 decision treo PENDING trong session concluded → EXPIRED', decAfter?.result === BoardDecisionResult.EXPIRED)
+  ok(
+    'C-19 decision treo PENDING trong session concluded → EXPIRED',
+    decExpired && decAfter?.result === BoardDecisionResult.EXPIRED
+  )
   ok(
     'C-20 decision EXPIRED KHÔNG emit finalize → series giữ PITCHED',
     (await prisma.series.findUnique({ where: { id: seriesPitched.id } }))?.status === SeriesStatus.PITCHED

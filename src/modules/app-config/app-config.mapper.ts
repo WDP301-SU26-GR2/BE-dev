@@ -10,6 +10,7 @@ export function toAppConfigRes(row: AppConfig): AppConfigResType {
     reputationRecommendThreshold: row.reputationRecommendThreshold,
     hiatusTooLongDays: row.hiatusTooLongDays,
     lowVoteReliabilityThreshold: row.lowVoteReliabilityThreshold,
+    rankingAggregateMinCoverageRatio: row.rankingAggregateMinCoverageRatio,
     maxUploadBytes: row.maxUploadBytes,
     assignmentGraceDays: row.assignmentGraceDays,
     updatedAt: row.updatedAt.toISOString()

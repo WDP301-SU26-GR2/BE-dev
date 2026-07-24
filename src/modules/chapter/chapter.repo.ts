@@ -398,6 +398,8 @@ export class ChapterRepository {
   // lộ khoảng trống số). Interactive transaction vì cần read-modify-write (đọc remaining rồi update).
   async deletePagesCascade(chapterId: string, pageIds: string[]) {
     return this.prismaService.$transaction(async (tx) => {
+      await tx.productionStagePage.deleteMany({ where: { pageId: { in: pageIds } } })
+      await tx.aiJob.deleteMany({ where: { pageId: { in: pageIds } } })
       const tasks = await tx.task.deleteMany({ where: { pageId: { in: pageIds } } })
       const regions = await tx.region.deleteMany({ where: { pageId: { in: pageIds } } })
       await tx.page.deleteMany({ where: { id: { in: pageIds } } })

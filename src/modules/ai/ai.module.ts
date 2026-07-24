@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { BullModule } from '@nestjs/bullmq'
 import { QUEUE } from 'src/infrastructure/queue/queue.constant'
 import { TaskModule } from 'src/modules/task/task.module'
+import { ChapterModule } from 'src/modules/chapter/chapter.module'
 import { AiController } from './ai.controller'
 import { AiRepository } from './ai.repo'
 import { AiService } from './ai.service'
@@ -12,7 +13,7 @@ import { AiProcessor } from './services/ai.processor'
 import { AiSegmentService } from './services/ai-segment.service'
 
 @Module({
-  imports: [BullModule.registerQueue({ name: QUEUE.AI }), TaskModule],
+  imports: [BullModule.registerQueue({ name: QUEUE.AI }), TaskModule, ChapterModule],
   controllers: [AiController],
   providers: [
     AiService,

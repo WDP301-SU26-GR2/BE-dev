@@ -78,6 +78,7 @@ describe('task-schemas', () => {
       taskType: 'BACKGROUND',
       status: 'ASSIGNED',
       statusReason: null,
+      description: null,
       priority: 0,
       deadline: null,
       assetIds: ['k1'],
@@ -85,5 +86,16 @@ describe('task-schemas', () => {
       createdAt: '2026-06-29T00:00:00.000Z'
     })
     expect(r.assetIds).toEqual(['k1'])
+  })
+
+  it('trims a task description and preserves nullish PATCH semantics', () => {
+    const create = CreateTaskBodySchema.parse({
+      pageId: 'p',
+      assistantId: 'a',
+      taskType: 'BACKGROUND',
+      description: '  Keep dialogue bubbles intact.  '
+    })
+    expect(create.description).toBe('Keep dialogue bubbles intact.')
+    expect(UpdateTaskBodySchema.parse({ description: null })).toEqual({ description: null })
   })
 })

@@ -52,7 +52,21 @@ export const ChapterMessages = {
     chapterNotEditable: 'Error.ChapterNotEditable',
     chapterNumberLocked: 'Error.ChapterNumberLocked',
     chapterNotDeletable: 'Error.ChapterNotDeletable',
-    endingAllowanceExceeded: 'Error.EndingAllowanceExceeded'
+    endingAllowanceExceeded: 'Error.EndingAllowanceExceeded',
+    stageNotFound: 'Error.StageNotFound',
+    stageAccessDenied: 'Error.StageAccessDenied',
+    stageRequired: 'Error.StageRequired',
+    stageLocked: 'Error.StageLocked',
+    stageNotActive: 'Error.StageNotActive',
+    stageHasOpenTasks: 'Error.StageHasOpenTasks',
+    stageOutputNotReady: 'Error.StageOutputNotReady',
+    stagePageNotFound: 'Error.StagePageNotFound',
+    stageOutputInvalid: 'Error.StageOutputInvalid',
+    productionPageSetLocked: 'Error.ProductionPageSetLocked',
+    taskTypeNotInStage: 'Error.TaskTypeNotInStage',
+    stageNotEditable: 'Error.StageNotEditable',
+    stageNotDeletable: 'Error.StageNotDeletable',
+    productionNotFinalized: 'Error.ProductionNotFinalized'
   },
   response: {
     chapterDeleted: 'Đã xoá chương'
@@ -89,6 +103,20 @@ export const ChapterMessages = {
     'Error.ChapterNotEditable': 'Chương hiện không thể chỉnh sửa',
     'Error.ChapterNumberLocked': 'Số chương đã bị khoá và không thể thay đổi',
     'Error.ChapterNotDeletable': 'Chương hiện không thể xoá',
-    'Error.EndingAllowanceExceeded': 'Số chương kết thúc đã vượt quá giới hạn được duyệt'
+    'Error.EndingAllowanceExceeded': 'Số chương kết thúc đã vượt quá giới hạn được duyệt',
+    'Error.StageNotFound': 'Không tìm thấy giai đoạn sản xuất',
+    'Error.StageAccessDenied': 'Bạn không có quyền với giai đoạn này',
+    'Error.StageRequired': 'Phải chọn giai đoạn sản xuất khi giao việc',
+    'Error.StageLocked': 'Giai đoạn này chưa mở — hoàn thành giai đoạn trước đã',
+    'Error.StageNotActive': 'Giai đoạn không ở trạng thái đang làm',
+    'Error.StageHasOpenTasks': 'Còn công việc chưa duyệt trong giai đoạn',
+    'Error.StageOutputNotReady': 'Còn trang chưa xác nhận đầu ra của giai đoạn',
+    'Error.StagePageNotFound': 'Không tìm thấy dữ liệu đầu vào của trang trong giai đoạn',
+    'Error.StageOutputInvalid': 'Dữ liệu xác nhận đầu ra của giai đoạn không hợp lệ',
+    'Error.ProductionPageSetLocked': 'Không thể thêm trang sau khi giai đoạn đầu đã hoàn thành',
+    'Error.TaskTypeNotInStage': 'Loại công việc không thuộc giai đoạn này',
+    'Error.StageNotEditable': 'Giai đoạn đã hoàn thành, không sửa được',
+    'Error.StageNotDeletable': 'Chỉ xoá được giai đoạn chưa mở, chưa có task và không phải bước chốt',
+    'Error.ProductionNotFinalized': 'Chưa tới bước tổng hợp cuối — hoàn thành các giai đoạn trước khi nộp'
   }
 } as const

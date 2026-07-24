@@ -23,6 +23,8 @@ export const SurveyMessages = {
     surveyPeriodNotOpen: 'Error.SurveyPeriodNotOpen',
     surveyPeriodAlreadyFinalized: 'Error.SurveyPeriodAlreadyFinalized',
     surveyPeriodNotFinalized: 'Error.SurveyPeriodNotFinalized',
+    surveyPeriodInvalidTransition: 'Error.SurveyPeriodInvalidTransition',
+    duplicateSurveyPeriodScope: 'Error.DuplicateSurveyPeriodScope',
     readerAlreadyVoted: 'Error.ReaderAlreadyVoted',
     voteOtpNotFound: 'Error.VoteOtpNotFound',
     voteOtpRateLimit: 'Error.VoteOtpRateLimit',
@@ -38,6 +40,8 @@ export const SurveyMessages = {
     seriesNotFoundForRanking: 'Error.SeriesNotFound'
   },
   errorText: {
+    'Error.SurveyPeriodInvalidTransition': 'Invalid survey period state transition',
+    'Error.DuplicateSurveyPeriodScope': 'A survey period already exists for this magazine, publication type, and issue',
     'Error.SurveyPeriodNotFound': 'Không tìm thấy kỳ bình chọn',
     'Error.SurveyPeriodNotOpen': 'Kỳ bình chọn hiện chưa mở',
     'Error.SurveyPeriodAlreadyFinalized': 'Kỳ bình chọn đã được chốt',

@@ -16,3 +16,7 @@ export const SegmentJobAlreadyRunningException = new ConflictException([
 ])
 export const AiJobNotFoundException = new NotFoundException([{ message: E.aiJobNotFound, path: 'id' }])
 export const AiJobNotApplicableException = new ConflictException([{ message: E.aiJobNotApplicable, path: 'id' }])
+export const AiJobSourceStaleException = new ConflictException([{ message: E.aiJobSourceStale, path: 'id' }])
+export const AiSourceCanvasMismatchException = new UnprocessableEntityException([
+  { message: E.aiSourceCanvasMismatch, path: 'pageId' }
+])

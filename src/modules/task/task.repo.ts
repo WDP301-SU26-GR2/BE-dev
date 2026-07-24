@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { Asset, Prisma, Region, Specialization, Task, TaskStatus } from '@prisma/client'
+import { AiSegmentSource, Asset, Prisma, Region, Specialization, Task, TaskStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { fetchUserMiniMap } from 'src/core/models/user-mini.model'
 
@@ -45,20 +45,48 @@ export class TaskRepository {
     )
   }
 
-  private async attachEmbeds<T extends Pick<Task, 'assistantId' | 'regionIds' | 'versions' | 'pageId' | 'assetIds'>>(
-    rows: T[]
-  ) {
-    const [users, regions, pageFiles, assets] = await Promise.all([
+  // A task in a staged chapter must render/download the immutable StagePage input,
+  // not the mutable Page.compositeFile shortcut. Resolve all pairs in one query.
+  private async fetchStageInputMap(rows: Array<Pick<Task, 'stageId' | 'pageId'>>) {
+    const pairs = [
+      ...new Map(rows.filter((row) => row.stageId).map((row) => [`${row.stageId}:${row.pageId}`, row])).values()
+    ]
+    if (pairs.length === 0)
+      return new Map<string, { inputFileKey: string; inputSourceType: AiSegmentSource; inputRevision: number }>()
+    const stagePages = await this.prismaService.productionStagePage.findMany({
+      where: {
+        OR: pairs.map((pair) => ({ stageId: pair.stageId as string, pageId: pair.pageId }))
+      },
+      select: { stageId: true, pageId: true, inputFileKey: true, inputSourceType: true, inputRevision: true }
+    })
+    return new Map(
+      stagePages.map((stagePage) => [
+        `${stagePage.stageId}:${stagePage.pageId}`,
+        {
+          inputFileKey: stagePage.inputFileKey,
+          inputSourceType: stagePage.inputSourceType,
+          inputRevision: stagePage.inputRevision
+        }
+      ])
+    )
+  }
+
+  private async attachEmbeds<
+    T extends Pick<Task, 'assistantId' | 'regionIds' | 'versions' | 'pageId' | 'assetIds' | 'stageId'>
+  >(rows: T[]) {
+    const [users, regions, pageFiles, assets, stageInputs] = await Promise.all([
       fetchUserMiniMap(
         this.prismaService,
         rows.flatMap((row) => [row.assistantId, ...row.versions.map((version) => version.submittedBy)])
       ),
       this.fetchRegionMap(rows.flatMap((row) => row.regionIds)),
       this.fetchPageFileMap(rows.map((row) => row.pageId)),
-      this.fetchAssetMap(rows.flatMap((row) => row.assetIds))
+      this.fetchAssetMap(rows.flatMap((row) => row.assetIds)),
+      this.fetchStageInputMap(rows)
     ])
     return rows.map((row) => {
       const page = pageFiles.get(row.pageId)
+      const stageInput = row.stageId ? stageInputs.get(`${row.stageId}:${row.pageId}`) : undefined
       return {
         ...row,
         assistant: row.assistantId ? (users.get(row.assistantId) ?? null) : null,
@@ -69,6 +97,9 @@ export class TaskRepository {
         pageOriginalFile: page?.originalFile ?? null,
         // displayFile = composite ?? original (cùng công thức PageRes.displayFile) — ảnh nên hiển thị.
         pageDisplayFile: page ? (page.compositeFile ?? page.originalFile) : null,
+        stageInputFile: stageInput?.inputFileKey ?? null,
+        stageInputSourceType: stageInput?.inputSourceType ?? null,
+        stageInputRevision: stageInput?.inputRevision ?? null,
         versions: row.versions.map((version) => ({
           ...version,
           submitter: version.submittedBy ? (users.get(version.submittedBy) ?? null) : null
@@ -82,10 +113,10 @@ export class TaskRepository {
   async findTaskDownloadContext(taskId: string) {
     const task = await this.prismaService.task.findUnique({
       where: { id: taskId },
-      select: { id: true, pageId: true, assistantId: true, assetIds: true, versions: true }
+      select: { id: true, pageId: true, stageId: true, assistantId: true, assetIds: true, versions: true }
     })
     if (!task) return null
-    const [page, assets] = await Promise.all([
+    const [page, assets, stagePage] = await Promise.all([
       this.prismaService.page.findUnique({
         where: { id: task.pageId },
         select: {
@@ -96,10 +127,16 @@ export class TaskRepository {
       }),
       task.assetIds.length > 0
         ? this.prismaService.asset.findMany({ where: { id: { in: task.assetIds } }, select: { filePath: true } })
-        : Promise.resolve([] as { filePath: string }[])
+        : Promise.resolve([] as { filePath: string }[]),
+      task.stageId
+        ? this.prismaService.productionStagePage.findUnique({
+            where: { stageId_pageId: { stageId: task.stageId, pageId: task.pageId } },
+            select: { inputFileKey: true }
+          })
+        : Promise.resolve(null)
     ])
     // assetKeys = object key của ảnh reference Mangaka đính lúc giao task (A-TSK-09) → Assistant tải được.
-    return { task, page, assetKeys: assets.map((a) => a.filePath) }
+    return { task, page, assetKeys: assets.map((a) => a.filePath), stageInputKey: stagePage?.inputFileKey ?? null }
   }
 
   // ---- Read-only precondition (KHÔNG ghi status A3) ----
@@ -264,11 +301,14 @@ export class TaskRepository {
     regionIds: string[]
     assistantId: string
     taskType: Specialization
+    stageId?: string
+    description?: string
     deadline: Date | null
     priority: number
     assetIds: string[]
   }): Promise<Task> {
-    return await this.prismaService.task.create({ data: { ...data, status: 'ASSIGNED' } })
+    const row = await this.prismaService.task.create({ data: { ...data, status: 'ASSIGNED' } })
+    return (await this.attachEmbeds([row]))[0]
   }
 
   async createTasksBatch(
@@ -277,6 +317,8 @@ export class TaskRepository {
       regionIds: string[]
       assistantId: string
       taskType: Specialization
+      stageId?: string
+      description?: string
       deadline: Date | null
       priority: number
       assetIds: string[]
@@ -284,9 +326,10 @@ export class TaskRepository {
       groupTitle?: string | null
     }>
   ): Promise<Task[]> {
-    return await this.prismaService.$transaction(
+    const rows = await this.prismaService.$transaction(
       items.map((d) => this.prismaService.task.create({ data: { ...d, status: 'ASSIGNED' } }))
     )
+    return this.attachEmbeds(rows)
   }
 
   async findTasksByGroup(groupId: string) {
@@ -313,9 +356,22 @@ export class TaskRepository {
   // partial-update fields (assetIds/deadline/priority); chỉ ghi khi != undefined
   async updateTaskFields(
     id: string,
-    data: { assetIds?: string[]; deadline?: Date | null; priority?: number }
+    data: { assetIds?: string[]; description?: string; deadline?: Date | null; priority?: number }
   ): Promise<Task> {
     return await this.prismaService.task.update({ where: { id }, data })
+  }
+
+  // Store the first transition into IN_PROGRESS only. Mongo optional scalars are absent,
+  // not null, so `isSet: false` is required for the one-time write guard.
+  async setStartedAtIfUnset(taskId: string, at: Date) {
+    return await this.prismaService.task.updateMany({
+      where: { id: taskId, startedAt: { isSet: false } },
+      data: { startedAt: at }
+    })
+  }
+
+  async setCompletedAt(taskId: string, at: Date): Promise<Task> {
+    return await this.prismaService.task.update({ where: { id: taskId }, data: { completedAt: at } })
   }
 
   async setAssistant(id: string, assistantId: string): Promise<Task> {

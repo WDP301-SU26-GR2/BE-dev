@@ -21,3 +21,6 @@ export const InvalidTaskTransitionException = new ConflictException([
   { message: E.invalidTaskTransition, path: 'status' }
 ])
 export const TaskFileForbiddenException = new ForbiddenException([{ message: E.taskFileForbidden, path: 'key' }])
+export const TaskDescriptionLockedException = new ConflictException([
+  { message: E.taskDescriptionLocked, path: 'description' }
+])

@@ -15,6 +15,11 @@ export const AppConfigResSchema = extendApi(
     reputationRecommendThreshold: z.number().min(1).max(5).describe('Minimum reputation score for recommendations'),
     hiatusTooLongDays: z.number().int().positive().describe('Days before a hiatus is considered too long'),
     lowVoteReliabilityThreshold: z.number().int().nonnegative().describe('Vote count below which reliability is low'),
+    rankingAggregateMinCoverageRatio: z
+      .number()
+      .gt(0)
+      .max(1)
+      .describe('Minimum reflected-issue participation coverage required for a non-provisional aggregate rank'),
     maxUploadBytes: z.number().int().positive().max(MAX_UPLOAD_BYTES_CAP).describe('Maximum upload size in bytes'),
     assignmentGraceDays: z.number().int().nonnegative().describe('Grace days around assignment lifecycle checks'),
     updatedAt: z.string()
@@ -36,6 +41,13 @@ export const PatchAppConfigBodySchema = extendApi(
         .optional(),
       hiatusTooLongDays: intPositive('Days before a hiatus is considered too long').nullable().optional(),
       lowVoteReliabilityThreshold: intNonnegative('Vote count below which reliability is low').nullable().optional(),
+      rankingAggregateMinCoverageRatio: z
+        .number()
+        .gt(0)
+        .max(1)
+        .describe('Minimum reflected-issue participation coverage required for a non-provisional aggregate rank')
+        .nullable()
+        .optional(),
       maxUploadBytes: z
         .number()
         .int()

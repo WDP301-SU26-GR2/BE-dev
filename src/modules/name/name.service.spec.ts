@@ -160,7 +160,8 @@ describe('NameService — lifecycle (MOVE từ series)', () => {
     expect(eventBus.emit).toHaveBeenCalledWith(DomainEvent.NameApproved, {
       seriesId: SERIES_ID,
       nameId: NAME_ID,
-      kind: NameKind.CHAPTER
+      kind: NameKind.CHAPTER,
+      chapterId: CHAPTER_ID
     })
   })
 

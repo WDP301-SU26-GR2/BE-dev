@@ -22,6 +22,8 @@ type Mocks = {
   auditService: any
   recaptchaService: any
   redisService: any
+  voteTallyService: any
+  voteGateway: any
 }
 
 function makeMocks(): Mocks {
@@ -77,7 +79,9 @@ function makeMocks(): Mocks {
     redisService: {
       incrWithTtl: jest.fn().mockResolvedValue(1),
       decrSafe: jest.fn().mockResolvedValue(undefined)
-    }
+    },
+    voteTallyService: { getLiveTally: jest.fn() },
+    voteGateway: { broadcastTally: jest.fn().mockResolvedValue(undefined) }
   }
 }
 
@@ -94,11 +98,84 @@ function makeService(m: Mocks) {
     m.auditService as never,
     m.recaptchaService as never,
     m.redisService as never,
-    asCacheService(makeCacheServiceMock())
+    asCacheService(makeCacheServiceMock()),
+    m.voteTallyService as never,
+    m.voteGateway as never
   )
 }
 
 describe('SurveyService.finalizeRanking — RankingFinalized event payload (B-VOT-07/§4.2)', () => {
+  describe('SurveyService realtime tally handoff', () => {
+    it('broadcasts only after the ReaderVote write succeeds', async () => {
+      const m = makeMocks()
+      const periodId = '507f1f77bcf86cd799439011'
+      const seriesId = '507f1f77bcf86cd799439021'
+      m.surveyRepository.findSurveyPeriodById.mockResolvedValue({
+        id: periodId,
+        status: 'OPEN',
+        magazine: 'Weekly Jump',
+        publicationType: 'WEEKLY',
+        issueNumber: 35,
+        eligibleSeriesIds: [seriesId]
+      })
+      m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue([
+        { id: seriesId, status: 'SERIALIZED', publicationType: 'WEEKLY' }
+      ])
+      m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue(null)
+
+      await makeService(m).submitVote(
+        {
+          surveyPeriodId: periodId,
+          identity: 'reader@example.com',
+          otpCode: '123456',
+          seriesIds: [seriesId],
+          captchaToken: 'token'
+        },
+        '127.0.0.1'
+      )
+
+      expect(m.surveyRepository.createReaderVote).toHaveBeenCalled()
+      expect(m.voteGateway.broadcastTally).toHaveBeenCalledWith(periodId)
+      expect(m.surveyRepository.createReaderVote.mock.invocationCallOrder[0]).toBeLessThan(
+        m.voteGateway.broadcastTally.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('does not turn a successful committed vote into an error when realtime broadcast rejects', async () => {
+      const m = makeMocks()
+      const periodId = '507f1f77bcf86cd799439011'
+      const seriesId = '507f1f77bcf86cd799439021'
+      m.surveyRepository.findSurveyPeriodById.mockResolvedValue({
+        id: periodId,
+        status: 'OPEN',
+        magazine: 'Weekly Jump',
+        publicationType: 'WEEKLY',
+        issueNumber: 35,
+        eligibleSeriesIds: [seriesId]
+      })
+      m.surveyRepository.findSeriesOwnershipByIds.mockResolvedValue([
+        { id: seriesId, status: 'SERIALIZED', publicationType: 'WEEKLY' }
+      ])
+      m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue(null)
+      m.voteGateway.broadcastTally.mockRejectedValue(new Error('socket unavailable'))
+
+      await expect(
+        makeService(m).submitVote(
+          {
+            surveyPeriodId: periodId,
+            identity: 'reader@example.com',
+            otpCode: '123456',
+            seriesIds: [seriesId],
+            captchaToken: 'token'
+          },
+          '127.0.0.1'
+        )
+      ).resolves.toEqual({ message: SurveyMessages.response.voteSubmitted })
+
+      expect(m.surveyRepository.createReaderVote).toHaveBeenCalled()
+    })
+  })
+
   it('emits RankingFinalized with rankings[] sorted by score (rank = index+1)', async () => {
     const m = makeMocks()
 

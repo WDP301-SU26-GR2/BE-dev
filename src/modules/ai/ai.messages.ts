@@ -9,7 +9,9 @@ export const AiMessages = {
     pageHasNoFile: 'Error.PageHasNoFile',
     segmentJobAlreadyRunning: 'Error.SegmentJobAlreadyRunning',
     aiJobNotFound: 'Error.AiJobNotFound',
-    aiJobNotApplicable: 'Error.AiJobNotApplicable'
+    aiJobNotApplicable: 'Error.AiJobNotApplicable',
+    aiJobSourceStale: 'Error.AiJobSourceStale',
+    aiSourceCanvasMismatch: 'Error.AiSourceCanvasMismatch'
   },
   errorText: {
     'Error.AiNotEnabled': 'Tính năng AI hiện chưa được bật',
@@ -17,6 +19,8 @@ export const AiMessages = {
     'Error.PageHasNoFile': 'Trang chưa có tệp để xử lý bằng AI',
     'Error.SegmentJobAlreadyRunning': 'Trang này đang có một tác vụ phân vùng AI chạy',
     'Error.AiJobNotFound': 'Không tìm thấy tác vụ AI',
-    'Error.AiJobNotApplicable': 'Tác vụ AI này không thể áp dụng ở trạng thái hiện tại'
+    'Error.AiJobNotApplicable': 'Tác vụ AI này không thể áp dụng ở trạng thái hiện tại',
+    'Error.AiJobSourceStale': 'Nguồn của tác vụ AI không còn khớp với giai đoạn hiện tại',
+    'Error.AiSourceCanvasMismatch': 'Kích thước ảnh nguồn AI không khớp với canvas của trang'
   }
 } as const

@@ -52,6 +52,9 @@ export function toPageRes(page: Page) {
     pageNumber: page.pageNumber,
     originalFile: page.originalFile,
     compositeFile: page.compositeFile,
+    compositeRevision: page.compositeRevision,
+    canvasWidth: page.canvasWidth,
+    canvasHeight: page.canvasHeight,
     // Nguồn sự thật DUY NHẤT cho "ảnh nên hiển thị" — public reader dùng cùng công thức.
     displayFile: page.compositeFile ?? page.originalFile,
     status: page.status,

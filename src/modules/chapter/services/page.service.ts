@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional } from '@nestjs/common'
 import { AuditEntityType, ManuscriptStatus, NameStatus, NotificationType, TaskStatus } from '@prisma/client'
 import {
   ChapterAccessDeniedException,
@@ -21,6 +21,8 @@ import { PAGE_EDITABLE_STATUSES } from '../chapter.constant'
 import { ChapterMessages } from '../chapter.messages'
 import { CreatePageBodyType, DeletePagesBulkBodyType, UpdatePageBodyType } from '../schemas/chapter-schemas'
 import { ManuscriptStateService } from './manuscript-state.service'
+import { ProductionStageRepository } from '../production-stage.repo'
+import { ProductionPageSetLockedException, StageOutputInvalidException } from '../errors/production-stage.errors'
 
 const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
@@ -34,7 +36,8 @@ export class PageService {
     private readonly studioAssignmentService: StudioAssignmentService,
     private readonly notificationService: NotificationService,
     private readonly auditService: AuditService,
-    private readonly storageService: StorageService
+    private readonly storageService: StorageService,
+    @Optional() private readonly productionStageRepository?: ProductionStageRepository
   ) {}
 
   // Task C: dọn file vật lý trên R2 (bản gốc + composite) khi xoá page — tránh orphan bucket.
@@ -81,10 +84,18 @@ export class PageService {
     if (!chapter.nameId) throw ChapterNameNotApprovedException
     const nameStatus = await this.chapterRepository.findNameStatus(chapter.nameId)
     if (nameStatus !== NameStatus.APPROVED) throw ChapterNameNotApprovedException
-    const page = await this.chapterRepository.createPage(chapterId, {
-      pageNumber: body.pageNumber,
-      originalFile: body.originalFile
-    })
+    const stages = this.productionStageRepository ? await this.productionStageRepository.findByChapter(chapterId) : []
+    const firstStage = stages[0]
+    if (firstStage && firstStage.status !== 'ACTIVE') throw ProductionPageSetLockedException
+    const page = firstStage
+      ? await this.productionStageRepository!.createPageWithFirstStageInput(chapterId, {
+          pageNumber: body.pageNumber,
+          originalFile: body.originalFile
+        })
+      : await this.chapterRepository.createPage(chapterId, {
+          pageNumber: body.pageNumber,
+          originalFile: body.originalFile
+        })
     const manuscript = await this.chapterRepository.findManuscriptByChapterId(chapterId)
     if (manuscript?.status === ManuscriptStatus.DRAFT) {
       await this.manuscriptStateService.transition(chapterId, ManuscriptStatus.IN_PRODUCTION, { changedBy: userId })
@@ -96,6 +107,13 @@ export class PageService {
     const page = await this.chapterRepository.findPageById(pageId)
     if (!page) throw PageNotFoundException
     await this.requireOwner(userId, page.chapterId)
+    if (
+      body.compositeFile != null &&
+      this.productionStageRepository &&
+      (await this.productionStageRepository.countByChapter(page.chapterId)) > 0
+    ) {
+      throw StageOutputInvalidException
+    }
     if (!PAGE_EDITABLE_STATUSES.includes(page.status)) throw PageNotEditableException
 
     // Partial-update (AGENTS §10): omit/null = giữ nguyên.
@@ -117,6 +135,10 @@ export class PageService {
     const page = await this.chapterRepository.findPageById(pageId)
     if (!page) throw PageNotFoundException
     await this.requireOwner(userId, page.chapterId)
+    if (this.productionStageRepository) {
+      const firstStage = (await this.productionStageRepository.findByChapter(page.chapterId))[0]
+      if (firstStage && firstStage.status !== 'ACTIVE') throw ProductionPageSetLockedException
+    }
     if (!PAGE_EDITABLE_STATUSES.includes(page.status)) throw PageNotEditableException
 
     const tasks = await this.chapterRepository.findTasksByPage(pageId)
@@ -140,6 +162,10 @@ export class PageService {
   // All-or-nothing: validate TOÀN BỘ page trước, chỉ xoá khi mọi page hợp lệ.
   async deletePagesBulk(userId: string, chapterId: string, body: DeletePagesBulkBodyType) {
     await this.requireOwner(userId, chapterId)
+    if (this.productionStageRepository) {
+      const firstStage = (await this.productionStageRepository.findByChapter(chapterId))[0]
+      if (firstStage && firstStage.status !== 'ACTIVE') throw ProductionPageSetLockedException
+    }
 
     const pages = await this.chapterRepository.findPagesByIds(body.pageIds)
     if (pages.length !== body.pageIds.length) throw PageNotFoundException

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { ChapterStatus, ManuscriptStatus, NameStatus, PageStatus } from '@prisma/client'
+import { ChapterStatus, ManuscriptStatus, NameStatus, PageStatus, ProductionStageStatus } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { WARNING_LEVEL } from '../chapter.constant'
 
@@ -160,6 +160,9 @@ export const PageResSchema = extendApi(
     pageNumber: z.number(),
     originalFile: z.string().nullable().describe('Object key file gốc (pencil/ink) trên R2'),
     compositeFile: z.string().nullable().describe('Object key file composite trên R2'),
+    compositeRevision: z.number().int(),
+    canvasWidth: z.number().int().nullable(),
+    canvasHeight: z.number().int().nullable(),
     displayFile: z
       .string()
       .nullable()
@@ -200,7 +203,15 @@ export const ChapterProgressResSchema = extendApi(
     remainingHours: z.number().nullable(),
     progressPct: z.number(),
     warningLevel: zEnum(WARNING_LEVEL, 'WarningLevel'),
-    onHold: z.boolean()
+    onHold: z.boolean(),
+    currentStage: z
+      .object({
+        id: z.string(),
+        name: z.string(),
+        order: z.number().int(),
+        status: zEnum(ProductionStageStatus, 'ProductionStageStatus')
+      })
+      .nullable()
   }),
   { title: 'ChapterProgressRes', description: 'Chapter progress dashboard payload' }
 )

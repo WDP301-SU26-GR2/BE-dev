@@ -7,6 +7,12 @@ import { RoleName } from 'src/core/security/constants/role.constant'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { NotSeriesOwnerException, PageNotFoundException } from 'src/modules/task/errors/task.errors'
 import { ChapterOnHoldTaskException } from 'src/modules/task/errors/task.errors'
+import {
+  StageLockedException,
+  StageNotFoundException,
+  StagePageNotFoundException,
+  StageRequiredException
+} from 'src/modules/chapter/errors/production-stage.errors'
 import { AiService } from './ai.service'
 import {
   AiJobListResDto,
@@ -20,7 +26,9 @@ import {
   AiEnqueueFailedException,
   AiJobNotApplicableException,
   AiJobNotFoundException,
+  AiJobSourceStaleException,
   AiNotEnabledException,
+  AiSourceCanvasMismatchException,
   PageHasNoFileException,
   SegmentJobAlreadyRunningException
 } from './errors/ai.errors'
@@ -41,6 +49,10 @@ export class AiController {
     AiNotEnabledException,
     SegmentJobAlreadyRunningException,
     AiEnqueueFailedException,
+    StageRequiredException,
+    StageNotFoundException,
+    StageLockedException,
+    StagePageNotFoundException,
     ChapterOnHoldTaskException
   )
   @Roles(RoleName.MANGAKA)
@@ -82,6 +94,8 @@ export class AiController {
   @ApiErrors(
     AiJobNotFoundException,
     AiJobNotApplicableException,
+    AiJobSourceStaleException,
+    AiSourceCanvasMismatchException,
     PageNotFoundException,
     NotSeriesOwnerException,
     ChapterOnHoldTaskException
