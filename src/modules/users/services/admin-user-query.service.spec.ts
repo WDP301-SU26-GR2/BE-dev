@@ -38,7 +38,8 @@ describe('AdminUserQueryService.list', () => {
       search: 'a@b',
       limit: 20,
       offset: 0,
-      includeDeleted: false
+      includeDeleted: false,
+      onlyDeleted: undefined
     } as never)
 
     const expectedFilter = {
@@ -46,7 +47,8 @@ describe('AdminUserQueryService.list', () => {
       roleCode: 'MANGAKA',
       status: 'ACTIVE',
       search: 'a@b',
-      includeDeleted: false
+      includeDeleted: false,
+      onlyDeleted: undefined
     }
     expect(usersRepository.findUsersForAdmin).toHaveBeenCalledWith(expectedFilter, { limit: 20, offset: 0 })
     expect(usersRepository.countUsersForAdmin).toHaveBeenCalledWith(expectedFilter)
@@ -72,6 +74,22 @@ describe('AdminUserQueryService.list', () => {
       offset: 0
     })
     expect((res.items[0] as Record<string, unknown>).password).toBeUndefined()
+  })
+})
+
+describe('AdminUserQueryService.list trash view', () => {
+  it('passes onlyDeleted=true to both repository queries', async () => {
+    const { service, usersRepository } = makeService()
+    usersRepository.findUsersForAdmin.mockResolvedValue([])
+    usersRepository.countUsersForAdmin.mockResolvedValue(0)
+
+    await service.list('caller1', { onlyDeleted: true, limit: 20, offset: 0 } as never)
+
+    expect(usersRepository.findUsersForAdmin).toHaveBeenCalledWith(
+      expect.objectContaining({ onlyDeleted: true }),
+      expect.anything()
+    )
+    expect(usersRepository.countUsersForAdmin).toHaveBeenCalledWith(expect.objectContaining({ onlyDeleted: true }))
   })
 })
 

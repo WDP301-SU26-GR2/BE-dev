@@ -45,6 +45,7 @@ import {
   NotSessionCreatorException,
   SeriesNotFoundException,
   NotEnoughBoardMembersException,
+  RosterSizeTooLargeException,
   RosterSourceRequiredException,
   InvalidPhaseTransitionException,
   NotSessionParticipantException,
@@ -64,6 +65,7 @@ export class BoardController {
     InvalidBoardMembersException,
     RosterSourceRequiredException,
     NotEnoughBoardMembersException,
+    RosterSizeTooLargeException,
     SeriesNotFoundException
   )
   @Post('sessions')
@@ -74,7 +76,7 @@ export class BoardController {
   }
 
   @ApiOperation({ summary: 'Gợi ý roster Board theo thể loại của series (PB-05) — lẻ, >= 3' })
-  @ApiErrors(SeriesNotFoundException, NotEnoughBoardMembersException)
+  @ApiErrors(SeriesNotFoundException, NotEnoughBoardMembersException, RosterSizeTooLargeException)
   @Get('suggest-members')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: SuggestBoardMembersResDto })

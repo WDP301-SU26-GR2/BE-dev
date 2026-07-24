@@ -348,7 +348,13 @@ const main = async () => {
   await sleep(50)
   await seedOtp(readerBoth, OtpPurpose.VOTE)
   const rW = await req('POST', '/vote', {
-    body: { surveyPeriodId: periodId, identity: readerBoth, otpCode: '123456', seriesIds: [s1.id], captchaToken: 'tok' },
+    body: {
+      surveyPeriodId: periodId,
+      identity: readerBoth,
+      otpCode: '123456',
+      seriesIds: [s1.id],
+      captchaToken: 'tok'
+    },
     xff: '203.0.113.151'
   })
   ok('04.13e vote WEEKLY 200', rW.status === 200, `got ${rW.status} ${rW.raw.slice(0, 200)}`)

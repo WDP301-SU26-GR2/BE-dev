@@ -7,6 +7,7 @@ function makeRepo() {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
       update: jest.fn(),
       groupBy: jest.fn()
     },
@@ -24,7 +25,12 @@ function makeRepo() {
     mangakaProfile: {
       findMany: jest.fn(),
       count: jest.fn()
-    }
+    },
+    series: { count: jest.fn().mockResolvedValue(0) },
+    contract: { count: jest.fn().mockResolvedValue(0) },
+    task: { count: jest.fn().mockResolvedValue(0) },
+    studioAssignment: { count: jest.fn().mockResolvedValue(0) },
+    boardDecision: { count: jest.fn().mockResolvedValue(0) }
   }
   const repo = new UsersRepository(prismaService as never)
   return { repo, prismaService }
@@ -82,6 +88,85 @@ describe('UsersRepository PA-15 moderation helpers', () => {
       _count: { _all: true }
     })
     expect(res).toEqual([{ role: { code: $Enums.RoleCode.EDITOR }, _count: { _all: 4 } }])
+  })
+})
+
+describe('UsersRepository countActiveCommitments', () => {
+  it('counts active series and fully executed contracts for a mangaka only', async () => {
+    const { repo, prismaService } = makeRepo()
+    prismaService.series.count.mockResolvedValue(1)
+    prismaService.contract.count.mockResolvedValue(2)
+
+    await expect(repo.countActiveCommitments('u1', $Enums.RoleCode.MANGAKA)).resolves.toMatchObject({
+      activeSeries: 1,
+      executedContracts: 2,
+      total: 3
+    })
+    expect(prismaService.series.count).toHaveBeenCalledWith({
+      where: {
+        mangakaId: 'u1',
+        status: { in: ['IN_REVIEW', 'READY_TO_PITCH', 'PITCHED', 'SERIALIZED', 'HIATUS', 'COMPLETING', 'CANCELLING'] }
+      }
+    })
+    expect(prismaService.contract.count).toHaveBeenCalledWith({
+      where: { mangakaId: 'u1', status: $Enums.ContractStatus.FULLY_EXECUTED }
+    })
+    expect(prismaService.task.count).not.toHaveBeenCalled()
+  })
+
+  it('counts only open tasks and active assignments for an assistant', async () => {
+    const { repo, prismaService } = makeRepo()
+    prismaService.task.count.mockResolvedValue(3)
+    prismaService.studioAssignment.count.mockResolvedValue(1)
+
+    await expect(repo.countActiveCommitments('u1', $Enums.RoleCode.ASSISTANT)).resolves.toMatchObject({
+      openTasks: 3,
+      activeAssignments: 1,
+      total: 4
+    })
+    expect(prismaService.task.count).toHaveBeenCalledWith({
+      where: {
+        assistantId: 'u1',
+        status: { in: ['ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW', 'REVISION_REQUESTED'] }
+      }
+    })
+    expect(prismaService.series.count).not.toHaveBeenCalled()
+  })
+
+  it('counts pending decisions for a board member through the session roster', async () => {
+    const { repo, prismaService } = makeRepo()
+    prismaService.boardDecision.count.mockResolvedValue(2)
+
+    await expect(repo.countActiveCommitments('u1', $Enums.RoleCode.BOARD_MEMBER)).resolves.toMatchObject({
+      pendingBoardDecisions: 2,
+      total: 2
+    })
+    expect(prismaService.boardDecision.count).toHaveBeenCalledWith({
+      where: {
+        result: { in: [$Enums.BoardDecisionResult.PENDING, $Enums.BoardDecisionResult.PENDING_QUORUM] },
+        boardSession: { is: { allowedEditorIds: { has: 'u1' } } }
+      }
+    })
+  })
+
+  it('returns an empty summary for a role without moderation commitments', async () => {
+    const { repo, prismaService } = makeRepo()
+
+    await expect(repo.countActiveCommitments('u1', $Enums.RoleCode.SUPER_ADMIN)).resolves.toMatchObject({ total: 0 })
+    expect(prismaService.series.count).not.toHaveBeenCalled()
+  })
+})
+
+describe('UsersRepository admin trash filter', () => {
+  it('onlyDeleted wins over includeDeleted and uses Mongo isSet:true', async () => {
+    const { repo, prismaService } = makeRepo()
+    prismaService.user.findMany.mockResolvedValue([])
+
+    await repo.findUsersForAdmin({ onlyDeleted: true, includeDeleted: true }, { limit: 20, offset: 0 })
+
+    expect(prismaService.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ deletedAt: { isSet: true } }) })
+    )
   })
 })
 

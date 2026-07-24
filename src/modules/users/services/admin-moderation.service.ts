@@ -7,6 +7,7 @@ import { NotificationService } from 'src/modules/notification/notification.servi
 import {
   CannotModifyAdminUserException,
   UserAlreadyDeletedException,
+  UserHasActiveCommitmentsException,
   UserNotDeletedException,
   UserNotFoundException
 } from '../errors/users.errors'
@@ -43,6 +44,10 @@ export class AdminModerationService {
   async updateStatus(id: string, body: AdminUpdateUserStatusBodyType, adminId: string) {
     const target = await this.getTarget(id)
     if (target.deletedAt) throw UserNotFoundException
+    if (body.status === $Enums.UserStatus.BANNED || body.status === $Enums.UserStatus.BLOCKED) {
+      const commitments = await this.usersRepository.countActiveCommitments(id, target.role.code)
+      if (commitments.total > 0) throw UserHasActiveCommitmentsException(commitments)
+    }
 
     const updated = await this.usersRepository.updateUserStatus(id, body.status)
     if (target.status !== body.status) {
@@ -84,6 +89,8 @@ export class AdminModerationService {
   async deleteUser(id: string, adminId: string) {
     const target = await this.getTarget(id)
     if (target.deletedAt) throw UserAlreadyDeletedException
+    const commitments = await this.usersRepository.countActiveCommitments(id, target.role.code)
+    if (commitments.total > 0) throw UserHasActiveCommitmentsException(commitments)
 
     await this.usersRepository.softDeleteUser(id, new Date())
     await this.usersRepository.revokeRefreshTokensByUserId(id)

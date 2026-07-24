@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import {
+  $Enums,
   AvailabilityStatus,
   ChapterStatus,
   Genre,
@@ -11,6 +12,7 @@ import {
 import { RoleName, RoleNameType } from 'src/core/security/constants/role.constant'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { AssistantProfileBodyType, MangakaProfileBodyType, StaffProfileBodyType } from './schemas/users-schemas'
+import { CommitmentSummary } from './users.constant'
 
 // ---- Admin user listing ----
 
@@ -20,7 +22,31 @@ export type AdminUserFilter = {
   status?: UserStatus
   search?: string
   includeDeleted?: boolean
+  onlyDeleted?: boolean
 }
+
+const ACTIVE_SERIES_STATUSES: $Enums.SeriesStatus[] = [
+  $Enums.SeriesStatus.IN_REVIEW,
+  $Enums.SeriesStatus.READY_TO_PITCH,
+  $Enums.SeriesStatus.PITCHED,
+  $Enums.SeriesStatus.SERIALIZED,
+  $Enums.SeriesStatus.HIATUS,
+  $Enums.SeriesStatus.COMPLETING,
+  $Enums.SeriesStatus.CANCELLING
+]
+
+const OPEN_TASK_STATUSES: $Enums.TaskStatus[] = [
+  $Enums.TaskStatus.ASSIGNED,
+  $Enums.TaskStatus.IN_PROGRESS,
+  $Enums.TaskStatus.SUBMITTED,
+  $Enums.TaskStatus.UNDER_REVIEW,
+  $Enums.TaskStatus.REVISION_REQUESTED
+]
+
+const PENDING_DECISION_RESULTS: $Enums.BoardDecisionResult[] = [
+  $Enums.BoardDecisionResult.PENDING,
+  $Enums.BoardDecisionResult.PENDING_QUORUM
+]
 
 // ---- Assistant directory (A-TSK-06) ----
 export type AssistantDirectoryFilter = {
@@ -229,7 +255,7 @@ export class UsersRepository {
       ...(f.status ? { status: f.status } : {}),
       // Prisma+Mongo: user chưa từng bị xoá có field deletedAt ABSENT (không phải null) →
       // `{ deletedAt: null }` KHÔNG match (trả rỗng). Phải dùng `{ isSet: false }`.
-      ...(f.includeDeleted ? {} : { deletedAt: { isSet: false } }),
+      ...(f.onlyDeleted ? { deletedAt: { isSet: true } } : f.includeDeleted ? {} : { deletedAt: { isSet: false } }),
       ...(f.search
         ? {
             OR: [
@@ -274,6 +300,58 @@ export class UsersRepository {
         role: { select: { code: true } }
       }
     })
+  }
+
+  // Role.code is persisted as String (not a Prisma enum), so accept the exact selected DB type.
+  async countActiveCommitments(userId: string, roleCode: string): Promise<CommitmentSummary> {
+    const empty = {
+      activeSeries: 0,
+      executedContracts: 0,
+      openTasks: 0,
+      activeAssignments: 0,
+      pendingBoardDecisions: 0
+    }
+
+    if (roleCode === RoleName.MANGAKA) {
+      const [activeSeries, executedContracts] = await Promise.all([
+        this.prismaService.series.count({
+          where: { mangakaId: userId, status: { in: ACTIVE_SERIES_STATUSES } }
+        }),
+        this.prismaService.contract.count({
+          where: { mangakaId: userId, status: $Enums.ContractStatus.FULLY_EXECUTED }
+        })
+      ])
+      return { ...empty, activeSeries, executedContracts, total: activeSeries + executedContracts }
+    }
+
+    if (roleCode === RoleName.EDITOR) {
+      const activeSeries = await this.prismaService.series.count({
+        where: { editorId: userId, status: { in: ACTIVE_SERIES_STATUSES } }
+      })
+      return { ...empty, activeSeries, total: activeSeries }
+    }
+
+    if (roleCode === RoleName.ASSISTANT) {
+      const [openTasks, activeAssignments] = await Promise.all([
+        this.prismaService.task.count({ where: { assistantId: userId, status: { in: OPEN_TASK_STATUSES } } }),
+        this.prismaService.studioAssignment.count({
+          where: { assistantId: userId, status: $Enums.StudioAssignmentStatus.ACTIVE }
+        })
+      ])
+      return { ...empty, openTasks, activeAssignments, total: openTasks + activeAssignments }
+    }
+
+    if (roleCode === RoleName.BOARD_MEMBER) {
+      const pendingBoardDecisions = await this.prismaService.boardDecision.count({
+        where: {
+          result: { in: PENDING_DECISION_RESULTS },
+          boardSession: { is: { allowedEditorIds: { has: userId } } }
+        }
+      })
+      return { ...empty, pendingBoardDecisions, total: pendingBoardDecisions }
+    }
+
+    return { ...empty, total: 0 }
   }
 
   // select whitelist ADMIN_USER_SELECT — KHÔNG trả password ra service layer

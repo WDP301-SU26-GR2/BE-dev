@@ -1,5 +1,5 @@
 import { ERROR_HINTS } from 'src/core/http/docs/error-docs'
-import { DecisionAlreadyFinalizedException } from './board.errors'
+import { DecisionAlreadyFinalizedException, RosterSizeTooLargeException } from './board.errors'
 
 describe('DecisionAlreadyFinalizedException (Spec 17)', () => {
   it('uses the stable 409 Error.* contract and has a Swagger hint', () => {
@@ -11,5 +11,15 @@ describe('DecisionAlreadyFinalizedException (Spec 17)', () => {
     expect(ERROR_HINTS['Error.DecisionAlreadyFinalized']).toBe(
       'decision already APPROVED/REJECTED/EXPIRED — voting closed'
     )
+  })
+})
+
+describe('RosterSizeTooLargeException', () => {
+  it('uses the stable 422 Error.* contract', () => {
+    expect(RosterSizeTooLargeException.getStatus()).toBe(422)
+    expect(RosterSizeTooLargeException.getResponse()).toMatchObject({
+      statusCode: 422,
+      message: [{ message: 'Error.RosterSizeTooLarge', path: 'rosterSize' }]
+    })
   })
 })
