@@ -3,6 +3,7 @@ import { API, DATABASE_URL } from './lib/env.js'
 
 // Thứ tự chạy (theo spec §19): 11 → 01 → 06 → 02 → 03 → 04 → 05 → 07 → 08 → 10 → 12-13 → rbac → ws → cron → events
 const FILES = [
+  'flow-01-admin-hardening.ts',
   'flow-11-auth-identity.ts',
   'flow-01-serialization.ts',
   'flow-06-contract-payment.ts',

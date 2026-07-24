@@ -19,7 +19,8 @@ export const UsersMessages = {
     userNotFound: 'Error.UserNotFound',
     cannotModifyAdminUser: 'Error.CannotModifyAdminUser',
     userAlreadyDeleted: 'Error.UserAlreadyDeleted',
-    userNotDeleted: 'Error.UserNotDeleted'
+    userNotDeleted: 'Error.UserNotDeleted',
+    userHasActiveCommitments: 'Error.UserHasActiveCommitments'
   },
   errorText: {
     'Error.EmailAlreadyExists': 'Email này đã được đăng ký',
@@ -27,6 +28,8 @@ export const UsersMessages = {
     'Error.UserNotFound': 'Không tìm thấy người dùng',
     'Error.CannotModifyAdminUser': 'Không thể thay đổi tài khoản quản trị viên',
     'Error.UserAlreadyDeleted': 'Người dùng này đã bị xoá',
-    'Error.UserNotDeleted': 'Người dùng này chưa bị xoá'
+    'Error.UserNotDeleted': 'Người dùng này chưa bị xoá',
+    'Error.UserHasActiveCommitments':
+      'Không thể vô hiệu hoá tài khoản khi còn ràng buộc đang hoạt động (series/hợp đồng/task/hội đồng) — xử lý xong mới xoá/khoá được'
   }
 } as const

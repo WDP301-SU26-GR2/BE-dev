@@ -24,6 +24,7 @@ export const BoardMessages = {
     invalidSessionTransition: 'Error.InvalidBoardSessionTransition',
     notSessionCreator: 'Error.NotSessionCreator',
     notEnoughBoardMembers: 'Error.NotEnoughBoardMembers',
+    rosterSizeTooLarge: 'Error.RosterSizeTooLarge',
     rosterSourceRequired: 'Error.RosterSourceRequired',
     seriesNotFound: 'Error.SeriesNotFound',
     invalidPhaseTransition: 'Error.InvalidPhaseTransition',
@@ -32,6 +33,7 @@ export const BoardMessages = {
     notSessionParticipant: 'Error.NotSessionParticipant'
   },
   errorText: {
+    'Error.RosterSizeTooLarge': 'Sĩ số hội đồng vượt quá số thành viên cho phép',
     'Error.BoardSessionAlreadyExists': 'Phiên họp Hội đồng này đã tồn tại',
     'Error.BoardSessionNotFound': 'Không tìm thấy phiên họp Hội đồng',
     'Error.BoardConfigNotFound': 'Không tìm thấy cấu hình Hội đồng',
