@@ -12,9 +12,11 @@ import { SurveyMessages } from '../survey.messages'
 const E = SurveyMessages.error
 
 export const SurveyPeriodNotFoundException = new NotFoundException(E.surveyPeriodNotFound)
-export const SurveyPeriodNotOpenException = new BadRequestException(E.surveyPeriodNotOpen)
+export const SurveyPeriodNotOpenException = new ConflictException(E.surveyPeriodNotOpen)
 export const SurveyPeriodAlreadyFinalizedException = new BadRequestException(E.surveyPeriodAlreadyFinalized)
 export const SurveyPeriodNotFinalizedException = new ConflictException(E.surveyPeriodNotFinalized)
+export const SurveyPeriodInvalidTransitionException = new ConflictException(E.surveyPeriodInvalidTransition)
+export const DuplicateSurveyPeriodScopeException = new ConflictException(E.duplicateSurveyPeriodScope)
 export const ReaderAlreadyVotedException = new ConflictException(E.readerAlreadyVoted)
 export const VoteOtpNotFoundException = new BadRequestException(E.voteOtpNotFound)
 // `code` derive từ `message` (= 'Error.VoteOtpRateLimit'); trước 2026-07-20 override 'VOTE_OTP_RATE_LIMITED'.

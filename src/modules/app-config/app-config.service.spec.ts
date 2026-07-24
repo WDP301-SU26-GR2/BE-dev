@@ -9,6 +9,7 @@ const row = {
   reputationRecommendThreshold: 4,
   hiatusTooLongDays: 30,
   lowVoteReliabilityThreshold: 10,
+  rankingAggregateMinCoverageRatio: 0.5,
   maxUploadBytes: 15728640,
   assignmentGraceDays: 0,
   updatedAt: new Date('2026-06-23T00:00:00.000Z')
@@ -41,7 +42,7 @@ describe('AppConfigService', () => {
 
     const res = await service.get()
 
-    expect(repo.createDefaults).toHaveBeenCalledWith({ nameMaxReviewRounds: 8 })
+    expect(repo.createDefaults).toHaveBeenCalledWith({ nameMaxReviewRounds: 8, rankingAggregateMinCoverageRatio: 0.5 })
     expect(res.id).toBe(row.id)
   })
 
@@ -84,5 +85,18 @@ describe('AppConfigService', () => {
     expect(res.nameMaxReviewRounds).toBe(8)
     expect(repo.update).not.toHaveBeenCalled()
     expect(auditService.record).not.toHaveBeenCalled()
+  })
+
+  it('updates the aggregate coverage ratio as an additive app configuration key', async () => {
+    const { service, repo, auditService } = make()
+    repo.update.mockResolvedValueOnce({ ...row, rankingAggregateMinCoverageRatio: 0.75 })
+
+    const res = await service.update('admin1', { rankingAggregateMinCoverageRatio: 0.75 })
+
+    expect(repo.update).toHaveBeenCalledWith(row.id, { rankingAggregateMinCoverageRatio: 0.75, updatedBy: 'admin1' })
+    expect(res.rankingAggregateMinCoverageRatio).toBe(0.75)
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'rankingAggregateMinCoverageRatio: 0.5 -> 0.75' })
+    )
   })
 })

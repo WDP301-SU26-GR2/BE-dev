@@ -27,10 +27,15 @@ import {
   VoteOtpRequestBodyDto,
   VotePeriodsQueryDto,
   VotePeriodsResDto,
+  RankingAggregateQueryDto,
+  RankingAggregateResDto,
+  VoteLiveQueryDto,
+  VoteTallyResDto,
   VoteResultsQueryDto,
   VoteResultsResDto
 } from './dto/survey.dto'
 import { SurveyService } from './services/survey.service'
+import { RankingAggregateService } from './services/ranking-aggregate.service'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
 import {
   ReaderAlreadyVotedException,
@@ -57,7 +62,10 @@ import { PublicRateLimitedException } from 'src/core/security/errors/public-rate
 @ApiBearerAuth()
 @Controller()
 export class SurveyController {
-  constructor(private readonly surveyService: SurveyService) {}
+  constructor(
+    private readonly surveyService: SurveyService,
+    private readonly rankingAggregateService: RankingAggregateService
+  ) {}
 
   @Post('vote/otp')
   @IsPublic()
@@ -88,6 +96,18 @@ export class SurveyController {
   }
 
   // Fix-1 G-2: Public — kỳ OPEN + list series SERIALIZED cho trang vote Guest (B-VOT-08).
+  @Get('vote/live')
+  @IsPublic()
+  @ApiOperation({
+    summary: 'Public live raw vote tally for one OPEN scoped issue; not a final weighted ranking',
+    security: []
+  })
+  @ApiErrors(SurveyPeriodNotFoundException, SurveyPeriodNotOpenException)
+  @ZodResponse({ status: 200, type: VoteTallyResDto })
+  getVoteLive(@Query() query: VoteLiveQueryDto) {
+    return this.surveyService.getLiveTally(query.periodId)
+  }
+
   @Get('vote/context')
   @IsPublic()
   @ApiOperation({
@@ -96,7 +116,7 @@ export class SurveyController {
   })
   @ZodResponse({ status: 200, type: VoteContextResDto })
   getVoteContext(@Query() query: VoteContextQueryDto) {
-    return this.surveyService.getVoteContext(query.publicationType)
+    return this.surveyService.getVoteContext(query.periodId)
   }
 
   // Spec 15 §3.1 — discover the latest public ranking without a known period id.
@@ -110,7 +130,7 @@ export class SurveyController {
   @ApiErrors(PublicRateLimitedException(0))
   @ZodResponse({ status: 200, type: LatestVoteResultsResDto })
   getLatestVoteResults(@Query() query: LatestVoteResultsQueryDto) {
-    return this.surveyService.getLatestVoteResults(query.publicationType)
+    return this.surveyService.getLatestVoteResults(query.magazine, query.publicationType)
   }
 
   // Spec 15 §3.2 — reflected-only history for ranking discovery.
@@ -121,7 +141,7 @@ export class SurveyController {
   @ApiErrors(PublicRateLimitedException(0))
   @ZodResponse({ status: 200, type: VotePeriodsResDto })
   getVotePeriods(@Query() query: VotePeriodsQueryDto) {
-    return this.surveyService.getReflectedPeriods(query.limit)
+    return this.surveyService.getReflectedPeriods(query.magazine, query.publicationType, query.limit)
   }
 
   // Fix-1 G-2: Public — kết quả kỳ đã chốt (REFLECTED); ẩn tín hiệu biên tập nội bộ.
@@ -133,7 +153,7 @@ export class SurveyController {
   @ApiErrors(SurveyPeriodNotFoundException, SurveyPeriodNotFinalizedException)
   @ZodResponse({ status: 200, type: VoteResultsResDto })
   getVoteResults(@Query() query: VoteResultsQueryDto) {
-    return this.surveyService.getVoteResults(query.surveyPeriodId, query.publicationType)
+    return this.surveyService.getVoteResults(query.surveyPeriodId)
   }
 
   @Get('survey-periods')
@@ -237,6 +257,17 @@ export class SurveyController {
     @ActiveUser('roleName') roleName: string
   ) {
     return this.surveyService.getSeriesTrend(q.seriesId, q.periods, { userId, roleName })
+  }
+
+  @Get('rankings/aggregate')
+  @IsPublic()
+  @ApiOperation({
+    summary: 'Public participation-adjusted ranking aggregate for a magazine, publication type, and UTC month or year',
+    security: []
+  })
+  @ZodResponse({ status: 200, type: RankingAggregateResDto })
+  getRankingAggregate(@Query() query: RankingAggregateQueryDto) {
+    return this.rankingAggregateService.getAggregate(query)
   }
 
   @Get('voting-config')

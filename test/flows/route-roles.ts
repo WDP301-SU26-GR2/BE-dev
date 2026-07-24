@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-24T11:02:32.891Z — 271 routes.
+// Sinh lúc: 2026-07-24T13:55:03.654Z — 273 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -465,6 +465,7 @@ export const ROUTE_RULES: RouteRule[] = [
     access: 'ROLES',
     allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
   },
+  { method: 'GET', path: '/rankings/aggregate', access: 'PUBLIC', allowed: [] },
   {
     method: 'GET',
     path: '/rankings/board',
@@ -709,6 +710,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'POST', path: '/uploads/sign-download', access: 'AUTH', allowed: [] },
   { method: 'POST', path: '/vote', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/vote/context', access: 'PUBLIC', allowed: [] },
+  { method: 'GET', path: '/vote/live', access: 'PUBLIC', allowed: [] },
   { method: 'POST', path: '/vote/otp', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/vote/periods', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/vote/results', access: 'PUBLIC', allowed: [] },

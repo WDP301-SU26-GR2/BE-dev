@@ -1,5 +1,9 @@
 //error-docs.ts dùng cho Swagger error description.
 export const ERROR_HINTS: Record<string, string> = {
+  'Error.SurveyPeriodInvalidTransition':
+    'only DRAFT -> OPEN -> CLOSED is client-transitionable; REFLECTED is finalize-only',
+  'Error.DuplicateSurveyPeriodScope':
+    'a scoped period already exists for this canonical magazine, publication type, and issue number',
   'Error.PublicSeriesNotFound':
     'series does not exist, id is malformed, or the series is outside the post-serialization public status set',
   'Error.PublicChapterNotFound':
