@@ -159,7 +159,11 @@ function changedProductionLines(): Map<string, Set<number>> {
   return changed
 }
 
-function summarizeChangedLines(): { total: Counter; files: Array<{ path: string; counter: Counter }> } {
+function summarizeChangedLines(): {
+  total: Counter
+  files: Array<{ path: string; counter: Counter }>
+  hasChangedSourceFiles: boolean
+} {
   const changed = changedProductionLines()
   const total: Counter = { covered: 0, total: 0 }
   const files: Array<{ path: string; counter: Counter }> = []
@@ -191,7 +195,7 @@ function summarizeChangedLines(): { total: Counter; files: Array<{ path: string;
     total.total += counter.total
   }
 
-  return { total, files }
+  return { total, files, hasChangedSourceFiles: changed.size > 0 }
 }
 
 const failures: string[] = []
@@ -251,9 +255,12 @@ for (const file of changedLineSummary.files
   .slice(0, 40)) {
   console.log(`    ${file.path}: ${format(file.counter)}`)
 }
-if (changedLines.total === 0) {
+if (changedLines.total === 0 && !changedLineSummary.hasChangedSourceFiles) {
+  console.log('  changed-lines gate skipped: no source files changed')
+}
+if (changedLines.total === 0 && changedLineSummary.hasChangedSourceFiles) {
   failures.push('changed production lines: no executable changed lines matched coverage data')
-} else if (changedLinesActual < baseline.targets.changedLines) {
+} else if (changedLines.total > 0 && changedLinesActual < baseline.targets.changedLines) {
   failures.push(
     `changed production lines: ${changedLinesActual.toFixed(2)}% < target ${baseline.targets.changedLines.toFixed(2)}%`
   )
