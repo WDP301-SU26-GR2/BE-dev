@@ -12,9 +12,9 @@ function makeRepo(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function makeNameRepo(overrides: Record<string, unknown> = {}) {
+function makeNameApprovalQuery(overrides: Record<string, unknown> = {}) {
   return {
-    findNameById: jest.fn(),
+    findApprovalById: jest.fn(),
     ...overrides
   }
 }
@@ -29,7 +29,7 @@ describe('SeriesStateService.transition', () => {
     const audit = makeAudit()
     const svc = new SeriesStateService(
       repo as never,
-      makeNameRepo() as never,
+      makeNameApprovalQuery(),
       audit as never,
       asCacheService(makeCacheServiceMock())
     )
@@ -56,7 +56,7 @@ describe('SeriesStateService.transition', () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: SeriesStatus.DRAFT }) })
     const svc = new SeriesStateService(
       repo as never,
-      makeNameRepo() as never,
+      makeNameApprovalQuery(),
       makeAudit() as never,
       asCacheService(makeCacheServiceMock())
     )
@@ -68,7 +68,7 @@ describe('SeriesStateService.transition', () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue(null) })
     const svc = new SeriesStateService(
       repo as never,
-      makeNameRepo() as never,
+      makeNameApprovalQuery(),
       makeAudit() as never,
       asCacheService(makeCacheServiceMock())
     )
@@ -88,7 +88,7 @@ describe('SeriesStateService.transition', () => {
       const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: fromStatus }) })
       const svc = new SeriesStateService(
         repo as never,
-        makeNameRepo() as never,
+        makeNameApprovalQuery(),
         makeAudit() as never,
         asCacheService(makeCacheServiceMock())
       )
@@ -103,7 +103,7 @@ describe('SeriesStateService.transition', () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue({ id: 's1', status: SeriesStatus.PITCHED }) })
     const svc = new SeriesStateService(
       repo as never,
-      makeNameRepo() as never,
+      makeNameApprovalQuery(),
       makeAudit() as never,
       asCacheService(makeCacheServiceMock())
     )
@@ -121,10 +121,12 @@ describe('SeriesStateService.tryAdvanceToReadyToPitch', () => {
 
   it('advances to READY_TO_PITCH when proposal approved and name approved', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue(inReviewBothApproved) })
-    const nameRepo = makeNameRepo({ findNameById: jest.fn().mockResolvedValue({ id: 'n1', status: 'APPROVED' }) })
+    const nameApprovalQuery = makeNameApprovalQuery({
+      findApprovalById: jest.fn().mockResolvedValue({ status: 'APPROVED' })
+    })
     const svc = new SeriesStateService(
       repo as never,
-      nameRepo as never,
+      nameApprovalQuery,
       makeAudit() as never,
       asCacheService(makeCacheServiceMock())
     )
@@ -139,10 +141,12 @@ describe('SeriesStateService.tryAdvanceToReadyToPitch', () => {
 
   it('does nothing when name not yet approved', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue(inReviewBothApproved) })
-    const nameRepo = makeNameRepo({ findNameById: jest.fn().mockResolvedValue({ id: 'n1', status: 'IN_REVIEW' }) })
+    const nameApprovalQuery = makeNameApprovalQuery({
+      findApprovalById: jest.fn().mockResolvedValue({ status: 'IN_REVIEW' })
+    })
     const svc = new SeriesStateService(
       repo as never,
-      nameRepo as never,
+      nameApprovalQuery,
       makeAudit() as never,
       asCacheService(makeCacheServiceMock())
     )
@@ -160,7 +164,7 @@ describe('SeriesStateService.tryAdvanceToReadyToPitch', () => {
     })
     const svc = new SeriesStateService(
       repo as never,
-      makeNameRepo() as never,
+      makeNameApprovalQuery(),
       makeAudit() as never,
       asCacheService(makeCacheServiceMock())
     )

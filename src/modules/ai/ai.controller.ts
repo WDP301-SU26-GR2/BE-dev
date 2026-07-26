@@ -40,7 +40,7 @@ export class AiController {
   constructor(private readonly aiService: AiService) {}
 
   @Post('pages/:id/segment')
-  @ApiOperation({ summary: 'Run async AI page segmentation and return a job id for polling' })
+  @ApiOperation({ summary: 'Run async AI bounding-box region detection and return a job id for polling' })
   @ApiResponse({ status: 422, description: 'Validation fail' })
   @ApiErrors(
     PageNotFoundException,

@@ -396,7 +396,7 @@ const main = async () => {
   })
   const rsWrId = r14a.json?.data?.id ?? r14a.json?.id ?? r14a.json?.data?.data?.id
   const r14b = await req('PATCH', `/reprint-requests/${rsWrId}/chapters/${rsCh1.id}/assign-reviser`, {
-    token: e1Tok,
+    token: e2Tok,
     body: { reviserId: m3.id, reviserType: ReviserType.OTHER_MANGAKA }
   })
   expectError(r14b, 409, 'Error.ReviserOnlyForFullBuyout', '7.14a assign-reviser RS → ReviserOnlyForFullBuyout')
@@ -462,6 +462,53 @@ const main = async () => {
   ok('7.18c B list 200', r18c.status === 200, `got ${r18c.status}`)
   const r18d = await req('GET', '/reprint-requests', { token: a1Tok })
   ok('7.18d A list 403', r18d.status === 403, `got ${r18d.status}`)
+
+  // Object-level authorization regression matrix (Phase 2 / PR-05).
+  const r18e = await req('GET', `/reprint-requests/${wrReprintId}`, { token: m2Tok })
+  expectError(r18e, 404, 'Error.ReprintRequestNotFound', '7.18e other Mangaka cannot read request detail')
+
+  const r18f = await req('GET', `/reprint-requests/${wrReprintId}/chapters/${fbCh1.id}`, { token: m2Tok })
+  expectError(r18f, 404, 'Error.ReprintRequestNotFound', '7.18f other Mangaka cannot read chapter detail')
+
+  const r18g = await req('PATCH', `/reprint-requests/${wrReprintId}/chapters/${fbCh1.id}/manuscript`, {
+    token: m2Tok,
+    body: { originalChapterId: fbCh1.id, manuscriptFile: 'manuscripts/unauthorized.pdf' }
+  })
+  expectError(r18g, 403, 'Error.ReprintActionNotAllowed', '7.18g other Mangaka cannot upload manuscript')
+
+  const r18h = await req('POST', '/reprint-requests', {
+    token: e2Tok,
+    body: {
+      seriesId: seriesFB.id,
+      revisionMode: ReprintRevisionMode.AS_IS,
+      reason: 'other editor must not create',
+      chapterRangeStart: 1,
+      chapterRangeEnd: 2
+    }
+  })
+  expectError(r18h, 403, 'Error.ReprintActionNotAllowed', '7.18h other Editor cannot create')
+
+  const r18i = await req('PATCH', `/reprint-requests/${wrReprintId}/chapters/${fbCh1.id}/approve`, {
+    token: e2Tok,
+    body: { originalChapterId: fbCh1.id, approve: true }
+  })
+  expectError(r18i, 403, 'Error.ReprintActionNotAllowed', '7.18i other Editor cannot approve')
+
+  const r18j = await req('GET', `/reprint-requests/${wrReprintId}/chapters`, { token: m3Tok })
+  ok(
+    '7.18j reviser collection contains only assigned chapter',
+    r18j.status === 200 &&
+      Array.isArray(r18j.json?.data) &&
+      r18j.json.data.length === 1 &&
+      r18j.json.data[0]?.originalChapterId === fbCh1.id,
+    `got ${r18j.status} ${r18j.raw.slice(0, 300)}`
+  )
+
+  const r18k = await req('PATCH', `/reprint-requests/${wrReprintId}/chapters/${fbCh2.id}/manuscript`, {
+    token: m3Tok,
+    body: { originalChapterId: fbCh2.id, manuscriptFile: 'manuscripts/wrong-chapter.pdf' }
+  })
+  expectError(r18k, 403, 'Error.ReprintActionNotAllowed', '7.18k reviser A cannot update chapter B')
 
   // ─── Section 7.19 — id rác GET → 404 ──────────────────────────────────────
   section('7.19 id rác → 404')

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
+import { CronMetricsService, runCron } from 'src/core/observability/cron-metrics.service'
 import { RedisService } from 'src/infrastructure/redis/redis.service'
 import { AuthRepository } from './auth.repo'
 
@@ -9,7 +10,8 @@ export class OtpCleanupCron {
 
   constructor(
     private readonly redisService: RedisService,
-    private readonly authRepository: AuthRepository
+    private readonly authRepository: AuthRepository,
+    private readonly cronMetrics?: CronMetricsService
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -18,8 +20,10 @@ export class OtpCleanupCron {
     if (!locked) return
 
     try {
-      const { count } = await this.authRepository.deleteExpiredOtpRequests(new Date())
-      this.logger.log(`OTP cleanup cron: removed ${count} expired otp requests`)
+      await runCron(this.cronMetrics, 'otp-cleanup', async () => {
+        const { count } = await this.authRepository.deleteExpiredOtpRequests(new Date())
+        this.logger.log(`OTP cleanup cron: removed ${count} expired otp requests`)
+      })
     } catch (error) {
       this.logger.error(`OTP cleanup cron failed: ${error instanceof Error ? error.message : String(error)}`)
     }

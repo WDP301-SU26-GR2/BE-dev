@@ -1,12 +1,11 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AuditEntityType } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { TankobonRepo } from './tankobon.repo'
 import { CreateTankobonSalesBodyType } from './schemas/tankobon-schemas'
 import { TankobonSeriesNotFoundException, DefenseDashboardAccessDeniedException } from './errors/tankobon.errors'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class TankobonService {
@@ -16,7 +15,7 @@ export class TankobonService {
   ) {}
 
   async recordSales(seriesId: string, body: CreateTankobonSalesBodyType, actorId: string) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw TankobonSeriesNotFoundException
+    if (!isObjectId(seriesId)) throw TankobonSeriesNotFoundException
     const series = await this.repo.findSeriesById(seriesId)
     if (!series) throw TankobonSeriesNotFoundException
     const created = await this.repo.createSales({
@@ -37,7 +36,7 @@ export class TankobonService {
   }
 
   async defenseDashboard(seriesId: string, callerId: string, roleName: string) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw TankobonSeriesNotFoundException
+    if (!isObjectId(seriesId)) throw TankobonSeriesNotFoundException
     const series = await this.repo.findSeriesById(seriesId)
     if (!series) throw TankobonSeriesNotFoundException
     // Defense dashboard = editor/board tool. Mangaka has own ranking view (PB-04).

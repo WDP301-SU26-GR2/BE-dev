@@ -1,4 +1,4 @@
-import { Inject, Logger } from '@nestjs/common'
+import { Inject, Logger, OnApplicationShutdown } from '@nestjs/common'
 import {
   ConnectedSocket,
   MessageBody,
@@ -11,20 +11,21 @@ import { createAdapter } from '@socket.io/redis-adapter'
 import type { Redis } from 'ioredis'
 import { Server, Socket } from 'socket.io'
 import { corsOrigins } from 'src/core/config/cors'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { REDIS_WS_CONNECTION } from 'src/infrastructure/redis/redis.constant'
 import { RedisService } from 'src/infrastructure/redis/redis.service'
 import { SurveyPeriodNotOpenException } from './errors/survey.errors'
 import { VoteTallyService } from './services/vote-tally.service'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 const TALLY_THROTTLE_SECONDS = 2
 
 @WebSocketGateway({
   cors: { origin: corsOrigins() },
   namespace: 'vote'
 })
-export class VoteGateway implements OnGatewayInit {
+export class VoteGateway implements OnGatewayInit, OnApplicationShutdown {
   private readonly logger = new Logger(VoteGateway.name)
+  private subClient?: Redis
 
   @WebSocketServer()
   server!: Server
@@ -38,6 +39,7 @@ export class VoteGateway implements OnGatewayInit {
   afterInit() {
     const pubClient: Redis = this.wsRedis
     const subClient = pubClient.duplicate()
+    this.subClient = subClient
     const ioServer = (this.server as unknown as { server?: unknown }).server ?? this.server
 
     if (typeof (ioServer as { adapter?: unknown }).adapter === 'function') {
@@ -49,10 +51,16 @@ export class VoteGateway implements OnGatewayInit {
     this.logger.warn('[Socket.IO] Vote Redis adapter initialization skipped: adapter setter not found')
   }
 
+  async onApplicationShutdown(): Promise<void> {
+    const subClient = this.subClient
+    this.subClient = undefined
+    if (subClient && subClient.status !== 'end') await subClient.quit()
+  }
+
   @SubscribeMessage('joinPeriod')
   async handleJoinPeriod(@MessageBody() data: { periodId?: string }, @ConnectedSocket() client: Socket) {
     const periodId = data?.periodId
-    if (!periodId || !OBJECT_ID_RE.test(periodId)) return { status: 'INVALID' }
+    if (!periodId || !isObjectId(periodId)) return { status: 'INVALID' }
 
     try {
       const tally = await this.voteTallyService.getLiveTally(periodId)

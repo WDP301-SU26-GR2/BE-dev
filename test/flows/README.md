@@ -29,18 +29,31 @@ docker start redis   # hoặc container Redis bất kỳ map cổng 6379
 ```bash
 cp .env.flowtest.example .env.flowtest
 ```
-Ba dòng **bắt buộc đúng**:
+
+Các target test **bắt buộc đúng**:
+
 ```
-DATABASE_URL="mongodb://localhost:27017/Mangaka-flowtest?replicaSet=rs0"
+NODE_ENV=test
+TEST_DATABASE_URL="mongodb://localhost:27017/mangaka_flow_test?replicaSet=rs0"
+DATABASE_URL="mongodb://localhost:27017/mangaka_flow_test?replicaSet=rs0"
 PORT=4100
-REDIS_URL=redis://localhost:6379/5      # ⚠ db index 5 — CÔ LẬP khỏi dev server (xem §Gotcha)
-AI_SERVICE_URL=                          # rỗng = AI tắt (test assert nhánh 503 fallback)
+TEST_REDIS_URL=redis://localhost:6379/5 # ⚠ db index 5 — CÔ LẬP khỏi dev server (xem §Gotcha)
+REDIS_URL=redis://localhost:6379/5
+AI_SERVICE_URL=                         # rỗng = AI tắt (test assert nhánh 503 fallback)
 ```
 
+`TEST_DATABASE_URL` là authority của test harness; không được fallback sang `.env` dev. Tên database phải kết thúc
+bằng `_test` (hoặc dùng prefix `ci_`/`ci-`). `DATABASE_URL` và `REDIS_URL` được giữ cùng target để process API test
+khởi động từ `.env.flowtest`; guard sẽ ghi đè chúng bằng hai biến `TEST_*` trước khi flow truy cập hạ tầng.
+
 ### 3. 🔴 Tạo index cho DB flowtest (BẮT BUỘC — làm 1 lần)
+
 ```bash
-DATABASE_URL="mongodb://localhost:27017/Mangaka-flowtest?replicaSet=rs0" npx prisma db push --skip-generate
+node --env-file=.env.flowtest node_modules/prisma/build/index.js db push --skip-generate
+node --env-file=.env.flowtest node_modules/ts-node/dist/bin.js \
+  -r tsconfig-paths/register src/initialScript/bootstrap-mongo-indexes.ts
 ```
+
 > Mongo tự tạo collection khi ghi doc đầu, **không kèm index**. Bỏ qua bước này → mọi unique constraint
 > (`User.email`, `ReaderVote[period,identityHash]` = rule 1-phiếu/kỳ, `RefreshToken.token`…) **KHÔNG được
 > enforce** → test "pass" một cách **dối** (xem FINDING-BE-014).
@@ -48,17 +61,21 @@ DATABASE_URL="mongodb://localhost:27017/Mangaka-flowtest?replicaSet=rs0" npx pri
 > Nếu `db push` báo E11000 (data cũ trùng): drop collection rồi push lại.
 
 ### 4. Build + chạy server test (terminal riêng)
+
 ```bash
 pnpm build
 node --env-file=.env.flowtest dist/main.js
 ```
 
 ### 5. Chạy test
+
 ```bash
 pnpm flowtest                                    # cả 15 file, tuần tự
 pnpm flowtest --only=flow-04                     # 1 file (match substring)
 pnpm flowtest:one test/flows/flow-05-lifecycle.ts # chạy trực tiếp 1 file
+pnpm test:integration                            # tự load .env.flowtest nếu file tồn tại
 ```
+
 Exit code: `0` = all pass · `1` = có FAIL · `2` = lỗi tiền đề (server chưa chạy / DB sai / thiếu index).
 
 ---
@@ -68,7 +85,7 @@ Exit code: `0` = all pass · `1` = có FAIL · `2` = lỗi tiền đề (server 
 ```
 test/flows/
 ├── lib/
-│   ├── env.ts     # load .env.flowtest (FORCE override mọi key) + GUARD: DATABASE_URL phải chứa 'flowtest'
+│   ├── env.ts     # load .env.flowtest + guard TEST_DATABASE_URL/TEST_REDIS_URL trước mọi DB/Redis access
 │   ├── http.ts    # req/ok/expectError/expectStatus/section/summary — đọc envelope {success,message,data}
 │   ├── seed.ts    # prisma client + wipeDb + assertIndexesReady + ~15 fast-forward factory
 │   ├── auth.ts    # login (cache theo email) + seedOtp (bcrypt '123456')
@@ -128,7 +145,7 @@ Sweep so code với bảng: lệch = finding.
 
 ## 🔴 Gotcha (đã trả giá — đừng lặp lại)
 
-1. **`REDIS_URL` phải là db index riêng (`/5`).** Dev server chạy cùng máy dùng db0. Nếu dùng chung,
+1. **`TEST_REDIS_URL`/`REDIS_URL` phải là db index riêng (`/5`).** Dev server chạy cùng máy dùng db0. Nếu dùng chung,
    **worker BullMQ của dev server sẽ ăn job queue của flowtest** rồi ghi Notification vào **DB dev**
    → notification "biến mất" ngẫu nhiên khỏi DB flowtest (chính là loạt "cold-start flake" trước đây).
 2. **`@prisma/client` tự load `.env`** (env DEV) vào `process.env` ngay khi import → ESM hoisting làm
@@ -140,7 +157,7 @@ Sweep so code với bảng: lệch = finding.
    **targeted**: `rl:*` (rate-limit, trong `wipeDb`) và `cron:*` (trong `clearCronLocks`).
 5. **Rate-limit OTP window = 1 giờ.** Không xoá `rl:*` → chạy suite 2–3 lần trong cùng giờ sẽ ăn 429
    hàng loạt (đỏ giả).
-6. **`prisma db push` cho DB flowtest** — xem bước 3.
+6. **`prisma db push` + `bootstrap-mongo-indexes` cho DB `_test`** — xem bước 3.
 
 ## Ngoài phạm vi (spec §20)
 

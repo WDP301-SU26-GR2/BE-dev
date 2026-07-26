@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { AiSegmentSource, ProductionStageStatus } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { ChapterRepository } from '../chapter.repo'
 import { ChapterNotFoundException, ChapterOnHoldException } from '../errors/chapter.errors'
@@ -11,10 +12,8 @@ import {
   StageOutputInvalidException,
   StagePageNotFoundException
 } from '../errors/production-stage.errors'
-import { ProductionStageRepository } from '../production-stage.repo'
+import { ConfirmStageOutputCommand, ProductionStageRepository } from '../production-stage.repo'
 import { ConfirmStageOutputsBodyType } from '../schemas/production-stage-schemas'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class ProductionStagePageService {
@@ -24,7 +23,7 @@ export class ProductionStagePageService {
   ) {}
 
   private async loadChapter(chapterId: string) {
-    if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
+    if (!isObjectId(chapterId)) throw ChapterNotFoundException
     const chapter = await this.chapterRepo.findChapterById(chapterId)
     if (!chapter) throw ChapterNotFoundException
     const series = await this.chapterRepo.findSeriesById(chapter.seriesId)
@@ -79,7 +78,28 @@ export class ProductionStagePageService {
       }
     }
     if (pages.every((page) => page.outputConfirmedAt)) return { items: pages.map((page) => this.toRes(page)) }
-    const updated = await this.repo.confirmOutputs(stageId, userId, body.items)
+    const commands: ConfirmStageOutputCommand[] = body.items.map((item) => {
+      const stagePage = byId.get(item.pageId)
+      if (!stagePage) throw StagePageNotFoundException
+      if (item.reuseInput) {
+        return {
+          pageId: item.pageId,
+          outputSourceType: stagePage.inputSourceType,
+          outputFileKey: stagePage.inputFileKey,
+          outputRevision: stagePage.inputRevision
+        }
+      }
+      if (!item.fileKey) throw StageOutputInvalidException
+      const outputRevision = stagePage.page.compositeRevision + 1
+      return {
+        pageId: item.pageId,
+        outputSourceType: AiSegmentSource.COMPOSITE,
+        outputFileKey: item.fileKey,
+        outputRevision,
+        compositeUpdate: { fileKey: item.fileKey, revision: outputRevision }
+      }
+    })
+    const updated = await this.repo.confirmOutputs(stageId, userId, commands)
     return { items: updated.map((page) => this.toRes(page)) }
   }
 

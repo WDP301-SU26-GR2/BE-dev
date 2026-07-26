@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { AuditEntityType } from '@prisma/client'
 import { PublicationRepo } from './publication.repo'
@@ -11,8 +12,6 @@ import {
 } from './errors/publication.errors'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { PublicationMessages } from './publication.messages'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class PublicationService {
@@ -33,7 +32,7 @@ export class PublicationService {
     userId: string,
     roleName: string
   ): Promise<{ id: string; mangakaId: string; editorId: string | null }> {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
     const series = await this.repo.findSeriesBasics(seriesId)
     if (!series) throw SeriesNotFoundException
     this.assertSeriesScope(series, userId, roleName)
@@ -59,7 +58,7 @@ export class PublicationService {
   }
 
   private async loadVersionScoped(id: string, userId: string, roleName: string) {
-    if (!OBJECT_ID_RE.test(id)) throw PublicationVersionNotFoundException
+    if (!isObjectId(id)) throw PublicationVersionNotFoundException
     const version = await this.repo.findById(id)
     if (!version) throw PublicationVersionNotFoundException
     const series = await this.repo.findSeriesBasics(version.seriesId)

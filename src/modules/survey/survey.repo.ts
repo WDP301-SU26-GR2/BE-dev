@@ -2,425 +2,142 @@ import { Injectable } from '@nestjs/common'
 import { PublicationType } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { CreateSurveyPeriodBodyDto, ImportSurveyDataBodyDto } from './dto/survey.dto'
+import { SurveyConfigRepository, VotingConfigData } from './repositories/survey-config.repository'
+import { SurveyPeriodRepository } from './repositories/survey-period.repository'
+import {
+  FinalizedRankingRecordData,
+  RankingRecordData,
+  SurveyRankingRepository
+} from './repositories/survey-ranking.repository'
+import { CreateReaderVoteData, SurveyVoteRepository } from './repositories/survey-vote.repository'
 
+/**
+ * Stable module repository boundary.
+ *
+ * Consumers keep one injection token while focused repositories own the
+ * period, vote, ranking and configuration Prisma queries.
+ */
 @Injectable()
 export class SurveyRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly periods: SurveyPeriodRepository
+  private readonly votes: SurveyVoteRepository
+  private readonly rankings: SurveyRankingRepository
+  private readonly config: SurveyConfigRepository
+
+  constructor(prisma: PrismaService) {
+    this.periods = new SurveyPeriodRepository(prisma)
+    this.votes = new SurveyVoteRepository(prisma)
+    this.rankings = new SurveyRankingRepository(prisma)
+    this.config = new SurveyConfigRepository(prisma)
+  }
 
   createSurveyPeriod(data: CreateSurveyPeriodBodyDto) {
-    return this.prisma.surveyPeriod.create({
-      data: {
-        magazine: data.magazine.trim(),
-        publicationType: data.publicationType,
-        eligibleSeriesIds: data.eligibleSeriesIds,
-        issueNumber: data.issueNumber,
-        reflectedIssueNumber: data.reflectedIssueNumber ?? null,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        status: data.status ?? 'DRAFT'
-      }
-    })
+    return this.periods.create(data)
   }
-
   findManySurveyPeriods() {
-    return this.prisma.surveyPeriod.findMany({ orderBy: { startDate: 'desc' } })
+    return this.periods.findMany()
   }
-
   findSurveyPeriodById(id: string) {
-    return this.prisma.surveyPeriod.findUnique({ where: { id } })
+    return this.periods.findById(id)
   }
-
   findScopedSurveyPeriod(magazine: string, publicationType: PublicationType, issueNumber: number) {
-    return this.prisma.surveyPeriod.findFirst({
-      where: { magazine, publicationType, issueNumber }
-    })
+    return this.periods.findScoped(magazine, publicationType, issueNumber)
   }
-
   updateSurveyPeriodStatus(id: string, status: 'OPEN' | 'CLOSED' | 'REFLECTED') {
-    return this.prisma.surveyPeriod.update({ where: { id }, data: { status } })
+    return this.periods.updateStatus(id, status)
+  }
+  createSurveyData(data: ImportSurveyDataBodyDto & { importedBy: string }) {
+    return this.periods.createSurveyData(data)
+  }
+  getSurveyDataByPeriod(surveyPeriodId: string) {
+    return this.periods.getSurveyData(surveyPeriodId)
+  }
+  findLatestOpenSurveyPeriod() {
+    return this.periods.findLatestOpen()
+  }
+  findLatestReflectedPeriod() {
+    return this.periods.findLatestReflected()
+  }
+  findLatestReflectedScopedPeriod(magazine: string, publicationType: PublicationType) {
+    return this.periods.findLatestReflectedScoped(magazine, publicationType)
+  }
+  findReflectedPeriods(limit: number) {
+    return this.periods.findReflected(limit)
+  }
+  findReflectedScopedPeriods(magazine: string, publicationType: PublicationType, limit: number) {
+    return this.periods.findReflectedScoped(magazine, publicationType, limit)
+  }
+  findPreviousSurveyPeriod(currentSurveyPeriodId: string) {
+    return this.periods.findPrevious(currentSurveyPeriodId)
+  }
+  findPreviousScopedSurveyPeriod(currentSurveyPeriodId: string, magazine: string, publicationType: PublicationType) {
+    return this.periods.findPreviousScoped(currentSurveyPeriodId, magazine, publicationType)
+  }
+  findReflectedScopedPeriodsInRange(magazine: string, publicationType: PublicationType, from: Date, to: Date) {
+    return this.periods.findReflectedScopedInRange(magazine, publicationType, from, to)
   }
 
-  createReaderVote(data: {
-    surveyPeriodId: string
-    seriesIds: string[]
-    identityHash: string
-    publicationType: PublicationType | null
-    authMethod?: 'EMAIL_OTP' | 'PHONE_OTP' | 'CAPTCHA_ONLY' | null
-    ipHash?: string
-    captchaScore?: number | null
-    voteWeight: number
-    isFlagged: boolean
-  }) {
-    return this.prisma.readerVote.create({
-      data: {
-        surveyPeriodId: data.surveyPeriodId,
-        seriesIds: data.seriesIds,
-        identityHash: data.identityHash,
-        publicationType: data.publicationType,
-        authMethod: data.authMethod ?? null,
-        ipHash: data.ipHash ?? null,
-        captchaScore: data.captchaScore ?? null,
-        voteWeight: data.voteWeight,
-        isFlagged: data.isFlagged
-      }
-    })
+  createReaderVote(data: CreateReaderVoteData) {
+    return this.votes.create(data)
   }
-
-  // Option B: dedup per (period, type, identity). findFirst (không findUnique) vì publicationType
-  // nullable trong compound unique — findUnique không nhận null ở compound key.
   findReaderVoteByPeriodAndIdentity(
     surveyPeriodId: string,
     identityHash: string,
     publicationType: PublicationType | null
   ) {
-    return this.prisma.readerVote.findFirst({ where: { surveyPeriodId, identityHash, publicationType } })
+    return this.votes.findByPeriodAndIdentity(surveyPeriodId, identityHash, publicationType)
   }
-
-  countReaderVotesByPeriodAndIp(
-    surveyPeriodId: string,
-    ipHash: string,
-    publicationType: PublicationType | null
-  ): Promise<number> {
-    return this.prisma.readerVote.count({ where: { surveyPeriodId, ipHash, publicationType } })
+  countReaderVotesByPeriodAndIp(surveyPeriodId: string, ipHash: string, publicationType: PublicationType | null) {
+    return this.votes.countByPeriodAndIp(surveyPeriodId, ipHash, publicationType)
   }
-
-  createSurveyData(data: ImportSurveyDataBodyDto & { importedBy: string }) {
-    return this.prisma.surveyData.create({
-      data: {
-        surveyPeriodId: data.surveyPeriodId,
-        importedBy: data.importedBy,
-        surveyDate: data.surveyDate ? new Date(data.surveyDate) : null,
-        entries: data.entries.map((entry) => ({
-          seriesId: entry.seriesId,
-          voteCount: entry.voteCount
-        }))
-      }
-    })
-  }
-
-  createRankingRecord(data: {
-    seriesId: string
-    surveyPeriodId: string
-    rankPosition?: number
-    voteCount: number
-    previousRank?: number | null
-    rankChange?: number | null
-    isAtRisk: boolean
-    riskLevel: 'NONE' | 'LOW' | 'MEDIUM' | 'SEVERE'
-    consecutiveAtRiskCount: number
-    isReliable: boolean
-  }) {
-    return this.prisma.rankingRecord.create({
-      data: {
-        seriesId: data.seriesId,
-        surveyPeriodId: data.surveyPeriodId,
-        rankPosition: data.rankPosition ?? null,
-        voteCount: data.voteCount,
-        previousRank: data.previousRank ?? null,
-        rankChange: data.rankChange ?? null,
-        isAtRisk: data.isAtRisk,
-        riskLevel: data.riskLevel,
-        consecutiveAtRiskCount: data.consecutiveAtRiskCount,
-        isReliable: data.isReliable
-      }
-    })
-  }
-
-  getSurveyDataByPeriod(surveyPeriodId: string) {
-    return this.prisma.surveyData.findMany({ where: { surveyPeriodId } })
-  }
-
   getReaderVotesByPeriod(surveyPeriodId: string) {
-    return this.prisma.readerVote.findMany({ where: { surveyPeriodId } })
+    return this.votes.getByPeriod(surveyPeriodId)
   }
-
-  getRankingRecordsByPeriod(surveyPeriodId: string) {
-    return this.prisma.rankingRecord.findMany({
-      where: { surveyPeriodId },
-      orderBy: { rankPosition: 'asc' },
-      include: {
-        surveyPeriod: {
-          select: { magazine: true, publicationType: true, issueNumber: true, status: true }
-        }
-      }
-    })
-  }
-
-  // Fix-1 G-2: kỳ OPEN mới nhất cho trang vote public.
-  findLatestOpenSurveyPeriod() {
-    return this.prisma.surveyPeriod.findFirst({
-      where: { status: 'OPEN' },
-      orderBy: { startDate: 'desc' }
-    })
-  }
-
-  // Spec 15 Part B — endDate is nullable, so id is the deterministic tiebreaker.
-  findLatestReflectedPeriod() {
-    return this.prisma.surveyPeriod.findFirst({
-      where: { status: 'REFLECTED' },
-      orderBy: [{ endDate: 'desc' }, { id: 'desc' }]
-    })
-  }
-
-  findLatestReflectedScopedPeriod(magazine: string, publicationType: PublicationType) {
-    return this.prisma.surveyPeriod.findFirst({
-      where: { status: 'REFLECTED', magazine, publicationType },
-      orderBy: [{ endDate: 'desc' }, { id: 'desc' }]
-    })
-  }
-
-  findReflectedPeriods(limit: number) {
-    return this.prisma.surveyPeriod.findMany({
-      where: { status: 'REFLECTED' },
-      orderBy: [{ endDate: 'desc' }, { id: 'desc' }],
-      take: limit,
-      select: {
-        id: true,
-        issueNumber: true,
-        reflectedIssueNumber: true,
-        startDate: true,
-        endDate: true
-      }
-    })
-  }
-
-  // Fix-1 G-2: danh sách series đang phát hành — CHỈ field public-safe, TUYỆT ĐỐI không thêm select.
-  // Option B: filter theo publicationType cho tab Tuần/Tháng. Không truyền → mọi series SERIALIZED
-  // CÓ nhịp xuất bản (publicationType != null — series chưa gán nhịp không vote được).
   findManySerializedSeriesPublic(publicationType?: PublicationType) {
-    return this.prisma.series.findMany({
-      where: { status: 'SERIALIZED', publicationType: publicationType ?? { not: null } },
-      select: { id: true, title: true, coverImage: true, genres: true, demographic: true, publicationType: true },
-      orderBy: { title: 'asc' }
-    })
+    return this.votes.findManySerializedSeriesPublic(publicationType)
   }
-
-  // Fix-1 G-2: map title cho bảng kết quả public.
   findSeriesTitlesByIds(seriesIds: string[]) {
-    if (seriesIds.length === 0) return Promise.resolve([])
-    return this.prisma.series.findMany({
-      where: { id: { in: seriesIds } },
-      // Spec 15.2: kèm publicationType để bảng xếp hạng public filter/badge theo WEEKLY/MONTHLY.
-      select: { id: true, title: true, publicationType: true }
-    })
+    return this.votes.findSeriesTitlesByIds(seriesIds)
   }
-
-  findReflectedScopedPeriods(magazine: string, publicationType: PublicationType, limit: number) {
-    return this.prisma.surveyPeriod.findMany({
-      where: { status: 'REFLECTED', magazine, publicationType },
-      orderBy: [{ endDate: 'desc' }, { id: 'desc' }],
-      take: limit,
-      select: {
-        id: true,
-        issueNumber: true,
-        reflectedIssueNumber: true,
-        startDate: true,
-        endDate: true
-      }
-    })
-  }
-
-  // Public-safe projection used by the vote context/tally. Callers must supply the
-  // frozen eligibility snapshot; this method never widens it to all serialized series.
   findPublicSeriesByIds(seriesIds: string[]) {
-    if (seriesIds.length === 0) return Promise.resolve([])
-    return this.prisma.series.findMany({
-      // Eligibility is frozen by SurveyPeriod. Do not re-filter a live tally
-      // by the series' current status or an already-voted entry could vanish.
-      where: { id: { in: seriesIds } },
-      select: { id: true, title: true, coverImage: true, genres: true, demographic: true, publicationType: true },
-      orderBy: { title: 'asc' }
-    })
+    return this.votes.findPublicSeriesByIds(seriesIds)
   }
-
-  // PB-04 trend: N record gần nhất của 1 series (mới→cũ).
-  getRankingRecordsBySeries(seriesId: string, take: number) {
-    return this.prisma.rankingRecord.findMany({
-      where: { seriesId },
-      orderBy: { recordedAt: 'desc' },
-      take,
-      include: {
-        surveyPeriod: {
-          select: { magazine: true, publicationType: true, issueNumber: true, status: true }
-        }
-      }
-    })
+  countPublishedChaptersBySeriesIds(seriesIds: string[]) {
+    return this.votes.countPublishedChaptersBySeriesIds(seriesIds)
   }
-
-  // B-VOT-05: đếm chapter PUBLISHED theo từng series → Map<seriesId, count>.
-  // Series < ngưỡng → loại khỏi at-risk.
-  async countPublishedChaptersBySeriesIds(seriesIds: string[]): Promise<Map<string, number>> {
-    if (seriesIds.length === 0) return new Map()
-    const grouped = await this.prisma.chapter.groupBy({
-      by: ['seriesId'],
-      where: { seriesId: { in: seriesIds }, status: 'PUBLISHED' },
-      _count: { _all: true }
-    })
-    return new Map(grouped.map((g) => [g.seriesId, g._count._all]))
+  findHeldChapterSeriesIds(seriesIds: string[], thresholdDate: Date) {
+    return this.votes.findHeldChapterSeriesIds(seriesIds, thresholdDate)
   }
-
-  // B-VOT-07: series có chapter đang hold lâu hơn thresholdDate. Composite filter chưa verify ở Mongo →
-  // fetch chapter có hold rồi lọc in-memory (Spec 5 §4).
-  async findHeldChapterSeriesIds(seriesIds: string[], thresholdDate: Date): Promise<Set<string>> {
-    if (seriesIds.length === 0) return new Set()
-    const chapters = await this.prisma.chapter.findMany({
-      where: { seriesId: { in: seriesIds } },
-      select: { seriesId: true, hold: true }
-    })
-    const result = new Set<string>()
-    for (const ch of chapters) {
-      if (ch.hold && ch.hold.heldAt && ch.hold.heldAt < thresholdDate) result.add(ch.seriesId)
-    }
-    return result
-  }
-
   findSeriesOwnershipByIds(seriesIds: string[]) {
-    // `in: []` → Prisma trả [] (không cần early-return; early-return `Promise.resolve([])` làm kiểu ra any[]).
-    return this.prisma.series.findMany({
-      where: { id: { in: seriesIds } },
-      select: { id: true, status: true, mangakaId: true, editorId: true, magazine: true, publicationType: true }
-    })
+    return this.votes.findSeriesOwnershipByIds(seriesIds)
+  }
+  findBoardMemberIds() {
+    return this.votes.findBoardMemberIds()
   }
 
-  // Board recipients: resolve roleId TRƯỚC (Mongo tránh relation-filter — bám users.repo.ts pattern).
-  async findBoardMemberIds(): Promise<string[]> {
-    const role = await this.prisma.role.findFirst({ where: { code: 'BOARD_MEMBER' }, select: { id: true } })
-    if (!role) return []
-    const users = await this.prisma.user.findMany({
-      where: { roleId: role.id, deletedAt: { isSet: false } },
-      select: { id: true }
-    })
-    return users.map((u) => u.id)
+  createRankingRecord(data: RankingRecordData) {
+    return this.rankings.create(data)
   }
-
-  findPreviousSurveyPeriod(currentSurveyPeriodId: string) {
-    return this.prisma.surveyPeriod.findFirst({
-      where: { id: { not: currentSurveyPeriodId }, status: 'REFLECTED' },
-      orderBy: { endDate: 'desc' }
-    })
+  getRankingRecordsByPeriod(surveyPeriodId: string) {
+    return this.rankings.getByPeriod(surveyPeriodId)
   }
-
-  findPreviousScopedSurveyPeriod(currentSurveyPeriodId: string, magazine: string, publicationType: PublicationType) {
-    return this.prisma.surveyPeriod.findFirst({
-      where: { id: { not: currentSurveyPeriodId }, status: 'REFLECTED', magazine, publicationType },
-      orderBy: [{ endDate: 'desc' }, { id: 'desc' }]
-    })
+  getRankingRecordsBySeries(seriesId: string, take: number) {
+    return this.rankings.getBySeries(seriesId, take)
   }
-
-  findReflectedScopedPeriodsInRange(magazine: string, publicationType: PublicationType, from: Date, to: Date) {
-    return this.prisma.surveyPeriod.findMany({
-      where: {
-        status: 'REFLECTED',
-        magazine,
-        publicationType,
-        startDate: { gte: from, lt: to }
-      },
-      select: { id: true }
-    })
-  }
-
   findRankingRecordsByPeriodIds(surveyPeriodIds: string[]) {
-    if (surveyPeriodIds.length === 0) return Promise.resolve([])
-    return this.prisma.rankingRecord.findMany({
-      where: { surveyPeriodId: { in: surveyPeriodIds } },
-      select: { seriesId: true, surveyPeriodId: true, voteCount: true, normalizedScore: true }
-    })
+    return this.rankings.findByPeriodIds(surveyPeriodIds)
   }
-
-  async finalizeScopedRanking(
-    surveyPeriodId: string,
-    records: Array<{
-      seriesId: string
-      rankPosition: number
-      voteCount: number
-      normalizedScore: number
-      previousRank: number | null
-      rankChange: number | null
-      isAtRisk: boolean
-      riskLevel: 'NONE' | 'LOW' | 'MEDIUM' | 'SEVERE'
-      consecutiveAtRiskCount: number
-      isReliable: boolean
-    }>
-  ): Promise<boolean> {
-    return this.prisma.$transaction(async (tx) => {
-      // Conditional transition is the idempotency claim. A concurrent/retried
-      // finalizer cannot create another set of records once CLOSED is claimed.
-      const claimed = await tx.surveyPeriod.updateMany({
-        where: { id: surveyPeriodId, status: 'CLOSED' },
-        data: { status: 'REFLECTED' }
-      })
-      if (claimed.count !== 1) return false
-
-      await tx.rankingRecord.createMany({
-        data: records.map((record) => ({ ...record, surveyPeriodId }))
-      })
-      return true
-    })
+  finalizeScopedRanking(surveyPeriodId: string, records: FinalizedRankingRecordData[]) {
+    return this.rankings.finalizeScoped(surveyPeriodId, records)
   }
 
   getVotingConfig() {
-    return this.prisma.votingConfig.findFirst()
+    return this.config.get()
   }
-
-  // B-VOT-06: create row with Requiment §1.15 defaults (lazy-seed by SurveyConfigService).
-  // Same defaults as the schema @default() in prisma/schema.prisma.
   createDefaultVotingConfig() {
-    return this.prisma.votingConfig.create({
-      data: {
-        authMode: 'OTP',
-        maxSeriesPerVote: 3,
-        otpExpirySeconds: 300,
-        otpMaxAttempts: 3,
-        ipRateLimit: 10,
-        phoneRateLimit: 3,
-        otpCooldownSeconds: 60,
-        ipVotesPerPeriod: 10,
-        captchaThreshold: 0.3
-      }
-    })
+    return this.config.createDefault()
   }
-
-  async updateVotingConfig(data: {
-    authMode?: 'OTP' | 'CAPTCHA' | 'HYBRID'
-    maxSeriesPerVote?: number
-    otpExpirySeconds?: number
-    otpMaxAttempts?: number
-    ipRateLimit?: number
-    phoneRateLimit?: number
-    otpCooldownSeconds?: number
-    ipVotesPerPeriod?: number
-    captchaThreshold?: number
-  }) {
-    const existing = await this.prisma.votingConfig.findFirst()
-    if (existing) {
-      return this.prisma.votingConfig.update({
-        where: { id: existing.id },
-        data: {
-          authMode: data.authMode ?? existing.authMode,
-          maxSeriesPerVote: data.maxSeriesPerVote ?? existing.maxSeriesPerVote,
-          otpExpirySeconds: data.otpExpirySeconds ?? existing.otpExpirySeconds,
-          otpMaxAttempts: data.otpMaxAttempts ?? existing.otpMaxAttempts,
-          ipRateLimit: data.ipRateLimit ?? existing.ipRateLimit,
-          phoneRateLimit: data.phoneRateLimit ?? existing.phoneRateLimit,
-          otpCooldownSeconds: data.otpCooldownSeconds ?? existing.otpCooldownSeconds,
-          ipVotesPerPeriod: data.ipVotesPerPeriod ?? existing.ipVotesPerPeriod,
-          captchaThreshold: data.captchaThreshold ?? existing.captchaThreshold
-        }
-      })
-    }
-
-    return this.prisma.votingConfig.create({
-      data: {
-        authMode: data.authMode ?? 'OTP',
-        maxSeriesPerVote: data.maxSeriesPerVote ?? 3,
-        otpExpirySeconds: data.otpExpirySeconds ?? 300,
-        otpMaxAttempts: data.otpMaxAttempts ?? 3,
-        ipRateLimit: data.ipRateLimit ?? 10,
-        phoneRateLimit: data.phoneRateLimit ?? 3,
-        otpCooldownSeconds: data.otpCooldownSeconds ?? 60,
-        ipVotesPerPeriod: data.ipVotesPerPeriod ?? 10,
-        captchaThreshold: data.captchaThreshold ?? 0.3
-      }
-    })
+  updateVotingConfig(data: VotingConfigData) {
+    return this.config.update(data)
   }
 }

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   GoneException,
@@ -17,6 +18,7 @@ export const OTPExpiredException = new GoneException(E.otpExpired)
 export const OtpLockedException = new UnprocessableEntityException([{ message: E.otpLocked, path: 'code' }])
 
 export const FailedToSendOTPException = new UnprocessableEntityException([{ message: E.failedToSendOtp, path: 'code' }])
+export const VoteOtpOwnedBySurveyException = new BadRequestException(E.voteOtpOwnedBySurvey)
 
 // Email related errors
 export const EmailAlreadyExistsException = new UnprocessableEntityException([

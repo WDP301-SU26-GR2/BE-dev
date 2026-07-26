@@ -1,6 +1,7 @@
 # Mangaka AI Service
 
-Microservice **FastAPI** (Python) làm nhiệm vụ **phân vùng trang truyện** (page segmentation) cho Spec 2 của Epic A4.
+Microservice **FastAPI** (Python) đề xuất **vùng đối tượng/panel bằng bounding box** cho Spec 2 của Epic A4.
+Contract v1 chỉ trả `bbox` và confidence; đây không phải pixel-mask/polygon segmentation.
 Service **stateless**: KHÔNG chạm MongoDB/Redis, KHÔNG giữ trạng thái. Backend NestJS gọi qua HTTP, nhận về danh sách
 vùng (`regions`) rồi tự lưu DB theo cơ chế **proposal-first** (xem A-TSK-01).
 

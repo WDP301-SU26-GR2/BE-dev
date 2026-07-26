@@ -22,8 +22,8 @@
 | **Hashing** | bcrypt | 6.x | Password hashing |
 | **API Docs** | Swagger | @nestjs/swagger 11.x | Auto-generated tại `/api` |
 | **Package Manager** | pnpm | 10+ | Workspace-aware, lockfile `pnpm-lock.yaml` |
-| **Container** | Docker | Multi-stage build | Production (`Dockerfile`) + Dev all-in-one (`Dockerfile.dev`) |
-| **CI** | GitHub Actions | - | Build verification trên `main` và `develop` |
+| **Container** | Docker | Multi-stage build | Production/deploy only (`Dockerfile`); local development runs directly with Node/pnpm |
+| **CI** | GitHub Actions | - | Quality, flow, coverage, supply-chain and image gates on `main`, `develop` and pull requests |
 | **Linting** | ESLint + Prettier | Flat config (`eslint.config.mjs`) | No semicolons, single quotes, 120 printWidth |
 
 ---
@@ -34,25 +34,39 @@
 BE-dev/
 ├── prisma/
 │   └── schema.prisma              # Database schema (MongoDB)
-├── ai-service/                    # Python FastAPI AI segmentation service (optional profile ai)
+├── ai-service/                    # Python FastAPI bounding-box region detection service (optional profile ai)
 ├── src/
 │   ├── main.ts                     # Bootstrap — khởi tạo app, Swagger, listen port
 │   ├── app.module.ts               # Root module — import CoreModule + feature modules, đăng ký global pipes/filters/interceptor
 │   ├── initialScript/              # Seed script (admin, roles) — chạy bằng `pnpm seed`
-│   ├── modules/                    # ⭐ Feature modules (vertical slice) — BE-A
+│   ├── modules/                    # ⭐ Feature modules (vertical slices)
 │   │   ├── auth/                   # đăng ký, OTP, login/refresh, đổi/quên mật khẩu
 │   │   ├── users/                  # admin tạo user, hồ sơ Mangaka/Assistant
 │   │   ├── notification/           # NotificationService (@Global) + đọc thông báo
 │   │   ├── reviews/                # ASSISTANTREVIEW/MANGAKAREVIEW + reputation
-│   │   ├── series/                 # proposal, Name, pitch, series state (controller + name.controller)
+│   │   ├── series/                 # proposal, pitch, lifecycle and ownership
+│   │   ├── name/                   # Series/chapter Name content, review and approval
 │   │   ├── chapter/                # Chapter/Schedule/Manuscript/Page + publish
 │   │   ├── annotation/             # markup review (shared Mangaka↔Assistant, Editor↔Mangaka)
 │   │   ├── storage/                # signed URL (presign PUT/GET) wiring
-│   │   ├── ai/                     # Spec 2 AI segmentation jobs, queue, proposal-first apply
+│   │   ├── ai/                     # Spec 2 bounding-box detection jobs, queue, proposal-first apply
 │   │   ├── audit/                  # PA-06 AuditLog (@Global) dual-write best-effort + GET /audit
 │   │   ├── app-config/             # PA-10 registry tham số nghiệp vụ (@Global) + GET/PATCH /admin/app-config
-│   │   ├── contract/               # ⚠️ BE-B (B1 Contract/Payment) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
-│   │   └── board/                  # ⚠️ BE-B (B5 Board/Decision engine) — đã bắt đầu trong repo, KHÔNG thuộc BE-A
+│   │   ├── contract/               # Contract lifecycle, amendments, signing and PDF
+│   │   ├── board/                  # Board sessions, decisions, voting and reports
+│   │   ├── survey/                 # Guest Vote, survey periods and ranking finalization
+│   │   ├── studio/                 # Collaboration invite and studio assignment
+│   │   ├── task/                   # Region/task assignment, production work and review
+│   │   ├── tankobon/               # Tankobon planning and publication grouping
+│   │   ├── deadline/               # Deadline negotiation and finalization
+│   │   ├── reprint/                # Reprint request workflow and chapter revisions
+│   │   ├── transfer/               # Ownership transfer requests, contracts and signing
+│   │   ├── payment/                # Payment conditions, records and trigger engines
+│   │   ├── revision/               # Revision request lifecycle
+│   │   ├── publication/            # Publication version management
+│   │   ├── dashboard/              # Audience-specific dashboard controllers
+│   │   ├── public/                 # Public read-only endpoints
+│   │   └── health/                 # Liveness, readiness and Prometheus metrics
 │   │       # mỗi module: controller(s) + service (orchestrator) + services/ (use-case + state)
 │   │       #            + repo + mapper? + messages? + constant? + ports? + schemas + dto + errors
 │   │       # <name>.messages.ts: catalog text user-facing (response/notification/error) — string thuần,
@@ -299,7 +313,7 @@ const configSchema = z.object({
 | `GOOGLE_CLIENT_ID` | string | Google OAuth client id (verify Google ID token — login Google) |
 | `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_REGION` | string | Cloudflare R2 (object storage, presigned URL). **`R2_ENDPOINT` bắt buộc, không default** |
 | `DEADLINE_SLOT_GRACE_HOURS` | number | Ngưỡng auto đánh giá `affectsSlot` cho DeadlineRequest (A5, default 48) |
-| `AI_SERVICE_URL` | string | Base URL AI service (Spec 2). **Rỗng = AI TẮT** (segment fallback manual) |
+| `AI_SERVICE_URL` | string | Base URL AI bounding-box detection service (Spec 2). **Rỗng = AI TẮT** (region proposal fallback manual) |
 | `AI_SERVICE_API_KEY` | string | Shared secret khớp `API_KEY` của ai-service. **Bắt buộc nếu `AI_SERVICE_URL` được set** (nếu không → fail-fast) |
 | `AI_HTTP_TIMEOUT_MS` | number | Timeout gọi AI service (default 120000) |
 
@@ -583,6 +597,54 @@ graph LR
 | `start:dev` | `nest start --watch` | Dev mode với hot reload |
 | `start:prod` | `node dist/main` | Production mode |
 | `build` | `nest build` | Compile TypeScript → `dist/` |
-| `lint` | `eslint ... --fix` | Lint + auto-fix |
+| `lint` | `eslint ... --max-warnings=0` | Check-only lint; không sửa worktree |
+| `lint:fix` | `eslint ... --fix` | Tự động sửa lint/format khi chủ động yêu cầu |
 | `test` | `jest` | Unit tests |
 | `test:e2e` | `jest --config ./test/jest-e2e.json` | End-to-end tests |
+
+---
+
+## 13. Audit-remediation boundaries (2026-07-25)
+
+### State-owner matrix
+
+| Aggregate/state | Sole writer |
+|---|---|
+| Contract lifecycle | Contract workflow/signing state service |
+| PaymentCondition / PaymentRecord | Payment state/engine services |
+| TransferRequest | `TransferRequestStateService` |
+| TransferContract | `TransferContractStateService` |
+| ReprintRequest | `ReprintRequestStateService` |
+| Series lifecycle and ownership | Series state/ownership capability service |
+| SurveyPeriod / ranking finalization | Survey period and ranking-finalize use-case services |
+| VoteOtp | `SurveyOtpService` + `VoteOtpRepository` transaction |
+
+### Cross-module capability map
+
+```mermaid
+graph LR
+  Transfer -->|ContractTransferPort| Contract
+  Transfer -->|PaymentTransferPort| Payment
+  Transfer -->|SeriesOwnershipPort| Series
+  Transfer -->|SigningOtpPort| Auth
+  Task -->|ProductionStageQueryPort| Chapter
+  Task -->|TaskAssetQueryPort| Storage
+  AI -->|ProductionStageQueryPort| Chapter
+  Series -->|NameApprovalQueryPort| Name
+```
+
+Repositories remain private to their feature module. Consumers define the port they need; provider modules bind a
+public capability service without exporting raw persistence details.
+
+### Runtime and deployment
+
+- Public probes: `/health/live` (process only) and `/health/ready` (MongoDB + Redis).
+- `x-request-id` is accepted/generated at the API edge and propagated to queue jobs and AI requests.
+- Guest Vote stores only HMAC identity/IP hashes and atomically consumes `VoteOtp` with `ReaderVote`.
+- API and AI images deploy by full commit SHA with health-based rollback.
+
+Decision records:
+
+- [ADR-001 — Transfer transaction/outbox](docs/architecture/ADR-001-transfer-transaction-outbox.md)
+- [ADR-002 — Guest Vote OTP privacy](docs/architecture/ADR-002-guest-vote-otp-privacy.md)
+- [ADR-003 — Immutable deployment/rollback](docs/architecture/ADR-003-immutable-deploy-rollback.md)

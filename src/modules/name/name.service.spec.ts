@@ -2,11 +2,36 @@ import { NameKind, NameStatus, NotificationType, SeriesStatus } from '@prisma/cl
 import { NameService } from './name.service'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { InvalidNameStateException } from './errors/name.errors'
+import { NameAccessService } from './services/name-access.service'
+import { NameContentService } from './services/name-content.service'
+import { NameQueryService } from './services/name-query.service'
+import { NameReviewService } from './services/name-review.service'
 
 const SERIES_ID = '507f1f77bcf86cd799439011'
 const NAME_ID = '507f1f77bcf86cd799439012'
 const OTHER_NAME_ID = '507f1f77bcf86cd799439016'
 const CHAPTER_ID = '507f1f77bcf86cd799439013'
+
+function createService(
+  nameRepo: unknown,
+  eventBus: unknown,
+  notificationService: unknown,
+  appConfigService: unknown,
+  revisionService: unknown
+) {
+  const accessService = new NameAccessService(nameRepo as never)
+  const reviewService = new NameReviewService(
+    accessService,
+    nameRepo as never,
+    eventBus as never,
+    notificationService as never,
+    appConfigService as never,
+    revisionService as never
+  )
+  const contentService = new NameContentService(accessService, nameRepo as never)
+  const queryService = new NameQueryService(nameRepo as never)
+  return new NameService(reviewService, contentService, queryService)
+}
 
 function make(
   nameOverride: Record<string, unknown> = {},
@@ -57,13 +82,7 @@ function make(
     openSafe: jest.fn().mockResolvedValue({ round: 1 }),
     currentRound: jest.fn().mockResolvedValue(1)
   }
-  const service = new NameService(
-    nameRepo as never,
-    eventBus as never,
-    notificationService as never,
-    appConfigService as never,
-    revisionService as never
-  )
+  const service = createService(nameRepo, eventBus, notificationService, appConfigService, revisionService)
   return {
     service,
     nameRepo,
@@ -278,19 +297,19 @@ describe('NameService.createChapterName (chapter-first)', () => {
       })
     }
   }
-  const makeSvc = (repo: any) =>
-    new NameService(
-      repo as never,
-      { emit: jest.fn() } as never,
-      { notifySafe: jest.fn() } as never,
-      { get: jest.fn() } as never,
-      { openSafe: jest.fn(), currentRound: jest.fn() } as never
+  const makeSvc = (repo: ReturnType<typeof makeRepo>) =>
+    createService(
+      repo,
+      { emit: jest.fn() },
+      { notifySafe: jest.fn() },
+      { get: jest.fn() },
+      { openSafe: jest.fn(), currentRound: jest.fn() }
     )
 
   it('malformed chapterId → 404', async () => {
     const repo = makeRepo()
     await expect(
-      makeSvc(repo).createChapterName('m', 'garbage', { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+      makeSvc(repo).createChapterName('m', 'garbage', { namePages: [{ pageNumber: 1, fileUrl: 'k' }] })
     ).rejects.toMatchObject({ status: 404 })
   })
 
@@ -298,7 +317,7 @@ describe('NameService.createChapterName (chapter-first)', () => {
     const repo = makeRepo()
     repo.findChapterForNameGuard.mockResolvedValue(null)
     await expect(
-      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] })
     ).rejects.toMatchObject({ status: 404 })
   })
 
@@ -313,7 +332,7 @@ describe('NameService.createChapterName (chapter-first)', () => {
       series: { mangakaId: 'other', status: SeriesStatus.SERIALIZED }
     })
     await expect(
-      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] })
     ).rejects.toMatchObject({ status: 403 })
   })
 
@@ -328,7 +347,7 @@ describe('NameService.createChapterName (chapter-first)', () => {
       series: { mangakaId: 'm', status: SeriesStatus.SERIALIZED }
     })
     await expect(
-      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] })
     ).rejects.toMatchObject({ status: 409 })
   })
 
@@ -343,7 +362,7 @@ describe('NameService.createChapterName (chapter-first)', () => {
       series: { mangakaId: 'm', status: SeriesStatus.IN_REVIEW }
     })
     await expect(
-      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] })
     ).rejects.toMatchObject({ status: 409 })
   })
 
@@ -358,7 +377,7 @@ describe('NameService.createChapterName (chapter-first)', () => {
       series: { mangakaId: 'm', status: SeriesStatus.SERIALIZED }
     })
     await expect(
-      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] })
     ).rejects.toMatchObject({ status: 409 })
   })
 
@@ -394,12 +413,12 @@ describe('NameService.createChapterName — ending phase (Fix-1 G-1)', () => {
     }
   }
   const makeSvc = (repo: any) =>
-    new NameService(
-      repo as never,
-      { emit: jest.fn() } as never,
-      { notifySafe: jest.fn() } as never,
-      { get: jest.fn() } as never,
-      { openSafe: jest.fn(), currentRound: jest.fn() } as never
+    createService(
+      repo,
+      { emit: jest.fn() },
+      { notifySafe: jest.fn() },
+      { get: jest.fn() },
+      { openSafe: jest.fn(), currentRound: jest.fn() }
     )
 
   it.each([SeriesStatus.CANCELLING, SeriesStatus.COMPLETING])(
@@ -415,7 +434,7 @@ describe('NameService.createChapterName — ending phase (Fix-1 G-1)', () => {
         series: { mangakaId: 'm', status }
       })
       await expect(
-        makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+        makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] })
       ).resolves.toBeDefined()
     }
   )
@@ -431,7 +450,7 @@ describe('NameService.createChapterName — ending phase (Fix-1 G-1)', () => {
       series: { mangakaId: 'm', status: SeriesStatus.HIATUS }
     })
     await expect(
-      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] } as any)
+      makeSvc(repo).createChapterName('m', CHAPTER_ID, { namePages: [{ pageNumber: 1, fileUrl: 'k' }] })
     ).rejects.toMatchObject({ status: 409 })
   })
 })
@@ -555,14 +574,12 @@ describe('NameService.deleteChapterName (Spec 12)', () => {
     }
   }
   const makeDelSvc = (repo: any) =>
-    new NameService(
-      repo as never,
-      { emit: jest.fn() } as never,
-      { notifySafe: jest.fn() } as never,
-      {
-        get: jest.fn()
-      } as never,
-      { openSafe: jest.fn(), currentRound: jest.fn() } as never
+    createService(
+      repo,
+      { emit: jest.fn() },
+      { notifySafe: jest.fn() },
+      { get: jest.fn() },
+      { openSafe: jest.fn(), currentRound: jest.fn() }
     )
 
   it('deletes the Name and unsets Chapter.nameId when the chapter is DRAFT', async () => {

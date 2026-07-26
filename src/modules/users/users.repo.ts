@@ -1,549 +1,97 @@
 import { Injectable } from '@nestjs/common'
-import {
-  $Enums,
-  AvailabilityStatus,
-  ChapterStatus,
-  Genre,
-  Prisma,
-  RegistrationType,
-  Specialization,
-  UserStatus
-} from '@prisma/client'
-import { RoleName, RoleNameType } from 'src/core/security/constants/role.constant'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { AssistantProfileBodyType, MangakaProfileBodyType, StaffProfileBodyType } from './schemas/users-schemas'
-import { CommitmentSummary } from './users.constant'
+import { UserAdminRepository } from './repositories/user-admin.repository'
+import { UserDirectoryRepository } from './repositories/user-directory.repository'
+import { UserProfileRepository } from './repositories/user-profile.repository'
+import { AssistantDirectoryFilter, MangakaDirectoryFilter } from './repositories/users-repository.types'
 
-// ---- Admin user listing ----
+export type {
+  AdminUserFilter,
+  AssistantDirectoryFilter,
+  MangakaDirectoryFilter,
+  UserRoleCountRow
+} from './repositories/users-repository.types'
 
-export type AdminUserFilter = {
-  excludeUserId?: string
-  roleCode?: RoleNameType
-  status?: UserStatus
-  search?: string
-  includeDeleted?: boolean
-  onlyDeleted?: boolean
-}
-
-const ACTIVE_SERIES_STATUSES: $Enums.SeriesStatus[] = [
-  $Enums.SeriesStatus.IN_REVIEW,
-  $Enums.SeriesStatus.READY_TO_PITCH,
-  $Enums.SeriesStatus.PITCHED,
-  $Enums.SeriesStatus.SERIALIZED,
-  $Enums.SeriesStatus.HIATUS,
-  $Enums.SeriesStatus.COMPLETING,
-  $Enums.SeriesStatus.CANCELLING
-]
-
-const OPEN_TASK_STATUSES: $Enums.TaskStatus[] = [
-  $Enums.TaskStatus.ASSIGNED,
-  $Enums.TaskStatus.IN_PROGRESS,
-  $Enums.TaskStatus.SUBMITTED,
-  $Enums.TaskStatus.UNDER_REVIEW,
-  $Enums.TaskStatus.REVISION_REQUESTED
-]
-
-const PENDING_DECISION_RESULTS: $Enums.BoardDecisionResult[] = [
-  $Enums.BoardDecisionResult.PENDING,
-  $Enums.BoardDecisionResult.PENDING_QUORUM
-]
-
-// ---- Assistant directory (A-TSK-06) ----
-export type AssistantDirectoryFilter = {
-  q?: string
-  specialization?: Specialization
-  level?: string
-  availableFrom?: string
-  availableTo?: string
-}
-
-// ---- Mangaka directory (Spec 14 §3.2) ----
-export type MangakaDirectoryFilter = {
-  q?: string
-  genre?: Genre
-  level?: string
-}
-
-export type UserRoleCountRow = {
-  role: { code: RoleNameType }
-  _count: { _all: number }
-}
-
-// Whitelist field trả ra cho admin — KHÔNG bao giờ chứa password.
-const ADMIN_USER_SELECT = {
-  id: true,
-  email: true,
-  name: true,
-  displayName: true,
-  phoneNumber: true,
-  avatar: true,
-  status: true,
-  emailVerified: true,
-  registrationType: true,
-  mustChangePassword: true,
-  createdAt: true,
-  role: { select: { code: true } }
-} satisfies Prisma.UserSelect
-
-// Whitelist field trả cho chính chủ (GET/PATCH /me) — KHÔNG bao giờ chứa password.
-const ME_SELECT = {
-  id: true,
-  email: true,
-  name: true,
-  displayName: true,
-  avatar: true,
-  phoneNumber: true,
-  status: true,
-  emailVerified: true,
-  mustChangePassword: true,
-  createdAt: true,
-  role: { select: { code: true } }
-} satisfies Prisma.UserSelect
-
+/**
+ * Stable module-private facade. Admin, directory and profile persistence are
+ * split by use case while existing services retain the UsersRepository API.
+ */
 @Injectable()
-export class UsersRepository {
-  constructor(private readonly prismaService: PrismaService) {}
+export class UsersRepository extends UserAdminRepository {
+  private readonly directory: UserDirectoryRepository
+  private readonly profile: UserProfileRepository
 
-  async getRoleIdByCode(code: RoleNameType): Promise<string> {
-    const role = await this.prismaService.role.findUniqueOrThrow({ where: { code } })
-    return role.id
+  constructor(prismaService: PrismaService) {
+    super(prismaService)
+    this.directory = new UserDirectoryRepository(prismaService)
+    this.profile = new UserProfileRepository(prismaService)
   }
 
-  async createAdminUser(data: { email: string; name: string; phoneNumber: string; password: string; roleId: string }) {
-    return await this.prismaService.user.create({
-      data: {
-        ...data,
-        status: UserStatus.ACTIVE,
-        emailVerified: true,
-        registrationType: RegistrationType.ADMIN_CREATED,
-        mustChangePassword: true
-      },
-      omit: { password: true }
-    })
+  upsertMangakaProfile(userId: string, data: MangakaProfileBodyType) {
+    return this.profile.upsertMangakaProfile(userId, data)
   }
 
-  async upsertMangakaProfile(userId: string, data: MangakaProfileBodyType) {
-    return await this.prismaService.mangakaProfile.upsert({
-      where: { userId },
-      create: {
-        userId,
-        penName: data.penName,
-        genres: data.genres,
-        experienceLevel: data.experienceLevel ?? null,
-        bio: data.bio ?? null,
-        portfolioFiles: data.portfolioFiles
-      },
-      update: {
-        penName: data.penName,
-        genres: data.genres,
-        experienceLevel: data.experienceLevel ?? null,
-        bio: data.bio ?? null,
-        portfolioFiles: data.portfolioFiles
-      }
-    })
+  findMangakaProfileByUserId(userId: string) {
+    return this.profile.findMangakaProfileByUserId(userId)
   }
 
-  async findMangakaProfileByUserId(userId: string) {
-    return await this.prismaService.mangakaProfile.findUnique({
-      where: { userId },
-      include: { user: { select: { displayName: true, avatar: true } } }
-    })
+  findUserBasicsWithRole(userId: string) {
+    return this.profile.findUserBasicsWithRole(userId)
   }
 
-  // Lấy thông tin tối thiểu + role để verify khi profile absent (graceful no-profile).
-  // Gotcha §10: lọc chưa-xoá-mềm bằng isSet:false, KHÔNG { deletedAt: null }.
-  async findUserBasicsWithRole(userId: string) {
-    return await this.prismaService.user.findFirst({
-      where: { id: userId, deletedAt: { isSet: false } },
-      select: { id: true, displayName: true, avatar: true, role: { select: { code: true } } }
-    })
+  findMeById(userId: string) {
+    return this.profile.findMeById(userId)
   }
 
-  // Gotcha §10: lọc chưa-xoá-mềm bằng isSet:false, KHÔNG { deletedAt: null }.
-  async findMeById(userId: string) {
-    return await this.prismaService.user.findFirst({
-      where: { id: userId, deletedAt: { isSet: false } },
-      select: ME_SELECT
-    })
+  updateMe(userId: string, data: Prisma.UserUpdateInput) {
+    return this.profile.updateMe(userId, data)
   }
 
-  async updateMe(userId: string, data: Prisma.UserUpdateInput) {
-    return await this.prismaService.user.update({ where: { id: userId }, data, select: ME_SELECT })
+  upsertAssistantProfile(userId: string, data: AssistantProfileBodyType) {
+    return this.profile.upsertAssistantProfile(userId, data)
   }
 
-  async upsertAssistantProfile(userId: string, data: AssistantProfileBodyType) {
-    return await this.prismaService.assistantProfile.upsert({
-      where: { userId },
-      create: {
-        userId,
-        specializations: data.specializations,
-        experienceLevel: data.experienceLevel ?? null,
-        portfolioFiles: data.portfolioFiles,
-        availabilityStatus: data.availabilityStatus ?? AvailabilityStatus.AVAILABLE,
-        availabilityFrom: data.availabilityFrom ? new Date(data.availabilityFrom) : null,
-        availabilityTo: data.availabilityTo ? new Date(data.availabilityTo) : null
-      },
-      update: {
-        specializations: data.specializations,
-        experienceLevel: data.experienceLevel ?? null,
-        portfolioFiles: data.portfolioFiles,
-        availabilityStatus: data.availabilityStatus,
-        availabilityFrom: data.availabilityFrom ? new Date(data.availabilityFrom) : null,
-        availabilityTo: data.availabilityTo ? new Date(data.availabilityTo) : null
-      }
-    })
+  findAssistantProfileByUserId(userId: string) {
+    return this.profile.findAssistantProfileByUserId(userId)
   }
 
-  async findAssistantProfileByUserId(userId: string) {
-    return await this.prismaService.assistantProfile.findUnique({
-      where: { userId },
-      include: { user: { select: { displayName: true, avatar: true } } }
-    })
+  upsertStaffProfile(userId: string, data: StaffProfileBodyType) {
+    return this.profile.upsertStaffProfile(userId, data)
   }
 
-  async upsertStaffProfile(userId: string, data: StaffProfileBodyType) {
-    return await this.prismaService.staffProfile.upsert({
-      where: { userId },
-      create: {
-        userId,
-        specialtyGenres: data.specialtyGenres,
-        demographics: data.demographics,
-        bio: data.bio ?? null,
-        yearsOfExperience: data.yearsOfExperience ?? null
-      },
-      update: {
-        specialtyGenres: data.specialtyGenres,
-        demographics: data.demographics,
-        bio: data.bio ?? null,
-        yearsOfExperience: data.yearsOfExperience ?? null
-      }
-    })
+  findStaffProfileByUserId(userId: string) {
+    return this.profile.findStaffProfileByUserId(userId)
   }
 
-  async findStaffProfileByUserId(userId: string) {
-    return await this.prismaService.staffProfile.findUnique({
-      where: { userId },
-      include: { user: { select: { displayName: true, avatar: true, role: { select: { code: true } } } } }
-    })
-  }
-
-  async updateMangakaReputation(
+  updateMangakaReputation(
     userId: string,
     data: { ratingAvg: number; ratingCount: number; reputationScore: number; isRecommended: boolean }
   ): Promise<void> {
-    await this.prismaService.mangakaProfile.update({ where: { userId }, data })
+    return this.profile.updateMangakaReputation(userId, data)
   }
 
-  async updateAssistantReputation(
+  updateAssistantReputation(
     userId: string,
     data: { ratingAvg: number; ratingCount: number; reputationScore: number; isRecommended: boolean }
   ): Promise<void> {
-    await this.prismaService.assistantProfile.update({ where: { userId }, data })
+    return this.profile.updateAssistantReputation(userId, data)
   }
 
-  // Mongo: tránh relation-filter; resolve roleId từ roleCode trước.
-  private async buildAdminUserWhere(f: AdminUserFilter): Promise<Prisma.UserWhereInput> {
-    let roleId: string | undefined
-    if (f.roleCode) {
-      const role = await this.prismaService.role.findFirst({ where: { code: f.roleCode }, select: { id: true } })
-      // roleCode hợp lệ nhưng không có Role doc → id không tồn tại để ra tập rỗng.
-      roleId = role?.id ?? '000000000000000000000000'
-    }
-    return {
-      ...(f.excludeUserId ? { id: { not: f.excludeUserId } } : {}),
-      ...(roleId ? { roleId } : {}),
-      ...(f.status ? { status: f.status } : {}),
-      // Prisma+Mongo: user chưa từng bị xoá có field deletedAt ABSENT (không phải null) →
-      // `{ deletedAt: null }` KHÔNG match (trả rỗng). Phải dùng `{ isSet: false }`.
-      ...(f.onlyDeleted ? { deletedAt: { isSet: true } } : f.includeDeleted ? {} : { deletedAt: { isSet: false } }),
-      ...(f.search
-        ? {
-            OR: [
-              { email: { contains: f.search, mode: 'insensitive' } },
-              { name: { contains: f.search, mode: 'insensitive' } },
-              { displayName: { contains: f.search, mode: 'insensitive' } }
-            ]
-          }
-        : {})
-    }
+  findAssistantsForDirectory(filter: AssistantDirectoryFilter, page: { limit: number; offset: number }) {
+    return this.directory.findAssistantsForDirectory(filter, page)
   }
 
-  async findUsersForAdmin(filter: AdminUserFilter, page: { limit: number; offset: number }) {
-    const where = await this.buildAdminUserWhere(filter)
-    return await this.prismaService.user.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip: page.offset,
-      take: page.limit,
-      select: ADMIN_USER_SELECT
-    })
+  countAssistantsForDirectory(filter: AssistantDirectoryFilter): Promise<number> {
+    return this.directory.countAssistantsForDirectory(filter)
   }
 
-  async countUsersForAdmin(filter: AdminUserFilter): Promise<number> {
-    const where = await this.buildAdminUserWhere(filter)
-    return await this.prismaService.user.count({ where })
+  findMangakasForDirectory(filter: MangakaDirectoryFilter, page: { limit: number; offset: number }) {
+    return this.directory.findMangakasForDirectory(filter, page)
   }
 
-  async findUserByIdForAdmin(id: string) {
-    return await this.prismaService.user.findUnique({ where: { id }, select: ADMIN_USER_SELECT })
-  }
-
-  async findModerationTargetById(id: string) {
-    return await this.prismaService.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        status: true,
-        deletedAt: true,
-        role: { select: { code: true } }
-      }
-    })
-  }
-
-  // Role.code is persisted as String (not a Prisma enum), so accept the exact selected DB type.
-  async countActiveCommitments(userId: string, roleCode: string): Promise<CommitmentSummary> {
-    const empty = {
-      activeSeries: 0,
-      executedContracts: 0,
-      openTasks: 0,
-      activeAssignments: 0,
-      pendingBoardDecisions: 0
-    }
-
-    if (roleCode === RoleName.MANGAKA) {
-      const [activeSeries, executedContracts] = await Promise.all([
-        this.prismaService.series.count({
-          where: { mangakaId: userId, status: { in: ACTIVE_SERIES_STATUSES } }
-        }),
-        this.prismaService.contract.count({
-          where: { mangakaId: userId, status: $Enums.ContractStatus.FULLY_EXECUTED }
-        })
-      ])
-      return { ...empty, activeSeries, executedContracts, total: activeSeries + executedContracts }
-    }
-
-    if (roleCode === RoleName.EDITOR) {
-      const activeSeries = await this.prismaService.series.count({
-        where: { editorId: userId, status: { in: ACTIVE_SERIES_STATUSES } }
-      })
-      return { ...empty, activeSeries, total: activeSeries }
-    }
-
-    if (roleCode === RoleName.ASSISTANT) {
-      const [openTasks, activeAssignments] = await Promise.all([
-        this.prismaService.task.count({ where: { assistantId: userId, status: { in: OPEN_TASK_STATUSES } } }),
-        this.prismaService.studioAssignment.count({
-          where: { assistantId: userId, status: $Enums.StudioAssignmentStatus.ACTIVE }
-        })
-      ])
-      return { ...empty, openTasks, activeAssignments, total: openTasks + activeAssignments }
-    }
-
-    if (roleCode === RoleName.BOARD_MEMBER) {
-      const pendingBoardDecisions = await this.prismaService.boardDecision.count({
-        where: {
-          result: { in: PENDING_DECISION_RESULTS },
-          boardSession: { is: { allowedEditorIds: { has: userId } } }
-        }
-      })
-      return { ...empty, pendingBoardDecisions, total: pendingBoardDecisions }
-    }
-
-    return { ...empty, total: 0 }
-  }
-
-  // select whitelist ADMIN_USER_SELECT — KHÔNG trả password ra service layer
-  async updateUserStatus(id: string, status: UserStatus) {
-    return await this.prismaService.user.update({ where: { id }, data: { status }, select: ADMIN_USER_SELECT })
-  }
-
-  async softDeleteUser(id: string, deletedAt: Date) {
-    return await this.prismaService.user.update({ where: { id }, data: { deletedAt } })
-  }
-
-  async restoreUser(id: string) {
-    return await this.prismaService.user.update({
-      where: { id },
-      data: { deletedAt: { unset: true } },
-      select: ADMIN_USER_SELECT
-    })
-  }
-
-  async resetUserPassword(id: string, password: string) {
-    return await this.prismaService.user.update({
-      where: { id },
-      data: { password, mustChangePassword: true }
-    })
-  }
-
-  async revokeRefreshTokensByUserId(userId: string) {
-    return await this.prismaService.refreshToken.deleteMany({ where: { userId } })
-  }
-
-  async groupUsersByStatus() {
-    return await this.prismaService.user.groupBy({
-      by: ['status'],
-      where: { deletedAt: { isSet: false } },
-      _count: { _all: true }
-    })
-  }
-
-  async groupUsersByRole(): Promise<UserRoleCountRow[]> {
-    const [roles, rows] = await Promise.all([
-      this.prismaService.role.findMany({ select: { id: true, code: true } }),
-      this.prismaService.user.groupBy({
-        by: ['roleId'],
-        where: { deletedAt: { isSet: false } },
-        _count: { _all: true }
-      })
-    ])
-    const codeById = new Map(roles.map((role) => [role.id, role.code as RoleNameType]))
-    return rows.flatMap((row) => {
-      const code = codeById.get(row.roleId)
-      return code ? [{ role: { code }, _count: row._count }] : []
-    })
-  }
-
-  async countDeletedUsers(): Promise<number> {
-    return await this.prismaService.user.count({ where: { deletedAt: { isSet: true } } })
-  }
-
-  // Stats admin đọc chéo collection qua PrismaService — ngoại lệ read-only (spec 2026-07-04 §3.4)
-  async groupSeriesByStatus() {
-    return await this.prismaService.series.groupBy({ by: ['status'], _count: { _all: true } })
-  }
-
-  async countChapters(): Promise<{ total: number; published: number }> {
-    const [total, published] = await Promise.all([
-      this.prismaService.chapter.count(),
-      this.prismaService.chapter.count({ where: { status: ChapterStatus.PUBLISHED } })
-    ])
-    return { total, published }
-  }
-
-  async groupTasksByStatus() {
-    return await this.prismaService.task.groupBy({ by: ['status'], _count: { _all: true } })
-  }
-
-  // ---- Assistant directory (A-TSK-06) ----
-  // Mongo: KHÔNG relation-filter — resolve roleId trước (bám buildAdminUserWhere).
-  private async findActiveAssistantUserIds(q?: string): Promise<string[]> {
-    const role = await this.prismaService.role.findFirst({ where: { code: RoleName.ASSISTANT }, select: { id: true } })
-    if (!role) return []
-    const users = await this.prismaService.user.findMany({
-      where: {
-        roleId: role.id,
-        status: UserStatus.ACTIVE,
-        deletedAt: { isSet: false },
-        ...(q
-          ? {
-              OR: [
-                { name: { contains: q, mode: 'insensitive' } },
-                { displayName: { contains: q, mode: 'insensitive' } }
-              ]
-            }
-          : {})
-      },
-      select: { id: true }
-    })
-    return users.map((u) => u.id)
-  }
-
-  private buildDirectoryWhere(activeIds: string[], f: AssistantDirectoryFilter): Prisma.AssistantProfileWhereInput {
-    const window =
-      f.availableFrom && f.availableTo
-        ? {
-            availabilityStatus: AvailabilityStatus.AVAILABLE,
-            AND: [
-              { OR: [{ availabilityFrom: null }, { availabilityFrom: { lte: new Date(f.availableTo) } }] },
-              { OR: [{ availabilityTo: null }, { availabilityTo: { gte: new Date(f.availableFrom) } }] }
-            ]
-          }
-        : {}
-    return {
-      userId: { in: activeIds },
-      ...(f.specialization ? { specializations: { has: f.specialization } } : {}),
-      ...(f.level ? { experienceLevel: f.level } : {}),
-      ...window
-    }
-  }
-
-  async findAssistantsForDirectory(f: AssistantDirectoryFilter, page: { limit: number; offset: number }) {
-    const activeIds = await this.findActiveAssistantUserIds(f.q)
-    if (activeIds.length === 0) return []
-    return await this.prismaService.assistantProfile.findMany({
-      where: this.buildDirectoryWhere(activeIds, f),
-      orderBy: [{ isRecommended: 'desc' }, { reputationScore: 'desc' }, { ratingCount: 'desc' }],
-      skip: page.offset,
-      take: page.limit,
-      include: { user: { select: { displayName: true, avatar: true } } }
-    })
-  }
-
-  async countAssistantsForDirectory(f: AssistantDirectoryFilter): Promise<number> {
-    const activeIds = await this.findActiveAssistantUserIds(f.q)
-    if (activeIds.length === 0) return 0
-    return await this.prismaService.assistantProfile.count({ where: this.buildDirectoryWhere(activeIds, f) })
-  }
-
-  // ---- Mangaka directory (Spec 14 §3.2) ----
-  private async findActiveMangakaUserIds(q?: string): Promise<string[]> {
-    const role = await this.prismaService.role.findFirst({ where: { code: RoleName.MANGAKA }, select: { id: true } })
-    if (!role) return []
-    const users = await this.prismaService.user.findMany({
-      where: {
-        roleId: role.id,
-        status: UserStatus.ACTIVE,
-        deletedAt: { isSet: false },
-        ...(q
-          ? {
-              OR: [
-                { name: { contains: q, mode: 'insensitive' } },
-                { displayName: { contains: q, mode: 'insensitive' } }
-              ]
-            }
-          : {})
-      },
-      select: { id: true }
-    })
-    return users.map((u) => u.id)
-  }
-
-  private async buildMangakaDirectoryWhere(f: MangakaDirectoryFilter): Promise<Prisma.MangakaProfileWhereInput | null> {
-    const allActiveIds = await this.findActiveMangakaUserIds()
-    if (allActiveIds.length === 0) return null
-
-    const base: Prisma.MangakaProfileWhereInput = {
-      userId: { in: allActiveIds },
-      ...(f.genre ? { genres: { has: f.genre } } : {}),
-      ...(f.level ? { experienceLevel: f.level } : {})
-    }
-    if (!f.q) return base
-
-    const nameMatchedIds = await this.findActiveMangakaUserIds(f.q)
-    return {
-      ...base,
-      OR: [{ penName: { contains: f.q, mode: 'insensitive' } }, { userId: { in: nameMatchedIds } }]
-    }
-  }
-
-  async findMangakasForDirectory(f: MangakaDirectoryFilter, page: { limit: number; offset: number }) {
-    const where = await this.buildMangakaDirectoryWhere(f)
-    if (!where) return []
-    return await this.prismaService.mangakaProfile.findMany({
-      where,
-      orderBy: [{ isRecommended: 'desc' }, { reputationScore: 'desc' }, { ratingCount: 'desc' }],
-      skip: page.offset,
-      take: page.limit,
-      include: { user: { select: { displayName: true, avatar: true } } }
-    })
-  }
-
-  async countMangakasForDirectory(f: MangakaDirectoryFilter): Promise<number> {
-    const where = await this.buildMangakaDirectoryWhere(f)
-    if (!where) return 0
-    return await this.prismaService.mangakaProfile.count({ where })
+  countMangakasForDirectory(filter: MangakaDirectoryFilter): Promise<number> {
+    return this.directory.countMangakasForDirectory(filter)
   }
 }

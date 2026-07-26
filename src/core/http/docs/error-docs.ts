@@ -11,6 +11,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.PublicRateLimited': 'IP exceeded the public route quota; retry after the response retryAfter duration',
   'Error.CaptchaRejected':
     'reCAPTCHA verification failed or score is below VotingConfig.captchaThreshold when RECAPTCHA_SECRET is enabled',
+  'Error.VoteOtpDeliveryFailed': 'Guest Vote OTP delivery provider is temporarily unavailable',
   'Error.RevisionRequestNotFound': 'revision request does not exist (or malformed id)',
   'Error.NotRevisionRecipient': 'only the person asked to make the fix (recipientId) can resolve this revision round',
   'Error.AccountBanned': 'account is banned or blocked',
@@ -51,6 +52,9 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.CoOwnerApprovalNotFound': 'no co-owner approval record exists for this chapter',
   'Error.InvalidTransferState': 'transfer request is not in the required state for this action (B-TRF-03)',
   'Error.ValuationRequired': 'a positive valuationAmount is required for Full Buyout re-valuation (B-TRF-02)',
+  'Error.TransferAccessDenied': 'caller is outside the request/contract participant, assignment, or Board roster scope',
+  'Error.InvalidTransferBoardDecision':
+    'boardDecisionId must be a terminal TRANSFER decision for the same series and expected approve/reject action',
   'Error.RevenueNotApplicable': 'contract must be REVENUE_SHARE and FULLY_EXECUTED to report revenue',
   'Error.DeadlineRequestAccessDenied': 'current user cannot access or mutate this deadline request',
   'Error.DeadlineRequestNotAllowed': 'deadline action is not allowed for the current chapter or request state',
@@ -236,6 +240,8 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.ChapterNumberLocked': 'chapterNumber can only be changed while the chapter is in DRAFT status',
   // Spec 10 — Chapter-first flow (Task 5): Delete chapter
   'Error.ChapterNotDeletable': 'chapter can only be deleted while in DRAFT status',
+  'Error.ServiceNotReady': 'MongoDB or Redis is temporarily unavailable; retry after dependency recovery',
+  'Error.VoteOtpOwnedBySurvey': 'Guest Vote OTP must be requested through POST /vote/otp',
   // Spec 12 — chapter-Name delete (Task 14)
   'Error.NameNotDeletable': 'only a not-yet-approved Name on a DRAFT chapter can be deleted'
 }

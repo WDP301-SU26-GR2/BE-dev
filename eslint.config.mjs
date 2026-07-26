@@ -33,5 +33,22 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-call': 'off'
     }
+  },
+  {
+    files: [
+      'src/modules/board/**/*.ts',
+      'src/modules/contract/**/*.ts',
+      'src/modules/payment/**/*.ts',
+      'src/modules/reprint/**/*.ts',
+      'src/modules/transfer/**/*.ts'
+    ],
+    ignores: ['**/*.spec.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unsafe-argument': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error'
+    }
   }
 )

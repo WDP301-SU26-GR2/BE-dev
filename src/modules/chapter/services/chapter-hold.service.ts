@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { AuditEntityType, ManuscriptStatus, NotificationType } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { toChapterRes } from '../chapter.mapper'
@@ -13,8 +14,6 @@ import {
   NotSeriesEditorException
 } from '../errors/chapter.errors'
 import { HoldChapterBodyType } from '../schemas/chapter-schemas'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 const HOLDABLE_MANUSCRIPT_STATUSES: ManuscriptStatus[] = [
   ManuscriptStatus.IN_PRODUCTION,
@@ -32,7 +31,7 @@ export class ChapterHoldService {
   ) {}
 
   private async requireEditorChapter(editorId: string, chapterId: string) {
-    if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
+    if (!isObjectId(chapterId)) throw ChapterNotFoundException
     const chapter = await this.chapterRepository.findChapterById(chapterId)
     if (!chapter) throw ChapterNotFoundException
     const series = await this.chapterRepository.findSeriesById(chapter.seriesId)

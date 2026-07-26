@@ -2,6 +2,7 @@ import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { z } from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AI_PROPOSED_REGIONS_MAX } from '../ai.constant'
 
 const CoordinatesSchema = z
@@ -20,13 +21,13 @@ export const SegmentPageBodySchema = extendApi(
   z
     .object({
       mode: zEnum($Enums.AiSegmentMode, 'AiSegmentMode').default('MODEL'),
-      stageId: z
-        .string()
-        .regex(/^[0-9a-fA-F]{24}$/)
-        .optional()
+      stageId: zObjectId().optional()
     })
     .strict(),
-  { title: 'SegmentPageBody', description: 'Run async AI segmentation on one page and return a job id' }
+  {
+    title: 'SegmentPageBody',
+    description: 'Run async AI bounding-box region detection on one page and return a job id'
+  }
 )
 
 export const AiJobResSchema = extendApi(
@@ -63,7 +64,7 @@ export const AiJobListResSchema = extendApi(z.object({ items: z.array(AiJobListI
 
 export const SegmentAcceptedResSchema = extendApi(
   z.object({ jobId: z.string(), status: zEnum($Enums.AiJobStatus, 'AiJobStatus') }),
-  { title: 'SegmentAcceptedRes', description: 'Queued segmentation job; poll GET /ai-jobs/:id' }
+  { title: 'SegmentAcceptedRes', description: 'Queued bounding-box detection job; poll GET /ai-jobs/:id' }
 )
 
 export const ApplyAiJobResSchema = extendApi(

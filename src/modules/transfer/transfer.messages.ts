@@ -3,6 +3,9 @@
 // Chuẩn hoá 2026-07-20: trước đó nhóm này dùng SCREAMING_SNAKE dạng câu đầy đủ
 // (vd THIS_ACTION_ONLY_APPLIES_TO_FULL_BUYOUT_CONTRACTS) — dài, lệch convention, khó map ở FE.
 export const TransferMessages = {
+  notification: {
+    settlementCompleted: 'Việc chuyển nhượng tác phẩm đã hoàn tất'
+  },
   error: {
     noActiveContractFound: 'Error.NoActiveContractForSeries',
     transferRequestNotFound: 'Error.TransferRequestNotFound',
@@ -17,6 +20,13 @@ export const TransferMessages = {
     userOrEmailNotFound: 'Error.TransferSignerNotFound',
     userHasAlreadySignedContract: 'Error.TransferAlreadySigned',
     transferContractNotFoundAfterUpdate: 'Error.TransferContractNotFoundAfterUpdate',
+    accessDenied: 'Error.TransferAccessDenied',
+    invalidBoardDecision: 'Error.InvalidTransferBoardDecision',
+    transferDecisionReferenceRequired: 'Error.TransferDecisionReferenceRequired',
+    invalidOwnershipSplit: 'Error.InvalidOwnershipSplit',
+    requestingMangakaInactive: 'Error.TransferRequestingMangakaInactive',
+    requesterAlreadyOwnsSeries: 'Error.TransferRequesterAlreadyOwnsSeries',
+    invalidProposal: 'Error.InvalidTransferProposal',
     // Tên riêng của transfer, KHÔNG trùng `Error.NotCoOwner` của module chapter (khác ngữ cảnh, khác bản dịch).
     notTheCoOwnerForChapter: 'Error.NotChapterCoOwner',
     chapterApprovalIsNotPending: 'Error.ChapterApprovalNotPending'
@@ -43,6 +53,13 @@ export const TransferMessages = {
     'Error.TransferSignerNotFound': 'Không tìm thấy người dùng hoặc email',
     'Error.TransferAlreadySigned': 'Người dùng đã ký hợp đồng chuyển nhượng này',
     'Error.TransferContractNotFoundAfterUpdate': 'Không tìm thấy hợp đồng chuyển nhượng sau khi cập nhật',
+    'Error.TransferAccessDenied': 'Người dùng không thuộc phạm vi của tài nguyên chuyển nhượng',
+    'Error.InvalidTransferBoardDecision': 'Quyết định Hội đồng không hợp lệ cho yêu cầu chuyển nhượng này',
+    'Error.TransferDecisionReferenceRequired': 'Cần đúng một boardDecisionId hoặc boardSessionId tương thích',
+    'Error.InvalidOwnershipSplit': 'Tổng tỷ lệ sở hữu mới phải bằng 100 và mỗi tỷ lệ phải nằm trong khoảng 0 đến 100',
+    'Error.TransferRequestingMangakaInactive': 'Mangaka gửi yêu cầu phải đang hoạt động',
+    'Error.TransferRequesterAlreadyOwnsSeries': 'Chủ sở hữu hiện tại không thể tự gửi yêu cầu chuyển nhượng',
+    'Error.InvalidTransferProposal': 'Loại chuyển nhượng và tỷ lệ đề xuất không hợp lệ',
     'Error.NotChapterCoOwner': 'Bạn không phải đồng sở hữu của chương này',
     'Error.ChapterApprovalNotPending': 'Yêu cầu duyệt chương không ở trạng thái chờ xử lý'
   }

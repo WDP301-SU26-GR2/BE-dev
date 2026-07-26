@@ -2,6 +2,8 @@ import { NotificationType, SeriesStatus } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { SeriesMessages } from '../series.messages'
 import { SeriesLifecycleService } from './series-lifecycle.service'
+import { SeriesLifecycleNotificationService } from './series-lifecycle-notification.service'
+import { SeriesCompletionProposalService } from './series-completion-proposal.service'
 
 const makeDeps = () => {
   const state = {
@@ -27,8 +29,11 @@ const makeDeps = () => {
   const audit = { record: jest.fn().mockResolvedValue(undefined) }
   return { state, repo, bus, notify, audit }
 }
-const make = (d: ReturnType<typeof makeDeps>) =>
-  new SeriesLifecycleService(d.state as never, d.repo as never, d.bus as never, d.notify as never, d.audit as never)
+const make = (d: ReturnType<typeof makeDeps>) => {
+  const notifications = new SeriesLifecycleNotificationService(d.notify as never)
+  const completion = new SeriesCompletionProposalService(d.repo as never, d.audit as never, notifications)
+  return new SeriesLifecycleService(d.state as never, d.repo as never, d.bus as never, notifications, completion)
+}
 
 describe('SeriesLifecycleService.cancel', () => {
   it('transitions to CANCELLING, sets allowance, emits SeriesCancelling, notifies', async () => {

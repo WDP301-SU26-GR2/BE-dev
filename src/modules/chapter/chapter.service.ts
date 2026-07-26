@@ -1,6 +1,4 @@
 import { Injectable } from '@nestjs/common'
-import { toChapterRes, toPageRes } from './chapter.mapper'
-import { ChapterRepository } from './chapter.repo'
 import {
   CreateChapterBodyType,
   CreatePageBodyType,
@@ -11,132 +9,85 @@ import {
   UpdateChapterBodyType,
   UpdatePageBodyType
 } from './schemas/chapter-schemas'
-import { ChapterCreationService } from './services/chapter-creation.service'
-import { ChapterCrudService } from './services/chapter-crud.service'
-import { ChapterHoldService } from './services/chapter-hold.service'
-import { ChapterPublishService } from './services/chapter-publish.service'
-import { ChapterCoOwnerService } from './services/chapter-coowner.service'
-import { ChapterProgressService } from './services/chapter-progress.service'
-import { ManuscriptReviewService } from './services/manuscript-review.service'
-import { PageService } from './services/page.service'
-import { ScheduleService } from './services/schedule.service'
-import { ChapterNotFoundException } from './errors/chapter.errors'
+import { ChapterPlanningService } from './services/chapter-planning.service'
+import { ChapterProductionService } from './services/chapter-production.service'
+import { ChapterQueryService } from './services/chapter-query.service'
 
 @Injectable()
 export class ChapterService {
   constructor(
-    private readonly creationService: ChapterCreationService,
-    private readonly crudService: ChapterCrudService,
-    private readonly scheduleService: ScheduleService,
-    private readonly holdService: ChapterHoldService,
-    private readonly pageService: PageService,
-    private readonly reviewService: ManuscriptReviewService,
-    private readonly publishService: ChapterPublishService,
-    private readonly coOwnerService: ChapterCoOwnerService,
-    private readonly progressService: ChapterProgressService,
-    private readonly chapterRepository: ChapterRepository
+    private readonly planningService: ChapterPlanningService,
+    private readonly productionService: ChapterProductionService,
+    private readonly queryService: ChapterQueryService
   ) {}
 
-  async create(userId: string, body: CreateChapterBodyType) {
-    const chapter = await this.creationService.create(userId, body)
-    return toChapterRes(chapter!)
+  create(userId: string, body: CreateChapterBodyType) {
+    return this.planningService.create(userId, body)
   }
-
-  async updateChapter(userId: string, chapterId: string, body: UpdateChapterBodyType) {
-    const chapter = await this.crudService.updateChapter(userId, chapterId, body)
-    return toChapterRes(chapter!)
+  updateChapter(userId: string, chapterId: string, body: UpdateChapterBodyType) {
+    return this.planningService.updateChapter(userId, chapterId, body)
   }
-
   deleteChapter(userId: string, id: string) {
-    return this.crudService.deleteChapter(userId, id)
+    return this.planningService.deleteChapter(userId, id)
   }
-
-  async getOne(chapterId: string) {
-    const chapter = await this.chapterRepository.findChapterWithRelations(chapterId)
-    if (!chapter) throw ChapterNotFoundException
-    return toChapterRes(chapter)
+  getOne(chapterId: string) {
+    return this.queryService.getOne(chapterId)
   }
-
-  async listBySeries(seriesId: string) {
-    const chapters = await this.chapterRepository.findChaptersBySeriesId(seriesId)
-    return { items: chapters.map(toChapterRes) }
+  listBySeries(seriesId: string) {
+    return this.queryService.listBySeries(seriesId)
   }
-
-  async setSchedule(userId: string, chapterId: string, body: SetScheduleBodyType) {
-    await this.scheduleService.setSchedule(userId, chapterId, body)
-    return this.getOne(chapterId)
+  setSchedule(userId: string, chapterId: string, body: SetScheduleBodyType) {
+    return this.planningService.setSchedule(userId, chapterId, body)
   }
-
-  async extendDeadline(userId: string, chapterId: string, body: ExtendDeadlineBodyType) {
-    await this.scheduleService.extendDeadline(userId, chapterId, body)
-    return this.getOne(chapterId)
+  extendDeadline(userId: string, chapterId: string, body: ExtendDeadlineBodyType) {
+    return this.planningService.extendDeadline(userId, chapterId, body)
   }
-
   progress(user: { userId: string; roleName: string }, chapterId: string) {
-    return this.progressService.getProgress(user, chapterId)
+    return this.queryService.progress(user, chapterId)
   }
-
   studioOverview(userId: string) {
-    return this.progressService.overviewForMangaka(userId)
+    return this.queryService.studioOverview(userId)
   }
-
   hold(userId: string, chapterId: string, body: HoldChapterBodyType) {
-    return this.holdService.hold(userId, chapterId, body)
+    return this.planningService.hold(userId, chapterId, body)
   }
-
   resume(userId: string, chapterId: string) {
-    return this.holdService.resume(userId, chapterId)
+    return this.planningService.resume(userId, chapterId)
   }
-
-  async createPage(userId: string, chapterId: string, body: CreatePageBodyType) {
-    const page = await this.pageService.createPage(userId, chapterId, body)
-    return toPageRes(page)
+  createPage(userId: string, chapterId: string, body: CreatePageBodyType) {
+    return this.productionService.createPage(userId, chapterId, body)
   }
-
-  async listPages(userId: string, roleName: string, chapterId: string) {
-    const pages = await this.pageService.listPages(userId, roleName, chapterId)
-    return { items: pages.map(toPageRes) }
+  listPages(userId: string, roleName: string, chapterId: string) {
+    return this.productionService.listPages(userId, roleName, chapterId)
   }
-
   deletePage(userId: string, pageId: string) {
-    return this.pageService.deletePage(userId, pageId)
+    return this.productionService.deletePage(userId, pageId)
   }
-
   deletePagesBulk(userId: string, chapterId: string, body: DeletePagesBulkBodyType) {
-    return this.pageService.deletePagesBulk(userId, chapterId, body)
+    return this.productionService.deletePagesBulk(userId, chapterId, body)
   }
-
-  async updatePage(userId: string, pageId: string, body: UpdatePageBodyType) {
-    const page = await this.pageService.updatePage(userId, pageId, body)
-    return toPageRes(page!)
+  updatePage(userId: string, pageId: string, body: UpdatePageBodyType) {
+    return this.productionService.updatePage(userId, pageId, body)
   }
-
-  async submit(userId: string, chapterId: string) {
-    await this.reviewService.submit(userId, chapterId)
-    return this.getOne(chapterId)
+  submit(userId: string, chapterId: string) {
+    return this.productionService.submit(userId, chapterId)
   }
-  async requestRevision(userId: string, chapterId: string, reason: string) {
-    await this.reviewService.requestRevision(userId, chapterId, reason)
-    return this.getOne(chapterId)
+  requestRevision(userId: string, chapterId: string, reason: string) {
+    return this.productionService.requestRevision(userId, chapterId, reason)
   }
-  async resubmit(userId: string, chapterId: string) {
-    await this.reviewService.resubmit(userId, chapterId)
-    return this.getOne(chapterId)
+  resubmit(userId: string, chapterId: string) {
+    return this.productionService.resubmit(userId, chapterId)
   }
-  async approve(userId: string, chapterId: string) {
-    await this.reviewService.approve(userId, chapterId)
-    return this.getOne(chapterId)
+  approve(userId: string, chapterId: string) {
+    return this.productionService.approve(userId, chapterId)
   }
-  async publish(userId: string, chapterId: string) {
-    await this.publishService.publish(userId, chapterId)
-    return this.getOne(chapterId)
+  publish(userId: string, chapterId: string) {
+    return this.productionService.publish(userId, chapterId)
   }
-  async coOwnerApprove(userId: string, chapterId: string) {
-    await this.coOwnerService.approve(userId, chapterId)
-    return this.getOne(chapterId)
+  coOwnerApprove(userId: string, chapterId: string) {
+    return this.productionService.coOwnerApprove(userId, chapterId)
   }
-  async coOwnerReject(userId: string, chapterId: string, reason: string) {
-    await this.coOwnerService.reject(userId, chapterId, reason)
-    return this.getOne(chapterId)
+  coOwnerReject(userId: string, chapterId: string, reason: string) {
+    return this.productionService.coOwnerReject(userId, chapterId, reason)
   }
 }

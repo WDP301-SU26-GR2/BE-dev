@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { SeriesStatus } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import {
   ChapterNotFoundException,
   DuplicateChapterNumberException,
@@ -9,8 +10,6 @@ import {
 } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { CreateChapterBodyType } from '../schemas/chapter-schemas'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 // Fix-1 G-1 (Requiment Flow 5): CANCELLING/COMPLETING vẫn được tạo chapter kết thúc; HIATUS thì không.
 const CHAPTER_CREATABLE_STATUSES: SeriesStatus[] = [
@@ -24,7 +23,7 @@ export class ChapterCreationService {
   constructor(private readonly chapterRepository: ChapterRepository) {}
 
   async create(userId: string, body: CreateChapterBodyType) {
-    if (!OBJECT_ID_RE.test(body.seriesId)) throw ChapterNotFoundException
+    if (!isObjectId(body.seriesId)) throw ChapterNotFoundException
     const series = await this.chapterRepository.findSeriesById(body.seriesId)
     if (!series) throw ChapterNotFoundException
     if (series.mangakaId !== userId) throw NotSeriesOwnerException

@@ -17,9 +17,50 @@ import { corsOrigins } from 'src/core/config/cors'
 import { BoardRepository } from './board.repo'
 import { BoardMeetingService } from './services/board-meeting.service'
 import type { Redis } from 'ioredis'
+import { $Enums } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 
 // Fix-1 G-9: guard sessionId (Prisma ObjectId) — chặn query thừa với input rác.
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
+
+interface BoardSocketData {
+  userId?: string
+  roleName?: string
+}
+
+interface BoardServerToClientEvents {
+  phaseChanged: (payload: { sessionId: string; phase: string }) => void
+  messageReceived: (message: unknown) => void
+  voteProgressUpdated: (progress: BoardVoteProgress) => void
+}
+
+interface BoardClientToServerEvents {
+  joinSession: (payload: { sessionId: string }) => void
+  sendMessage: (payload: { sessionId: string; content: string }) => void
+}
+
+interface BoardVoteProgress {
+  decisionId: string
+  approveCount: number
+  rejectCount: number
+  totalVotes: number
+  quorumMet: boolean
+  result: $Enums.BoardDecisionResult | null
+}
+
+interface AdapterConfigurable {
+  adapter: (adapter: ReturnType<typeof createAdapter>) => unknown
+}
+
+function isAdapterConfigurable(value: unknown): value is AdapterConfigurable {
+  if (typeof value !== 'object' || value === null || !('adapter' in value)) return false
+  return typeof value.adapter === 'function'
+}
+
+function readStringField(value: unknown, field: string): string {
+  if (typeof value !== 'object' || value === null || !(field in value)) return ''
+  const fieldValue = (value as Record<string, unknown>)[field]
+  return typeof fieldValue === 'string' ? fieldValue : ''
+}
 
 @WebSocketGateway({
   cors: { origin: corsOrigins() },
@@ -29,7 +70,7 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
   private readonly logger = new Logger(BoardGateway.name)
 
   @WebSocketServer()
-  server!: Server
+  server!: Server<BoardClientToServerEvents, BoardServerToClientEvents, Record<string, never>, BoardSocketData>
 
   constructor(
     @Inject(REDIS_WS_CONNECTION) private readonly wsRedis: Redis,
@@ -43,8 +84,8 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
     const subClient: Redis = pubClient.duplicate()
 
     const ioServer = (this.server as unknown as { server?: unknown }).server ?? this.server
-    if (typeof (ioServer as any).adapter === 'function') {
-      ;(ioServer as any).adapter(createAdapter(pubClient, subClient))
+    if (isAdapterConfigurable(ioServer)) {
+      ioServer.adapter(createAdapter(pubClient, subClient))
       this.logger.log('[Socket.IO] Redis Adapter initialized for horizontal scaling')
     } else {
       this.logger.warn('[Socket.IO] Unable to initialize Redis Adapter: adapter setter not found on server instance')
@@ -52,7 +93,9 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
   }
 
   // Fix-1 G-9: verify JWT ngay lúc connect — thiếu/sai token → cắt kết nối.
-  async handleConnection(client: Socket) {
+  async handleConnection(
+    client: Socket<BoardClientToServerEvents, BoardServerToClientEvents, Record<string, never>, BoardSocketData>
+  ) {
     try {
       const raw =
         (client.handshake.auth?.token as string | undefined) ??
@@ -71,33 +114,39 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
 
   // Fix-1 G-9: chỉ roster/creator/SUPER_ADMIN được vào room phiên họp.
   @SubscribeMessage('joinSession')
-  async handleJoinSession(@MessageBody() data: { sessionId: string }, @ConnectedSocket() client: Socket) {
-    const { userId, roleName } = client.data as { userId?: string; roleName?: string }
+  async handleJoinSession(
+    @MessageBody() data: unknown,
+    @ConnectedSocket()
+    client: Socket<BoardClientToServerEvents, BoardServerToClientEvents, Record<string, never>, BoardSocketData>
+  ) {
+    const { userId, roleName } = client.data
+    const sessionId = readStringField(data, 'sessionId')
     if (!userId) {
       client.disconnect(true)
       return { status: 'DENIED' }
     }
-    if (!data?.sessionId || !OBJECT_ID_RE.test(data.sessionId)) return { status: 'DENIED' }
-    const session = await this.boardRepo.findSessionById(data.sessionId)
+    if (!sessionId || !isObjectId(sessionId)) return { status: 'DENIED' }
+    const session = await this.boardRepo.findSessionById(sessionId)
     if (!session) return { status: 'DENIED' }
     const allowed =
       roleName === RoleName.SUPER_ADMIN || session.creatorId === userId || session.allowedEditorIds.includes(userId)
     if (!allowed) {
-      this.logger.warn(`[Socket] joinSession DENIED user=${userId} session=${data.sessionId}`)
+      this.logger.warn(`[Socket] joinSession DENIED user=${userId} session=${sessionId}`)
       return { status: 'DENIED' }
     }
-    const roomName = `session_${data.sessionId}`
+    const roomName = `session_${sessionId}`
     await client.join(roomName)
     this.logger.log(`[Socket] Client ${client.id} đã vào phòng: ${roomName}`)
-    return { status: 'SUCCESS', message: `Đã kết nối vào phòng ${data.sessionId}` }
+    return { status: 'SUCCESS', message: `Đã kết nối vào phòng ${sessionId}` }
   }
 
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
-    @MessageBody() data: { sessionId: string; content: string },
-    @ConnectedSocket() client: Socket
+    @MessageBody() data: unknown,
+    @ConnectedSocket()
+    client: Socket<BoardClientToServerEvents, BoardServerToClientEvents, Record<string, never>, BoardSocketData>
   ) {
-    const { userId, roleName } = client.data as { userId?: string; roleName?: string }
+    const { userId, roleName } = client.data
     if (!userId) {
       client.disconnect(true)
       return { status: 'DENIED', reason: 'NOT_PARTICIPANT' }
@@ -107,8 +156,8 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
       const result = await this.boardMeetingService.sendMessage(
         userId,
         roleName,
-        data?.sessionId ?? '',
-        data?.content ?? ''
+        readStringField(data, 'sessionId'),
+        readStringField(data, 'content')
       )
       if (result.status !== 'SUCCESS') return result
 
@@ -143,7 +192,7 @@ export class BoardGateway implements OnGatewayInit, OnGatewayConnection {
 
   // Realtime hardening (audit 2026-07-11): broadcast là side-effect SAU khi vote đã ghi DB —
   // lỗi socket (server chưa init / adapter hỏng) tuyệt đối không được làm castVote trả 500.
-  broadcastVoteProgress(sessionId: string, progressData: any) {
+  broadcastVoteProgress(sessionId: string, progressData: BoardVoteProgress) {
     try {
       const roomName = `session_${sessionId}`
       this.server.to(roomName).emit('voteProgressUpdated', progressData)

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { DeadlineRequestStatus, NotificationType } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import envConfig from 'src/core/config/envConfig'
 import { ScheduleService } from 'src/modules/chapter/services/schedule.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
@@ -15,7 +16,6 @@ import {
 import { BoardResolveBodyType } from '../schemas/deadline-schemas'
 import { DeadlineRequestStateService } from './deadline-request-state.service'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 const N = DeadlineMessages.notification
 
 @Injectable()
@@ -28,7 +28,7 @@ export class DeadlineFinalizeService {
   ) {}
 
   async finalize(userId: string, id: string) {
-    if (!OBJECT_ID_RE.test(id)) throw DeadlineRequestNotFoundException
+    if (!isObjectId(id)) throw DeadlineRequestNotFoundException
     const request = await this.deadlineRepository.findById(id)
     if (!request || !request.chapterId || !request.requestedDeadline) throw DeadlineRequestNotFoundException
     const ctx = await this.scheduleService.getDeadlineContext(request.chapterId)
@@ -77,7 +77,7 @@ export class DeadlineFinalizeService {
 
   // A-DL-03: Board chốt request BOARD_REVIEW/ESCALATED → APPROVED (cập nhật Schedule) | REJECTED
   async boardResolve(userId: string, id: string, dto: BoardResolveBodyType) {
-    if (!OBJECT_ID_RE.test(id)) throw DeadlineRequestNotFoundException
+    if (!isObjectId(id)) throw DeadlineRequestNotFoundException
     const request = await this.deadlineRepository.findById(id)
     if (!request || !request.chapterId || !request.requestedDeadline) throw DeadlineRequestNotFoundException
     if (request.status !== DeadlineRequestStatus.BOARD_REVIEW && request.status !== DeadlineRequestStatus.ESCALATED) {

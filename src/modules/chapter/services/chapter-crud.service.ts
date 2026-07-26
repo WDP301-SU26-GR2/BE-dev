@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { ChapterStatus } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import {
   ChapterNotFoundException,
   NotSeriesOwnerException,
@@ -12,14 +13,12 @@ import { ChapterRepository } from '../chapter.repo'
 import { UpdateChapterBodyType } from '../schemas/chapter-schemas'
 import { ChapterMessages } from '../chapter.messages'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
-
 @Injectable()
 export class ChapterCrudService {
   constructor(private readonly chapterRepository: ChapterRepository) {}
 
   async updateChapter(userId: string, chapterId: string, body: UpdateChapterBodyType) {
-    if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
+    if (!isObjectId(chapterId)) throw ChapterNotFoundException
     const chapter = await this.chapterRepository.findChapterWithSeries(chapterId)
     if (!chapter) throw ChapterNotFoundException
     if (chapter.series?.mangakaId !== userId) throw NotSeriesOwnerException
@@ -41,7 +40,7 @@ export class ChapterCrudService {
   }
 
   async deleteChapter(userId: string, chapterId: string) {
-    if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
+    if (!isObjectId(chapterId)) throw ChapterNotFoundException
     const chapter = await this.chapterRepository.findChapterWithSeries(chapterId)
     if (!chapter) throw ChapterNotFoundException
     if (chapter.series?.mangakaId !== userId) throw NotSeriesOwnerException

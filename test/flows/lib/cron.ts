@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core'
 import { ModulesContainer } from '@nestjs/core'
 import { SchedulerRegistry } from '@nestjs/schedule'
+import { Type } from '@nestjs/common'
 import { Redis } from 'ioredis'
 import { pathToFileURL } from 'node:url'
 import * as path from 'node:path'
@@ -21,7 +22,10 @@ export type CronCtx = {
 // Chạy song song server flowtest :4100 là AN TOÀN: context không listen port, Prisma/Redis cho phép
 // nhiều client cùng DB. (Ghi chú cho FINDING-BE-009 cũ: "conflict" thực ra là env chưa load — đã fix ở lib/env.)
 export const withCronContext = async <R>(fn: (ctx: CronCtx) => Promise<R>): Promise<R> => {
-  const mod = await import(pathToFileURL(APP_MODULE_PATH).href)
+  const mod = (await import(pathToFileURL(APP_MODULE_PATH).href)) as unknown as {
+    AppModule?: Type<unknown>
+    default?: Type<unknown>
+  }
   const AppModule = mod.AppModule ?? mod.default
   if (!AppModule) throw new Error(`AppModule not found at ${APP_MODULE_PATH} — run pnpm build first`)
 
@@ -29,13 +33,13 @@ export const withCronContext = async <R>(fn: (ctx: CronCtx) => Promise<R>): Prom
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] })
   try {
     const registry = app.get(SchedulerRegistry)
-    registry.getCronJobs().forEach((job) => {
+    for (const job of registry.getCronJobs().values()) {
       try {
-        job.stop()
+        await job.stop()
       } catch {
         // ignore
       }
-    })
+    }
     const container = app.get(ModulesContainer)
     const getByName = <T = any>(className: string): T => {
       for (const [, moduleRef] of container.entries()) {
@@ -73,8 +77,8 @@ const CRON_LOCK_KEYS = [
   'cron:deadline-warning',
   'cron:coowner-escalation',
   'cron:hiatus-too-long',
-  'cron:payment-timebound-missed'
-  // 'cron:board-scheduler' KHÔNG xoá — C-17..20 đợi server tick thật.
+  'cron:payment-timebound-missed',
+  'cron:board-scheduler'
 ]
 
 export const clearCronLocks = async (): Promise<void> => {

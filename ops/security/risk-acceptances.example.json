@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "acceptances": [
+    {
+      "id": "RA-2099-001",
+      "findingId": "CVE-2099-0001",
+      "scope": "target=safe-accepted-fixture;package=fixture-only",
+      "rationale": "No patched upstream release exists at the time of review.",
+      "compensatingControls": ["The vulnerable feature is disabled and unreachable in the production image."],
+      "owner": "security-owner@example.invalid",
+      "approvedBy": "tech-lead@example.invalid",
+      "expiresOn": "2099-12-31"
+    }
+  ]
+}

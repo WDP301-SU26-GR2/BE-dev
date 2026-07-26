@@ -48,8 +48,10 @@ export class CatchEverythingFilter implements ExceptionFilter {
       // Lỗi không xác định → trả về 500 Internal Server Error
       httpStatus = HttpStatus.INTERNAL_SERVER_ERROR
       extracted = HttpMessages.error.internalServerError
+      const errorSummary =
+        exception instanceof Error ? `${exception.name}: ${exception.message}` : `NonError: ${String(exception)}`
       this.logger.error(
-        'Unhandled exception occurred',
+        `Unhandled exception occurred (${errorSummary})`,
         exception instanceof Error ? exception.stack : String(exception)
       )
     }

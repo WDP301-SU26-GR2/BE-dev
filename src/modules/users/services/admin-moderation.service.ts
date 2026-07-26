@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { $Enums, AuditEntityType, NotificationType } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
 import { EmailQueue } from 'src/infrastructure/email/email.queue'
 import { AuditService } from 'src/modules/audit/audit.service'
@@ -17,8 +18,6 @@ import { UsersMessages } from '../users.messages'
 import { UsersRepository } from '../users.repo'
 import { toAdminUserView } from './admin-user-query.service'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
-
 type ModerationTarget = Awaited<ReturnType<UsersRepository['findModerationTargetById']>>
 
 @Injectable()
@@ -34,7 +33,7 @@ export class AdminModerationService {
   ) {}
 
   private async getTarget(id: string): Promise<NonNullable<ModerationTarget>> {
-    if (!OBJECT_ID_RE.test(id)) throw UserNotFoundException
+    if (!isObjectId(id)) throw UserNotFoundException
     const target = await this.usersRepository.findModerationTargetById(id)
     if (!target) throw UserNotFoundException
     if (target.role.code === $Enums.RoleCode.SUPER_ADMIN) throw CannotModifyAdminUserException

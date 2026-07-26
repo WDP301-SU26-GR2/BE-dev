@@ -9,7 +9,32 @@ import {
   PageNotFoundException
 } from '../errors/chapter.errors'
 import { DeletePagesBulkBodySchema, UpdatePageBodySchema } from '../schemas/chapter-schemas'
-import { PageService } from './page.service'
+import { AuditService } from 'src/modules/audit/audit.service'
+import { NotificationService } from 'src/modules/notification/notification.service'
+import { StorageService } from 'src/infrastructure/storage/storage.service'
+import { StudioAssignmentService } from 'src/modules/studio/services/studio-assignment.service'
+import { ChapterRepository } from '../chapter.repo'
+import { ProductionStageRepository } from '../production-stage.repo'
+import { ChapterPageAccessService } from './chapter-page-access.service'
+import { ManuscriptStateService } from './manuscript-state.service'
+import { PageCleanupService } from './page-cleanup.service'
+import { PageService as PageServiceImpl } from './page.service'
+
+class PageService extends PageServiceImpl {
+  constructor(
+    repo: ChapterRepository,
+    manuscriptState: ManuscriptStateService,
+    studio: StudioAssignmentService,
+    notification: NotificationService,
+    audit: AuditService,
+    storage: StorageService,
+    productionStage?: ProductionStageRepository
+  ) {
+    const access = new ChapterPageAccessService(repo, studio)
+    const cleanup = new PageCleanupService(repo, notification, audit, storage, access, productionStage)
+    super(repo, manuscriptState, access, cleanup, productionStage)
+  }
+}
 
 function makeDeps(over: Record<string, unknown> = {}) {
   const repo = {

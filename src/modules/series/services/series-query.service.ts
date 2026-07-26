@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { Series, SeriesStatus } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { SeriesAccessDeniedException, SeriesNotFoundException } from '../errors/series.errors'
@@ -14,7 +15,6 @@ const BOARD_HIDDEN_STATES = new Set<SeriesStatus>([SeriesStatus.DRAFT, SeriesSta
 
 // Guard format ObjectId: id rác (vd 'proposals' khi ai đó gọi GET /series/proposals khớp @Get(':id'))
 // → trả 404 sạch thay vì để Prisma ném P2023 (Malformed ObjectID) → 500.
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class SeriesQueryService {
@@ -40,7 +40,7 @@ export class SeriesQueryService {
   }
 
   private async requireVisibleSeries(caller: SeriesCaller, seriesId: string): Promise<Series> {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
     const series = await this.seriesRepository.findById(seriesId)
     if (!series) throw SeriesNotFoundException
     if (!this.canView(series, caller)) throw SeriesAccessDeniedException

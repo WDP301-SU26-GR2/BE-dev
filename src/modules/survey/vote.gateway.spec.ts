@@ -49,4 +49,17 @@ describe('VoteGateway', () => {
     await expect(gateway.broadcastTally(periodId)).resolves.toBeUndefined()
     expect(redisService.setNxEx).toHaveBeenCalledWith(`vote:tally:throttle:${periodId}`, 2)
   })
+
+  it('closes the duplicated Socket.IO subscription connection on shutdown', async () => {
+    const quit = jest.fn().mockResolvedValue('OK')
+    const duplicate = jest.fn().mockReturnValue({ status: 'ready', quit })
+    gateway = new VoteGateway({ duplicate } as never, tallyService as never, redisService as never)
+    gateway.server = {} as never
+
+    gateway.afterInit()
+    await gateway.onApplicationShutdown()
+
+    expect(duplicate).toHaveBeenCalledTimes(1)
+    expect(quit).toHaveBeenCalledTimes(1)
+  })
 })

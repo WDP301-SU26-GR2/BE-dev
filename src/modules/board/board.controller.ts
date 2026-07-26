@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, Patch, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
-import { BoardService } from './services/board.service'
+import { BoardFacade } from './services/board.facade'
 import {
   CreateBoardDecisionBodyDto,
   CastVoteBodyDto,
@@ -57,7 +57,7 @@ import {
 @ApiBearerAuth()
 @Controller('board')
 export class BoardController {
-  constructor(private readonly boardService: BoardService) {}
+  constructor(private readonly boardService: BoardFacade) {}
 
   @ApiOperation({ summary: 'Editor tạo phiên họp Hội đồng → SCHEDULED' })
   @ApiErrors(

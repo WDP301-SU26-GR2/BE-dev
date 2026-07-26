@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
+import { ApiObjectIdParams, ObjectIdParamPipe } from 'src/core/http/pipes/object-id-param.pipe'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { RoleName } from 'src/core/security/constants/role.constant'
@@ -21,6 +22,8 @@ import {
   PaymentAccessDeniedException
 } from './errors/payment.error'
 
+const PaymentScopeIdParamPipe = ObjectIdParamPipe.for(() => new PaymentRecordNotFoundException())
+
 @ApiTags('payments')
 @ApiBearerAuth()
 @Controller('payments')
@@ -31,7 +34,7 @@ export class PaymentController {
   @ApiOperation({ summary: 'Danh sách payment toàn hệ thống (filter status/receiver/series/contract/type/source)' })
   @Roles(RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: PaymentRecordListResDto })
-  getPayments(@Query() query: GetPaymentsQueryDto): Promise<any> {
+  getPayments(@Query() query: GetPaymentsQueryDto): ReturnType<PaymentService['getPayments']> {
     return this.paymentService.getPayments(query)
   }
 
@@ -44,7 +47,7 @@ export class PaymentController {
     @Param('id') id: string,
     @ActiveUser('userId') userId: string,
     @ActiveUser('roleName') roleName: string
-  ): Promise<any> {
+  ): ReturnType<PaymentService['getPaymentById']> {
     return this.paymentService.getPaymentById(id, userId, roleName)
   }
 
@@ -54,7 +57,10 @@ export class PaymentController {
   @ApiErrors(new PaymentRecordNotFoundException(), new InvalidStatusForApprovalException())
   @Roles(RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: PaymentRecordResDto })
-  approvePayment(@Param('id') id: string, @ActiveUser('userId') userId: string): Promise<any> {
+  approvePayment(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string
+  ): ReturnType<PaymentService['approvePayment']> {
     return this.paymentService.approvePayment(id, userId)
   }
 
@@ -68,7 +74,7 @@ export class PaymentController {
     @Param('id') id: string,
     @Body() body: PayPaymentBodyDto,
     @ActiveUser('userId') userId: string
-  ): Promise<any> {
+  ): ReturnType<PaymentService['payPayment']> {
     return this.paymentService.payPayment(id, body, userId)
   }
 
@@ -82,46 +88,49 @@ export class PaymentController {
     @Param('id') id: string,
     @Body() body: CancelPaymentBodyDto,
     @ActiveUser('userId') userId: string
-  ): Promise<any> {
+  ): ReturnType<PaymentService['cancelPayment']> {
     return this.paymentService.cancelPayment(id, body, userId)
   }
 
   @Get('/contracts/:id/payments')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Danh sách payment theo contractId (chỉ trong phạm vi sở hữu)' })
   @ApiErrors(new PaymentAccessDeniedException())
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: PaymentRecordListResDto })
   getPaymentsByContract(
-    @Param('id') contractId: string,
+    @Param('id', PaymentScopeIdParamPipe) contractId: string,
     @ActiveUser('userId') userId: string,
     @ActiveUser('roleName') roleName: string
-  ): Promise<any> {
+  ): ReturnType<PaymentService['getPaymentsByContract']> {
     return this.paymentService.getPaymentsByContract(contractId, userId, roleName)
   }
 
   @Get('/series/:id/payments')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Danh sách payment theo seriesId (chỉ trong phạm vi sở hữu)' })
   @ApiErrors(new PaymentAccessDeniedException())
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: PaymentRecordListResDto })
   getPaymentsBySeries(
-    @Param('id') seriesId: string,
+    @Param('id', PaymentScopeIdParamPipe) seriesId: string,
     @ActiveUser('userId') userId: string,
     @ActiveUser('roleName') roleName: string
-  ): Promise<any> {
+  ): ReturnType<PaymentService['getPaymentsBySeries']> {
     return this.paymentService.getPaymentsBySeries(seriesId, userId, roleName)
   }
 
   @Get('/users/:id/payments')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Danh sách payment theo receiverId (Mangaka chỉ xem của chính mình)' })
   @ApiErrors(new PaymentAccessDeniedException())
   @Roles(RoleName.MANGAKA, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: PaymentRecordListResDto })
   getPaymentsByUser(
-    @Param('id') targetUserId: string,
+    @Param('id', PaymentScopeIdParamPipe) targetUserId: string,
     @ActiveUser('userId') userId: string,
     @ActiveUser('roleName') roleName: string
-  ): Promise<any> {
+  ): ReturnType<PaymentService['getPaymentsByUserId']> {
     return this.paymentService.getPaymentsByUserId(targetUserId, userId, roleName)
   }
 }

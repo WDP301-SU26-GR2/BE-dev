@@ -1,82 +1,46 @@
 import { Injectable } from '@nestjs/common'
-import {
-  FranchiseConsentStatus,
-  NameStatus,
-  NotificationType,
-  ProposalStatus,
-  RevisionTargetType,
-  SeriesStatus
-} from '@prisma/client'
-import { NotificationService } from 'src/modules/notification/notification.service'
-import { NameRepo } from 'src/modules/name/name.repo'
+import { FranchiseConsentStatus, ProposalStatus, RevisionTargetType, SeriesStatus } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
+import { NameApprovalService } from 'src/modules/name/services/name-approval.service'
 import { RevisionService } from 'src/modules/revision/revision.service'
 import {
   FranchiseConsentRequiredException,
   InvalidProposalStateException,
-  NotFranchiseConsentTargetException,
-  NotOriginalMangakaException,
-  NotSeriesOwnerException,
-  ParentSeriesNotFoundException,
   ProposalNotDeletableException,
   ProposalNotEditableException,
   SeriesNotFoundException
 } from '../errors/series.errors'
-import { toNameRes } from 'src/modules/name/name.mapper'
 import { toSeriesRes } from '../series.mapper'
 import { SeriesRepository } from '../series.repo'
 import { CreateProposalBodyType, UpdateProposalBodyType } from '../schemas/series-schemas'
 import { SeriesStateService } from './series-state.service'
 import { SeriesMessages } from '../series.messages'
 import { requireAssignedEditor } from './series-editor.guard'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
+import { SeriesProposalAccessService } from './series-proposal-access.service'
 
 @Injectable()
 export class SeriesProposalService {
   constructor(
     private readonly seriesRepository: SeriesRepository,
-    private readonly nameRepo: NameRepo,
+    private readonly nameApprovalService: NameApprovalService,
     private readonly seriesStateService: SeriesStateService,
-    private readonly notificationService: NotificationService,
-    private readonly revisionService: RevisionService
+    private readonly revisionService: RevisionService,
+    private readonly accessService: SeriesProposalAccessService
   ) {}
 
   async createProposal(mangakaId: string, body: CreateProposalBodyType) {
-    let franchiseConsentStatus: FranchiseConsentStatus | undefined
-    let notifyParentMangakaId: string | null = null
-    if (body.parentSeriesId) {
-      const parent = await this.seriesRepository.findById(body.parentSeriesId)
-      if (!parent) throw ParentSeriesNotFoundException
-      const parentContractType = await this.seriesRepository.findExecutedContractType(body.parentSeriesId)
-      if (parentContractType === 'REVENUE_SHARE' && parent.mangakaId !== mangakaId) {
-        franchiseConsentStatus = FranchiseConsentStatus.PENDING
-        notifyParentMangakaId = parent.mangakaId
-      }
-    }
-    const { series, name } = await this.seriesRepository.createProposalSeries(mangakaId, body, franchiseConsentStatus)
-    if (notifyParentMangakaId) {
-      await this.notificationService.notifySafe({
-        recipientId: notifyParentMangakaId,
-        type: NotificationType.SYSTEM,
-        referenceId: series.id,
-        referenceType: 'FRANCHISE_CONSENT_REQUESTED',
-        content: SeriesMessages.notification.franchiseConsentRequested
-      })
-    }
-    return { series: toSeriesRes(series), name: toNameRes(name) }
+    return this.accessService.createProposal(mangakaId, body)
   }
-
   async updateProposal(mangakaId: string, seriesId: string, body: UpdateProposalBodyType) {
-    const series = await this.requireOwner(seriesId, mangakaId)
+    const series = await this.accessService.requireOwner(seriesId, mangakaId)
     const editable =
       series.status === SeriesStatus.DRAFT || series.proposal?.status === ProposalStatus.PROPOSAL_REVISION
     if (!editable) throw ProposalNotEditableException
     const updated = await this.seriesRepository.updateProposalContent(seriesId, body)
     return toSeriesRes(updated)
   }
-
   async submit(mangakaId: string, seriesId: string) {
-    const series = await this.requireOwner(seriesId, mangakaId)
+    const series = await this.accessService.requireOwner(seriesId, mangakaId)
     if (series.status !== SeriesStatus.DRAFT) throw InvalidProposalStateException
     const nameId = series.proposal?.nameId
     if (!nameId) throw InvalidProposalStateException
@@ -89,18 +53,13 @@ export class SeriesProposalService {
 
     // Single-writer: Series.status chỉ đổi qua SeriesStateService.
     // Cập nhật proposal + Name trước, transition (ghi audit) sau cùng.
-    // Spec 8: Name data access (incl. updateNameStatus) belongs to NameRepo (module name).
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVIEW)
-    const name = await this.nameRepo.updateNameStatus(nameId, {
-      status: NameStatus.SUBMITTED,
-      submittedAt: new Date()
-    })
+    const name = await this.nameApprovalService.submitProposalName(nameId)
     const updated = await this.seriesStateService.transition(seriesId, SeriesStatus.IN_REVIEW, { changedBy: mangakaId })
-    return { series: toSeriesRes(updated), name: toNameRes(name) }
+    return { series: toSeriesRes(updated), name }
   }
-
   async requestRevision(editorId: string, seriesId: string, reason: string) {
-    const series = await this.requireSeries(seriesId)
+    const series = await this.accessService.requireSeries(seriesId)
     if (series.status !== SeriesStatus.IN_REVIEW || series.proposal?.status !== ProposalStatus.PROPOSAL_REVIEW) {
       throw InvalidProposalStateException
     }
@@ -117,7 +76,7 @@ export class SeriesProposalService {
       recipientId: series.mangakaId
     })
 
-    await this.notifyMangaka(
+    await this.accessService.notify(
       series.mangakaId,
       seriesId,
       'PROPOSAL_REVISION_REQUESTED',
@@ -127,12 +86,12 @@ export class SeriesProposalService {
   }
 
   async resubmit(mangakaId: string, seriesId: string) {
-    const series = await this.requireOwner(seriesId, mangakaId)
+    const series = await this.accessService.requireOwner(seriesId, mangakaId)
     if (series.proposal?.status !== ProposalStatus.PROPOSAL_REVISION) throw InvalidProposalStateException
     const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVIEW)
     if (series.editorId) {
       const round = await this.revisionService.currentRound(RevisionTargetType.PROPOSAL, seriesId)
-      await this.notifyMangaka(
+      await this.accessService.notify(
         series.editorId,
         seriesId,
         'PROPOSAL_RESUBMITTED',
@@ -143,7 +102,7 @@ export class SeriesProposalService {
   }
 
   async approve(editorId: string, seriesId: string) {
-    const series = await this.requireSeries(seriesId)
+    const series = await this.accessService.requireSeries(seriesId)
     if (series.status !== SeriesStatus.IN_REVIEW || series.proposal?.status !== ProposalStatus.PROPOSAL_REVIEW) {
       throw InvalidProposalStateException
     }
@@ -151,7 +110,7 @@ export class SeriesProposalService {
     if (!series.reviewStartedAt) await this.seriesRepository.markReviewStarted(seriesId)
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_APPROVED)
     const advanced = await this.seriesStateService.tryAdvanceToReadyToPitch(seriesId, editorId)
-    await this.notifyMangaka(
+    await this.accessService.notify(
       series.mangakaId,
       seriesId,
       'PROPOSAL_APPROVED',
@@ -161,7 +120,7 @@ export class SeriesProposalService {
   }
 
   async reject(editorId: string, seriesId: string, reason: string) {
-    const series = await this.requireSeries(seriesId)
+    const series = await this.accessService.requireSeries(seriesId)
     if (series.status !== SeriesStatus.IN_REVIEW && series.status !== SeriesStatus.REJECTED) {
       throw InvalidProposalStateException
     }
@@ -174,7 +133,7 @@ export class SeriesProposalService {
       changedBy: editorId,
       reason
     })
-    await this.notifyMangaka(
+    await this.accessService.notify(
       series.mangakaId,
       seriesId,
       'PROPOSAL_REJECTED',
@@ -184,7 +143,7 @@ export class SeriesProposalService {
   }
 
   async withdraw(mangakaId: string, seriesId: string, reason: string) {
-    const series = await this.requireOwner(seriesId, mangakaId)
+    const series = await this.accessService.requireOwner(seriesId, mangakaId)
     // Transition TRƯỚC (validate state machine — PITCHED trở đi bị 409), proposal status ghi SAU.
     // Đảo thứ tự sẽ để lại proposal=WITHDRAWN trên series đang PITCHED khi transition bị chặn.
     await this.seriesStateService.transition(seriesId, SeriesStatus.WITHDRAWN, {
@@ -193,7 +152,7 @@ export class SeriesProposalService {
     })
     const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.WITHDRAWN)
     if (series.status === SeriesStatus.REJECTED && series.editorId) {
-      await this.notifyMangaka(
+      await this.accessService.notify(
         series.editorId,
         seriesId,
         'SERIES_WITHDRAWN_AFTER_REJECT',
@@ -204,20 +163,20 @@ export class SeriesProposalService {
   }
 
   async reopen(mangakaId: string, seriesId: string) {
-    const series = await this.requireOwner(seriesId, mangakaId)
+    const series = await this.accessService.requireOwner(seriesId, mangakaId)
     await this.seriesStateService.transition(seriesId, SeriesStatus.DRAFT, { changedBy: mangakaId })
     const updated = await this.seriesRepository.reopenSeriesToDraft(seriesId)
     const nameId = series.proposal?.nameId
-    if (nameId) await this.nameRepo.updateNameStatus(nameId, { status: NameStatus.DRAFT })
+    if (nameId) await this.nameApprovalService.resetProposalNameToDraft(nameId)
     return toSeriesRes(updated)
   }
 
   async reopenForReview(editorId: string, seriesId: string, reason?: string) {
-    const series = await this.requireSeries(seriesId)
+    const series = await this.accessService.requireSeries(seriesId)
     requireAssignedEditor(series, editorId)
     await this.seriesStateService.transition(seriesId, SeriesStatus.IN_REVIEW, { changedBy: editorId, reason })
     const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVISION)
-    await this.notifyMangaka(
+    await this.accessService.notify(
       series.mangakaId,
       seriesId,
       'SERIES_REOPENED_FOR_REVIEW',
@@ -227,56 +186,14 @@ export class SeriesProposalService {
   }
 
   async deleteProposal(mangakaId: string, seriesId: string) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
-    const series = await this.requireOwner(seriesId, mangakaId)
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
+    const series = await this.accessService.requireOwner(seriesId, mangakaId)
     if (series.status !== SeriesStatus.DRAFT) throw ProposalNotDeletableException
     await this.seriesRepository.deleteSeriesWithNames(seriesId)
     return { message: SeriesMessages.response.proposalDeleted }
   }
 
-  // A-SER-06: Mangaka gốc đồng ý/từ chối series phái sinh. REJECTED chỉ block submit (creator tự withdraw).
   async franchiseConsent(seriesId: string, callerId: string, approve: boolean) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
-    const derivative = await this.seriesRepository.findById(seriesId)
-    if (!derivative) throw SeriesNotFoundException
-    if (derivative.franchiseConsentStatus == null || !derivative.parentSeriesId) {
-      throw NotFranchiseConsentTargetException
-    }
-    const parent = await this.seriesRepository.findById(derivative.parentSeriesId)
-    if (!parent || parent.mangakaId !== callerId) throw NotOriginalMangakaException
-    const status = approve ? FranchiseConsentStatus.APPROVED : FranchiseConsentStatus.REJECTED
-    const updated = await this.seriesRepository.setFranchiseConsentStatus(seriesId, status)
-    await this.notificationService.notifySafe({
-      recipientId: derivative.mangakaId,
-      type: NotificationType.SYSTEM,
-      referenceId: seriesId,
-      referenceType: approve ? 'FRANCHISE_CONSENT_APPROVED' : 'FRANCHISE_CONSENT_REJECTED',
-      content: approve
-        ? SeriesMessages.notification.franchiseConsentApproved
-        : SeriesMessages.notification.franchiseConsentRejected
-    })
-    return toSeriesRes(updated)
-  }
-
-  private async requireSeries(seriesId: string) {
-    const series = await this.seriesRepository.findById(seriesId)
-    if (!series) throw SeriesNotFoundException
-    return series
-  }
-
-  private async requireOwner(seriesId: string, mangakaId: string) {
-    const series = await this.requireSeries(seriesId)
-    if (series.mangakaId !== mangakaId) throw NotSeriesOwnerException
-    return series
-  }
-
-  private async notifyMangaka(recipientId: string, seriesId: string, referenceType: string, content: string) {
-    await this.notificationService.notifySafe({
-      recipientId,
-      type: NotificationType.SYSTEM,
-      referenceId: seriesId,
-      referenceType,
-      content
-    })
+    return this.accessService.franchiseConsent(seriesId, callerId, approve)
   }
 }

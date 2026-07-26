@@ -929,7 +929,7 @@ const main = async () => {
   )
   ok(
     'F01-080c score giảm dần',
-    sugItems.every((it: { score: number }, i: number) => i === 0 || sugItems[i - 1].score >= it.score),
+    (sugItems as unknown as Array<{ score: number }>).every((it, i) => i === 0 || sugItems[i - 1].score >= it.score),
     JSON.stringify(sugItems.map((it: { score: number }) => it.score))
   )
 

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { ConditionType, $Enums } from '@prisma/client'
+import { ConditionType, $Enums, type Prisma } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
 
@@ -9,7 +9,7 @@ export const PaymentConditionModelSchema = extendApi(
     id: z.string(),
     contractId: z.string(),
     conditionType: z.nativeEnum(ConditionType),
-    thresholdConfig: z.any().nullable(),
+    thresholdConfig: (z.json() as z.ZodType<Prisma.JsonValue>).nullable(),
     payoutAmount: z.number().nullable(),
     payoutPct: z.number().nullable(),
     isRecurring: z.boolean(),

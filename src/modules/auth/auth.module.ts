@@ -10,6 +10,8 @@ import { AuthTokenService } from './services/auth-token.service'
 import { AuthGoogleService } from './services/auth-google.service'
 import { GoogleTokenVerifier } from 'src/infrastructure/oauth/google-token-verifier.service'
 import { OtpCleanupCron } from './otp-cleanup.cron'
+import { SigningOtpPort } from '../transfer/ports/signing-otp.port'
+import { SigningOtpAdapter } from './adapters/signing-otp.adapter'
 
 @Module({
   controllers: [AuthController],
@@ -23,8 +25,9 @@ import { OtpCleanupCron } from './otp-cleanup.cron'
     AuthTokenService,
     AuthGoogleService,
     OtpCleanupCron,
-    GoogleTokenVerifier
+    GoogleTokenVerifier,
+    { provide: SigningOtpPort, useClass: SigningOtpAdapter }
   ],
-  exports: [AuthOtpService]
+  exports: [AuthOtpService, SigningOtpPort]
 })
 export class AuthModule {}

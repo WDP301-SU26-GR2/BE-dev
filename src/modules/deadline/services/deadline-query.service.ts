@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName, RoleNameType } from 'src/core/security/constants/role.constant'
 import { ScheduleService } from 'src/modules/chapter/services/schedule.service'
 import { resolveSide } from '../deadline.constant'
@@ -7,7 +8,6 @@ import { DeadlineRepository } from '../deadline.repo'
 import { DeadlineRequestAccessDeniedException, DeadlineRequestNotFoundException } from '../errors/deadline.errors'
 import { ListDeadlineRequestQueryType } from '../schemas/deadline-schemas'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 const ALL_SCOPE: RoleNameType[] = [RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN]
 
 @Injectable()
@@ -18,7 +18,7 @@ export class DeadlineQueryService {
   ) {}
 
   private async assertCanAccessChapter(userId: string, roleName: string, chapterId: string) {
-    if (!OBJECT_ID_RE.test(chapterId)) throw DeadlineRequestNotFoundException
+    if (!isObjectId(chapterId)) throw DeadlineRequestNotFoundException
     const ctx = await this.scheduleService.getDeadlineContext(chapterId)
     if (!ctx) throw DeadlineRequestNotFoundException
     if (ALL_SCOPE.includes(roleName as RoleNameType)) return ctx
@@ -33,7 +33,7 @@ export class DeadlineQueryService {
   }
 
   async getOne(userId: string, roleName: string, id: string) {
-    if (!OBJECT_ID_RE.test(id)) throw DeadlineRequestNotFoundException
+    if (!isObjectId(id)) throw DeadlineRequestNotFoundException
     const request = await this.deadlineRepository.findById(id)
     if (!request || !request.chapterId) throw DeadlineRequestNotFoundException
     await this.assertCanAccessChapter(userId, roleName, request.chapterId)

@@ -1,0 +1,15 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts", "tsx"],
+  "rootDir": "..",
+  "testEnvironment": "node",
+  "testMatch": ["<rootDir>/test/integration/**/*.integration-spec.ts"],
+  "testPathIgnorePatterns": ["/node_modules/", "/src/"],
+  "transform": {
+    "^.+\\.(t|j)sx?$": "ts-jest"
+  },
+  "globalSetup": "<rootDir>/test/jest-test-environment-setup.ts",
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/src/$1",
+    "^@react-pdf/renderer$": "<rootDir>/src/infrastructure/pdf/react-pdf-renderer.jest-mock.ts"
+  }
+}

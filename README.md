@@ -1,7 +1,7 @@
 # Mangaka Backend (BE)
 
 Backend cho **Hệ thống Quản lý Sáng tác & Xuất bản Manga** — NestJS 11 + Prisma 6 (MongoDB) + Redis/BullMQ +
-Cloudflare R2 + AI segmentation service (Python, tùy chọn).
+Cloudflare R2 + AI region/object detection proposal service using bounding boxes (Python, tùy chọn).
 
 > **Trước khi code**, đọc [`ARCHITECTURE.md`](./ARCHITECTURE.md) (kiến trúc, data flow) và [`AGENTS.md`](./AGENTS.md)
 > (rule, layer, error handling, checklist). Đây là single source of truth cho quy ước dự án.
@@ -65,15 +65,17 @@ pnpm start:dev           # dev
 pnpm start:prod          # node dist/main (sau khi build)
 pnpm build               # nest build → dist/
 pnpm test                # unit test (jest)
-pnpm lint                # eslint --fix
+pnpm lint                # check-only, 0 warnings
+pnpm lint:fix            # apply ESLint fixes explicitly
 ```
 
 ---
 
-## 4. AI Segmentation Service (tùy chọn)
+## 4. AI Region Detection Service (tùy chọn)
 
-Service Python riêng (`ai-service/`) phân vùng trang truyện cho Epic A4 (Spec 2). BE gọi qua HTTP.
-**Không bật vẫn chạy bình thường** — luồng segment tự fallback về manual.
+Service Python riêng (`ai-service/`) đề xuất region/object bằng bounding box cho Epic A4 (Spec 2);
+đây không phải pixel-mask segmentation. BE gọi qua HTTP. **Không bật vẫn chạy bình thường** —
+luồng segment tự fallback về manual.
 
 **Bật AI (tóm tắt — chi tiết ở [`ai-service/README.md`](./ai-service/README.md)):**
 

@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
-import { PAYMENT_CONDITION_STATUS } from './transfer.constant'
-import { $Enums, TransferContractSignature } from '@prisma/client'
+import { $Enums, Prisma } from '@prisma/client'
 import { fetchSeriesMiniMap, fetchUserMiniMap } from 'src/core/models/user-mini.model'
+import type { TransactionContext } from 'src/infrastructure/database/transaction-context'
+import { transactionClient } from 'src/infrastructure/database/transaction-context'
 
 @Injectable()
 export class TransferRepo {
@@ -24,7 +25,14 @@ export class TransferRepo {
   async findUserById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
-      select: { email: true }
+      select: { email: true, status: true }
+    })
+  }
+
+  findSeriesAccessScope(seriesId: string) {
+    return this.prisma.series.findUnique({
+      where: { id: seriesId },
+      select: { editorId: true }
     })
   }
 
@@ -80,102 +88,71 @@ export class TransferRepo {
     return this.attachTransferRequestPeople(requests)
   }
 
-  // Cập nhật trạng thái và thông tin liên quan của TransferRequest
-  async updateTransferRequest(id: string, data: { status: $Enums.TransferRequestStatus; boardDecisionId?: string }) {
-    return this.prisma.transferRequest.update({
+  // Single-writer primitive: state services call this inside a transaction.
+  async compareAndSetRequestStatus(
+    context: TransactionContext,
+    id: string,
+    expected: $Enums.TransferRequestStatus,
+    target: $Enums.TransferRequestStatus,
+    patch?: { boardDecisionId?: string }
+  ): Promise<boolean> {
+    const result = await transactionClient(context).transferRequest.updateMany({
+      where: { id, status: expected },
+      data: { status: target, ...patch }
+    })
+    return result.count === 1
+  }
+
+  findRequestInTransaction(context: TransactionContext, id: string) {
+    return transactionClient(context).transferRequest.findUnique({ where: { id } })
+  }
+
+  async findRequestStatus(context: TransactionContext, id: string) {
+    const request = await transactionClient(context).transferRequest.findUnique({
       where: { id },
-      data
+      select: { status: true }
     })
+    return request?.status ?? null
   }
 
-  // B-TRF-02: Giao dịch nguyên tử (Transaction) Đóng hợp đồng cũ A và chấm dứt các điều khoản dang dở
-  async terminateOldContract(contractId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Chuyển trạng thái hợp đồng cũ sang TERMINATED
-      const updatedContract = await tx.contract.update({
-        where: { id: contractId },
-        data: { status: 'TERMINATED' as any } // Ép kiểu nếu dùng ContractStatus custom chưa sync hết vào Prisma Client
-      })
-
-      // 2. Chuyển toàn bộ điều kiện thanh toán chưa đạt (PENDING) của Mangaka A sang dạng MISSED
-      await tx.paymentCondition.updateMany({
-        where: {
-          contractId,
-          status: 'PENDING'
-        },
-        data: {
-          status: PAYMENT_CONDITION_STATUS.MISSED as any
-        }
-      })
-
-      return updatedContract
-    })
-  }
-
-  // B-TRF-02: Tạo hợp đồng mới độc lập hoàn toàn cho Mangaka B (Không cộng dồn công sức người cũ).
-  // Map input {description, type, value} → PaymentCondition schema thật:
-  //   conditionType (Prisma ConditionType) — type | fallback 'ONE_TIME'
-  //   payoutAmount — value (số tiền payout mỗi lần trigger)
-  //   thresholdConfig — { description } (lưu mô tả dạng JSON theo schema)
-  async createNewContractFromTransfer(data: {
-    seriesId: string
-    mangakaId: string
-    sourceTransferRequestId: string
-    contractType: $Enums.ContractType
-    valuationAmount?: number
-    conditions: { description: string; type: string; value: number }[]
-  }) {
-    const { conditions, ...contractData } = data
-    return this.prisma.contract.create({
-      data: {
-        ...contractData,
-        status: 'DRAFT',
-        conditions: {
-          create: conditions.map((cond) => ({
-            conditionType: (cond.type as unknown as $Enums.ConditionType) ?? 'TIME_BOUND',
-            payoutAmount: cond.value,
-            thresholdConfig: { description: cond.description },
-            status: PAYMENT_CONDITION_STATUS.PENDING
-          }))
-        }
-      }
-    })
-  }
-
-  // B-TRF-02 & B-TRF-04: Cập nhật thông tin quyền sở hữu trên thực thể Series
-  async updateSeriesOwnership(
-    seriesId: string,
+  createTransferContractInTransaction(
+    context: TransactionContext,
     data: {
-      mangakaId: string
-      coOwnerId?: string | null
-      coOwnerApprovalRequired?: boolean
+      transferRequestId: string
+      seriesId: string
+      fromMangakaId: string
+      toMangakaId: string
+      transferType: $Enums.TransferType
+      transferAmount: number
+      newOwnershipSplit: Prisma.InputJsonValue
+      coOwnerApprovalRequired: boolean
     }
   ) {
-    // Chú ý: Vì schema prisma của bạn không hiển thị rõ trường coOwnerId trong block text,
-    // hàm này chạy trực tiếp lệnh update thô dựa trên mô tả thiết kế AC1/AC2 của B-TRF-04.
-    return this.prisma.series.update({
-      where: { id: seriesId },
-      data: data as any
+    return transactionClient(context).transferContract.create({ data })
+  }
+
+  addSignatureInTransaction(
+    context: TransactionContext,
+    transferContractId: string,
+    userId: string,
+    role: $Enums.TransferSignerRole
+  ) {
+    return transactionClient(context).transferContractSignature.create({
+      data: { transferContractId, userId, role }
     })
   }
 
-  // B-TRF-03: Tạo mới cấu trúc hợp đồng thỏa thuận chuyển nhượng 3 bên
-  async createTransferContract(data: {
-    transferRequestId: string
-    seriesId: string
-    fromMangakaId: string
-    toMangakaId: string
-    transferType: $Enums.TransferType
-    transferAmount: number
-    newOwnershipSplit: any
-    coOwnerApprovalRequired: boolean
-  }) {
-    return this.prisma.transferContract.create({
-      data: {
-        ...data,
-        status: 'DRAFT'
-      }
+  async compareAndSetContractStatus(
+    context: TransactionContext,
+    id: string,
+    expected: $Enums.TransferContractStatus,
+    target: $Enums.TransferContractStatus
+  ): Promise<boolean> {
+    const result = await transactionClient(context).transferContract.updateMany({
+      where: { id, status: expected },
+      data: { status: target }
     })
+    return result.count === 1
   }
 
   // Tìm chi tiết hợp đồng chuyển nhượng kèm danh sách các chữ ký hiện có
@@ -234,29 +211,6 @@ export class TransferRepo {
       fromMangaka: row.fromMangakaId ? (users.get(row.fromMangakaId) ?? null) : null,
       toMangaka: row.toMangakaId ? (users.get(row.toMangakaId) ?? null) : null
     }))
-  }
-
-  // Cập nhật trạng thái tiến độ hợp đồng 3 bên
-  async updateTransferContractStatus(id: string, status: $Enums.TransferContractStatus) {
-    return this.prisma.transferContract.update({
-      where: { id },
-      data: { status }
-    })
-  }
-
-  // Thêm mới một chữ ký xác thực vào bảng Signature (Single Source of Truth)
-  addTransferContractSignature(
-    transferContractId: string,
-    userId: string,
-    role: 'MANGAKA_A' | 'MANGAKA_B' | 'BOARD'
-  ): Promise<TransferContractSignature> {
-    return this.prisma.transferContractSignature.create({
-      data: {
-        transferContractId,
-        userId,
-        role
-      }
-    })
   }
 
   // Co-owner chapter approval (A-CHP-06 / B-TRF-05) đã CHUYỂN sang chapter module (BE-A) —

@@ -3,6 +3,7 @@ import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { UserMiniSchema } from 'src/core/models/user-mini.model'
+import { zObjectId } from 'src/core/http/schemas/object-id.schema'
 
 const CoordinatesSchema = z
   .object({
@@ -113,7 +114,7 @@ export const CreateTaskGroupBodySchema = extendApi(
   z
     .object({
       pageIds: z
-        .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'pageId không hợp lệ'))
+        .array(zObjectId('pageId không hợp lệ'))
         .min(1)
         .max(50)
         .describe('Các trang cùng nhận một đầu việc (tối đa 50) — all-or-nothing'),
