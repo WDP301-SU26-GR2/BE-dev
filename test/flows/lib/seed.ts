@@ -29,6 +29,7 @@ import {
 export { Specialization, RegionType }
 export type { Specialization as SpecializationType } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
+import { createHmac } from 'node:crypto'
 import './env.js' // kích hoạt guard flowtest TRƯỚC khi tạo client
 
 export const prisma = new PrismaClient()
@@ -69,10 +70,34 @@ export const assertIndexesReady = async () => {
     )
     process.exit(2)
   }
+
+  const voteOtpIndexes = (await prisma.$runCommandRaw({ listIndexes: 'VoteOtp' }).catch(() => null)) as {
+    cursor?: {
+      firstBatch?: Array<{
+        key?: Record<string, number>
+        unique?: boolean
+        expireAfterSeconds?: number
+      }>
+    }
+  } | null
+  const voteOtpBatch = voteOtpIndexes?.cursor?.firstBatch ?? []
+  const hasTtl = voteOtpBatch.some((index) => index.key?.expiresAt === 1 && index.expireAfterSeconds === 0)
+  const hasIdentityUnique = voteOtpBatch.some(
+    (index) =>
+      index.key?.identityHash === 1 &&
+      index.key?.authMethod === 1 &&
+      Object.keys(index.key).length === 2 &&
+      index.unique === true
+  )
+  if (!hasTtl || !hasIdentityUnique) {
+    console.error('[flowtest] VoteOtp TTL/unique indexes are missing. Run `pnpm db:indexes` against the test database.')
+    process.exit(2)
+  }
 }
 
 export const wipeDb = async () => {
   await assertIndexesReady()
+  await resetNotificationQueue()
   // 🔴 KHÔNG dùng prisma.<model>.deleteMany: Prisma MongoDB enforce required-relation Ở CLIENT
   // (vd xoá Series khi còn Contract trỏ tới → "violate required relation ContractToSeries").
   // Catch-nuốt-lỗi trước đây làm wipe fail DÂY CHUYỀN im lặng → data rác sống qua các run
@@ -83,18 +108,53 @@ export const wipeDb = async () => {
     const collection = model.dbName ?? model.name
     await prisma.$runCommandRaw({ delete: collection, deletes: [{ q: {}, limit: 0 }] })
   }
-  // ⚠ KHÔNG flushdb Redis ở đây: flush trong lúc BullMQ worker của server đang blocking-listen
-  // phá state worker → mọi job sau đó fail 3 attempt đầu rồi mới retry OK (+14s lag mỗi notif).
-  // Job tồn đọng của file trước chỉ ghi row cho id đã chết — vô hại với assert (id mới mỗi run).
-  // Cron lock xoá TARGETED qua clearCronLocks() (lib/cron.ts) — DEL key thường, an toàn.
+  // Không FLUSHDB: API test vẫn giữ BullMQ worker và các Redis namespace khác trên DB test.
+  // Notification queue được pause/drain/resume có mục tiêu trước khi xoá Mongo, nên job
+  // của suite cũ không thể retry/backoff rồi chặn notification assertion của suite sau.
   await clearRateLimitKeys()
+}
+
+const resetNotificationQueue = async () => {
+  const url = process.env.REDIS_URL ?? ''
+  const dbIndex = /\/(\d+)\s*$/.exec(url)?.[1]
+  if (!dbIndex || dbIndex === '0') return
+
+  const { Queue } = await import('bullmq')
+  const redisUrl = new URL(url)
+  const connection = {
+    host: redisUrl.hostname,
+    port: Number(redisUrl.port || 6379),
+    username: redisUrl.username || undefined,
+    password: redisUrl.password || undefined,
+    db: Number(redisUrl.pathname.replace(/^\/+/, '') || 0),
+    ...(redisUrl.protocol === 'rediss:' ? { tls: {} } : {})
+  }
+  const queue = new Queue('notification', { connection })
+  try {
+    await queue.pause()
+
+    const deadline = Date.now() + 10_000
+    while ((await queue.getActiveCount()) > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    if ((await queue.getActiveCount()) > 0) {
+      throw new Error('[flowtest] notification queue did not quiesce before Mongo cleanup')
+    }
+
+    await queue.drain(true)
+    await queue.clean(0, 10_000, 'completed')
+    await queue.clean(0, 10_000, 'failed')
+  } finally {
+    await queue.resume().catch(() => undefined)
+    await queue.close()
+  }
 }
 
 /**
  * Xoá key rate-limit OTP (`rl:q:*` quota, `rl:cd:*` cooldown) của DB flowtest.
  * Window là 1 GIỜ → nếu không xoá, quota theo IP (mọi request harness dùng chung 1 x-forwarded-for)
  * cạn dần qua các lần chạy → run thứ 2-3 trong cùng giờ ăn 429 hàng loạt (test "đỏ" giả).
- * Chỉ DEL đúng prefix `rl:` — KHÔNG đụng `bull:*` (xem lý do không flushdb ở trên).
+ * Chỉ DEL đúng prefix `rl:`; BullMQ notification được cleanup qua API của queue ở trên.
  */
 const clearRateLimitKeys = async () => {
   const url = process.env.REDIS_URL ?? ''
@@ -604,8 +664,33 @@ export const makeDeadlineRequest = async (o: {
 // seedOtp — pattern smoke-fix2: upsert OtpRequest với bcrypt('123456').
 // Purpose là OtpPurpose enum: REGISTER | FORGOT_PASSWORD | SIGNING_CONTRACT | VOTE
 // ─────────────────────────────────────────────────────────────────────────────
-export const seedOtp = (email: string, purpose: OtpPurpose) =>
-  prisma.otpRequest.upsert({
+export const seedOtp = (email: string, purpose: OtpPurpose) => {
+  if (purpose === OtpPurpose.VOTE) {
+    const hmac = (value: string) =>
+      createHmac('sha256', process.env.IDENTITY_HASH_PEPPER ?? '')
+        .update(value)
+        .digest('hex')
+    const identityHash = hmac(email.trim().toLowerCase())
+    return prisma.voteOtp.upsert({
+      where: { identityHash_authMethod: { identityHash, authMethod: 'EMAIL_OTP' } },
+      update: {
+        otpCodeHash: bcrypt.hashSync('123456', 10),
+        ipHash: hmac('flowtest-seeded-ip'),
+        expiresAt: new Date(Date.now() + 300_000),
+        attempts: 0,
+        isUsed: false
+      },
+      create: {
+        identityHash,
+        authMethod: 'EMAIL_OTP',
+        ipHash: hmac('flowtest-seeded-ip'),
+        otpCodeHash: bcrypt.hashSync('123456', 10),
+        expiresAt: new Date(Date.now() + 300_000)
+      }
+    })
+  }
+
+  return prisma.otpRequest.upsert({
     where: { email_purpose: { email, purpose } },
     update: {
       otpCodeHash: bcrypt.hashSync('123456', 10),
@@ -620,6 +705,7 @@ export const seedOtp = (email: string, purpose: OtpPurpose) =>
       expiresAt: new Date(Date.now() + 300_000)
     }
   })
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // setAppConfig — bypass cache 30s của AppConfigService (ghi thẳng DB).

@@ -1,24 +1,57 @@
-import { ReprintRequestService } from './reprint-request.service'
+import { ReprintRequestFacade } from './reprint-request.facade'
 import { ReprintRequestStateService } from './reprint-request-state.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
+import { ReprintAccessPolicy } from './reprint-access.policy'
+import { ReprintAssignmentService } from './reprint-assignment.service'
+import { ReprintChapterService } from './reprint-chapter.service'
+import { ReprintCreationService } from './reprint-creation.service'
+import { ReprintQueryService } from './reprint-query.service'
+import { ReprintReviewService } from './reprint-review.service'
+import { ReprintWorkflowService } from './reprint-workflow.service'
 
 const REQ_ID = '012345678901234567890123'
 const CH_ID = '0123456789abcdef01234567'
+type MockBag = Record<string, jest.Mock>
 
 const stateServiceMock = () => ({
   assertTransition: jest.fn(),
-  audit: jest.fn().mockResolvedValue(undefined)
+  audit: jest.fn().mockResolvedValue(undefined),
+  transition: jest
+    .fn()
+    .mockImplementation((id: string, _from: string, to: string, _actorId: string, _reason: string, patch = {}) =>
+      Promise.resolve({ id, status: to, ...patch })
+    )
 })
 
 function makeService(
-  repo: any,
-  ns: any = { notifySafe: jest.fn().mockResolvedValue(undefined) },
-  audit: any = { record: jest.fn().mockResolvedValue(undefined) }
+  repo: MockBag,
+  ns: MockBag = { notifySafe: jest.fn().mockResolvedValue(undefined) },
+  audit: MockBag = { record: jest.fn().mockResolvedValue(undefined) }
 ) {
-  return new ReprintRequestService(repo as never, ns as never, audit as never, stateServiceMock() as never)
+  return composeService(repo, ns, audit, stateServiceMock())
 }
 
-describe('ReprintRequestService', () => {
+function composeService(
+  repo: MockBag,
+  ns: MockBag,
+  audit: MockBag,
+  // One case passes the real state service to prove the transition table is enforced end-to-end,
+  // the rest pass `stateServiceMock()`.
+  state: MockBag | ReprintRequestStateService,
+  policy: ReprintAccessPolicy = new ReprintAccessPolicy()
+) {
+  return new ReprintRequestFacade(
+    new ReprintQueryService(repo as never, policy),
+    new ReprintChapterService(repo as never, ns as never, audit as never, state as never, policy),
+    new ReprintWorkflowService(
+      new ReprintCreationService(repo as never, ns as never, policy),
+      new ReprintReviewService(repo as never, ns as never, state as never),
+      new ReprintAssignmentService(repo as never, ns as never, audit as never, policy)
+    )
+  )
+}
+
+describe('ReprintRequestFacade', () => {
   it('publishes the request when all chapters are approved (auto-publish via approveChapter)', async () => {
     const repo = {
       findActiveContractBySeriesId: jest
@@ -31,54 +64,63 @@ describe('ReprintRequestService', () => {
         status: 'BOARD_APPROVED',
         chapters: [{ originalChapterId: CH_ID, status: 'READY' }]
       }),
-      update: jest.fn().mockImplementation((_id: string, patch: any) => Promise.resolve({ id: REQ_ID, ...patch }))
+      update: jest
+        .fn()
+        .mockImplementation((_id: string, patch: Record<string, unknown>) => Promise.resolve({ id: REQ_ID, ...patch }))
     }
     const stateService = stateServiceMock()
-    const service = new ReprintRequestService(
-      repo as never,
-      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
-      { record: jest.fn().mockResolvedValue(undefined) } as never,
-      stateService as never
+    const service = composeService(
+      repo,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) },
+      { record: jest.fn().mockResolvedValue(undefined) },
+      stateService
     )
 
     await service.approveChapter(REQ_ID, CH_ID, { originalChapterId: CH_ID, approve: true }, 'editor-1')
 
-    expect(repo.update).toHaveBeenCalledWith(REQ_ID, expect.objectContaining({ status: 'PUBLISHED' }))
-    expect(stateService.assertTransition).toHaveBeenCalledWith('BOARD_APPROVED', 'PUBLISHED')
-    expect(stateService.audit).toHaveBeenCalledWith(
+    expect(stateService.transition).toHaveBeenCalledWith(
       REQ_ID,
       'BOARD_APPROVED',
       'PUBLISHED',
       'editor-1',
-      'all chapters approved'
+      'all chapters approved',
+      expect.objectContaining({ chapters: expect.any(Array), publishedAt: expect.any(Date) })
     )
   })
 
   it('rejects malformed request id on findById with 404 (no 500)', async () => {
     const repo = { findById: jest.fn() }
     const service = makeService(repo)
-    await expect(service.findById('garbage')).rejects.toMatchObject({ status: 404 })
+    await expect(service.findById('garbage', { userId: 'editor-1', roleName: RoleName.EDITOR })).rejects.toMatchObject({
+      status: 404
+    })
     expect(repo.findById).not.toHaveBeenCalled()
   })
 
   it('rejects malformed request id on getChapters with 404 (no 500)', async () => {
     const repo = { findById: jest.fn() }
     const service = makeService(repo)
-    await expect(service.getChapters('garbage')).rejects.toMatchObject({ status: 404 })
+    await expect(
+      service.getChapters('garbage', { userId: 'editor-1', roleName: RoleName.EDITOR })
+    ).rejects.toMatchObject({ status: 404 })
     expect(repo.findById).not.toHaveBeenCalled()
   })
 
   it('rejects malformed id on getChapterById with 404 (no 500)', async () => {
     const repo = { findById: jest.fn() }
     const service = makeService(repo)
-    await expect(service.getChapterById('garbage', CH_ID)).rejects.toMatchObject({ status: 404 })
+    await expect(
+      service.getChapterById('garbage', CH_ID, { userId: 'editor-1', roleName: RoleName.EDITOR })
+    ).rejects.toMatchObject({ status: 404 })
     expect(repo.findById).not.toHaveBeenCalled()
   })
 
   it('rejects malformed chapterId on getChapterById with 404', async () => {
     const repo = { findById: jest.fn() }
     const service = makeService(repo)
-    await expect(service.getChapterById(REQ_ID, 'garbage')).rejects.toMatchObject({ status: 404 })
+    await expect(
+      service.getChapterById(REQ_ID, 'garbage', { userId: 'editor-1', roleName: RoleName.EDITOR })
+    ).rejects.toMatchObject({ status: 404 })
     expect(repo.findById).not.toHaveBeenCalled()
   })
 
@@ -119,11 +161,11 @@ describe('ReprintRequestService', () => {
       update: jest.fn().mockResolvedValue({ id: REQ_ID })
     }
     const stateService = stateServiceMock()
-    const service = new ReprintRequestService(
-      repo as never,
-      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
-      { record: jest.fn().mockResolvedValue(undefined) } as never,
-      stateService as never
+    const service = composeService(
+      repo,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) },
+      { record: jest.fn().mockResolvedValue(undefined) },
+      stateService
     )
 
     await service.approveChapter(REQ_ID, CH_ID, { originalChapterId: CH_ID, approve: false }, 'editor-1')
@@ -153,8 +195,8 @@ describe('ReprintRequestService', () => {
   })
 })
 
-describe('ReprintRequestService.findAll scoping', () => {
-  const repo = { findManyScoped: jest.fn().mockResolvedValue([]) } as any
+describe('ReprintRequestFacade.findAll scoping', () => {
+  const repo = { findManyScoped: jest.fn().mockResolvedValue([]) }
   const service = makeService(repo)
 
   it('BOARD_MEMBER -> all (passes roleName to repo)', async () => {
@@ -186,19 +228,21 @@ describe('ReprintRequestService.findAll scoping', () => {
   })
 })
 
-describe('ReprintRequestService.assignReviser (PB-07)', () => {
+describe('ReprintRequestFacade.assignReviser (PB-07)', () => {
   function baseRepo() {
     return {
       findById: jest.fn(),
       findActiveContractBySeriesId: jest.fn(),
       findUserRole: jest.fn(),
-      update: jest.fn().mockImplementation((_id: string, patch: any) => Promise.resolve({ id: REQ_ID, ...patch }))
+      update: jest
+        .fn()
+        .mockImplementation((_id: string, patch: Record<string, unknown>) => Promise.resolve({ id: REQ_ID, ...patch }))
     }
   }
-  function make(repo: any) {
+  function make(repo: MockBag) {
     return makeService(repo)
   }
-  function baseRequest(repo: any, revisionMode = 'WITH_REVISION') {
+  function baseRequest(repo: MockBag, revisionMode = 'WITH_REVISION') {
     repo.findById.mockResolvedValue({
       id: REQ_ID,
       seriesId: 's1',
@@ -278,7 +322,7 @@ describe('ReprintRequestService.assignReviser (PB-07)', () => {
   })
 })
 
-describe('ReprintRequestService state-service wiring (B-RPT-02)', () => {
+describe('ReprintRequestFacade state-service wiring (B-RPT-02)', () => {
   // FINDING-BE-002 (flowtest 2026-07-11): mangaka KHÔNG phải chủ hợp đồng series
   // từng review được reprint của người khác — Ownership Principle guard (BR-CONTRACT-03).
   it('mangakaReview by non-owner mangaka → 403 ActionNotAllowed', async () => {
@@ -293,11 +337,11 @@ describe('ReprintRequestService state-service wiring (B-RPT-02)', () => {
       findActiveContractBySeriesId: jest.fn().mockResolvedValue({ contractType: 'REVENUE_SHARE', mangakaId: 'm1' }),
       update: jest.fn()
     }
-    const service = new ReprintRequestService(
-      repo as never,
-      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
-      { record: jest.fn().mockResolvedValue(undefined) } as never,
-      stateServiceMock() as never
+    const service = composeService(
+      repo,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) },
+      { record: jest.fn().mockResolvedValue(undefined) },
+      stateServiceMock()
     )
     await expect(service.mangakaReview(REQ_ID, { accept: true }, 'm2-not-owner')).rejects.toMatchObject({ status: 403 })
     expect(repo.update).not.toHaveBeenCalled()
@@ -316,20 +360,20 @@ describe('ReprintRequestService state-service wiring (B-RPT-02)', () => {
       update: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'MANGAKA_APPROVED' })
     }
     const stateService = stateServiceMock()
-    const service = new ReprintRequestService(
-      repo as never,
-      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
-      { record: jest.fn().mockResolvedValue(undefined) } as never,
-      stateService as never
+    const service = composeService(
+      repo,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) },
+      { record: jest.fn().mockResolvedValue(undefined) },
+      stateService
     )
     await service.mangakaReview(REQ_ID, { accept: true }, 'm1')
-    expect(stateService.assertTransition).toHaveBeenCalledWith('PENDING', 'MANGAKA_APPROVED')
-    expect(stateService.audit).toHaveBeenCalledWith(
+    expect(stateService.transition).toHaveBeenCalledWith(
       REQ_ID,
       'PENDING',
       'MANGAKA_APPROVED',
       'm1',
-      'mangaka review accepted'
+      'mangaka review accepted',
+      { mangakaApprovedAt: expect.any(Date) }
     )
   })
 
@@ -346,15 +390,14 @@ describe('ReprintRequestService state-service wiring (B-RPT-02)', () => {
       update: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'REJECTED' })
     }
     const stateService = stateServiceMock()
-    const service = new ReprintRequestService(
-      repo as never,
-      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
-      { record: jest.fn().mockResolvedValue(undefined) } as never,
-      stateService as never
+    const service = composeService(
+      repo,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) },
+      { record: jest.fn().mockResolvedValue(undefined) },
+      stateService
     )
     await service.boardApprove(REQ_ID, { approve: false }, 'board-1')
-    expect(stateService.assertTransition).toHaveBeenCalledWith('PENDING', 'REJECTED')
-    expect(stateService.audit).toHaveBeenCalledWith(REQ_ID, 'PENDING', 'REJECTED', 'board-1', 'board rejected')
+    expect(stateService.transition).toHaveBeenCalledWith(REQ_ID, 'PENDING', 'REJECTED', 'board-1', 'board rejected')
   })
 
   it('mangakaReview rejects → REJECTED_BY_MANGAKA (B-RPT-02 AC2, not board REJECTED)', async () => {
@@ -370,21 +413,26 @@ describe('ReprintRequestService state-service wiring (B-RPT-02)', () => {
       update: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'REJECTED_BY_MANGAKA' })
     }
     const stateService = stateServiceMock()
-    const service = new ReprintRequestService(
-      repo as never,
-      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
-      { record: jest.fn().mockResolvedValue(undefined) } as never,
-      stateService as never
+    const service = composeService(
+      repo,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) },
+      { record: jest.fn().mockResolvedValue(undefined) },
+      stateService
     )
     await service.mangakaReview(REQ_ID, { accept: false }, 'm1')
-    expect(repo.update).toHaveBeenCalledWith(REQ_ID, { status: 'REJECTED_BY_MANGAKA' })
-    expect(stateService.assertTransition).toHaveBeenCalledWith('PENDING', 'REJECTED_BY_MANGAKA')
+    expect(stateService.transition).toHaveBeenCalledWith(
+      REQ_ID,
+      'PENDING',
+      'REJECTED_BY_MANGAKA',
+      'm1',
+      'mangaka review rejected',
+      {}
+    )
   })
 
   // Regression guard cho blindspot mock: chạy với ReprintRequestStateService THẬT để chắc chắn
   // bảng transition thực sự cho phép mangaka accept từ PENDING (trước đây mock che mất 409 runtime).
   it('mangakaReview accepts with REAL state service (no InvalidReprintTransition)', async () => {
-    const realState = new ReprintRequestStateService({ record: jest.fn().mockResolvedValue(undefined) } as never)
     const repo = {
       findById: jest.fn().mockResolvedValue({
         id: REQ_ID,
@@ -394,12 +442,16 @@ describe('ReprintRequestService state-service wiring (B-RPT-02)', () => {
         chapters: []
       }),
       findActiveContractBySeriesId: jest.fn().mockResolvedValue({ contractType: 'REVENUE_SHARE', mangakaId: 'm1' }),
-      update: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'MANGAKA_APPROVED' })
+      compareAndSetStatus: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'MANGAKA_APPROVED' })
     }
-    const service = new ReprintRequestService(
+    const realState = new ReprintRequestStateService(
       repo as never,
-      { notifySafe: jest.fn().mockResolvedValue(undefined) } as never,
-      { record: jest.fn().mockResolvedValue(undefined) } as never,
+      { record: jest.fn().mockResolvedValue(undefined) } as never
+    )
+    const service = composeService(
+      repo,
+      { notifySafe: jest.fn().mockResolvedValue(undefined) },
+      { record: jest.fn().mockResolvedValue(undefined) },
       realState
     )
     await expect(service.mangakaReview(REQ_ID, { accept: true }, 'm1')).resolves.toMatchObject({

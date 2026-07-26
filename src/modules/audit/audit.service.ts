@@ -1,10 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AuditEntityType } from '@prisma/client'
 import { toAuditLogRes } from './audit.mapper'
 import { AuditListWhere, AuditRepository } from './audit.repo'
 import { ListAuditLogsQueryType } from './schemas/audit-schemas'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 export interface RecordAuditLogInput {
   actorId: string | null
@@ -24,7 +23,7 @@ export class AuditService {
 
   async record(input: RecordAuditLogInput): Promise<void> {
     try {
-      if (!OBJECT_ID_RE.test(input.entityId)) {
+      if (!isObjectId(input.entityId)) {
         this.logger.warn(`audit skipped: malformed entityId "${input.entityId}" (${input.entityType}/${input.action})`)
         return
       }
@@ -44,8 +43,8 @@ export class AuditService {
 
   async query(query: ListAuditLogsQueryType) {
     const emptyResult = { items: [], total: 0, limit: query.limit, offset: query.offset }
-    if (query.entityId && !OBJECT_ID_RE.test(query.entityId)) return emptyResult
-    if (query.actorId && !OBJECT_ID_RE.test(query.actorId)) return emptyResult
+    if (query.entityId && !isObjectId(query.entityId)) return emptyResult
+    if (query.actorId && !isObjectId(query.actorId)) return emptyResult
 
     const where: AuditListWhere = {
       ...(query.entityType ? { entityType: query.entityType } : {}),

@@ -1,5 +1,16 @@
+import { ConditionType, PaymentConditionStatus, PaymentType } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { PaymentEngineService } from './payment-engine.service'
+import { PaymentConditionTriggerService } from './payment-condition-trigger.service'
+import { PaymentScheduleTriggerService } from './payment-schedule-trigger.service'
+import { PaymentTriggerService } from './payment-trigger.service'
+
+function makeEngine(repo: unknown, eventEmitter: unknown, redis: unknown, cronMetrics?: unknown) {
+  const trigger = new PaymentTriggerService(repo as never, eventEmitter as never)
+  const conditionTrigger = new PaymentConditionTriggerService(repo as never, trigger)
+  const scheduleTrigger = new PaymentScheduleTriggerService(repo as never, redis as never, cronMetrics as never)
+  return new PaymentEngineService(conditionTrigger, scheduleTrigger, trigger)
+}
 
 const makeRepo = () => ({
   pauseTimeBoundConditions: jest.fn().mockResolvedValue({ count: 1 }),
@@ -16,11 +27,7 @@ describe('PaymentEngineService hiatus pause/resume', () => {
   it('handleSeriesHiatusStarted pauses TIME_BOUND conditions of the series', async () => {
     const repo = makeRepo()
     const eventEmitter = { emit: jest.fn() }
-    const svc = new PaymentEngineService(
-      repo as never,
-      eventEmitter as never,
-      { setNxEx: jest.fn().mockResolvedValue(true) } as never
-    )
+    const svc = makeEngine(repo, eventEmitter, { setNxEx: jest.fn().mockResolvedValue(true) })
     await svc.handleSeriesHiatusStarted({ seriesId: 's1' })
     expect(repo.pauseTimeBoundConditions).toHaveBeenCalledWith('s1')
     expect(repo.findDisabledTimeBoundConditions).not.toHaveBeenCalled()
@@ -30,11 +37,7 @@ describe('PaymentEngineService hiatus pause/resume', () => {
   it('handleSeriesHiatusEnded resumes TIME_BOUND conditions and shifts deadline forward by pausedMs', async () => {
     const repo = makeRepo()
     const eventEmitter = { emit: jest.fn() }
-    const svc = new PaymentEngineService(
-      repo as never,
-      eventEmitter as never,
-      { setNxEx: jest.fn().mockResolvedValue(true) } as never
-    )
+    const svc = makeEngine(repo, eventEmitter, { setNxEx: jest.fn().mockResolvedValue(true) })
     const twoDaysMs = 2 * 24 * 60 * 60 * 1000
     await svc.handleSeriesHiatusEnded({ seriesId: 's1', pausedMs: twoDaysMs })
 
@@ -57,11 +60,7 @@ describe('PaymentEngineService hiatus pause/resume', () => {
       resumeTimeBoundCondition: jest.fn().mockResolvedValue(undefined)
     }
     const eventEmitter = { emit: jest.fn() }
-    const svc = new PaymentEngineService(
-      repo as never,
-      eventEmitter as never,
-      { setNxEx: jest.fn().mockResolvedValue(true) } as never
-    )
+    const svc = makeEngine(repo, eventEmitter, { setNxEx: jest.fn().mockResolvedValue(true) })
     await svc.handleSeriesHiatusEnded({ seriesId: 's1', pausedMs: 1000 })
     const [, cfg] = repo.resumeTimeBoundCondition.mock.calls[0]
     expect(cfg).toEqual({ chapterTarget: 10, payoutAmount: 50 })
@@ -88,11 +87,7 @@ describe('PaymentEngineService.handleSeriesCancelling B-CON-09', () => {
       terminateContractsBySeries: jest.fn().mockResolvedValue({ count: 1 })
     }
     const eventEmitter = { emit: jest.fn() }
-    const svc = new PaymentEngineService(
-      repo as never,
-      eventEmitter as never,
-      { setNxEx: jest.fn().mockResolvedValue(true) } as never
-    )
+    const svc = makeEngine(repo, eventEmitter, { setNxEx: jest.fn().mockResolvedValue(true) })
 
     await svc.handleSeriesCancelling({ seriesId: 's1' })
 
@@ -117,8 +112,7 @@ describe('PaymentEngineService markMissedTimeBoundConditions — cron hardening 
     eventEmitter: { emit: jest.fn() },
     redis: { setNxEx: jest.fn().mockResolvedValue(true) }
   })
-  const make = (d: ReturnType<typeof makeCronDeps>) =>
-    new PaymentEngineService(d.repo as never, d.eventEmitter as never, d.redis as never)
+  const make = (d: ReturnType<typeof makeCronDeps>) => makeEngine(d.repo, d.eventEmitter, d.redis)
 
   it('marks overdue TIME_BOUND conditions as MISSED', async () => {
     const d = makeCronDeps()
@@ -168,8 +162,7 @@ describe('PaymentEngineService — idempotency của createPaymentOnce', () => {
     eventEmitter: { emit: jest.fn() },
     redis: { setNxEx: jest.fn().mockResolvedValue(true) }
   })
-  const make = (d: ReturnType<typeof makeDeps>) =>
-    new PaymentEngineService(d.repo as never, d.eventEmitter as never, d.redis as never)
+  const make = (d: ReturnType<typeof makeDeps>) => makeEngine(d.repo, d.eventEmitter, d.redis)
 
   const contract = {
     id: 'ct1',
@@ -208,5 +201,292 @@ describe('PaymentEngineService — idempotency của createPaymentOnce', () => {
     await make(d).generateCompensationPayment(contract, 500)
     expect(d.eventEmitter.emit).toHaveBeenCalledTimes(1)
     expect(d.eventEmitter.emit).toHaveBeenCalledWith('payment.triggered', expect.objectContaining({ paymentId: 'p1' }))
+  })
+})
+
+describe('PaymentEngineService — milestone, ranking and revenue decision branches', () => {
+  const baseContract = {
+    id: 'ct1',
+    seriesId: 's1',
+    mangakaId: 'm1',
+    mangakaOwnershipPct: 30,
+    publisherOwnershipPct: 70,
+    valuationAmount: 10_000,
+    conditions: []
+  }
+
+  const makeDeps = () => ({
+    repo: {
+      findEligibleContracts: jest.fn().mockResolvedValue([]),
+      findRankingConditions: jest.fn().mockResolvedValue([]),
+      findContractForPaymentEngine: jest.fn(),
+      existsPayment: jest.fn().mockResolvedValue(null),
+      createTriggeredPayment: jest
+        .fn()
+        .mockImplementation((data: Record<string, unknown>) =>
+          Promise.resolve({ id: `p-${String(data.period)}`, ...data })
+        ),
+      markConditionAchieved: jest.fn().mockResolvedValue(undefined),
+      updateConditionLastTriggeredValue: jest.fn().mockResolvedValue(undefined),
+      findExecutedTransferContractBySeriesId: jest.fn().mockResolvedValue(null)
+    },
+    eventEmitter: { emit: jest.fn() },
+    redis: { setNxEx: jest.fn().mockResolvedValue(true) }
+  })
+
+  const make = (deps: ReturnType<typeof makeDeps>) => makeEngine(deps.repo, deps.eventEmitter, deps.redis)
+
+  it.each([undefined, 0, -1])('ignores invalid chapter numbers (%s)', async (chapterNumber) => {
+    const deps = makeDeps()
+
+    await make(deps).handleChapterPublished({ chapterId: 'ch1', seriesId: 's1', chapterNumber })
+
+    expect(deps.repo.findEligibleContracts).not.toHaveBeenCalled()
+    expect(deps.repo.createTriggeredPayment).not.toHaveBeenCalled()
+  })
+
+  it('triggers a reached chapter milestone and marks it achieved', async () => {
+    const deps = makeDeps()
+    deps.repo.findEligibleContracts.mockResolvedValue([
+      {
+        ...baseContract,
+        conditions: [
+          {
+            id: 'cond1',
+            conditionType: ConditionType.CHAPTER_MILESTONE,
+            status: PaymentConditionStatus.PENDING,
+            thresholdConfig: { chapter: 10 },
+            payoutAmount: 500,
+            payoutPct: null
+          }
+        ]
+      }
+    ])
+
+    await make(deps).handleChapterPublished({ chapterId: 'ch10', seriesId: 's1', chapterNumber: 10 })
+
+    expect(deps.repo.createTriggeredPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conditionId: 'cond1',
+        amount: 500,
+        paymentType: PaymentType.CHAPTER_MILESTONE,
+        period: 'chapter:10'
+      })
+    )
+    expect(deps.repo.markConditionAchieved).toHaveBeenCalledWith('cond1', { lastTriggeredValue: 10 })
+  })
+
+  it('does not trigger pending chapter milestones before their threshold', async () => {
+    const deps = makeDeps()
+    deps.repo.findEligibleContracts.mockResolvedValue([
+      {
+        ...baseContract,
+        conditions: [
+          {
+            id: 'cond1',
+            conditionType: ConditionType.CHAPTER_MILESTONE,
+            status: PaymentConditionStatus.PENDING,
+            thresholdConfig: { chapter: 10 },
+            payoutAmount: 500
+          },
+          {
+            id: 'cond2',
+            conditionType: ConditionType.CHAPTER_MILESTONE,
+            status: PaymentConditionStatus.ACHIEVED,
+            thresholdConfig: { chapter: 1 },
+            payoutAmount: 500
+          }
+        ]
+      }
+    ])
+
+    await make(deps).handleChapterPublished({ chapterId: 'ch5', seriesId: 's1', chapterNumber: 5 })
+
+    expect(deps.repo.createTriggeredPayment).not.toHaveBeenCalled()
+    expect(deps.repo.markConditionAchieved).not.toHaveBeenCalled()
+  })
+
+  it('catches up recurring milestones from lastTriggeredValue through the published chapter', async () => {
+    const deps = makeDeps()
+    deps.repo.findEligibleContracts.mockResolvedValue([
+      {
+        ...baseContract,
+        conditions: [
+          {
+            id: 'cond-recurring',
+            conditionType: ConditionType.RECURRING_CHAPTER,
+            status: PaymentConditionStatus.PENDING,
+            thresholdConfig: { every: 3 },
+            lastTriggeredValue: 3,
+            payoutAmount: null,
+            payoutPct: 5
+          }
+        ]
+      }
+    ])
+
+    await make(deps).handleChapterPublished({ chapterId: 'ch10', seriesId: 's1', chapterNumber: 10 })
+
+    expect(deps.repo.createTriggeredPayment).toHaveBeenCalledTimes(2)
+    expect(deps.repo.createTriggeredPayment).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ amount: 500, period: 'chapter:6' })
+    )
+    expect(deps.repo.createTriggeredPayment).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ amount: 500, period: 'chapter:9' })
+    )
+    expect(deps.repo.updateConditionLastTriggeredValue).toHaveBeenNthCalledWith(1, 'cond-recurring', 6)
+    expect(deps.repo.updateConditionLastTriggeredValue).toHaveBeenNthCalledWith(2, 'cond-recurring', 9)
+  })
+
+  it('does not mark a milestone achieved when its calculated payout is zero', async () => {
+    const deps = makeDeps()
+    deps.repo.findEligibleContracts.mockResolvedValue([
+      {
+        ...baseContract,
+        conditions: [
+          {
+            id: 'cond-zero',
+            conditionType: ConditionType.CHAPTER_MILESTONE,
+            status: PaymentConditionStatus.PENDING,
+            thresholdConfig: { chapter: 1 },
+            payoutAmount: null,
+            payoutPct: null
+          }
+        ]
+      }
+    ])
+
+    await make(deps).handleChapterPublished({ chapterId: 'ch1', seriesId: 's1', chapterNumber: 1 })
+
+    expect(deps.repo.createTriggeredPayment).not.toHaveBeenCalled()
+    expect(deps.repo.markConditionAchieved).not.toHaveBeenCalled()
+  })
+
+  it('ignores an empty ranking result without querying conditions', async () => {
+    const deps = makeDeps()
+
+    await make(deps).handleRankingFinalized({ surveyPeriodId: 'survey1', rankings: [] })
+
+    expect(deps.repo.findRankingConditions).not.toHaveBeenCalled()
+  })
+
+  it('triggers only ranking conditions whose rank reaches their configured topRank', async () => {
+    const deps = makeDeps()
+    deps.repo.findRankingConditions.mockResolvedValue([
+      {
+        id: 'rank-hit',
+        contract: baseContract,
+        thresholdConfig: { topRank: 3 },
+        payoutAmount: 300,
+        payoutPct: null
+      },
+      {
+        id: 'rank-miss',
+        contract: { ...baseContract, id: 'ct2', seriesId: 's2' },
+        thresholdConfig: { topRank: 2 },
+        payoutAmount: 300,
+        payoutPct: null
+      },
+      {
+        id: 'rank-invalid',
+        contract: { ...baseContract, id: 'ct3', seriesId: 's3' },
+        thresholdConfig: { topRank: 'one' },
+        payoutAmount: 300,
+        payoutPct: null
+      }
+    ])
+
+    await make(deps).handleRankingFinalized({
+      surveyPeriodId: 'survey1',
+      rankings: [
+        { seriesId: 's1', rank: 2 },
+        { seriesId: 's2', rank: 5 },
+        { seriesId: 's3', rank: 1 }
+      ]
+    })
+
+    expect(deps.repo.createTriggeredPayment).toHaveBeenCalledTimes(1)
+    expect(deps.repo.createTriggeredPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ conditionId: 'rank-hit', period: 'survey:survey1' })
+    )
+    expect(deps.repo.markConditionAchieved).toHaveBeenCalledTimes(1)
+    expect(deps.repo.markConditionAchieved).toHaveBeenCalledWith('rank-hit')
+  })
+
+  it.each([0, -10])('ignores non-positive revenue (%s)', async (revenue) => {
+    const deps = makeDeps()
+
+    await make(deps).handleRevenueReported({ contractId: 'ct1', revenue, period: '2026-07' })
+
+    expect(deps.repo.findContractForPaymentEngine).not.toHaveBeenCalled()
+  })
+
+  it('does not generate revenue payments for a missing contract', async () => {
+    const deps = makeDeps()
+    deps.repo.findContractForPaymentEngine.mockResolvedValue(null)
+
+    await make(deps).handleRevenueReported({ contractId: 'ct1', revenue: 1000, period: '2026-07' })
+
+    expect(deps.repo.createTriggeredPayment).not.toHaveBeenCalled()
+  })
+
+  it('pays the mangaka ownership share for a single-owner series', async () => {
+    const deps = makeDeps()
+    deps.repo.findContractForPaymentEngine.mockResolvedValue({
+      ...baseContract,
+      series: { id: 's1', mangakaId: 'm1', coOwnerId: null }
+    })
+
+    await make(deps).handleRevenueReported({ contractId: 'ct1', revenue: 1000, period: '2026-07' })
+
+    expect(deps.repo.createTriggeredPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receiverId: 'm1',
+        amount: 300,
+        paymentType: PaymentType.REVENUE_SHARE,
+        period: '2026-07'
+      })
+    )
+  })
+
+  it('uses the executed transfer ownership split for co-owned revenue', async () => {
+    const deps = makeDeps()
+    const contract = {
+      ...baseContract,
+      series: { id: 's1', mangakaId: 'm1', coOwnerId: 'm2' }
+    }
+    deps.repo.findExecutedTransferContractBySeriesId.mockResolvedValue({
+      newOwnershipSplit: { m1: 20, m2: 10 }
+    })
+
+    await make(deps).generateRevenueSharePayments(contract as never, 1000, '2026-07')
+
+    expect(deps.repo.createTriggeredPayment).toHaveBeenCalledTimes(2)
+    expect(deps.repo.createTriggeredPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ receiverId: 'm1', amount: 200 })
+    )
+    expect(deps.repo.createTriggeredPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ receiverId: 'm2', amount: 100 })
+    )
+  })
+
+  it('falls back to an equal mangaka share when transfer ownership split is unusable', async () => {
+    const deps = makeDeps()
+    const contract = {
+      ...baseContract,
+      series: { id: 's1', mangakaId: 'm1', coOwnerId: 'm2' }
+    }
+    deps.repo.findExecutedTransferContractBySeriesId.mockResolvedValue({ newOwnershipSplit: { note: 'legacy' } })
+
+    await make(deps).generateRevenueSharePayments(contract as never, 1000, '2026-07')
+
+    expect(deps.repo.createTriggeredPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ receiverId: 'm1', amount: 150 })
+    )
+    expect(deps.repo.createTriggeredPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ receiverId: 'm2', amount: 150 })
+    )
   })
 })

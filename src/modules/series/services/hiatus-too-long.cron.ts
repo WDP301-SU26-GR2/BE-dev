@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 import { NotificationType } from '@prisma/client'
+import { CronMetricsService, runCron } from 'src/core/observability/cron-metrics.service'
 import { RedisService } from 'src/infrastructure/redis/redis.service'
 import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { NotificationQueue } from 'src/modules/notification/notification.queue'
@@ -18,7 +19,8 @@ export class HiatusTooLongCron {
     private readonly redisService: RedisService,
     private readonly seriesRepository: SeriesRepository,
     private readonly appConfigService: AppConfigService,
-    private readonly notificationQueue: NotificationQueue
+    private readonly notificationQueue: NotificationQueue,
+    private readonly cronMetrics?: CronMetricsService
   ) {}
 
   // Cron hardening (audit 2026-07-11): outer try/catch — DB/AppConfig blip không thành unhandled rejection.
@@ -29,30 +31,32 @@ export class HiatusTooLongCron {
     if (!locked) return
 
     try {
-      const config = await this.appConfigService.get()
-      const cutoff = new Date(Date.now() - config.hiatusTooLongDays * 86_400_000)
-      const overdue = await this.seriesRepository.findHiatusStartedBefore(cutoff)
-      if (overdue.length === 0) return
+      await runCron(this.cronMetrics, 'hiatus-too-long', async () => {
+        const config = await this.appConfigService.get()
+        const cutoff = new Date(Date.now() - config.hiatusTooLongDays * 86_400_000)
+        const overdue = await this.seriesRepository.findHiatusStartedBefore(cutoff)
+        if (overdue.length === 0) return
 
-      const boardIds = await this.seriesRepository.findBoardMemberIds()
-      // Append the day to referenceType so the next day's notification receives a distinct dedupeKey.
-      const day = new Date().toISOString().slice(0, 10)
+        const boardIds = await this.seriesRepository.findBoardMemberIds()
+        // Append the day to referenceType so the next day's notification receives a distinct dedupeKey.
+        const day = new Date().toISOString().slice(0, 10)
 
-      for (const series of overdue) {
-        const recipients = new Set<string>(boardIds)
-        if (series.editorId) recipients.add(series.editorId)
-        for (const recipientId of recipients) {
-          await this.notificationQueue.enqueue({
-            recipientId,
-            type: NotificationType.SYSTEM,
-            referenceId: series.id,
-            referenceType: `SERIES_HIATUS_TOO_LONG:${day}`,
-            content: SeriesMessages.notification.hiatusTooLong
-          })
+        for (const series of overdue) {
+          const recipients = new Set<string>(boardIds)
+          if (series.editorId) recipients.add(series.editorId)
+          for (const recipientId of recipients) {
+            await this.notificationQueue.enqueue({
+              recipientId,
+              type: NotificationType.SYSTEM,
+              referenceId: series.id,
+              referenceType: `SERIES_HIATUS_TOO_LONG:${day}`,
+              content: SeriesMessages.notification.hiatusTooLong
+            })
+          }
         }
-      }
 
-      this.logger.log(`Hiatus-too-long cron: flagged ${overdue.length} series`)
+        this.logger.log(`Hiatus-too-long cron: flagged ${overdue.length} series`)
+      })
     } catch (error) {
       this.logger.error(`Hiatus-too-long cron failed: ${error instanceof Error ? error.message : String(error)}`)
     }

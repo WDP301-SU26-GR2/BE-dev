@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { NotificationType, Prisma } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
@@ -18,8 +19,6 @@ import { CreateInviteBodyType, ListInvitesQueryType } from '../schemas/studio-sc
 import { StudioAssignmentService } from './studio-assignment.service'
 import { StudioMessages } from '../studio.messages'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
-
 @Injectable()
 export class CollaborationInviteService {
   constructor(
@@ -29,7 +28,7 @@ export class CollaborationInviteService {
   ) {}
 
   async create(mangakaId: string, body: CreateInviteBodyType) {
-    if (!OBJECT_ID_RE.test(body.assistantId)) throw AssistantNotFoundException
+    if (!isObjectId(body.assistantId)) throw AssistantNotFoundException
     const target = await this.studioRepository.findUserWithRole(body.assistantId)
     if (!target || target.status !== 'ACTIVE') throw AssistantNotFoundException
     if (target.role.code !== RoleName.ASSISTANT) throw TargetNotAssistantException
@@ -109,7 +108,7 @@ export class CollaborationInviteService {
   }
 
   private async requireInvite(inviteId: string) {
-    if (!OBJECT_ID_RE.test(inviteId)) throw InviteNotFoundException
+    if (!isObjectId(inviteId)) throw InviteNotFoundException
     const invite = await this.studioRepository.findInviteById(inviteId)
     if (!invite) throw InviteNotFoundException
     return invite

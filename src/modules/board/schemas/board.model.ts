@@ -35,7 +35,7 @@ export const BoardDecisionSchema = extendApi(
     boardSessionId: z.string(),
     targetSeriesId: z.string().nullable(),
     decisionType: z.nativeEnum($Enums.DecisionType),
-    details: z.record(z.string(), z.any()).nullable(),
+    details: z.record(z.string(), z.json()).nullable(),
     result: z.nativeEnum($Enums.BoardDecisionResult),
     votes: z.array(VoteSchema),
     approveCount: z.number(),

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { ChapterStatus, DeadlineRequest, DeadlineRequestStatus, NotificationType } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import envConfig from 'src/core/config/envConfig'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { ScheduleService } from 'src/modules/chapter/services/schedule.service'
@@ -21,7 +22,6 @@ import {
   OpenDeadlineRequestExistsException
 } from '../errors/deadline.errors'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 const N = DeadlineMessages.notification
 
 @Injectable()
@@ -54,14 +54,14 @@ export class DeadlineNegotiationService {
   }
 
   private async getContextForChapter(chapterId: string) {
-    if (!OBJECT_ID_RE.test(chapterId)) throw DeadlineRequestNotFoundException
+    if (!isObjectId(chapterId)) throw DeadlineRequestNotFoundException
     const ctx = await this.scheduleService.getDeadlineContext(chapterId)
     if (!ctx || !ctx.schedule) throw DeadlineRequestNotFoundException
     return ctx
   }
 
   private async getActionContext(id: string, userId: string) {
-    if (!OBJECT_ID_RE.test(id)) throw DeadlineRequestNotFoundException
+    if (!isObjectId(id)) throw DeadlineRequestNotFoundException
     const request = await this.deadlineRepository.findById(id)
     if (!request || !request.chapterId) throw DeadlineRequestNotFoundException
     const ctx = await this.getContextForChapter(request.chapterId)

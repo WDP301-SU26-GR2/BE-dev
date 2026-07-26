@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import { AuditEntityType, ReprintRequestStatus } from '@prisma/client'
+import { AuditEntityType, Prisma, ReprintRequestStatus } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { ReprintRequestErrors } from '../errors/reprint-request.error'
+import { ReprintRequestRepo } from '../reprint-request.repo'
 
 // Spec 9 — Part 4: Reprint request state machine (B-RPT-*).
 //
@@ -47,7 +48,10 @@ export const REPRINT_REQUEST_TRANSITIONS: Record<ReprintRequestStatus, ReprintRe
 
 @Injectable()
 export class ReprintRequestStateService {
-  constructor(private readonly auditService: AuditService) {}
+  constructor(
+    private readonly repository: ReprintRequestRepo,
+    private readonly auditService: AuditService
+  ) {}
 
   // Throw nếu transition không hợp lệ — service dùng để guard trước khi update().
   assertTransition(from: ReprintRequestStatus, to: ReprintRequestStatus): void {
@@ -72,5 +76,20 @@ export class ReprintRequestStateService {
       toState: to,
       reason
     })
+  }
+
+  async transition(
+    id: string,
+    from: ReprintRequestStatus,
+    to: ReprintRequestStatus,
+    actorId: string | null,
+    reason?: string,
+    patch: Omit<Prisma.ReprintRequestUncheckedUpdateManyInput, 'status'> = {}
+  ) {
+    this.assertTransition(from, to)
+    const updated = await this.repository.compareAndSetStatus(id, from, to, patch)
+    if (!updated) throw ReprintRequestErrors.InvalidReprintTransition()
+    await this.audit(id, from, to, actorId, reason)
+    return updated
   }
 }

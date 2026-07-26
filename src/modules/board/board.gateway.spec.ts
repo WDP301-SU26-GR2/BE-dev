@@ -9,35 +9,42 @@ jest.mock('@socket.io/redis-adapter', () => ({ createAdapter: jest.fn() }))
 const SESSION_ID = '0123456789abcdef01234567'
 
 function makeDeps() {
-  const subRedis = {} as any
+  const subRedis = {}
   return {
-    wsRedis: { duplicate: jest.fn().mockReturnValue(subRedis) } as any,
+    wsRedis: { duplicate: jest.fn().mockReturnValue(subRedis) },
     subRedis,
-    tokenService: { verifyAccessToken: jest.fn() } as any,
-    boardRepo: { findSessionById: jest.fn() } as any,
-    boardMeetingService: { sendMessage: jest.fn() } as any
+    tokenService: { verifyAccessToken: jest.fn() },
+    boardRepo: { findSessionById: jest.fn() },
+    boardMeetingService: { sendMessage: jest.fn() }
   }
 }
 function makeGateway(d: ReturnType<typeof makeDeps>) {
-  return new BoardGateway(d.wsRedis, d.tokenService, d.boardRepo, d.boardMeetingService)
+  return new BoardGateway(
+    d.wsRedis as never,
+    d.tokenService as never,
+    d.boardRepo as never,
+    d.boardMeetingService as never
+  )
 }
 function makeSocket(token?: string) {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return {
     id: 'sock1',
     handshake: { auth: token ? { token } : {}, headers: {} },
-    data: {} as Record<string, any>,
+    data: {} as { userId?: string; roleName?: string },
     disconnect: jest.fn(),
     join: jest.fn().mockResolvedValue(undefined)
-  } as any
+  }
 }
+
+const asBoardSocket = (socket: ReturnType<typeof makeSocket>) =>
+  socket as unknown as Parameters<BoardGateway['handleConnection']>[0]
 
 describe('BoardGateway auth (Fix-1 G-9)', () => {
   it('afterInit duplicates the injected WS Redis client and installs its adapter', () => {
     const d = makeDeps()
     const gateway = makeGateway(d)
     const adapterSetter = jest.fn()
-    gateway.server = { adapter: adapterSetter } as any
+    gateway.server = { adapter: adapterSetter } as unknown as BoardGateway['server']
     ;(createAdapter as jest.Mock).mockReturnValue(redisAdapter)
 
     gateway.afterInit()
@@ -50,7 +57,7 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
   it('handleConnection without token → disconnect(true)', async () => {
     const d = makeDeps()
     const socket = makeSocket()
-    await makeGateway(d).handleConnection(socket)
+    await makeGateway(d).handleConnection(asBoardSocket(socket))
     expect(socket.disconnect).toHaveBeenCalledWith(true)
   })
 
@@ -58,7 +65,7 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     const d = makeDeps()
     d.tokenService.verifyAccessToken.mockRejectedValue(new Error('bad'))
     const socket = makeSocket('bad-token')
-    await makeGateway(d).handleConnection(socket)
+    await makeGateway(d).handleConnection(asBoardSocket(socket))
     expect(socket.disconnect).toHaveBeenCalledWith(true)
   })
 
@@ -66,7 +73,7 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     const d = makeDeps()
     d.tokenService.verifyAccessToken.mockResolvedValue({ userId: 'u1', roleName: RoleName.BOARD_MEMBER })
     const socket = makeSocket('good')
-    await makeGateway(d).handleConnection(socket)
+    await makeGateway(d).handleConnection(asBoardSocket(socket))
     expect(socket.data.userId).toBe('u1')
     expect(socket.data.roleName).toBe(RoleName.BOARD_MEMBER)
     expect(socket.disconnect).not.toHaveBeenCalled()
@@ -76,7 +83,7 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     const d = makeDeps()
     const socket = makeSocket()
     socket.data = { userId: 'u1', roleName: RoleName.BOARD_MEMBER }
-    const res = await makeGateway(d).handleJoinSession({ sessionId: 'garbage' }, socket)
+    const res = await makeGateway(d).handleJoinSession({ sessionId: 'garbage' }, asBoardSocket(socket))
     expect(res).toMatchObject({ status: 'DENIED' })
     expect(d.boardRepo.findSessionById).not.toHaveBeenCalled()
   })
@@ -86,7 +93,7 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     d.boardRepo.findSessionById.mockResolvedValue(null)
     const socket = makeSocket()
     socket.data = { userId: 'u1', roleName: RoleName.BOARD_MEMBER }
-    const res = await makeGateway(d).handleJoinSession({ sessionId: SESSION_ID }, socket)
+    const res = await makeGateway(d).handleJoinSession({ sessionId: SESSION_ID }, asBoardSocket(socket))
     expect(res).toMatchObject({ status: 'DENIED' })
   })
 
@@ -95,7 +102,7 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     d.boardRepo.findSessionById.mockResolvedValue({ id: SESSION_ID, creatorId: 'c1', allowedEditorIds: ['m1', 'm2'] })
     const socket = makeSocket()
     socket.data = { userId: 'outsider', roleName: RoleName.ASSISTANT }
-    const res = await makeGateway(d).handleJoinSession({ sessionId: SESSION_ID }, socket)
+    const res = await makeGateway(d).handleJoinSession({ sessionId: SESSION_ID }, asBoardSocket(socket))
     expect(res).toMatchObject({ status: 'DENIED' })
     expect(socket.join).not.toHaveBeenCalled()
   })
@@ -109,7 +116,7 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     d.boardRepo.findSessionById.mockResolvedValue({ id: SESSION_ID, creatorId: 'c1', allowedEditorIds: ['m1', 'm2'] })
     const socket = makeSocket()
     socket.data = { userId, roleName }
-    const res = await makeGateway(d).handleJoinSession({ sessionId: SESSION_ID }, socket)
+    const res = await makeGateway(d).handleJoinSession({ sessionId: SESSION_ID }, asBoardSocket(socket))
     expect(res).toMatchObject({ status: 'SUCCESS' })
     expect(socket.join).toHaveBeenCalledWith(`session_${SESSION_ID}`)
   })
@@ -118,7 +125,7 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     const d = makeDeps()
     const socket = makeSocket()
     // no socket.data.userId
-    const res = await makeGateway(d).handleJoinSession({ sessionId: SESSION_ID }, socket)
+    const res = await makeGateway(d).handleJoinSession({ sessionId: SESSION_ID }, asBoardSocket(socket))
     expect(res).toMatchObject({ status: 'DENIED' })
     expect(socket.disconnect).toHaveBeenCalledWith(true)
   })
@@ -142,7 +149,10 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     const socket = makeSocket()
     socket.data = { userId: 'u1', roleName: RoleName.BOARD_MEMBER }
 
-    const result = await gateway.handleSendMessage({ sessionId: SESSION_ID, content: 'Question' }, socket)
+    const result = await gateway.handleSendMessage(
+      { sessionId: SESSION_ID, content: 'Question' },
+      asBoardSocket(socket)
+    )
 
     expect(d.boardMeetingService.sendMessage).toHaveBeenCalledWith('u1', RoleName.BOARD_MEMBER, SESSION_ID, 'Question')
     expect(broadcast).toHaveBeenCalledWith(
@@ -159,7 +169,10 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     const d = makeDeps()
     const socket = makeSocket()
 
-    const result = await makeGateway(d).handleSendMessage({ sessionId: SESSION_ID, content: 'Question' }, socket)
+    const result = await makeGateway(d).handleSendMessage(
+      { sessionId: SESSION_ID, content: 'Question' },
+      asBoardSocket(socket)
+    )
 
     expect(result).toEqual({ status: 'DENIED', reason: 'NOT_PARTICIPANT' })
     expect(socket.disconnect).toHaveBeenCalledWith(true)
@@ -170,14 +183,25 @@ describe('BoardGateway auth (Fix-1 G-9)', () => {
     const gateway = makeGateway(makeDeps())
     const emit = jest.fn()
     const to = jest.fn().mockReturnValue({ emit })
-    gateway.server = { to } as any
+    gateway.server = { to } as unknown as BoardGateway['server']
 
     gateway.broadcastPhaseChanged(SESSION_ID, 'VOTING')
     gateway.broadcastMessageReceived(SESSION_ID, { id: 'message-1' })
+    const progress = {
+      decisionId: 'decision-1',
+      approveCount: 2,
+      rejectCount: 1,
+      totalVotes: 3,
+      quorumMet: true,
+      result: 'APPROVED' as const
+    }
+    gateway.broadcastVoteProgress(SESSION_ID, progress)
 
     expect(to).toHaveBeenNthCalledWith(1, `session_${SESSION_ID}`)
     expect(emit).toHaveBeenNthCalledWith(1, 'phaseChanged', { sessionId: SESSION_ID, phase: 'VOTING' })
     expect(to).toHaveBeenNthCalledWith(2, `session_${SESSION_ID}`)
     expect(emit).toHaveBeenNthCalledWith(2, 'messageReceived', { id: 'message-1' })
+    expect(to).toHaveBeenNthCalledWith(3, `session_${SESSION_ID}`)
+    expect(emit).toHaveBeenNthCalledWith(3, 'voteProgressUpdated', progress)
   })
 })

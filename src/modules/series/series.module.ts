@@ -14,6 +14,11 @@ import { NameApprovedListener } from './services/name-approved.listener'
 import { HiatusTooLongCron } from './services/hiatus-too-long.cron'
 import { NameModule } from 'src/modules/name/name.module'
 import { SeriesMetadataService } from './services/series-metadata.service'
+import { SeriesOwnershipPort } from '../transfer/ports/series-ownership.port'
+import { SeriesOwnershipAdapter } from './adapters/series-ownership.adapter'
+import { SeriesProposalAccessService } from './services/series-proposal-access.service'
+import { SeriesLifecycleNotificationService } from './services/series-lifecycle-notification.service'
+import { SeriesCompletionProposalService } from './services/series-completion-proposal.service'
 
 // Spec 8 §6: NameApprovedListener lắng NameApproved event (emit bởi name module SAU commit) →
 // nếu kind=PROPOSAL → advance READY_TO_PITCH. kind=CHAPTER → no-op.
@@ -28,15 +33,20 @@ import { SeriesMetadataService } from './services/series-metadata.service'
     SeriesRepository,
     SeriesStateService,
     SeriesProposalService,
+    SeriesProposalAccessService,
     SeriesPitchService,
     SeriesClaimService,
     SeriesQueryService,
     SeriesLifecycleService,
+    SeriesLifecycleNotificationService,
+    SeriesCompletionProposalService,
     SeriesMetadataService,
     SeriesSerializeService,
     SeriesIntegrationListener,
     NameApprovedListener,
-    HiatusTooLongCron
-  ]
+    HiatusTooLongCron,
+    { provide: SeriesOwnershipPort, useClass: SeriesOwnershipAdapter }
+  ],
+  exports: [SeriesOwnershipPort]
 })
 export class SeriesModule {}

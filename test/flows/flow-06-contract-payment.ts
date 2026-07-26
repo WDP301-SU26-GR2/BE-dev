@@ -260,7 +260,9 @@ const main = async () => {
     rPdf.status === 200 && typeof rPdf.json?.data?.downloadUrl === 'string' && typeof rPdf.json?.data?.key === 'string',
     rPdf.raw.slice(0, 200)
   )
-  const downloadedPdf = await fetch(rPdf.json.data.downloadUrl)
+  const downloadUrl = rPdf.json?.data?.downloadUrl
+  if (typeof downloadUrl !== 'string') throw new Error('Contract PDF response is missing downloadUrl')
+  const downloadedPdf = await fetch(downloadUrl)
   const downloadedPdfBytes = Buffer.from(await downloadedPdf.arrayBuffer())
   ok(
     'F06-PDF-1b presigned URL returns a real PDF',

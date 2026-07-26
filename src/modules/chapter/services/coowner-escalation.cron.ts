@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 import { CoOwnerApprovalStatus, NotificationType } from '@prisma/client'
+import { CronMetricsService, runCron } from 'src/core/observability/cron-metrics.service'
 import { RedisService } from 'src/infrastructure/redis/redis.service'
 import { NotificationQueue } from 'src/modules/notification/notification.queue'
 import { ChapterRepository } from '../chapter.repo'
@@ -15,7 +16,8 @@ export class CoOwnerEscalationCron {
   constructor(
     private readonly redisService: RedisService,
     private readonly chapterRepository: ChapterRepository,
-    private readonly notificationQueue: NotificationQueue
+    private readonly notificationQueue: NotificationQueue,
+    private readonly cronMetrics?: CronMetricsService
   ) {}
 
   // Cron hardening (audit 2026-07-11): outer try/catch + per-approval try/catch —
@@ -26,40 +28,42 @@ export class CoOwnerEscalationCron {
     if (!locked) return
 
     try {
-      const overdue = await this.chapterRepository.findOverdueCoOwnerApprovals(new Date())
-      if (overdue.length === 0) return
+      await runCron(this.cronMetrics, 'coowner-escalation', async () => {
+        const overdue = await this.chapterRepository.findOverdueCoOwnerApprovals(new Date())
+        if (overdue.length === 0) return
 
-      const boardIds = await this.chapterRepository.findBoardMemberIds()
+        const boardIds = await this.chapterRepository.findBoardMemberIds()
 
-      for (const approval of overdue) {
-        try {
-          await this.chapterRepository.updateCoOwnerApproval(approval.id, {
-            status: CoOwnerApprovalStatus.ESCALATED,
-            escalatedAt: new Date()
-          })
-          const chapter = await this.chapterRepository.findChapterById(approval.chapterId)
-          const recipients = new Set<string>(boardIds)
-          if (chapter) {
-            const series = await this.chapterRepository.findSeriesById(chapter.seriesId)
-            if (series?.editorId) recipients.add(series.editorId)
-          }
-          for (const recipientId of recipients) {
-            await this.notificationQueue.enqueue({
-              recipientId,
-              type: NotificationType.BOARD,
-              referenceId: approval.chapterId,
-              referenceType: 'COOWNER_APPROVAL_ESCALATED',
-              content: ChapterMessages.notification.coOwnerApprovalEscalated
+        for (const approval of overdue) {
+          try {
+            await this.chapterRepository.updateCoOwnerApproval(approval.id, {
+              status: CoOwnerApprovalStatus.ESCALATED,
+              escalatedAt: new Date()
             })
+            const chapter = await this.chapterRepository.findChapterById(approval.chapterId)
+            const recipients = new Set<string>(boardIds)
+            if (chapter) {
+              const series = await this.chapterRepository.findSeriesById(chapter.seriesId)
+              if (series?.editorId) recipients.add(series.editorId)
+            }
+            for (const recipientId of recipients) {
+              await this.notificationQueue.enqueue({
+                recipientId,
+                type: NotificationType.BOARD,
+                referenceId: approval.chapterId,
+                referenceType: 'COOWNER_APPROVAL_ESCALATED',
+                content: ChapterMessages.notification.coOwnerApprovalEscalated
+              })
+            }
+          } catch (error) {
+            this.logger.error(
+              `Co-owner escalation cron: skip approval ${approval.id} — ${error instanceof Error ? error.message : String(error)}`
+            )
           }
-        } catch (error) {
-          this.logger.error(
-            `Co-owner escalation cron: skip approval ${approval.id} — ${error instanceof Error ? error.message : String(error)}`
-          )
         }
-      }
 
-      this.logger.log(`Co-owner escalation cron: escalated ${overdue.length} overdue approval(s)`)
+        this.logger.log(`Co-owner escalation cron: escalated ${overdue.length} overdue approval(s)`)
+      })
     } catch (error) {
       this.logger.error(`Co-owner escalation cron failed: ${error instanceof Error ? error.message : String(error)}`)
     }

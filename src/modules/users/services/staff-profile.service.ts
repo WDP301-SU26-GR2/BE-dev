@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName, RoleNameType } from 'src/core/security/constants/role.constant'
 import { ProfileNotFoundException } from '../errors/users.errors'
 import { StaffProfileBodyType } from '../schemas/users-schemas'
 import { UsersRepository } from '../users.repo'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 const STAFF_ROLES: RoleNameType[] = [RoleName.EDITOR, RoleName.BOARD_MEMBER]
 
 @Injectable()
@@ -17,7 +17,7 @@ export class StaffProfileService {
   }
 
   async getByUserId(userId: string) {
-    if (!OBJECT_ID_RE.test(userId)) throw ProfileNotFoundException
+    if (!isObjectId(userId)) throw ProfileNotFoundException
 
     const profile = await this.usersRepository.findStaffProfileByUserId(userId)
     if (profile) {

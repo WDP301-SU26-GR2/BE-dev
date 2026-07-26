@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { ConditionType, PaymentCondition, PaymentConditionStatus, Prisma } from '@prisma/client'
+import type { TransactionContext } from 'src/infrastructure/database/transaction-context'
+import { transactionClient } from 'src/infrastructure/database/transaction-context'
 
 @Injectable()
 export class PaymentConditionRepo {
@@ -49,12 +51,31 @@ export class PaymentConditionRepo {
       payoutAmount?: number
       payoutPct?: number
       isRecurring?: boolean
-      status?: PaymentConditionStatus
     }
   ): Promise<PaymentCondition> {
     return this.prisma.paymentCondition.update({
       where: { id: conditionId },
       data
+    })
+  }
+
+  async compareAndSetStatus(
+    conditionId: string,
+    expected: PaymentConditionStatus,
+    target: PaymentConditionStatus
+  ): Promise<PaymentCondition | null> {
+    const result = await this.prisma.paymentCondition.updateMany({
+      where: { id: conditionId, status: expected },
+      data: { status: target }
+    })
+    if (result.count !== 1) return null
+    return this.prisma.paymentCondition.findUnique({ where: { id: conditionId } })
+  }
+
+  markPendingMissedInTransaction(context: TransactionContext, contractId: string) {
+    return transactionClient(context).paymentCondition.updateMany({
+      where: { contractId, status: PaymentConditionStatus.PENDING },
+      data: { status: PaymentConditionStatus.MISSED }
     })
   }
 }

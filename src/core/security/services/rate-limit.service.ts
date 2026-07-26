@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { RuntimeMetricsService } from 'src/core/observability/runtime-metrics.service'
 import { RedisService } from 'src/infrastructure/redis/redis.service'
 import type { RateLimitDecision, RateLimitRule } from '../constants/rate-limit.constant'
 
@@ -25,7 +26,10 @@ return {1, 0, 0}
 export class RateLimitService {
   private readonly logger = new Logger(RateLimitService.name)
 
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly metrics: RuntimeMetricsService
+  ) {}
 
   async checkAndConsume(rule: RateLimitRule): Promise<RateLimitDecision> {
     const cdKey = `rl:cd:${rule.key}`
@@ -42,6 +46,7 @@ export class RateLimitService {
       return { allowed: false, reason: res[1] as 'COOLDOWN' | 'QUOTA', retryAfter: Number(res[2]) }
     } catch (err) {
       this.logger.error('rate-limit fail-open (Redis error)', err as Error)
+      this.metrics.recordSecurityDegraded('redis_rate_limit')
       return { allowed: true }
     }
   }

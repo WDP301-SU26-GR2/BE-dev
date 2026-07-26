@@ -17,6 +17,9 @@ import {
   TaskTypeNotInStageException
 } from 'src/modules/chapter/errors/production-stage.errors'
 import { TaskMessages } from '../task.messages'
+import { TaskAssignmentCreateService } from './task-assignment-create.service'
+import { TaskAssignmentMutationService } from './task-assignment-mutation.service'
+import { TaskAssignmentValidatorService } from './task-assignment-validator.service'
 
 const PAGE = {
   id: 'a'.repeat(24),
@@ -38,22 +41,25 @@ describe('TaskAssignService', () => {
   }
   const REG = 'b'.repeat(24)
   const studio = { findActiveForPair: jest.fn() }
-  const storage = { findAssetsByIds: jest.fn() }
+  const storage = { findExistingAssetIds: jest.fn() }
   const taskState = { transition: jest.fn() }
   const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const stageRepo = {
     countByChapter: jest.fn().mockResolvedValue(0),
     findById: jest.fn(),
-    findStagePage: jest.fn()
+    hasStagePage: jest.fn()
   }
-  const service = new TaskAssignService(
+  const validator = new TaskAssignmentValidatorService(repo as never, studio as never, storage, stageRepo)
+  const createService = new TaskAssignmentCreateService(repo as never, validator, notification as never)
+  const mutationService = new TaskAssignmentMutationService(
     repo as never,
+    validator,
     studio as never,
-    storage as never,
     taskState as never,
     notification as never,
-    stageRepo as never
+    storage
   )
+  const service = new TaskAssignService(createService, mutationService)
   beforeEach(() => {
     jest.clearAllMocks()
     stageRepo.countByChapter.mockResolvedValue(0)
@@ -83,7 +89,7 @@ describe('TaskAssignService', () => {
   it('rejects missing asset → 422', async () => {
     repo.findPageWithOwner.mockResolvedValue(PAGE)
     studio.findActiveForPair.mockResolvedValue({ id: 'sa' })
-    storage.findAssetsByIds.mockResolvedValue([])
+    storage.findExistingAssetIds.mockResolvedValue([])
     await expect(
       service.create('m', {
         pageId: ID,
@@ -234,7 +240,7 @@ describe('TaskAssignService', () => {
       status: 'ACTIVE',
       taskTypes: ['BACKGROUND']
     })
-    stageRepo.findStagePage.mockResolvedValue(null)
+    stageRepo.hasStagePage.mockResolvedValue(false)
 
     await expect(
       service.create('m', {
@@ -258,7 +264,7 @@ describe('TaskAssignService', () => {
       status: 'ACTIVE',
       taskTypes: ['BACKGROUND']
     })
-    stageRepo.findStagePage.mockResolvedValue({ stageId: STAGE_ID, pageId: ID })
+    stageRepo.hasStagePage.mockResolvedValue(true)
     repo.createTask.mockResolvedValue({
       id: 't',
       pageId: ID,
@@ -470,13 +476,13 @@ describe('TaskAssignService.createGroup', () => {
       ...over
     }
     const studioAssignmentService = { findActiveForPair: jest.fn().mockResolvedValue({ id: 'sa1' }) }
-    const storageRepository = { findAssetsByIds: jest.fn().mockResolvedValue([]) }
+    const storageRepository = { findExistingAssetIds: jest.fn().mockResolvedValue([]) }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
     const taskStateService = { transition: jest.fn() }
     const productionStageRepository = {
       countByChapter: jest.fn().mockResolvedValue(0),
       findById: jest.fn(),
-      findStagePage: jest.fn()
+      hasStagePage: jest.fn()
     }
     return {
       taskRepository,
@@ -489,14 +495,26 @@ describe('TaskAssignService.createGroup', () => {
   }
 
   function makeSvc(d: ReturnType<typeof makeDeps>) {
-    return new TaskAssignService(
+    const validator = new TaskAssignmentValidatorService(
       d.taskRepository as never,
       d.studioAssignmentService as never,
-      d.storageRepository as never,
+      d.storageRepository,
+      d.productionStageRepository
+    )
+    const createService = new TaskAssignmentCreateService(
+      d.taskRepository as never,
+      validator,
+      d.notificationService as never
+    )
+    const mutationService = new TaskAssignmentMutationService(
+      d.taskRepository as never,
+      validator,
+      d.studioAssignmentService as never,
       d.taskStateService as never,
       d.notificationService as never,
-      d.productionStageRepository as never
+      d.storageRepository
     )
+    return new TaskAssignService(createService, mutationService)
   }
 
   const body = { pageIds: [P1, P2], assistantId: A1, taskType: 'BACKGROUND', priority: 0, assetIds: [] }

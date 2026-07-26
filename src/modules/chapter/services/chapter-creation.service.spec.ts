@@ -8,16 +8,19 @@ function makeRepo() {
     countChaptersBySeriesId: jest.fn().mockResolvedValue(0),
     createChapter: jest
       .fn()
-      .mockImplementation((d: any) => Promise.resolve({ id: 'ch1', status: 'DRAFT', nameId: null, ...d }))
+      .mockImplementation((d: Record<string, unknown>) =>
+        Promise.resolve({ id: 'ch1', status: 'DRAFT', nameId: null, ...d })
+      )
   }
 }
-const make = (repo: any) => new ChapterCreationService(repo)
+const make = (repo: ReturnType<typeof makeRepo>) =>
+  new ChapterCreationService(repo as unknown as ConstructorParameters<typeof ChapterCreationService>[0])
 const S = '012345678901234567890123'
 
 describe('ChapterCreationService.create (chapter-first)', () => {
   it('malformed seriesId → 404', async () => {
     const repo = makeRepo()
-    await expect(make(repo).create('u', { seriesId: 'garbage', chapterNumber: 1 } as any)).rejects.toMatchObject({
+    await expect(make(repo).create('u', { seriesId: 'garbage', chapterNumber: 1 })).rejects.toMatchObject({
       status: 404
     })
     expect(repo.findSeriesById).not.toHaveBeenCalled()
@@ -26,7 +29,7 @@ describe('ChapterCreationService.create (chapter-first)', () => {
   it('not owner → 403', async () => {
     const repo = makeRepo()
     repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'other', status: SeriesStatus.SERIALIZED })
-    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 1 } as any)).rejects.toMatchObject({
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 1 })).rejects.toMatchObject({
       status: 403
     })
   })
@@ -34,7 +37,7 @@ describe('ChapterCreationService.create (chapter-first)', () => {
   it('series PITCHED → 409', async () => {
     const repo = makeRepo()
     repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'u', status: SeriesStatus.PITCHED })
-    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 1 } as any)).rejects.toMatchObject({
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 1 })).rejects.toMatchObject({
       status: 409
     })
   })
@@ -43,7 +46,7 @@ describe('ChapterCreationService.create (chapter-first)', () => {
     const repo = makeRepo()
     repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'u', status: SeriesStatus.SERIALIZED })
     repo.findChapterByNumber.mockResolvedValue({ id: 'dup' })
-    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 5 } as any)).rejects.toMatchObject({
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 5 })).rejects.toMatchObject({
       status: 409
     })
   })
@@ -84,7 +87,7 @@ describe('ChapterCreationService.create — ending phase (Fix-1 G-1)', () => {
       chapterCountAtCancelling: null
     })
     repo.findChapterByNumber.mockResolvedValue(null)
-    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 4 } as any)).resolves.toBeDefined()
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 4 })).resolves.toBeDefined()
     expect(repo.countChaptersBySeriesId).not.toHaveBeenCalled()
   })
 
@@ -99,7 +102,7 @@ describe('ChapterCreationService.create — ending phase (Fix-1 G-1)', () => {
     })
     repo.countChaptersBySeriesId.mockResolvedValue(4) // 4 - 3 = 1 < 2
     repo.findChapterByNumber.mockResolvedValue(null)
-    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 5 } as any)).resolves.toBeDefined()
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 5 })).resolves.toBeDefined()
     expect(repo.createChapter).toHaveBeenCalled()
   })
 
@@ -113,7 +116,7 @@ describe('ChapterCreationService.create — ending phase (Fix-1 G-1)', () => {
       chapterCountAtCancelling: 3
     })
     repo.countChaptersBySeriesId.mockResolvedValue(5) // 5 - 3 = 2 >= 2
-    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 6 } as any)).rejects.toMatchObject({
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 6 })).rejects.toMatchObject({
       status: 409
     })
     expect(repo.createChapter).not.toHaveBeenCalled()
@@ -135,7 +138,7 @@ describe('ChapterCreationService.create — ending phase (Fix-1 G-1)', () => {
   it('HIATUS → 409 SeriesNotSerialized (vẫn chặn)', async () => {
     const repo = makeRepo()
     repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'u', status: SeriesStatus.HIATUS })
-    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 2 } as any)).rejects.toMatchObject({
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 2 })).rejects.toMatchObject({
       status: 409
     })
     expect(repo.countChaptersBySeriesId).not.toHaveBeenCalled()

@@ -6,11 +6,14 @@ import envConfig from 'src/core/config/envConfig'
 import { corsOrigins } from 'src/core/config/cors'
 import { z } from 'zod'
 import { vi } from 'zod/locales'
+import { RequestContextService } from 'src/core/observability/request-context.service'
+import { StructuredJsonLogger } from 'src/core/observability/structured-json.logger'
 
 z.config(vi())
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule)
+  const app = await NestFactory.create(AppModule, { bufferLogs: true })
+  app.useLogger(new StructuredJsonLogger(app.get(RequestContextService)))
   app.getHttpAdapter().getInstance().set('trust proxy', envConfig.TRUST_PROXY_HOPS)
   app.enableShutdownHooks()
   app.enableCors({ origin: corsOrigins() })

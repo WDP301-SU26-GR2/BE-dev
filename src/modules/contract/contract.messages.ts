@@ -11,6 +11,7 @@ export const ContractMessages = {
     contractMangakaRequestedChanges: 'Mangaka yêu cầu chỉnh sửa điều khoản hợp đồng.',
     contractBoardRequestedChanges: 'Hội đồng yêu cầu chỉnh sửa điều khoản — cần gửi lại Mangaka duyệt.',
     boardSignaturesCompleted: 'Toàn bộ thành viên Hội đồng đã ký hợp đồng',
+    replacementAwaitingActivation: 'Hợp đồng thay thế đã ký đủ và đang chờ kích hoạt chuyển nhượng',
     boardSignatureRecorded: (signed: number, required: number) =>
       `Đã ghi nhận chữ ký. Đang chờ các thành viên Hội đồng còn lại (${signed}/${required})`,
     revenueRecorded: 'Đã ghi nhận doanh thu, hệ thống đang chia theo hợp đồng.'
@@ -58,7 +59,19 @@ export const ContractMessages = {
     contractBoardDecisionMissing: 'Error.ContractBoardDecisionMissing',
     notAuthorizedInBoard: 'Error.NotAuthorizedInBoard',
     boardMemberAlreadySigned: 'Error.BoardMemberAlreadySigned',
-    mangakaSignNotRequired: 'Error.MangakaSignNotRequired'
+    mangakaSignNotRequired: 'Error.MangakaSignNotRequired',
+    seriesNotSerialized: 'Error.SeriesNotSerialized',
+    contractNotAmendable: 'Error.ContractNotAmendable',
+    openAmendmentExists: 'Error.OpenAmendmentExists',
+    amendmentNotFound: 'Error.AmendmentNotFound',
+    amendmentNotEditable: 'Error.AmendmentNotEditable',
+    amendmentNotSubmittable: 'Error.AmendmentNotSubmittable',
+    amendmentNoChanges: 'Error.AmendmentNoChanges',
+    amendmentNotPendingSignatures: 'Error.AmendmentNotPendingSignatures',
+    amendmentNotVoidable: 'Error.AmendmentNotVoidable',
+    ownershipMismatch: 'Error.OwnershipMismatch',
+    replacementActivationInvalid: 'Error.ReplacementActivationInvalid',
+    replacementActivationUnavailable: 'Error.ReplacementActivationUnavailable'
   },
   errorText: {
     'Error.BoardDecisionNotFound': 'Không tìm thấy quyết định Hội đồng',
@@ -88,6 +101,8 @@ export const ContractMessages = {
     'Error.NotAuthorizedInBoard': 'Bạn không thuộc Hội đồng được chỉ định cho hợp đồng này',
     'Error.BoardMemberAlreadySigned': 'Bạn đã ký hợp đồng này',
     'Error.MangakaSignNotRequired': 'Hợp đồng này không yêu cầu chữ ký của Mangaka',
-    'Error.ContractNotExecutedForPdf': 'Hợp đồng chưa ký khoá — chỉ xuất PDF từ khi FULLY_EXECUTED'
+    'Error.ContractNotExecutedForPdf': 'Hợp đồng chưa ký khoá — chỉ xuất PDF từ khi FULLY_EXECUTED',
+    'Error.ReplacementActivationInvalid': 'Yêu cầu chuyển nhượng thiếu hợp đồng gốc',
+    'Error.ReplacementActivationUnavailable': 'Tạm thời chưa thể kích hoạt hợp đồng thay thế'
   }
 } as const

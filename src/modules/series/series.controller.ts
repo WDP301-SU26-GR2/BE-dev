@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
+import { ApiObjectIdParams, ObjectIdParamPipe } from 'src/core/http/pipes/object-id-param.pipe'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
@@ -13,7 +14,7 @@ import {
   HiatusBodyDto,
   ListSeriesQueryDto,
   ProposeCompletionBodyDto,
-  ReasonBodyDto,
+  SeriesReasonBodyDto,
   SeriesListResDto,
   SeriesResDto,
   UpdateProposalBodyDto,
@@ -42,6 +43,8 @@ import {
   SeriesNotReadyToPitchException
 } from './errors/series.errors'
 import { SeriesService } from './series.service'
+
+const SeriesIdParamPipe = ObjectIdParamPipe.for(() => SeriesNotFoundException)
 
 @ApiTags('series')
 @ApiBearerAuth()
@@ -103,11 +106,16 @@ export class SeriesController {
   }
 
   @Put('proposals/:id')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Mangaka sửa proposal (partial-update; chỉ DRAFT/PROPOSAL_REVISION; KHÔNG nhận namePages)' })
   @ApiErrors(NotSeriesOwnerException, SeriesNotFoundException, ProposalNotEditableException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: SeriesResDto })
-  updateProposal(@Param('id') id: string, @Body() body: UpdateProposalBodyDto, @ActiveUser('userId') userId: string) {
+  updateProposal(
+    @Param('id', SeriesIdParamPipe) id: string,
+    @Body() body: UpdateProposalBodyDto,
+    @ActiveUser('userId') userId: string
+  ) {
     return this.seriesService.updateProposal(userId, id, body)
   }
 
@@ -121,6 +129,7 @@ export class SeriesController {
   }
 
   @Post(':id/submit')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Mangaka submit → mở 2 vòng review (proposal+Name), Series DRAFT→IN_REVIEW' })
   @ApiErrors(
     NotSeriesOwnerException,
@@ -130,7 +139,7 @@ export class SeriesController {
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: CreateProposalResDto })
-  submit(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  submit(@Param('id', SeriesIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.seriesService.submit(userId, id)
   }
 
@@ -139,25 +148,31 @@ export class SeriesController {
   @ApiErrors(NotAssignedEditorException, SeriesNotFoundException, InvalidProposalStateException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: SeriesResDto })
-  requestProposalRevision(@Param('id') id: string, @Body() body: ReasonBodyDto, @ActiveUser('userId') userId: string) {
+  requestProposalRevision(
+    @Param('id') id: string,
+    @Body() body: SeriesReasonBodyDto,
+    @ActiveUser('userId') userId: string
+  ) {
     return this.seriesService.requestProposalRevision(userId, id, body.reason)
   }
 
   @Post(':id/proposal/resubmit')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Mangaka nộp lại proposal sau revision (→ PROPOSAL_REVIEW)' })
   @ApiErrors(NotSeriesOwnerException, InvalidProposalStateException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: SeriesResDto })
-  resubmitProposal(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  resubmitProposal(@Param('id', SeriesIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.seriesService.resubmitProposal(userId, id)
   }
 
   @Post(':id/proposal/approve')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Editor duyệt proposal (→ PROPOSAL_APPROVED; nếu Name cũng APPROVED → READY_TO_PITCH)' })
   @ApiErrors(NotAssignedEditorException, SeriesNotFoundException, InvalidProposalStateException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: SeriesResDto })
-  approveProposal(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  approveProposal(@Param('id', SeriesIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.seriesService.approveProposal(userId, id)
   }
 
@@ -166,7 +181,7 @@ export class SeriesController {
   @ApiErrors(NotAssignedEditorException, SeriesNotFoundException, InvalidProposalStateException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: SeriesResDto })
-  reject(@Param('id') id: string, @Body() body: ReasonBodyDto, @ActiveUser('userId') userId: string) {
+  reject(@Param('id') id: string, @Body() body: SeriesReasonBodyDto, @ActiveUser('userId') userId: string) {
     return this.seriesService.rejectProposal(userId, id, body.reason)
   }
 
@@ -175,18 +190,19 @@ export class SeriesController {
   @ApiErrors(NotSeriesOwnerException, SeriesNotFoundException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: SeriesResDto })
-  withdraw(@Param('id') id: string, @Body() body: ReasonBodyDto, @ActiveUser('userId') userId: string) {
+  withdraw(@Param('id') id: string, @Body() body: SeriesReasonBodyDto, @ActiveUser('userId') userId: string) {
     return this.seriesService.withdraw(userId, id, body.reason)
   }
 
   @Post(':id/reopen')
+  @ApiObjectIdParams('id')
   @ApiOperation({
     summary: 'Mangaka mở lại hồ sơ đã ABANDONED/WITHDRAWN (Series → DRAFT, về hàng đợi khi nộp lại)'
   })
   @ApiErrors(NotSeriesOwnerException, SeriesNotFoundException, InvalidSeriesTransitionException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: SeriesResDto })
-  reopen(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  reopen(@Param('id', SeriesIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.seriesService.reopen(userId, id)
   }
 
@@ -197,7 +213,7 @@ export class SeriesController {
   @ApiErrors(NotAssignedEditorException, SeriesNotFoundException, InvalidSeriesTransitionException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: SeriesResDto })
-  reopenReview(@Param('id') id: string, @Body() body: ReasonBodyDto, @ActiveUser('userId') userId: string) {
+  reopenReview(@Param('id') id: string, @Body() body: SeriesReasonBodyDto, @ActiveUser('userId') userId: string) {
     return this.seriesService.reopenForReview(userId, id, body.reason)
   }
 
@@ -217,11 +233,12 @@ export class SeriesController {
   }
 
   @Post(':id/pitch')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Editor pitch series lên Board (Series → PITCHED, gọi B5)' })
   @ApiErrors(NotAssignedEditorException, SeriesNotFoundException, SeriesNotReadyToPitchException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: SeriesResDto })
-  pitch(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  pitch(@Param('id', SeriesIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.seriesService.pitch(userId, id)
   }
 

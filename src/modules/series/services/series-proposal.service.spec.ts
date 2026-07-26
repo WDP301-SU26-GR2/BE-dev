@@ -1,5 +1,6 @@
 import { ProposalStatus, SeriesStatus } from '@prisma/client'
 import { SeriesProposalService } from './series-proposal.service'
+import { SeriesProposalAccessService } from './series-proposal-access.service'
 import {
   FranchiseConsentRequiredException,
   NotAssignedEditorException,
@@ -68,8 +69,9 @@ function make(seriesOverride: Record<string, unknown> = {}) {
       .fn()
       .mockImplementation((id, status) => Promise.resolve({ ...series, franchiseConsentStatus: status }))
   }
-  const nameRepo = {
-    updateNameStatus: jest.fn().mockResolvedValue({ ...baseName, status: 'SUBMITTED', submittedAt: new Date() })
+  const nameApprovalService = {
+    submitProposalName: jest.fn().mockResolvedValue({ ...baseName, status: 'SUBMITTED', submittedAt: new Date() }),
+    resetProposalNameToDraft: jest.fn().mockResolvedValue(undefined)
   }
   const seriesStateService = {
     transition: jest.fn().mockImplementation((id, toStatus) => Promise.resolve({ ...series, status: toStatus })),
@@ -80,14 +82,15 @@ function make(seriesOverride: Record<string, unknown> = {}) {
     openSafe: jest.fn().mockResolvedValue({ round: 1 }),
     currentRound: jest.fn().mockResolvedValue(1)
   }
+  const accessService = new SeriesProposalAccessService(seriesRepository as never, notificationService as never)
   const service = new SeriesProposalService(
     seriesRepository as never,
-    nameRepo as never,
+    nameApprovalService as never,
     seriesStateService as never,
-    notificationService as never,
-    revisionService as never
+    revisionService as never,
+    accessService
   )
-  return { service, seriesRepository, nameRepo, seriesStateService, notificationService, revisionService }
+  return { service, seriesRepository, nameApprovalService, seriesStateService, notificationService, revisionService }
 }
 
 describe('SeriesProposalService', () => {
@@ -104,10 +107,10 @@ describe('SeriesProposalService', () => {
   })
 
   it('submit: proposal->PROPOSAL_REVIEW, name->SUBMITTED, series DRAFT->IN_REVIEW via state service', async () => {
-    const { service, seriesRepository, nameRepo, seriesStateService } = make()
+    const { service, seriesRepository, nameApprovalService, seriesStateService } = make()
     const res = await service.submit('m1', 's1')
     expect(seriesRepository.updateProposalStatus).toHaveBeenCalledWith('s1', ProposalStatus.PROPOSAL_REVIEW)
-    expect(nameRepo.updateNameStatus).toHaveBeenCalledWith('n1', expect.objectContaining({ status: 'SUBMITTED' }))
+    expect(nameApprovalService.submitProposalName).toHaveBeenCalledWith('n1')
     expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.IN_REVIEW, { changedBy: 'm1' })
     expect(res.series.status).toBe(SeriesStatus.IN_REVIEW)
     expect(res.name.status).toBe('SUBMITTED')
@@ -160,7 +163,7 @@ describe('SeriesProposalService', () => {
   })
 
   it('reopen: ABANDONED → DRAFT + unset editor + proposal DRAFT + Name DRAFT', async () => {
-    const { service, seriesRepository, nameRepo, seriesStateService } = make({
+    const { service, seriesRepository, nameApprovalService, seriesStateService } = make({
       status: SeriesStatus.ABANDONED,
       editorId: 'e1',
       proposal: { ...baseSeries.proposal, status: ProposalStatus.REJECTED }
@@ -170,7 +173,7 @@ describe('SeriesProposalService', () => {
 
     expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.DRAFT, { changedBy: 'm1' })
     expect(seriesRepository.reopenSeriesToDraft).toHaveBeenCalledWith('s1')
-    expect(nameRepo.updateNameStatus).toHaveBeenCalledWith('n1', { status: 'DRAFT' })
+    expect(nameApprovalService.resetProposalNameToDraft).toHaveBeenCalledWith('n1')
   })
 
   it('reopen by a non-owner throws before transition', async () => {

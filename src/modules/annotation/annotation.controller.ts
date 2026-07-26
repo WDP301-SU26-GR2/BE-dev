@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
+import { ApiObjectIdParams, ObjectIdParamPipe } from 'src/core/http/pipes/object-id-param.pipe'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import type { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
 import { AnnotationService } from './annotation.service'
@@ -16,6 +17,8 @@ import {
   AnnotationNotFoundException,
   AnnotationTargetNotFoundException
 } from './errors/annotation.errors'
+
+const AnnotationIdParamPipe = ObjectIdParamPipe.for(() => AnnotationNotFoundException)
 
 @ApiTags('annotations')
 @ApiBearerAuth()
@@ -45,17 +48,19 @@ export class AnnotationController {
   }
 
   @Patch(':id/resolve')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Đánh dấu annotation đã giải quyết (isResolved=true). Chỉ author.' })
   @ApiErrors(AnnotationForbiddenException, AnnotationNotFoundException)
   @ZodResponse({ status: 200, type: AnnotationResDto })
-  resolve(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  resolve(@Param('id', AnnotationIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.annotationService.resolve(userId, id)
   }
 
   @Delete(':id')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Xoá annotation. Chỉ author.' })
   @ApiErrors(AnnotationForbiddenException, AnnotationNotFoundException)
-  remove(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  remove(@Param('id', AnnotationIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.annotationService.remove(userId, id)
   }
 }

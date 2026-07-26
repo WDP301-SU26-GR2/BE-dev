@@ -16,6 +16,11 @@ import { StorageService } from 'src/infrastructure/storage/storage.service'
 import { RedisModule } from 'src/infrastructure/redis/redis.module'
 import { QueueModule } from 'src/infrastructure/queue/queue.module'
 import { RateLimitService } from './security/services/rate-limit.service'
+import { RequestContextService } from './observability/request-context.service'
+import { RequestIdMiddleware } from './observability/request-id.middleware'
+import { DatabaseUnitOfWork } from 'src/infrastructure/database/database-unit-of-work.service'
+import { OutboxRepo } from 'src/infrastructure/database/outbox.repo'
+import { ObservabilityModule } from './observability/observability.module'
 
 const infrastructureServices = [
   PrismaService,
@@ -24,16 +29,20 @@ const infrastructureServices = [
   TokenService,
   EmailService,
   DomainEventBus,
-  StorageService
+  StorageService,
+  RequestContextService,
+  DatabaseUnitOfWork,
+  OutboxRepo
 ]
 
 @Global()
 @Module({
-  exports: [...infrastructureServices, RedisModule, QueueModule, RateLimitService],
+  exports: [...infrastructureServices, ObservabilityModule, RedisModule, QueueModule, RateLimitService],
   providers: [
     ...infrastructureServices,
     { provide: IDENTITY_HASH_PEPPER, useValue: envConfig.IDENTITY_HASH_PEPPER },
     RateLimitService,
+    RequestIdMiddleware,
     AccessTokenGuard,
     {
       provide: APP_GUARD,
@@ -49,6 +58,6 @@ const infrastructureServices = [
     }
   ],
   // EventEmitterModule.forRoot() được đăng ký DUY NHẤT ở AppModule (composition root) — S-07 audit 2026-07-20.
-  imports: [JwtModule, RedisModule, QueueModule]
+  imports: [JwtModule, ObservabilityModule, RedisModule, QueueModule]
 })
 export class CoreModule {}

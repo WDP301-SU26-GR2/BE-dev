@@ -5,6 +5,7 @@ import { BoardDecisionSchema, BoardConfigSchema, SeriesReportSchema } from './bo
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
 import { UserMiniSchema } from 'src/core/models/user-mini.model'
+import { zObjectId } from 'src/core/http/schemas/object-id.schema'
 
 export const CreateBoardSessionBodySchema = extendApi(
   z
@@ -32,14 +33,12 @@ export const CreateBoardSessionBodySchema = extendApi(
       description: z.string().max(500, 'Mô tả không được vượt quá 500 ký tự.').optional().nullable(),
 
       allowedEditorIds: z
-        .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'Mã định danh thành viên ban biên tập không hợp lệ.'))
+        .array(zObjectId('Mã định danh thành viên ban biên tập không hợp lệ.'))
         .min(3, 'Phiên họp bắt buộc phải mời ít nhất 3 thành viên ban biên tập tham gia.')
         .optional()
         .describe('Bỏ trống → hệ thống tự phân công theo seriesId (PB-05)'),
 
-      seriesId: z
-        .string()
-        .regex(/^[0-9a-fA-F]{24}$/)
+      seriesId: zObjectId()
         .optional()
         .describe('Nguồn thể loại cho auto-assign roster. BẮT BUỘC khi omit allowedEditorIds'),
 
@@ -233,7 +232,7 @@ export const BoardDecisionResSchema = extendApi(
     rejectCount: z.number(),
     quorumMet: z.boolean(),
     endingChapterAllowance: z.number().nullable().optional(),
-    details: z.any().nullable().optional(),
+    details: z.record(z.string(), z.json()).nullable().optional(),
     decidedAt: zDateField().nullable().optional(),
     allowedEditorIds: z.array(z.string()).optional(),
     votes: z.array(BoardVoteResSchema),
@@ -346,7 +345,7 @@ export const BoardMessageListResSchema = extendApi(
 export const SuggestBoardMembersQuerySchema = extendApi(
   z
     .object({
-      seriesId: z.string().regex(/^[0-9a-fA-F]{24}$/),
+      seriesId: zObjectId(),
       size: z.coerce.number().int().min(3).optional()
     })
     .strict(),

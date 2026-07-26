@@ -1,0 +1,59 @@
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: backend operational alerts fire from emitted metric contracts
+    interval: 1m
+    input_series:
+      - series: 'mangaka_security_degraded_total{control="captcha"}'
+        values: '0 1 1 1 1 1'
+      - series: 'mangaka_security_degraded_total{control="redis_rate_limit"}'
+        values: '0 1 1 1 1 1'
+      - series: 'mangaka_queue_jobs_total{outcome="failure"}'
+        values: '0 1 1 1 1 1 1 1'
+      - series: 'mangaka_ai_inference_total{outcome="failure"}'
+        values: '0 3 3 3 3 3 3 3'
+      - series: mangaka_disk_free_bytes
+        values: '4000000000 4000000000 4000000000 4000000000 4000000000 4000000000 4000000000 4000000000 4000000000 4000000000 4000000000 4000000000'
+      - series: mangaka_process_start_time_seconds
+        values: '1000 1000 2000 2000 2000'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: MangakaRedisAndCaptchaDegraded
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: CAPTCHA and Redis rate-limit controls are degraded together
+      - eval_time: 7m
+        alertname: MangakaQueueFailures
+        exp_alerts:
+          - exp_labels:
+              outcome: failure
+              severity: warning
+            exp_annotations:
+              summary: A backend queue is exhausting its retry budget
+      - eval_time: 7m
+        alertname: MangakaAiFailures
+        exp_alerts:
+          - exp_labels:
+              outcome: failure
+              severity: warning
+            exp_annotations:
+              summary: AI region proposal calls are repeatedly failing
+      - eval_time: 11m
+        alertname: MangakaDiskPressure
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: API data filesystem has less than 5 GiB free
+      - eval_time: 4m
+        alertname: MangakaApiProcessRestarted
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: API process restarted within the last 15 minutes

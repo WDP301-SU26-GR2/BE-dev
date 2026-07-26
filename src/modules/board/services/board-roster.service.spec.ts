@@ -25,7 +25,7 @@ function makeDeps() {
     }
   }
 }
-const make = (d: any) => new BoardRosterService(d.repo)
+const make = (d: ReturnType<typeof makeDeps>) => new BoardRosterService(d.repo as never)
 
 describe('BoardRosterService.suggest', () => {
   it('ranks by number of matched genres, descending', async () => {

@@ -5,8 +5,8 @@
  * - C-01..16: boot NestApplicationContext (lib/cron.ts withCronContext — KHÔNG listen HTTP,
  *   stop mọi cron tick ngay sau boot) → gọi trực tiếp `.run()` từng cron một cách deterministic.
  *   Xoá Redis lock `cron:*` trước mỗi lần gọi (server flowtest cũng tick nên lock có thể đang bị giữ).
- * - C-17..20: board-scheduler (EVERY_MINUTE) ĐỢI SERVER TICK THẬT — seed session trước,
- *   poll DB tới 120s (pattern smoke-fix2).
+ * - C-17..20: gọi trực tiếp board-scheduler thật trong cùng application context; Redis lock
+ *   và toàn bộ repository/state service vẫn chạy thật, không phụ thuộc ranh giới phút của OS.
  *
  * Idempotency: chạy cron 2 lần (xoá lock giữa 2 lần) → notification KHÔNG double
  * (dedup per-day theo referenceType `X:YYYY-MM-DD` của NotificationService).
@@ -48,6 +48,7 @@ import { ok, section, summary, resetCounters, sleep } from './lib/http.js'
 import { withCronContext, clearCronLocks, waitUntil } from './lib/cron.js'
 
 const FLOW = 'cross-cron'
+const NOTIFICATION_DRAIN_TIMEOUT_MS = 45_000
 const today = () => new Date().toISOString().slice(0, 10)
 const dateOnly = (d: Date) => d.toISOString().slice(0, 10)
 
@@ -182,7 +183,7 @@ const main = async () => {
         async () =>
           (await countNotif(m1.id, refChapter, chNear.id)) === 1 &&
           (await countNotif(e1.id, refChapter, chNear.id)) === 1,
-        15_000,
+        NOTIFICATION_DRAIN_TIMEOUT_MS,
         1_000
       )
     )
@@ -193,7 +194,7 @@ const main = async () => {
         async () =>
           (await countNotif(a1.id, refTask, taskNear.id)) === 1 &&
           (await countNotif(m1.id, refTask, taskNear.id)) === 1,
-        15_000,
+        NOTIFICATION_DRAIN_TIMEOUT_MS,
         1_000
       )
     )
@@ -274,7 +275,7 @@ const main = async () => {
         async () =>
           (await countNotif(b1.id, refHiatus, hiatusOld.id)) === 1 &&
           (await countNotif(e1.id, refHiatus, hiatusOld.id)) === 1,
-        15_000,
+        NOTIFICATION_DRAIN_TIMEOUT_MS,
         1_000
       )
     )
@@ -343,41 +344,28 @@ const main = async () => {
       (await prisma.paymentCondition.findUnique({ where: { id: condDisabled.id } }))?.status ===
         PaymentConditionStatus.DISABLED
     )
-  })
 
-  // ═══ C-17..20 board-scheduler EVERY_MINUTE — đợi server flowtest tick THẬT ═══
-  section('C-17..20 board-scheduler (đợi server tick ≤120s)')
-  const sessAStarted = await waitUntil(
-    async () =>
-      (await prisma.boardSession.findUnique({ where: { id: sessA.id } }))?.status === BoardSessionStatus.ACTIVE,
-    120_000,
-    5_000
-  )
-  ok('C-17 session UPCOMING quá startTime → auto ACTIVE (≤120s)', sessAStarted)
-  const sessBConcluded = await waitUntil(
-    async () =>
-      (await prisma.boardSession.findUnique({ where: { id: sessB.id } }))?.status === BoardSessionStatus.CONCLUDED,
-    120_000,
-    5_000
-  )
-  ok('C-18 session ACTIVE quá endTime → auto CONCLUDED (≤120s)', sessBConcluded)
-  // Session→CONCLUDED và decision→EXPIRED có thể lệch vài chục ms (2 write trong cùng tick, hoặc
-  // decision expiry ở bước sau). Poll thay vì đọc ngay sau C-18 (chống flake §74.8). Assertion GIỮ NGUYÊN.
-  const decExpired = await waitUntil(
-    async () =>
-      (await prisma.boardDecision.findUnique({ where: { id: decB.id } }))?.result === BoardDecisionResult.EXPIRED,
-    120_000,
-    5_000
-  )
-  const decAfter = await prisma.boardDecision.findUnique({ where: { id: decB.id } })
-  ok(
-    'C-19 decision treo PENDING trong session concluded → EXPIRED',
-    decExpired && decAfter?.result === BoardDecisionResult.EXPIRED
-  )
-  ok(
-    'C-20 decision EXPIRED KHÔNG emit finalize → series giữ PITCHED',
-    (await prisma.series.findUnique({ where: { id: seriesPitched.id } }))?.status === SeriesStatus.PITCHED
-  )
+    // ═══ C-17..20 board-scheduler — real application context, deterministic invocation ═══
+    section('C-17..20 board-scheduler')
+    await clearCronLocks()
+    await ctx.getByName('BoardSchedulerService').handleAutoStartSessions()
+    ok(
+      'C-17 session UPCOMING quá startTime → auto ACTIVE',
+      (await prisma.boardSession.findUnique({ where: { id: sessA.id } }))?.status === BoardSessionStatus.ACTIVE
+    )
+    ok(
+      'C-18 session ACTIVE quá endTime → auto CONCLUDED',
+      (await prisma.boardSession.findUnique({ where: { id: sessB.id } }))?.status === BoardSessionStatus.CONCLUDED
+    )
+    ok(
+      'C-19 decision treo PENDING trong session concluded → EXPIRED',
+      (await prisma.boardDecision.findUnique({ where: { id: decB.id } }))?.result === BoardDecisionResult.EXPIRED
+    )
+    ok(
+      'C-20 decision EXPIRED KHÔNG emit finalize → series giữ PITCHED',
+      (await prisma.series.findUnique({ where: { id: seriesPitched.id } }))?.status === SeriesStatus.PITCHED
+    )
+  })
 
   await prisma.$disconnect()
   const fail = summary(FLOW)

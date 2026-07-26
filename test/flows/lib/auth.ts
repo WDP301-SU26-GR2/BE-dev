@@ -1,13 +1,39 @@
 import * as bcrypt from 'bcrypt'
 import { OtpPurpose, PrismaClient } from '@prisma/client'
+import { createHmac } from 'node:crypto'
 import { prisma, PW } from './seed.js'
 import { req, type Res } from './http.js'
 
 const tokenCache = new Map<string, string>()
 
 // Pattern smoke-fix2: upsert OtpRequest với bcrypt('123456').
-export const seedOtp = (email: string, purpose: OtpPurpose) =>
-  prisma.otpRequest.upsert({
+export const seedOtp = (email: string, purpose: OtpPurpose) => {
+  if (purpose === OtpPurpose.VOTE) {
+    const hmac = (value: string) =>
+      createHmac('sha256', process.env.IDENTITY_HASH_PEPPER ?? '')
+        .update(value)
+        .digest('hex')
+    const identityHash = hmac(email.trim().toLowerCase())
+    return prisma.voteOtp.upsert({
+      where: { identityHash_authMethod: { identityHash, authMethod: 'EMAIL_OTP' } },
+      update: {
+        otpCodeHash: bcrypt.hashSync('123456', 10),
+        ipHash: hmac('flowtest-seeded-ip'),
+        expiresAt: new Date(Date.now() + 300_000),
+        attempts: 0,
+        isUsed: false
+      },
+      create: {
+        identityHash,
+        authMethod: 'EMAIL_OTP',
+        ipHash: hmac('flowtest-seeded-ip'),
+        otpCodeHash: bcrypt.hashSync('123456', 10),
+        expiresAt: new Date(Date.now() + 300_000)
+      }
+    })
+  }
+
+  return prisma.otpRequest.upsert({
     where: { email_purpose: { email, purpose } },
     update: {
       otpCodeHash: bcrypt.hashSync('123456', 10),
@@ -22,6 +48,7 @@ export const seedOtp = (email: string, purpose: OtpPurpose) =>
       expiresAt: new Date(Date.now() + 300_000)
     }
   })
+}
 
 export const login = async (email: string, password: string = PW): Promise<string> => {
   const cached = tokenCache.get(email)

@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException
+} from '@nestjs/common'
 import { TransferMessages } from '../transfer.messages'
 
 const E = TransferMessages.error
@@ -20,5 +26,14 @@ export const TransferContractNotFoundException = new NotFoundException(E.transfe
 export const UserOrEmailNotFoundException = new NotFoundException(E.userOrEmailNotFound)
 export const UserHasAlreadySignedContractException = new BadRequestException(E.userHasAlreadySignedContract)
 export const TransferContractNotFoundAfterUpdateException = new NotFoundException(E.transferContractNotFoundAfterUpdate)
+export const TransferAccessDeniedException = new ForbiddenException(E.accessDenied)
+export const InvalidTransferBoardDecisionException = new UnprocessableEntityException([
+  { message: E.invalidBoardDecision, path: 'boardDecisionId' }
+])
+export const RequestingMangakaInactiveException = new ForbiddenException(E.requestingMangakaInactive)
+export const RequesterAlreadyOwnsSeriesException = new ConflictException(E.requesterAlreadyOwnsSeries)
+export const InvalidTransferProposalException = new UnprocessableEntityException([
+  { message: E.invalidProposal, path: 'proposedPercentage' }
+])
 export const NotTheCoOwnerForChapterException = new ForbiddenException(E.notTheCoOwnerForChapter)
 export const ChapterApprovalIsNotPendingException = new BadRequestException(E.chapterApprovalIsNotPending)

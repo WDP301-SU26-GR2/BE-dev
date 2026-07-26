@@ -1,7 +1,10 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq'
 import { Logger } from '@nestjs/common'
 import type { Job } from 'bullmq'
+import { randomUUID } from 'node:crypto'
+import { RequestContextService } from 'src/core/observability/request-context.service'
 import { JOB, QUEUE } from 'src/infrastructure/queue/queue.constant'
+import { QueueProcessorMetricsService } from 'src/infrastructure/queue/queue-processor-metrics.service'
 import { StorageService } from 'src/infrastructure/storage/storage.service'
 import { AiRepository } from '../ai.repo'
 import { AiMessages } from '../ai.messages'
@@ -17,12 +20,27 @@ export class AiProcessor extends WorkerHost {
     private readonly aiRepository: AiRepository,
     private readonly aiJobStateService: AiJobStateService,
     private readonly storageService: StorageService,
-    private readonly aiClient: AiClientPort
+    private readonly aiClient: AiClientPort,
+    private readonly requestContext: RequestContextService,
+    private readonly processorMetrics: QueueProcessorMetricsService
   ) {
     super()
   }
 
   async process(job: Job): Promise<void> {
+    const requestId = this.readRequestId(job.data) ?? randomUUID()
+    return this.processorMetrics.run(QUEUE.AI, job, () =>
+      this.requestContext.run(requestId, () => this.processInContext(job))
+    )
+  }
+
+  private readRequestId(data: unknown): string | undefined {
+    if (!data || typeof data !== 'object' || !('requestId' in data)) return undefined
+    const requestId = data.requestId
+    return typeof requestId === 'string' && requestId.length > 0 ? requestId : undefined
+  }
+
+  private async processInContext(job: Job): Promise<void> {
     if (job.name !== JOB.SEGMENT_PAGE) {
       this.logger.warn(`Unknown ai job: ${job.name}`)
       return

@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RegionType } from '@prisma/client'
 import envConfig from 'src/core/config/envConfig'
 import { AI_JOB_OPTIONS, JOB, QUEUE } from 'src/infrastructure/queue/queue.constant'
 import { QueueService } from 'src/infrastructure/queue/queue.service'
 import { STAGE_REGION_HINTS } from 'src/modules/chapter/production-stage.constant'
-import { ProductionStageRepository } from 'src/modules/chapter/production-stage.repo'
 import {
   StageLockedException,
   StageNotFoundException,
@@ -12,7 +12,6 @@ import {
   StageRequiredException
 } from 'src/modules/chapter/errors/production-stage.errors'
 import { RegionService } from 'src/modules/task/services/region.service'
-import { OBJECT_ID_RE } from '../ai.constant'
 import { AiMessages } from '../ai.messages'
 import { toAiJobListItem, toAiJobRes } from '../ai.mapper'
 import { AiRepository } from '../ai.repo'
@@ -28,6 +27,7 @@ import {
 } from '../errors/ai.errors'
 import { ListAiJobsQueryType, ProposedRegionType, SegmentPageBodyType } from '../schemas/ai-schemas'
 import { AiJobStateService } from './ai-job-state.service'
+import { ProductionStageQueryPort } from '../ports/production-stage-query.port'
 
 export interface SegmentPageJob {
   aiJobId: string
@@ -40,18 +40,18 @@ export class AiSegmentService {
     private readonly regionService: RegionService,
     private readonly queueService: QueueService,
     private readonly aiJobStateService: AiJobStateService,
-    private readonly productionStageRepository: ProductionStageRepository
+    private readonly productionStageQuery: ProductionStageQueryPort
   ) {}
 
   private isEnabled(): boolean {
-    return envConfig.AI_SERVICE_URL !== ''
+    return envConfig.NODE_ENV !== 'test' && envConfig.AI_SERVICE_URL !== ''
   }
 
   private async resolveSource(
     page: { id: string; chapterId: string; originalFile: string | null },
     stageId: string | undefined
   ) {
-    const stageCount = await this.productionStageRepository.countByChapter(page.chapterId)
+    const stageCount = await this.productionStageQuery.countByChapter(page.chapterId)
     if (stageCount === 0) {
       if (!page.originalFile) throw PageHasNoFileException
       return {
@@ -63,10 +63,10 @@ export class AiSegmentService {
     }
 
     if (!stageId) throw StageRequiredException
-    const stage = await this.productionStageRepository.findById(stageId)
+    const stage = await this.productionStageQuery.findById(stageId)
     if (!stage || stage.chapterId !== page.chapterId) throw StageNotFoundException
     if (stage.status !== 'ACTIVE') throw StageLockedException
-    const stagePage = await this.productionStageRepository.findStagePage(stage.id, page.id)
+    const stagePage = await this.productionStageQuery.findStagePage(stage.id, page.id)
     if (!stagePage) throw StagePageNotFoundException
     return {
       sourceType: stagePage.inputSourceType,
@@ -78,7 +78,7 @@ export class AiSegmentService {
 
   private async suggestedTypes(sourceStageId: string | null): Promise<readonly RegionType[] | undefined> {
     if (!sourceStageId) return undefined
-    const stage = await this.productionStageRepository.findById(sourceStageId)
+    const stage = await this.productionStageQuery.findById(sourceStageId)
     if (!stage || stage.isFinalCheck) return undefined
     return STAGE_REGION_HINTS[stage.name]
   }
@@ -109,7 +109,7 @@ export class AiSegmentService {
   }
 
   private async requireOwnJob(userId: string, jobId: string) {
-    if (!OBJECT_ID_RE.test(jobId)) throw AiJobNotFoundException
+    if (!isObjectId(jobId)) throw AiJobNotFoundException
     const job = await this.aiRepository.findJobById(jobId)
     if (!job || job.requestedBy !== userId) throw AiJobNotFoundException
     return job
@@ -132,9 +132,9 @@ export class AiSegmentService {
     if (!page) throw AiJobSourceStaleException
 
     if (job.sourceStageId) {
-      const stage = await this.productionStageRepository.findById(job.sourceStageId)
+      const stage = await this.productionStageQuery.findById(job.sourceStageId)
       if (!stage || stage.status !== 'ACTIVE') throw AiJobSourceStaleException
-      const stagePage = await this.productionStageRepository.findStagePage(stage.id, job.pageId)
+      const stagePage = await this.productionStageQuery.findStagePage(stage.id, job.pageId)
       if (
         !stagePage ||
         stagePage.inputSourceType !== job.sourceType ||

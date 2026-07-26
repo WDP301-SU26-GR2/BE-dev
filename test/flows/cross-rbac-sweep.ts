@@ -23,6 +23,38 @@ const FLOW = 'cross-rbac-sweep'
 
 // ObjectId hợp lệ-nhưng-không-tồn-tại → route :id trả 404 (KHÔNG 500) là hành vi đúng.
 const substituteParams = (path: string): string => path.replace(/:[a-zA-Z]+/g, 'aaaaaaaaaaaaaaaaaaaaaaaa')
+const substituteMalformedObjectId = (path: string): string =>
+  path.replace(/:([a-zA-Z]*id)\b/gi, 'not-an-object-id').replace(/:[a-zA-Z]+/g, 'aaaaaaaaaaaaaaaaaaaaaaaa')
+const normalizeOpenApiPath = (path: string): string => path.replace(/\{([^}]+)\}/g, ':$1')
+
+async function verifyOpenApiRouteSnapshot(): Promise<void> {
+  const response = await req('GET', '/api-json')
+  const document = response.json as { paths?: Record<string, Record<string, unknown>> }
+  const documented = new Set(
+    Object.entries(document.paths ?? {}).flatMap(([path, operations]) =>
+      Object.keys(operations)
+        .map((method) => method.toUpperCase())
+        .filter((method): method is 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' =>
+          ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'].includes(method)
+        )
+        .map((method) => `${method} ${normalizeOpenApiPath(path)}`)
+    )
+  )
+  const expected = new Set([
+    ...ROUTE_RULES.map((rule) => `${rule.method} ${rule.path}`),
+    'GET /health/live',
+    'GET /health/ready',
+    'GET /metrics'
+  ])
+  const missing = [...expected].filter((route) => !documented.has(route)).sort()
+  const unexpected = [...documented].filter((route) => !expected.has(route)).sort()
+
+  ok(
+    'OpenAPI path snapshot matches the authoritative runtime route table',
+    response.status === 200 && missing.length === 0 && unexpected.length === 0,
+    `status=${response.status}; missing=${missing.join(', ') || 'none'}; unexpected=${unexpected.join(', ') || 'none'}`
+  )
+}
 
 /**
  * Route có OBJECT-LEVEL authorization (S-01, BACKEND_AUDIT_2026-07-20).
@@ -60,6 +92,24 @@ const main = async () => {
   }
 
   section('rbac-sweep (none + 5 role × mỗi route)')
+  await verifyOpenApiRouteSnapshot()
+
+  section('malformed ObjectId sweep (every runtime :id route)')
+  for (const rule of ROUTE_RULES.filter((candidate) => /:([a-zA-Z]*id)\b/i.test(candidate.path))) {
+    const role = rule.access === 'ROLES' ? rule.allowed[0] : ROLE_FIXTURES_ORDER[0]
+    const token = rule.access === 'PUBLIC' ? undefined : tokens.get(role)
+    const needsBody = rule.method === 'POST' || rule.method === 'PATCH' || rule.method === 'PUT'
+    const response = await req(rule.method, substituteMalformedObjectId(rule.path), {
+      token,
+      body: needsBody ? {} : undefined
+    })
+    ok(
+      `${rule.method} ${rule.path} malformed ObjectId is rejected before persistence`,
+      response.status >= 400 && response.status < 500 && response.status !== 401,
+      `got ${response.status}`
+    )
+  }
+
   for (const rule of ROUTE_RULES) {
     const realPath = substituteParams(rule.path)
     const needsBody = rule.method === 'POST' || rule.method === 'PATCH' || rule.method === 'PUT'

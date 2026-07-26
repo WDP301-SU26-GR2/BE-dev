@@ -1,0 +1,19 @@
+{
+  "SchemaVersion": 2,
+  "Results": [
+    {
+      "Target": "safe-negative-fixture",
+      "Class": "lang-pkgs",
+      "Type": "fixture",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2099-9999",
+          "PkgName": "fixture-only",
+          "InstalledVersion": "0.0.0",
+          "Severity": "HIGH",
+          "Title": "Synthetic High-severity finding used to prove the gate rejects findings"
+        }
+      ]
+    }
+  ]
+}

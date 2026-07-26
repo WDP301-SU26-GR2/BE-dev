@@ -201,6 +201,7 @@ enum ContractStatus {
   BOARD_APPROVED
   NEGOTIATION
   MANGAKA_SIGNED
+  ACTIVATION_PENDING
   FULLY_EXECUTED
   FULFILLED
   TERMINATED
@@ -485,6 +486,9 @@ enum TransferRequestStatus {
   ACCEPTED
   REJECTED
   CANCELLED
+  AWAITING_REPLACEMENT_SIGNATURES
+  AWAITING_TRANSFER_SIGNATURES
+  COMPLETED
 }
 
 // REVIEW: inferred
@@ -495,6 +499,16 @@ enum TransferContractStatus {
   BOARD_SIGNED
   FULLY_EXECUTED
   VOIDED
+}
+
+enum TransferSignerRole {
+  MANGAKA_A
+  MANGAKA_B
+  BOARD
+}
+
+enum OutboxEventType {
+  TRANSFER_REPLACEMENT_READY
 }
 
 // REVIEW: inferred
@@ -1421,7 +1435,7 @@ model TransferRequest {
   proposedType         TransferType?
   proposedPercentage   Float?
   planDescription      String?
-  status               TransferRequestStatus @default(PROPOSED)
+  status               TransferRequestStatus @default(SUBMITTED)
   createdAt            DateTime              @default(now())
 
   boardDecisionId    String?        @db.ObjectId
@@ -1464,11 +1478,26 @@ model TransferContractSignature {
   transferContract   TransferContract @relation(fields: [transferContractId], references: [id], onDelete: Cascade)
 
   userId   String   @db.ObjectId
-  role     String // "MANGAKA_A" | "MANGAKA_B" | "BOARD"
+  role     TransferSignerRole
   signedAt DateTime @default(now())
 
   @@unique([transferContractId, userId, role])
   @@index([transferContractId])
+}
+
+model OutboxEvent {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  type        OutboxEventType
+  aggregateId String          @db.ObjectId
+  payload     Json
+  attempts    Int             @default(0)
+  availableAt DateTime        @default(now())
+  processedAt DateTime?
+  lastError   String?
+  createdAt   DateTime        @default(now())
+
+  @@unique([type, aggregateId])
+  @@index([processedAt, availableAt])
 }
 
 model SurveyPeriod {
@@ -1518,14 +1547,14 @@ model VoteOtp {
   id           String            @id @default(auto()) @map("_id") @db.ObjectId
   identityHash String
   otpCodeHash  String
-  ipHash       String?
-  authMethod   ReaderAuthMethod?
+  ipHash       String
+  authMethod   ReaderAuthMethod
   createdAt    DateTime          @default(now())
   expiresAt    DateTime
-  attempts     Int               @default(3)
+  attempts     Int               @default(0)
   isUsed       Boolean           @default(false)
 
-  @@index([expiresAt])
+  @@unique([identityHash, authMethod])
 }
 
 model SurveyData {
