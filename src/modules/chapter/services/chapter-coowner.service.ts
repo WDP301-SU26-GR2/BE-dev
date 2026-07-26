@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { CoOwnerApprovalStatus, ManuscriptStatus, NotificationType, PageStatus } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
@@ -13,8 +14,6 @@ import {
 } from '../errors/chapter.errors'
 import { ManuscriptStateService } from './manuscript-state.service'
 import { CacheService } from 'src/infrastructure/redis/cache.service'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 // A-CHP-06 / B-TRF-05: co-owner (PARTIAL_TRANSFER) duyệt chapter đang AWAITING_CO_OWNER_APPROVAL.
 // Seam gộp về chapter (BE-A) vì Manuscript là single-writer ở đây. Transfer chỉ set Series.coOwnerId.
@@ -78,7 +77,7 @@ export class ChapterCoOwnerService {
   }
 
   private async loadPending(userId: string, chapterId: string) {
-    if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
+    if (!isObjectId(chapterId)) throw ChapterNotFoundException
     const chapter = await this.chapterRepository.findChapterById(chapterId)
     if (!chapter) throw ChapterNotFoundException
     const series = await this.chapterRepository.findSeriesById(chapter.seriesId)

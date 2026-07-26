@@ -2,6 +2,7 @@
 import { JwtService, JwtSignOptions } from '@nestjs/jwt'
 import { randomUUID } from 'node:crypto'
 import envConfig from 'src/core/config/envConfig'
+import { SecurityMessages } from 'src/core/security/security.messages'
 import {
   AccessTokenPayloadCreate,
   JwtAccessTokenPayload,
@@ -49,7 +50,7 @@ export class TokenService {
 
   decodeRefreshToken(token: string): JwtRefreshTokenPayload {
     const decoded = this.jwtService.decode(token)
-    if (!decoded || typeof decoded === 'string') throw new UnauthorizedException('Invalid token')
+    if (!decoded || typeof decoded === 'string') throw new UnauthorizedException(SecurityMessages.invalidAccessToken)
     return decoded as JwtRefreshTokenPayload
   }
 }

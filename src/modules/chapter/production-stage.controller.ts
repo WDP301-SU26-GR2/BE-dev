@@ -27,17 +27,13 @@ import {
   StageOutputNotReadyException,
   StagePageNotFoundException
 } from './errors/production-stage.errors'
-import { ProductionStageService } from './services/production-stage.service'
-import { ProductionStagePageService } from './services/production-stage-page.service'
+import { ProductionStageFacade } from './services/production-stage.facade'
 
 @ApiTags('Production Stages')
 @ApiBearerAuth()
 @Controller()
 export class ProductionStageController {
-  constructor(
-    private readonly service: ProductionStageService,
-    private readonly pageService: ProductionStagePageService
-  ) {}
+  constructor(private readonly facade: ProductionStageFacade) {}
 
   @Get('chapters/:id/stages')
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
@@ -45,7 +41,7 @@ export class ProductionStageController {
   @ApiErrors(StageAccessDeniedException)
   @ZodResponse({ status: 200, type: StageListResDto })
   list(@ActiveUser() user: JwtAccessTokenPayload, @Param('id') id: string) {
-    return this.service.list(user, id)
+    return this.facade.list(user, id)
   }
 
   @Post('chapters/:id/stages/:stageId/complete')
@@ -60,7 +56,7 @@ export class ProductionStageController {
   )
   @ZodResponse({ status: 201, type: MessageResDto })
   complete(@ActiveUser() user: JwtAccessTokenPayload, @Param('id') id: string, @Param('stageId') stageId: string) {
-    return this.service.complete(user, id, stageId)
+    return this.facade.complete(user, id, stageId)
   }
 
   @Patch('chapters/:id/stages/:stageId')
@@ -74,7 +70,7 @@ export class ProductionStageController {
     @Param('stageId') stageId: string,
     @Body() body: UpdateStageBodyDto
   ) {
-    return this.service.patch(user, id, stageId, body)
+    return this.facade.patch(user, id, stageId, body)
   }
 
   @Post('chapters/:id/stages')
@@ -83,7 +79,7 @@ export class ProductionStageController {
   @ApiErrors(StageAccessDeniedException, StageNotFoundException, StageNotDeletableException)
   @ZodResponse({ status: 201, type: ProductionStageResDto })
   add(@ActiveUser() user: JwtAccessTokenPayload, @Param('id') id: string, @Body() body: CreateStageBodyDto) {
-    return this.service.add(user, id, body)
+    return this.facade.add(user, id, body)
   }
 
   @Delete('chapters/:id/stages/:stageId')
@@ -92,7 +88,7 @@ export class ProductionStageController {
   @ApiErrors(StageAccessDeniedException, StageNotFoundException, StageNotDeletableException)
   @ZodResponse({ status: 200, type: MessageResDto })
   remove(@ActiveUser() user: JwtAccessTokenPayload, @Param('id') id: string, @Param('stageId') stageId: string) {
-    return this.service.remove(user, id, stageId)
+    return this.facade.remove(user, id, stageId)
   }
 
   @Get('chapters/:id/stages/:stageId/pages')
@@ -101,7 +97,7 @@ export class ProductionStageController {
   @ApiErrors(StageAccessDeniedException, StageNotFoundException)
   @ZodResponse({ status: 200, type: StagePageListResDto })
   listPages(@ActiveUser() user: JwtAccessTokenPayload, @Param('id') id: string, @Param('stageId') stageId: string) {
-    return this.pageService.listStagePages(user, id, stageId)
+    return this.facade.listPages(user, id, stageId)
   }
 
   @Put('chapters/:id/stages/:stageId/outputs')
@@ -123,6 +119,6 @@ export class ProductionStageController {
     @Param('stageId') stageId: string,
     @Body() body: ConfirmStageOutputsBodyDto
   ) {
-    return this.pageService.confirmOutputs(user.userId, id, stageId, body)
+    return this.facade.confirmOutputs(user, id, stageId, body)
   }
 }

@@ -6,8 +6,8 @@ import {
   CreateSeriesReportBodyDto,
   UpdateBoardConfigBodyDto
 } from './dto/board.dto'
-import { BoardDecisionDataType, VoteDataType } from './schemas/board.model'
-import { $Enums } from '@prisma/client'
+import { VoteDataType } from './schemas/board.model'
+import { $Enums, Prisma } from '@prisma/client'
 
 @Injectable()
 export class BoardRepository {
@@ -143,12 +143,11 @@ export class BoardRepository {
     })
   }
 
-  async updateDecisionCounters(decisionId: string, data: any): Promise<BoardDecisionDataType> {
+  async updateDecisionCounters(decisionId: string, data: Prisma.BoardDecisionUpdateInput) {
     return this.prisma.boardDecision.update({
       where: { id: decisionId },
       data
-    }) as unknown as Promise<BoardDecisionDataType>
-    // Dùng cấu trúc này một lần duy nhất tại Repo để ép kiểu thô từ Prisma về Model của bạn
+    })
   }
 
   async findNonTerminalDecisionsBySession(sessionId: string) {

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AuditEntityType } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
 import {
@@ -10,8 +11,6 @@ import {
 import { toSeriesRes } from '../series.mapper'
 import { SeriesRepository } from '../series.repo'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
-
 @Injectable()
 export class SeriesClaimService {
   constructor(
@@ -20,7 +19,7 @@ export class SeriesClaimService {
   ) {}
 
   async claim(editorId: string, seriesId: string) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
     const count = await this.seriesRepository.claimSeries(seriesId, editorId)
     if (count === 0) {
       const series = await this.seriesRepository.findById(seriesId)
@@ -40,7 +39,7 @@ export class SeriesClaimService {
   }
 
   async release(editorId: string, seriesId: string) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
     const count = await this.seriesRepository.releaseSeries(seriesId, editorId)
     if (count === 0) {
       const series = await this.seriesRepository.findById(seriesId)

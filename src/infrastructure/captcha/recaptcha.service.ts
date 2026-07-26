@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import envConfig from 'src/core/config/envConfig'
+import { RuntimeMetricsService } from 'src/core/observability/runtime-metrics.service'
 
 export interface CaptchaVerifyResult {
   ok: boolean
@@ -16,8 +17,12 @@ const VERIFY_TIMEOUT_MS = 3000
 export class RecaptchaService {
   private readonly logger = new Logger(RecaptchaService.name)
 
+  constructor(private readonly metrics: RuntimeMetricsService) {}
+
   async verify(token: string, remoteIp?: string): Promise<CaptchaVerifyResult> {
-    if (!envConfig.RECAPTCHA_SECRET) return { ok: true, score: null, degraded: false }
+    if (envConfig.NODE_ENV === 'test' || !envConfig.RECAPTCHA_SECRET) {
+      return { ok: true, score: null, degraded: false }
+    }
 
     const params = new URLSearchParams({ secret: envConfig.RECAPTCHA_SECRET, response: token })
     if (remoteIp) params.set('remoteip', remoteIp)
@@ -45,6 +50,7 @@ export class RecaptchaService {
       }
     } catch (error) {
       this.logger.warn(`reCAPTCHA siteverify failed — fail-open (degraded): ${String(error)}`)
+      this.metrics.recordSecurityDegraded('captcha')
       return { ok: true, score: null, degraded: true }
     } finally {
       clearTimeout(timer)

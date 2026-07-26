@@ -35,7 +35,6 @@ import {
   VoteResultsResDto
 } from './dto/survey.dto'
 import { SurveyService } from './services/survey.service'
-import { RankingAggregateService } from './services/ranking-aggregate.service'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
 import {
   ReaderAlreadyVotedException,
@@ -49,6 +48,7 @@ import {
   TooManySeriesSelectedException,
   DuplicateSeriesInVoteException,
   SeriesNotVotableException,
+  VoteOtpDeliveryFailedException,
   VoteOtpNotFoundException,
   VoteOtpRateLimitException,
   VoteIpLimitExceededException,
@@ -62,15 +62,12 @@ import { PublicRateLimitedException } from 'src/core/security/errors/public-rate
 @ApiBearerAuth()
 @Controller()
 export class SurveyController {
-  constructor(
-    private readonly surveyService: SurveyService,
-    private readonly rankingAggregateService: RankingAggregateService
-  ) {}
+  constructor(private readonly surveyService: SurveyService) {}
 
   @Post('vote/otp')
   @IsPublic()
   @ApiOperation({ summary: 'Reader yêu cầu OTP cho Guest Voting. Public.' })
-  @ApiErrors(VoteOtpRateLimitException(0), CaptchaRejectedException)
+  @ApiErrors(VoteOtpRateLimitException(0), CaptchaRejectedException, VoteOtpDeliveryFailedException)
   @ZodResponse({ status: 200, type: MessageResDto })
   requestOtp(@Body() body: VoteOtpRequestBodyDto, @Req() req: Request) {
     return this.surveyService.requestOtp(body, req.ip ?? '')
@@ -120,7 +117,6 @@ export class SurveyController {
   }
 
   // Spec 15 §3.1 — discover the latest public ranking without a known period id.
-  @Get('vote/results/latest')
   @IsPublic()
   @UseGuards(PublicRateLimitGuard)
   @ApiOperation({
@@ -134,7 +130,6 @@ export class SurveyController {
   }
 
   // Spec 15 §3.2 — reflected-only history for ranking discovery.
-  @Get('vote/periods')
   @IsPublic()
   @UseGuards(PublicRateLimitGuard)
   @ApiOperation({ summary: 'Public — danh sách kỳ REFLECTED (dropdown lịch sử ranking)', security: [] })
@@ -145,7 +140,6 @@ export class SurveyController {
   }
 
   // Fix-1 G-2: Public — kết quả kỳ đã chốt (REFLECTED); ẩn tín hiệu biên tập nội bộ.
-  @Get('vote/results')
   @IsPublic()
   @ApiOperation({
     summary: 'Public — bảng xếp hạng của kỳ đã chốt (REFLECTED); ẩn tín hiệu biên tập nội bộ'
@@ -259,7 +253,6 @@ export class SurveyController {
     return this.surveyService.getSeriesTrend(q.seriesId, q.periods, { userId, roleName })
   }
 
-  @Get('rankings/aggregate')
   @IsPublic()
   @ApiOperation({
     summary: 'Public participation-adjusted ranking aggregate for a magazine, publication type, and UTC month or year',
@@ -267,7 +260,7 @@ export class SurveyController {
   })
   @ZodResponse({ status: 200, type: RankingAggregateResDto })
   getRankingAggregate(@Query() query: RankingAggregateQueryDto) {
-    return this.rankingAggregateService.getAggregate(query)
+    return this.surveyService.getRankingAggregate(query)
   }
 
   @Get('voting-config')

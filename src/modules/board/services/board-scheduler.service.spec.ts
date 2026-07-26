@@ -1,6 +1,6 @@
 import { BoardSchedulerService } from './board-scheduler.service'
 
-function makeScheduler(expiredActive: any[]) {
+function makeScheduler(expiredActive: Array<{ id: string; title: string }>) {
   const boardRepo = {
     findExpiredUpcomingSessions: jest.fn().mockResolvedValue([]),
     findExpiredActiveSessions: jest.fn().mockResolvedValue(expiredActive)

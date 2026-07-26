@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AuditEntityType, NotificationType, SeriesStatus } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
@@ -16,8 +17,6 @@ import { SERIES_METADATA_TERMINAL_STATUSES } from '../series.constant'
 import { SeriesCaller } from './series-query.service'
 import { CacheService } from 'src/infrastructure/redis/cache.service'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
-
 // Series đã kết thúc là hồ sơ lịch sử đóng, không còn được sửa nội dung trình bày.
 const TERMINAL_STATUSES = new Set<SeriesStatus>(SERIES_METADATA_TERMINAL_STATUSES)
 
@@ -32,7 +31,7 @@ export class SeriesMetadataService {
   ) {}
 
   async update(caller: SeriesCaller, seriesId: string, body: UpdateSeriesMetadataBodyType) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
 
     const series = await this.seriesRepository.findById(seriesId)
     if (!series) throw SeriesNotFoundException

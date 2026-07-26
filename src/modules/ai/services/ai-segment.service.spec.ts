@@ -8,6 +8,7 @@ import {
   PageHasNoFileException,
   SegmentJobAlreadyRunningException
 } from '../errors/ai.errors'
+import envConfig from 'src/core/config/envConfig'
 import { StageLockedException, StageRequiredException } from 'src/modules/chapter/errors/production-stage.errors'
 import { AiSegmentService } from './ai-segment.service'
 
@@ -19,7 +20,14 @@ const SID = 'd'.repeat(24)
 const page = { id: PID, chapterId: CID, originalFile: 'uploads/x.png', chapter: { series: { mangakaId: MID } } }
 
 function makeService(
-  overrides: { repo?: object; region?: object; queue?: object; state?: object; stages?: object; enabled?: boolean } = {}
+  overrides: {
+    repo?: object
+    region?: object
+    queue?: object
+    state?: object
+    stages?: object
+    enabled?: boolean | null
+  } = {}
 ) {
   const repo = {
     createJob: jest.fn().mockResolvedValue({ id: JID, status: 'QUEUED' }),
@@ -48,8 +56,12 @@ function makeService(
     findStagePage: jest.fn(),
     ...(overrides.stages ?? {})
   }
-  const service = new AiSegmentService(repo as never, region as never, queue as never, state as never, stages as never)
-  jest.spyOn(service as unknown as { isEnabled: () => boolean }, 'isEnabled').mockReturnValue(overrides.enabled ?? true)
+  const service = new AiSegmentService(repo as never, region as never, queue as never, state as never, stages)
+  if (overrides.enabled !== null) {
+    jest
+      .spyOn(service as unknown as { isEnabled: () => boolean }, 'isEnabled')
+      .mockReturnValue(overrides.enabled ?? true)
+  }
   return { service, repo, region, queue, state, stages }
 }
 
@@ -83,6 +95,20 @@ describe('AiSegmentService.requestSegment', () => {
   it('503 when AI disabled', async () => {
     const { service } = makeService({ enabled: false })
     await expect(service.requestSegment(MID, PID, { mode: 'MODEL' })).rejects.toBe(AiNotEnabledException)
+  })
+
+  it('keeps AI disabled in test even when a local .env provides an AI URL', async () => {
+    const originalUrl = envConfig.AI_SERVICE_URL
+    envConfig.AI_SERVICE_URL = 'https://ai.example.test'
+    const { service, repo, queue } = makeService({ enabled: null })
+
+    try {
+      await expect(service.requestSegment(MID, PID, { mode: 'MODEL' })).rejects.toBe(AiNotEnabledException)
+      expect(repo.createJob).not.toHaveBeenCalled()
+      expect(queue.enqueue).not.toHaveBeenCalled()
+    } finally {
+      envConfig.AI_SERVICE_URL = originalUrl
+    }
   })
 
   it('409 when a segment job is already open', async () => {

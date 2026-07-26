@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { Genre } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { BOARD_ROSTER_HARD_MAX } from '../board.constant'
 import { BoardRepository } from '../board.repo'
@@ -8,8 +9,6 @@ import {
   RosterSizeTooLargeException,
   SeriesNotFoundException
 } from '../errors/board.errors'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 // Ràng buộc cứng từ code có sẵn: CreateBoardSessionBodySchema.allowedEditorIds có .min(3),
 // và board.service.createSession throw nếu roster CHẴN (B-BRD-05, chống hoà phiếu).
@@ -35,7 +34,7 @@ export class BoardRosterService {
    * Chấm điểm = số genre giao nhau; sắp xếp DETERMINISTIC (test không được flaky).
    */
   async suggest(seriesId: string, size?: number): Promise<{ items: RosterCandidate[]; size: number }> {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
     const series = await this.boardRepo.findSeriesGenres(seriesId)
     if (!series) throw SeriesNotFoundException
 

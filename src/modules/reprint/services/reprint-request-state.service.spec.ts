@@ -5,7 +5,9 @@ import { ReprintRequestStateService, REPRINT_REQUEST_TRANSITIONS } from './repri
 // trước đó) → bảng transition phải cho phép accept/reject trực tiếp từ 2 trạng thái này,
 // nếu không mọi lượt Mangaka accept đều 409 ở runtime (test service mock stateService nên không lộ).
 describe('REPRINT_REQUEST_TRANSITIONS (B-RPT-02 mangaka review reachability)', () => {
-  const service = new ReprintRequestStateService({ record: jest.fn().mockResolvedValue(undefined) } as never)
+  const repository = { compareAndSetStatus: jest.fn() }
+  const audit = { record: jest.fn().mockResolvedValue(undefined) }
+  const service = new ReprintRequestStateService(repository as never, audit as never)
 
   it.each([
     [ReprintRequestStatus.PENDING, ReprintRequestStatus.MANGAKA_APPROVED],
@@ -28,5 +30,32 @@ describe('REPRINT_REQUEST_TRANSITIONS (B-RPT-02 mangaka review reachability)', (
     for (const status of Object.values(ReprintRequestStatus)) {
       expect(REPRINT_REQUEST_TRANSITIONS[status]).toBeDefined()
     }
+  })
+
+  it('owns the CAS write and audits only after a successful transition', async () => {
+    const updated = { id: 'request-1', status: ReprintRequestStatus.MANGAKA_APPROVED }
+    const approvedAt = new Date()
+    repository.compareAndSetStatus.mockResolvedValueOnce(updated)
+
+    await expect(
+      service.transition(
+        'request-1',
+        ReprintRequestStatus.PENDING,
+        ReprintRequestStatus.MANGAKA_APPROVED,
+        'mangaka-1',
+        'accepted',
+        { mangakaApprovedAt: approvedAt }
+      )
+    ).resolves.toBe(updated)
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: 'mangaka-1', fromState: 'PENDING', toState: 'MANGAKA_APPROVED' })
+    )
+
+    repository.compareAndSetStatus.mockResolvedValueOnce(null)
+    audit.record.mockClear()
+    await expect(
+      service.transition('request-1', ReprintRequestStatus.PENDING, ReprintRequestStatus.MANGAKA_APPROVED, 'mangaka-1')
+    ).rejects.toMatchObject({ status: 409 })
+    expect(audit.record).not.toHaveBeenCalled()
   })
 })

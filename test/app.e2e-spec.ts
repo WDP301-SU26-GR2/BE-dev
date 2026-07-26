@@ -4,6 +4,8 @@ import request from 'supertest'
 import { App } from 'supertest/types'
 import { AppModule } from './../src/app.module'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import { cleanupOpenApiDoc } from 'nestjs-zod'
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 
 describe('AppModule (e2e)', () => {
   let app: INestApplication<App>
@@ -20,6 +22,7 @@ describe('AppModule (e2e)', () => {
       .compile()
 
     app = moduleFixture.createNestApplication()
+    app.enableCors({ origin: ['https://app.example.com'] })
     await app.init()
   })
 
@@ -29,5 +32,30 @@ describe('AppModule (e2e)', () => {
 
   it('boots the app and validates a public auth route', () => {
     return request(app.getHttpServer()).post('/auth/login').send({}).expect(422)
+  })
+
+  it('builds Swagger and exposes the expected public contract path', () => {
+    const document = cleanupOpenApiDoc(
+      SwaggerModule.createDocument(app, new DocumentBuilder().setTitle('E2E').setVersion('1').build())
+    )
+
+    expect(document.paths['/auth/login']?.post).toBeDefined()
+    expect(document.paths['/health/ready']?.get).toBeDefined()
+  })
+
+  it('allows the configured browser origin and omits CORS permission for an unknown origin', async () => {
+    await request(app.getHttpServer())
+      .options('/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .set('Access-Control-Request-Method', 'POST')
+      .expect('Access-Control-Allow-Origin', 'https://app.example.com')
+      .expect(204)
+
+    const denied = await request(app.getHttpServer())
+      .options('/auth/login')
+      .set('Origin', 'https://evil.example.com')
+      .set('Access-Control-Request-Method', 'POST')
+
+    expect(denied.headers['access-control-allow-origin']).toBeUndefined()
   })
 })

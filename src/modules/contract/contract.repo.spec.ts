@@ -1,4 +1,4 @@
-import { ContractRepo } from './contract.repo'
+﻿import { ContractRepo } from './contract.repo'
 import { ContractAmendmentRepo } from './contract-amendment.repo'
 import { ContractResSchema } from './schemas/contract-schema'
 
@@ -16,7 +16,7 @@ describe('contract response enrichment', () => {
       series: { findUnique: seriesFindUnique },
       boardDecision: { findUnique: boardDecisionFindUnique },
       contract: { findFirst: contractFindFirst }
-    } as any)
+    } as never)
 
     await expect(repo.findSeriesForContractCreation('s1')).resolves.toEqual({
       id: 's1',
@@ -27,7 +27,7 @@ describe('contract response enrichment', () => {
       id: 'd1',
       targetSeriesId: 's1'
     })
-    await expect(repo.findBlockingContractForCreation('s1', 'd1', ['DRAFT'] as any)).resolves.toEqual({ id: 'c1' })
+    await expect(repo.findBlockingContractForCreation('s1', 'd1', ['DRAFT'] as never)).resolves.toEqual({ id: 'c1' })
 
     expect(seriesFindUnique).toHaveBeenCalledWith({
       where: { id: 's1' },
@@ -61,7 +61,7 @@ describe('contract response enrichment', () => {
       mangaka: { id: 'm1', name: 'Fallback', displayName: null, avatar: null },
       editor: { id: 'e1', name: 'Editor', displayName: 'Editor Display', avatar: 'editor.png' }
     })
-    const repo = new ContractRepo({ contract: { findUnique } } as any)
+    const repo = new ContractRepo({ contract: { findUnique } } as never)
 
     const result = await repo.findById('c1')
 
@@ -169,7 +169,7 @@ describe('contract response enrichment', () => {
       contractAmendment: { findMany },
       user: { findMany: userFindMany },
       series: { findMany: jest.fn() }
-    } as any)
+    } as never)
 
     const results = await repo.findManyByContract('c1')
 

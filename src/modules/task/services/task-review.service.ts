@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { NotificationType, RevisionTargetType } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { PAGE_EDITABLE_STATUSES } from 'src/modules/chapter/chapter.constant'
@@ -18,8 +19,6 @@ import { RequestRevisionBodyType, SubmitTaskBodyType } from '../schemas/task-sch
 import { GROUP_APPROVABLE_TASK_STATUSES } from '../task.constant'
 import { TaskMessages } from '../task.messages'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
-
 @Injectable()
 export class TaskReviewService {
   constructor(
@@ -30,7 +29,7 @@ export class TaskReviewService {
   ) {}
 
   private async requireTask(taskId: string) {
-    if (!OBJECT_ID_RE.test(taskId)) throw TaskNotFoundException
+    if (!isObjectId(taskId)) throw TaskNotFoundException
     const task = await this.taskRepository.findTaskById(taskId)
     if (!task) throw TaskNotFoundException
     return task

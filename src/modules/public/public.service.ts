@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import envConfig from 'src/core/config/envConfig'
 import { PUB_SERIES_TTL_SEC } from 'src/infrastructure/redis/cache.constant'
 import { CacheService } from 'src/infrastructure/redis/cache.service'
 import { StorageService } from 'src/infrastructure/storage/storage.service'
 import { PublicChapterNotFoundException, PublicSeriesNotFoundException } from './errors/public.errors'
-import { OBJECT_ID_RE } from './public.constant'
 import { mapPublicChapter, mapPublicSeriesItem } from './public.mapper'
 import { PublicRepository } from './public.repo'
 import type { PublicSeriesListQueryType } from './schemas/public-schemas'
@@ -59,7 +59,7 @@ export class PublicService {
   }
 
   async getSeriesDetail(id: string) {
-    if (!OBJECT_ID_RE.test(id)) throw PublicSeriesNotFoundException
+    if (!isObjectId(id)) throw PublicSeriesNotFoundException
     const data = await this.cacheService.getOrSet('pubseries', `detail:${id}`, PUB_SERIES_TTL_SEC, async () => {
       const series = await this.publicRepository.findPublicSeriesById(id)
       if (!series) throw PublicSeriesNotFoundException
@@ -82,7 +82,7 @@ export class PublicService {
   }
 
   async getChapterPages(id: string) {
-    if (!OBJECT_ID_RE.test(id)) throw PublicChapterNotFoundException
+    if (!isObjectId(id)) throw PublicChapterNotFoundException
     const data = await this.cacheService.getOrSet('pubseries', `chapter:${id}`, PUB_SERIES_TTL_SEC, async () => {
       const chapter = await this.publicRepository.findPublishedChapterById(id)
       if (!chapter) throw PublicChapterNotFoundException

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------- Base ----------
-FROM node:22-slim AS base
+FROM node:22-trixie-slim AS base
 WORKDIR /app
 
 RUN apt-get update \
@@ -39,10 +39,11 @@ COPY prisma ./prisma
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prod
 
-RUN pnpx prisma@6 generate
+# @prisma/client's postinstall generates the client from the schema copied above.
+# The Prisma CLI is a devDependency and is intentionally absent from this stage.
 
 # ---------- Runtime ----------
-FROM node:22-slim AS runtime
+FROM node:22-trixie-slim AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -50,6 +51,8 @@ ENV NODE_ENV=production
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx \
     && groupadd -r app && useradd -r -g app app
 
 COPY --from=prod-deps /app/node_modules ./node_modules

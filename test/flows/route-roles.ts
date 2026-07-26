@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-24T13:55:03.654Z — 273 routes.
+// Sinh lúc: 2026-07-26T14:30:32.897Z — 276 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -374,6 +374,8 @@ export const ROUTE_RULES: RouteRule[] = [
     access: 'ROLES',
     allowed: [RoleCode.MANGAKA, RoleCode.EDITOR]
   },
+  { method: 'GET', path: '/health/live', access: 'PUBLIC', allowed: [] },
+  { method: 'GET', path: '/health/ready', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/mangaka-reviews', access: 'AUTH', allowed: [] },
   { method: 'POST', path: '/mangaka-reviews', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   {
@@ -391,6 +393,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'PUT', path: '/me/mangaka-profile', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'GET', path: '/me/staff-profile', access: 'ROLES', allowed: [RoleCode.EDITOR, RoleCode.BOARD_MEMBER] },
   { method: 'PUT', path: '/me/staff-profile', access: 'ROLES', allowed: [RoleCode.EDITOR, RoleCode.BOARD_MEMBER] },
+  { method: 'GET', path: '/metrics', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/notifications', access: 'AUTH', allowed: [] },
   { method: 'PATCH', path: '/notifications/:id/read', access: 'AUTH', allowed: [] },
   { method: 'PATCH', path: '/notifications/read-all', access: 'AUTH', allowed: [] },
@@ -684,14 +687,14 @@ export const ROUTE_RULES: RouteRule[] = [
     method: 'GET',
     path: '/transfers/contracts/:id/signatures',
     access: 'ROLES',
-    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER]
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
   },
   { method: 'POST', path: '/transfers/requests', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   {
     method: 'GET',
     path: '/transfers/requests/:id',
     access: 'ROLES',
-    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER]
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
   },
   {
     method: 'POST',

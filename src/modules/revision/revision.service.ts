@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { NotificationType, RevisionTargetType } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { NotificationService } from 'src/modules/notification/notification.service'
@@ -7,8 +8,6 @@ import { toRevisionRequestRes } from './revision.mapper'
 import { RevisionMessages } from './revision.messages'
 import { RevisionListWhere, RevisionRepository } from './revision.repo'
 import { ListRevisionRequestsQueryType } from './schemas/revision-schemas'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 export type RevisionCaller = { userId: string; roleName: string }
 
@@ -80,7 +79,7 @@ export class RevisionService {
   }
 
   async resolve(userId: string, id: string) {
-    if (!OBJECT_ID_RE.test(id)) throw RevisionRequestNotFoundException
+    if (!isObjectId(id)) throw RevisionRequestNotFoundException
 
     const row = await this.revisionRepository.findById(id)
     if (!row) throw RevisionRequestNotFoundException
@@ -112,7 +111,7 @@ export class RevisionService {
     const page = { limit: query.limit, offset: query.offset }
 
     // Guard malformed ObjectIds before Prisma can raise P2023 and turn this read route into a 500.
-    if (query.targetId !== undefined && !OBJECT_ID_RE.test(query.targetId)) {
+    if (query.targetId !== undefined && !isObjectId(query.targetId)) {
       return { items: [], total: 0, limit: query.limit, offset: query.offset }
     }
 

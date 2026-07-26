@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { NotificationType, StudioAssignment } from '@prisma/client'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
@@ -12,8 +13,6 @@ import { toAssignmentRes } from '../studio.mapper'
 import { ListAssignmentsQueryType } from '../schemas/studio-schemas'
 import { StudioMessages } from '../studio.messages'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
-
 @Injectable()
 export class StudioAssignmentService {
   constructor(
@@ -22,7 +21,7 @@ export class StudioAssignmentService {
   ) {}
 
   async terminate(mangakaId: string, assignmentId: string, reason: string) {
-    if (!OBJECT_ID_RE.test(assignmentId)) throw AssignmentNotFoundException
+    if (!isObjectId(assignmentId)) throw AssignmentNotFoundException
     const assignment = await this.studioRepository.findAssignmentById(assignmentId)
     if (!assignment) throw AssignmentNotFoundException
     if (assignment.mangakaId !== mangakaId) throw NotAssignmentOwnerException
@@ -45,7 +44,7 @@ export class StudioAssignmentService {
   }
 
   async getById(userId: string, roleName: string, assignmentId: string) {
-    if (!OBJECT_ID_RE.test(assignmentId)) throw AssignmentNotFoundException
+    if (!isObjectId(assignmentId)) throw AssignmentNotFoundException
     const assignment = await this.studioRepository.findAssignmentById(assignmentId)
     if (!assignment) throw AssignmentNotFoundException
     if (!this.canAccess(assignment, userId, roleName)) throw AssignmentNotFoundException
@@ -87,7 +86,7 @@ export class StudioAssignmentService {
     assistantId: string,
     assignmentId: string
   ): Promise<StudioAssignment | null> {
-    if (!OBJECT_ID_RE.test(assignmentId)) return null
+    if (!isObjectId(assignmentId)) return null
     const a = await this.studioRepository.findAssignmentById(assignmentId)
     if (!a || a.mangakaId !== mangakaId || a.assistantId !== assistantId) return null
     const now = new Date()

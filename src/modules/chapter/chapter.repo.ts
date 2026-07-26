@@ -1,477 +1,196 @@
 import { Injectable } from '@nestjs/common'
-import {
-  ChapterHoldAction,
-  ChapterStatus,
-  CoOwnerApprovalStatus,
-  ManuscriptStatus,
-  NameStatus,
-  PageStatus,
-  TaskStatus
-} from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
-import { computePageRenumber, deriveChapterStatus } from './chapter.constant'
+import { ChapterCommandRepository } from './repositories/chapter-command.repository'
+import { ChapterProgressQueryRepository } from './repositories/chapter-progress-query.repository'
+import { ChapterQueryRepository } from './repositories/chapter-query.repository'
 
 @Injectable()
 export class ChapterRepository {
-  constructor(private readonly prismaService: PrismaService) {}
+  private readonly queries: ChapterQueryRepository
+  private readonly progressQueries: ChapterProgressQueryRepository
+  private readonly commands: ChapterCommandRepository
 
-  /** Transaction-scoped repository used by state services for multi-collection transitions. */
+  constructor(private readonly prisma: PrismaService) {
+    this.queries = new ChapterQueryRepository(prisma)
+    this.progressQueries = new ChapterProgressQueryRepository(prisma)
+    this.commands = new ChapterCommandRepository(prisma, this.queries)
+  }
+
   withTransaction<T>(work: (repository: ChapterRepository) => Promise<T>): Promise<T> {
-    return this.prismaService.$transaction((tx) => work(new ChapterRepository(tx as unknown as PrismaService)))
+    return this.prisma.$transaction((tx) => work(new ChapterRepository(tx as unknown as PrismaService)))
   }
 
-  // ----- read-only cross-entity (precondition) -----
-  findSeriesById(seriesId: string) {
-    return this.prismaService.series.findUnique({ where: { id: seriesId } })
+  get findSeriesById(): typeof this.queries.findSeriesById {
+    return this.queries.findSeriesById.bind(this.queries) as typeof this.queries.findSeriesById
   }
-  findNameById(nameId: string) {
-    return this.prismaService.name.findUnique({ where: { id: nameId } })
+  get findNameById(): typeof this.queries.findNameById {
+    return this.queries.findNameById.bind(this.queries) as typeof this.queries.findNameById
   }
-  // Fix-1 G-1: đếm chapter hiện có để enforce endingChapterAllowance khi series CANCELLING.
-  countChaptersBySeriesId(seriesId: string): Promise<number> {
-    return this.prismaService.chapter.count({ where: { seriesId } })
+  get countChaptersBySeriesId(): typeof this.queries.countChaptersBySeriesId {
+    return this.queries.countChaptersBySeriesId.bind(this.queries) as typeof this.queries.countChaptersBySeriesId
   }
-
-  // A3 publish gate (BR-CONTRACT-05): series phải có Contract FULLY_EXECUTED trước khi publish.
-  // Cross-module read prisma.contract (tiền lệ: reprint/payment repo). Chỉ select id (nhẹ).
-  findExecutedContractBySeriesId(seriesId: string) {
-    return this.prismaService.contract.findFirst({
-      where: { seriesId, status: 'FULLY_EXECUTED' },
-      select: { id: true }
-    })
+  get findExecutedContractBySeriesId(): typeof this.queries.findExecutedContractBySeriesId {
+    return this.queries.findExecutedContractBySeriesId.bind(
+      this.queries
+    ) as typeof this.queries.findExecutedContractBySeriesId
   }
-
-  // ----- chapter -----
-  async createChapter(data: {
-    seriesId: string
-    chapterNumber: number
-    title?: string | null
-    nameId?: string | null
-  }) {
-    const chapter = await this.prismaService.chapter.create({
-      data: {
-        seriesId: data.seriesId,
-        nameId: data.nameId ?? null,
-        chapterNumber: data.chapterNumber,
-        title: data.title ?? null,
-        status: ChapterStatus.DRAFT
-      }
-    })
-    await this.prismaService.manuscript.create({ data: { chapterId: chapter.id, status: ManuscriptStatus.DRAFT } })
-    await this.prismaService.schedule.create({ data: { chapterId: chapter.id } })
-    return this.findChapterWithRelations(chapter.id)
+  get createChapter(): typeof this.commands.createChapter {
+    return this.commands.createChapter.bind(this.commands) as typeof this.commands.createChapter
   }
-
-  findChapterById(id: string) {
-    return this.prismaService.chapter.findUnique({ where: { id } })
+  get findChapterById(): typeof this.queries.findChapterById {
+    return this.queries.findChapterById.bind(this.queries) as typeof this.queries.findChapterById
   }
-  findChapterWithRelations(id: string) {
-    return this.prismaService.chapter.findUnique({
-      where: { id },
-      include: { manuscript: true, schedule: true }
-    })
+  get findChapterWithRelations(): typeof this.queries.findChapterWithRelations {
+    return this.queries.findChapterWithRelations.bind(this.queries) as typeof this.queries.findChapterWithRelations
   }
-  findChapterWithSeries(id: string) {
-    return this.prismaService.chapter.findFirst({
-      where: { id },
-      select: {
-        id: true,
-        seriesId: true,
-        chapterNumber: true,
-        status: true,
-        nameId: true,
-        series: { select: { mangakaId: true } }
-      }
-    })
+  get findChapterWithSeries(): typeof this.queries.findChapterWithSeries {
+    return this.queries.findChapterWithSeries.bind(this.queries) as typeof this.queries.findChapterWithSeries
   }
-  updateChapter(id: string, data: { title?: string; chapterNumber?: number }) {
-    return this.prismaService.chapter.update({ where: { id }, data })
+  get updateChapter(): typeof this.commands.updateChapter {
+    return this.commands.updateChapter.bind(this.commands) as typeof this.commands.updateChapter
   }
-  updateNameChapterNumber(nameId: string, chapterNumber: number) {
-    return this.prismaService.name.update({ where: { id: nameId }, data: { chapterNumber } })
+  get updateNameChapterNumber(): typeof this.commands.updateNameChapterNumber {
+    return this.commands.updateNameChapterNumber.bind(this.commands) as typeof this.commands.updateNameChapterNumber
   }
-  findChaptersBySeriesId(seriesId: string) {
-    return this.prismaService.chapter.findMany({
-      where: { seriesId },
-      include: { manuscript: true, schedule: true },
-      orderBy: { chapterNumber: 'asc' }
-    })
+  get findChaptersBySeriesId(): typeof this.queries.findChaptersBySeriesId {
+    return this.queries.findChaptersBySeriesId.bind(this.queries) as typeof this.queries.findChaptersBySeriesId
   }
-  findChapterByNumber(seriesId: string, chapterNumber: number) {
-    return this.prismaService.chapter.findFirst({ where: { seriesId, chapterNumber } })
+  get findChapterByNumber(): typeof this.queries.findChapterByNumber {
+    return this.queries.findChapterByNumber.bind(this.queries) as typeof this.queries.findChapterByNumber
   }
-  findManuscriptByChapterId(chapterId: string) {
-    return this.prismaService.manuscript.findUnique({ where: { chapterId } })
+  get findManuscriptByChapterId(): typeof this.queries.findManuscriptByChapterId {
+    return this.queries.findManuscriptByChapterId.bind(this.queries) as typeof this.queries.findManuscriptByChapterId
   }
-
-  async setChapterHold(chapterId: string, hold: { reason: string; expectedReturnDate: Date | null; heldBy: string }) {
-    return await this.prismaService.chapter.update({
-      where: { id: chapterId },
-      data: {
-        hold: { set: { ...hold, heldAt: new Date() } },
-        holdHistory: {
-          push: {
-            action: ChapterHoldAction.HOLD,
-            by: hold.heldBy,
-            reason: hold.reason,
-            expectedReturnDate: hold.expectedReturnDate
-          }
-        }
-      },
-      include: { manuscript: true, schedule: true }
-    })
+  get setChapterHold(): typeof this.commands.setChapterHold {
+    return this.commands.setChapterHold.bind(this.commands) as typeof this.commands.setChapterHold
   }
-
-  async unsetChapterHold(chapterId: string, by: string) {
-    return await this.prismaService.chapter.update({
-      where: { id: chapterId },
-      data: { hold: { unset: true }, holdHistory: { push: { action: ChapterHoldAction.RESUME, by } } },
-      include: { manuscript: true, schedule: true }
-    })
+  get unsetChapterHold(): typeof this.commands.unsetChapterHold {
+    return this.commands.unsetChapterHold.bind(this.commands) as typeof this.commands.unsetChapterHold
   }
-
-  async findSeriesRecipients(seriesId: string): Promise<{ mangakaId: string; editorId: string | null } | null> {
-    const series = await this.prismaService.series.findUnique({
-      where: { id: seriesId },
-      select: { mangakaId: true, editorId: true }
-    })
-    return series ? { mangakaId: series.mangakaId, editorId: series.editorId ?? null } : null
+  get findSeriesRecipients(): typeof this.queries.findSeriesRecipients {
+    return this.queries.findSeriesRecipients.bind(this.queries) as typeof this.queries.findSeriesRecipients
   }
-
-  async findChaptersNearDeadline(beforeDate: Date): Promise<Array<{ chapterId: string; seriesId: string }>> {
-    const schedules = await this.prismaService.schedule.findMany({
-      where: { currentDeadline: { lte: beforeDate } },
-      select: { chapterId: true, chapter: { select: { seriesId: true, status: true, hold: true } } }
-    })
-    return schedules
-      .filter((schedule) => schedule.chapter.status !== ChapterStatus.PUBLISHED && !schedule.chapter.hold)
-      .map((schedule) => ({ chapterId: schedule.chapterId, seriesId: schedule.chapter.seriesId }))
+  get findChaptersNearDeadline(): typeof this.progressQueries.findChaptersNearDeadline {
+    return this.progressQueries.findChaptersNearDeadline.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.findChaptersNearDeadline
   }
-
-  async countPagesByStatus(chapterId: string): Promise<Partial<Record<PageStatus, number>>> {
-    const rows = await this.prismaService.page.groupBy({
-      by: ['status'],
-      where: { chapterId },
-      _count: { _all: true }
-    })
-    return Object.fromEntries(rows.map((row) => [row.status, row._count._all]))
+  get countPagesByStatus(): typeof this.progressQueries.countPagesByStatus {
+    return this.progressQueries.countPagesByStatus.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.countPagesByStatus
   }
-
-  async countTasksByStatusForChapter(chapterId: string): Promise<Partial<Record<TaskStatus, number>>> {
-    const pages = await this.prismaService.page.findMany({ where: { chapterId }, select: { id: true } })
-    if (pages.length === 0) return {}
-    const rows = await this.prismaService.task.groupBy({
-      by: ['status'],
-      where: { pageId: { in: pages.map((page) => page.id) } },
-      _count: { _all: true }
-    })
-    return Object.fromEntries(rows.map((row) => [row.status, row._count._all]))
+  get countTasksByStatusForChapter(): typeof this.progressQueries.countTasksByStatusForChapter {
+    return this.progressQueries.countTasksByStatusForChapter.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.countTasksByStatusForChapter
   }
-
-  async findNameStatus(nameId: string): Promise<NameStatus | null> {
-    const name = await this.prismaService.name.findUnique({ where: { id: nameId }, select: { status: true } })
-    return name?.status ?? null
+  get findNameStatus(): typeof this.queries.findNameStatus {
+    return this.queries.findNameStatus.bind(this.queries) as typeof this.queries.findNameStatus
   }
-
-  async findActiveChaptersForMangaka(mangakaId: string) {
-    const series = await this.prismaService.series.findMany({
-      where: { mangakaId },
-      select: { id: true, title: true, publicationType: true }
-    })
-    if (series.length === 0) return { series, chapters: [] }
-    const chapters = await this.prismaService.chapter.findMany({
-      where: { seriesId: { in: series.map((item) => item.id) }, status: { not: ChapterStatus.PUBLISHED } },
-      include: { manuscript: true, schedule: true },
-      take: 200
-    })
-    return { series, chapters }
+  get findActiveChaptersForMangaka(): typeof this.progressQueries.findActiveChaptersForMangaka {
+    return this.progressQueries.findActiveChaptersForMangaka.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.findActiveChaptersForMangaka
   }
-
-  async findActiveChaptersForEditor(editorId: string) {
-    const series = await this.prismaService.series.findMany({
-      where: { editorId },
-      select: { id: true, title: true, publicationType: true }
-    })
-    if (series.length === 0) return { series, chapters: [] }
-    const chapters = await this.prismaService.chapter.findMany({
-      where: { seriesId: { in: series.map((item) => item.id) }, status: { not: ChapterStatus.PUBLISHED } },
-      include: { manuscript: true, schedule: true },
-      take: 200
-    })
-    return { series, chapters }
+  get findActiveChaptersForEditor(): typeof this.progressQueries.findActiveChaptersForEditor {
+    return this.progressQueries.findActiveChaptersForEditor.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.findActiveChaptersForEditor
   }
-
-  async groupPagesByChapter(chapterIds: string[]) {
-    return await this.prismaService.page.groupBy({
-      by: ['chapterId', 'status'],
-      where: { chapterId: { in: chapterIds } },
-      _count: { _all: true }
-    })
+  get groupPagesByChapter(): typeof this.progressQueries.groupPagesByChapter {
+    return this.progressQueries.groupPagesByChapter.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.groupPagesByChapter
   }
-
-  async groupTasksByChapter(chapterIds: string[]) {
-    const pages = await this.prismaService.page.findMany({
-      where: { chapterId: { in: chapterIds } },
-      select: { id: true, chapterId: true }
-    })
-    if (pages.length === 0) return []
-    const rows = await this.prismaService.task.groupBy({
-      by: ['pageId', 'status'],
-      where: { pageId: { in: pages.map((page) => page.id) } },
-      _count: { _all: true }
-    })
-    const pageToChapter = new Map(pages.map((page) => [page.id, page.chapterId]))
-    return rows.map((row) => ({
-      chapterId: pageToChapter.get(row.pageId) as string,
-      status: row.status,
-      count: row._count._all
-    }))
+  get groupTasksByChapter(): typeof this.progressQueries.groupTasksByChapter {
+    return this.progressQueries.groupTasksByChapter.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.groupTasksByChapter
   }
-
-  async groupTasksByPageForChapter(
-    chapterId: string
-  ): Promise<{ pageId: string; status: TaskStatus; count: number }[]> {
-    const rows = await this.groupTasksByPageForChapters([chapterId])
-    return rows.map(({ pageId, status, count }) => ({ pageId, status, count }))
+  get groupTasksByPageForChapter(): typeof this.progressQueries.groupTasksByPageForChapter {
+    return this.progressQueries.groupTasksByPageForChapter.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.groupTasksByPageForChapter
   }
-
-  async groupTasksByPageForChapters(
-    chapterIds: string[]
-  ): Promise<{ chapterId: string; pageId: string; status: TaskStatus; count: number }[]> {
-    if (chapterIds.length === 0) return []
-    const pages = await this.prismaService.page.findMany({
-      where: { chapterId: { in: chapterIds } },
-      select: { id: true, chapterId: true }
-    })
-    if (pages.length === 0) return []
-    const rows = await this.prismaService.task.groupBy({
-      by: ['pageId', 'status'],
-      where: { pageId: { in: pages.map((page) => page.id) } },
-      _count: { _all: true }
-    })
-    const pageToChapter = new Map(pages.map((page) => [page.id, page.chapterId]))
-    return rows.map((row) => ({
-      chapterId: pageToChapter.get(row.pageId) as string,
-      pageId: row.pageId,
-      status: row.status,
-      count: row._count._all
-    }))
+  get groupTasksByPageForChapters(): typeof this.progressQueries.groupTasksByPageForChapters {
+    return this.progressQueries.groupTasksByPageForChapters.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.groupTasksByPageForChapters
   }
-
-  async findTasksNearDeadline(now: Date, before: Date) {
-    const tasks = await this.prismaService.task.findMany({
-      where: {
-        deadline: { gt: now, lte: before },
-        status: { in: [TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS, TaskStatus.REVISION_REQUESTED] }
-      },
-      select: { id: true, assistantId: true, pageId: true }
-    })
-    if (tasks.length === 0) return []
-    const pages = await this.prismaService.page.findMany({
-      where: { id: { in: tasks.map((task) => task.pageId) } },
-      select: { id: true, chapter: { select: { hold: true, series: { select: { mangakaId: true } } } } }
-    })
-    const byPage = new Map(pages.map((page) => [page.id, page]))
-    return tasks.flatMap((task) => {
-      const page = byPage.get(task.pageId)
-      if (!page || page.chapter.hold) return []
-      return [{ taskId: task.id, assistantId: task.assistantId, mangakaId: page.chapter.series.mangakaId }]
-    })
+  get findTasksNearDeadline(): typeof this.progressQueries.findTasksNearDeadline {
+    return this.progressQueries.findTasksNearDeadline.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.findTasksNearDeadline
   }
-
-  // Task 5 (Spec 10): cascade delete chapter + related Name/Manuscript/Schedule/Pages.
-  async deleteChapterCascade(chapterId: string) {
-    await this.prismaService.$transaction(async (tx) => {
-      await tx.name.deleteMany({ where: { chapterId } })
-      await tx.manuscript.deleteMany({ where: { chapterId } })
-      await tx.schedule.deleteMany({ where: { chapterId } })
-      await tx.page.deleteMany({ where: { chapterId } })
-      await tx.chapterCoOwnerApproval.deleteMany({ where: { chapterId } })
-      await tx.deadlineRequest.deleteMany({ where: { chapterId } })
-      await tx.chapter.delete({ where: { id: chapterId } })
-    })
+  get deleteChapterCascade(): typeof this.commands.deleteChapterCascade {
+    return this.commands.deleteChapterCascade.bind(this.commands) as typeof this.commands.deleteChapterCascade
   }
-
-  // ----- single-writer: Manuscript.status + Chapter.status -----
-  async applyManuscriptTransition(
-    chapterId: string,
-    manuscriptId: string,
-    entry: { from: ManuscriptStatus; to: ManuscriptStatus; changedBy: string; reason?: string }
-  ) {
-    const now = new Date()
-    await this.prismaService.manuscript.update({
-      where: { id: manuscriptId },
-      data: {
-        status: entry.to,
-        approvedAt: entry.to === ManuscriptStatus.PUBLISHED ? now : undefined,
-        statusHistory: {
-          push: {
-            from: entry.from,
-            to: entry.to,
-            changedBy: entry.changedBy,
-            reason: entry.reason ?? null,
-            changedAt: now
-          }
-        }
-      }
-    })
-    await this.prismaService.chapter.update({
-      where: { id: chapterId },
-      data: {
-        status: deriveChapterStatus(entry.to),
-        publishedAt: entry.to === ManuscriptStatus.PUBLISHED ? now : undefined
-      }
-    })
-    return this.findChapterWithRelations(chapterId)
+  get applyManuscriptTransition(): typeof this.commands.applyManuscriptTransition {
+    return this.commands.applyManuscriptTransition.bind(this.commands) as typeof this.commands.applyManuscriptTransition
   }
-
-  // ----- schedule -----
-  findScheduleByChapterId(chapterId: string) {
-    return this.prismaService.schedule.findUnique({ where: { chapterId } })
+  get findScheduleByChapterId(): typeof this.queries.findScheduleByChapterId {
+    return this.queries.findScheduleByChapterId.bind(this.queries) as typeof this.queries.findScheduleByChapterId
   }
-  updateSchedule(chapterId: string, data: { originalDeadline?: Date; currentDeadline?: Date }) {
-    return this.prismaService.schedule.update({ where: { chapterId }, data })
+  get updateSchedule(): typeof this.commands.updateSchedule {
+    return this.commands.updateSchedule.bind(this.commands) as typeof this.commands.updateSchedule
   }
-  extendSchedule(
-    chapterId: string,
-    ext: { extendedBy: string; previousDeadline: Date | null; newDeadline: Date; reason?: string }
-  ) {
-    return this.prismaService.schedule.update({
-      where: { chapterId },
-      data: {
-        currentDeadline: ext.newDeadline,
-        extended: true,
-        extensions: {
-          push: {
-            extendedBy: ext.extendedBy,
-            previousDeadline: ext.previousDeadline,
-            newDeadline: ext.newDeadline,
-            reason: ext.reason ?? null,
-            extendedAt: new Date()
-          }
-        }
-      }
-    })
+  get extendSchedule(): typeof this.commands.extendSchedule {
+    return this.commands.extendSchedule.bind(this.commands) as typeof this.commands.extendSchedule
   }
-
-  // ----- pages -----
-  createPage(chapterId: string, data: { pageNumber: number; originalFile: string }) {
-    return this.prismaService.page.create({
-      data: { chapterId, pageNumber: data.pageNumber, originalFile: data.originalFile, status: PageStatus.DRAFT }
-    })
+  get createPage(): typeof this.commands.createPage {
+    return this.commands.createPage.bind(this.commands) as typeof this.commands.createPage
   }
-  findPageById(id: string) {
-    return this.prismaService.page.findUnique({ where: { id } })
+  get findPageById(): typeof this.queries.findPageById {
+    return this.queries.findPageById.bind(this.queries) as typeof this.queries.findPageById
   }
-  findPagesByChapterId(chapterId: string) {
-    return this.prismaService.page.findMany({ where: { chapterId }, orderBy: { pageNumber: 'asc' } })
+  get findPagesByChapterId(): typeof this.queries.findPagesByChapterId {
+    return this.queries.findPagesByChapterId.bind(this.queries) as typeof this.queries.findPagesByChapterId
   }
-  findPageByChapterAndNumber(chapterId: string, pageNumber: number) {
-    return this.prismaService.page.findFirst({ where: { chapterId, pageNumber } })
+  get findPageByChapterAndNumber(): typeof this.queries.findPageByChapterAndNumber {
+    return this.queries.findPageByChapterAndNumber.bind(this.queries) as typeof this.queries.findPageByChapterAndNumber
   }
-  // Publish gate: mọi page phải COMPLETED (đã qua duyệt). Page DRAFT/REVISING lọt vào lúc publish
-  // = trang chưa duyệt → chặn (Task A). `{ not: COMPLETED }` an toàn với Mongo (status luôn được set).
-  countPagesNotCompleted(chapterId: string) {
-    return this.prismaService.page.count({ where: { chapterId, status: { not: PageStatus.COMPLETED } } })
+  get countPagesNotCompleted(): typeof this.queries.countPagesNotCompleted {
+    return this.queries.countPagesNotCompleted.bind(this.queries) as typeof this.queries.countPagesNotCompleted
   }
-
-  findPagesByIds(ids: string[]) {
-    return this.prismaService.page.findMany({ where: { id: { in: ids } } })
+  get findPagesByIds(): typeof this.queries.findPagesByIds {
+    return this.queries.findPagesByIds.bind(this.queries) as typeof this.queries.findPagesByIds
   }
-
-  findTasksByPage(pageId: string) {
-    return this.prismaService.task.findMany({
-      where: { pageId },
-      select: { id: true, status: true, assistantId: true }
-    })
+  get findTasksByPage(): typeof this.queries.findTasksByPage {
+    return this.queries.findTasksByPage.bind(this.queries) as typeof this.queries.findTasksByPage
   }
-
-  findTasksByPages(pageIds: string[]) {
-    return this.prismaService.task.findMany({
-      where: { pageId: { in: pageIds } },
-      select: { id: true, status: true, assistantId: true }
-    })
+  get findTasksByPages(): typeof this.queries.findTasksByPages {
+    return this.queries.findTasksByPages.bind(this.queries) as typeof this.queries.findTasksByPages
   }
-
-  // Cascade Page → Region → Task trong 1 transaction (AGENTS §10: cascade nhiều collection phải nguyên tử).
-  // Task B: SAU khi xoá, dồn số các page còn lại của chapter về 1..N (atomic cùng lệnh xoá → không để
-  // lộ khoảng trống số). Interactive transaction vì cần read-modify-write (đọc remaining rồi update).
-  async deletePagesCascade(chapterId: string, pageIds: string[]) {
-    return this.prismaService.$transaction(async (tx) => {
-      await tx.productionStagePage.deleteMany({ where: { pageId: { in: pageIds } } })
-      await tx.aiJob.deleteMany({ where: { pageId: { in: pageIds } } })
-      const tasks = await tx.task.deleteMany({ where: { pageId: { in: pageIds } } })
-      const regions = await tx.region.deleteMany({ where: { pageId: { in: pageIds } } })
-      await tx.page.deleteMany({ where: { id: { in: pageIds } } })
-
-      const remaining = await tx.page.findMany({
-        where: { chapterId },
-        orderBy: { pageNumber: 'asc' },
-        select: { id: true, pageNumber: true }
-      })
-      for (const { id, pageNumber } of computePageRenumber(remaining)) {
-        await tx.page.update({ where: { id }, data: { pageNumber } })
-      }
-
-      return { deletedTasks: tasks.count, deletedRegions: regions.count }
-    })
+  get deletePagesCascade(): typeof this.commands.deletePagesCascade {
+    return this.commands.deletePagesCascade.bind(this.commands) as typeof this.commands.deletePagesCascade
   }
-
-  deletePageCascade(chapterId: string, pageId: string) {
-    return this.deletePagesCascade(chapterId, [pageId])
+  get deletePageCascade(): typeof this.commands.deletePageCascade {
+    return this.commands.deletePageCascade.bind(this.commands) as typeof this.commands.deletePageCascade
   }
-
-  updatePage(id: string, data: { originalFile?: string; compositeFile?: string; pageNumber?: number }) {
-    return this.prismaService.page.update({ where: { id }, data })
+  get updatePage(): typeof this.commands.updatePage {
+    return this.commands.updatePage.bind(this.commands) as typeof this.commands.updatePage
   }
-  updatePageStatus(id: string, status: PageStatus) {
-    return this.prismaService.page.update({ where: { id }, data: { status } })
+  get updatePageStatus(): typeof this.commands.updatePageStatus {
+    return this.commands.updatePageStatus.bind(this.commands) as typeof this.commands.updatePageStatus
   }
-  // ----- co-owner approval (A-CHP-06 / B-TRF-05) -----
-  createCoOwnerApproval(data: { chapterId: string; coOwnerId: string; deadline: Date }) {
-    return this.prismaService.chapterCoOwnerApproval.create({
-      data: {
-        chapterId: data.chapterId,
-        coOwnerId: data.coOwnerId,
-        deadline: data.deadline,
-        status: CoOwnerApprovalStatus.PENDING
-      }
-    })
+  get createCoOwnerApproval(): typeof this.commands.createCoOwnerApproval {
+    return this.commands.createCoOwnerApproval.bind(this.commands) as typeof this.commands.createCoOwnerApproval
   }
-  async findCoOwnerApprovalByChapterId(chapterId: string) {
-    // Lấy record mở gần nhất (an toàn nếu nhiều lần re-publish).
-    const rows = await this.prismaService.chapterCoOwnerApproval.findMany({
-      where: { chapterId },
-      orderBy: { createdAt: 'desc' },
-      take: 1
-    })
-    return rows[0] ?? null
+  get findCoOwnerApprovalByChapterId(): typeof this.queries.findCoOwnerApprovalByChapterId {
+    return this.queries.findCoOwnerApprovalByChapterId.bind(
+      this.queries
+    ) as typeof this.queries.findCoOwnerApprovalByChapterId
   }
-  updateCoOwnerApproval(
-    id: string,
-    data: {
-      status: CoOwnerApprovalStatus
-      decisionAt?: Date
-      rejectReason?: string
-      escalatedAt?: Date
-    }
-  ) {
-    return this.prismaService.chapterCoOwnerApproval.update({ where: { id }, data })
+  get updateCoOwnerApproval(): typeof this.commands.updateCoOwnerApproval {
+    return this.commands.updateCoOwnerApproval.bind(this.commands) as typeof this.commands.updateCoOwnerApproval
   }
-  // Escalate cron: record PENDING quá hạn, chưa escalate.
-  findOverdueCoOwnerApprovals(now: Date) {
-    return this.prismaService.chapterCoOwnerApproval.findMany({
-      where: { status: CoOwnerApprovalStatus.PENDING, deadline: { lt: now }, escalatedAt: { isSet: false } }
-    })
+  get findOverdueCoOwnerApprovals(): typeof this.queries.findOverdueCoOwnerApprovals {
+    return this.queries.findOverdueCoOwnerApprovals.bind(
+      this.queries
+    ) as typeof this.queries.findOverdueCoOwnerApprovals
   }
-  // Board recipients cho escalate — resolve roleId trước (Mongo tránh relation-filter, bám users.repo).
-  async findBoardMemberIds(): Promise<string[]> {
-    const role = await this.prismaService.role.findFirst({ where: { code: 'BOARD_MEMBER' }, select: { id: true } })
-    if (!role) return []
-    const users = await this.prismaService.user.findMany({
-      where: { roleId: role.id, deletedAt: { isSet: false } },
-      select: { id: true }
-    })
-    return users.map((u) => u.id)
+  get findBoardMemberIds(): typeof this.queries.findBoardMemberIds {
+    return this.queries.findBoardMemberIds.bind(this.queries) as typeof this.queries.findBoardMemberIds
   }
 }

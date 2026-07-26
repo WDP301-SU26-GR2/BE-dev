@@ -2,14 +2,30 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { CreateContractBodyType } from './schemas/contract-schema'
 import type { Contract, ContractVersion } from '@prisma/client'
-import { ContractStatus, Prisma } from '@prisma/client'
+import { ContractStatus, OutboxEventType, Prisma } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { isUniqueConstrainError } from 'src/infrastructure/database/prisma-error.helper'
 import { fetchUserMiniMap, USER_MINI_FIELDS, toUserMini } from 'src/core/models/user-mini.model'
+import { OutboxRepo } from 'src/infrastructure/database/outbox.repo'
+import type { TransactionContext } from 'src/infrastructure/database/transaction-context'
+import { transactionClient } from 'src/infrastructure/database/transaction-context'
+
+export type ContractSettlementFailure =
+  | 'TRANSFER_REQUEST_MISSING_ORIGINAL_CONTRACT'
+  | 'TRANSFER_REPLACEMENT_OUTBOX_UNAVAILABLE'
+
+class ContractSettlementInvariantError extends Error {
+  constructor(readonly reason: ContractSettlementFailure) {
+    super(reason)
+  }
+}
 
 @Injectable()
 export class ContractRepo {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly outbox?: OutboxRepo
+  ) {}
 
   // B-CON-01: đọc trạng thái series để gate tạo hợp đồng (cross-module read prisma.series).
   findSeriesForContractCreation(seriesId: string) {
@@ -237,6 +253,19 @@ export class ContractRepo {
     })
   }
 
+  async compareAndSetStatusInTransaction(
+    context: TransactionContext,
+    id: string,
+    expected: ContractStatus,
+    target: ContractStatus
+  ): Promise<boolean> {
+    const result = await transactionClient(context).contract.updateMany({
+      where: { id, status: expected },
+      data: { status: target }
+    })
+    return result.count === 1
+  }
+
   // 5. Tìm hợp đồng kèm Quyết định (Đã sửa đổi: bỏ include khuyết allowedEditors)
   async findWithBoardDecision(contractId: string) {
     return this.prisma.contract.findUnique({
@@ -271,6 +300,17 @@ export class ContractRepo {
     })
   }
 
+  private async withSettlementFailure<T>(
+    operation: () => Promise<T>
+  ): Promise<T | { settlementFailure: ContractSettlementFailure }> {
+    try {
+      return await operation()
+    } catch (error) {
+      if (error instanceof ContractSettlementInvariantError) return { settlementFailure: error.reason }
+      throw error
+    }
+  }
+
   /**
    * S-02 (BACKEND_AUDIT_2026-07-20): chốt hợp đồng khi CẢ HAI phía đã ký.
    *
@@ -282,16 +322,51 @@ export class ContractRepo {
    * Hàm này idempotent: gọi lại khi đã FULLY_EXECUTED trả về executedNow = false.
    */
   private async settleFullyExecuted(tx: Prisma.TransactionClient, contractId: string) {
+    const candidate = await tx.contract.findUnique({
+      where: { id: contractId },
+      select: { sourceTransferRequestId: true }
+    })
+    const target = candidate?.sourceTransferRequestId
+      ? ContractStatus.ACTIVATION_PENDING
+      : ContractStatus.FULLY_EXECUTED
     const res = await tx.contract.updateMany({
       where: {
         id: contractId,
         mangakaSignedAt: { not: null },
         boardSignedAt: { not: null },
-        status: { not: ContractStatus.FULLY_EXECUTED }
+        status: { notIn: [ContractStatus.FULLY_EXECUTED, ContractStatus.ACTIVATION_PENDING] }
       },
-      data: { status: ContractStatus.FULLY_EXECUTED }
+      data: { status: target }
     })
-    return res.count === 1
+    if (res.count === 1 && candidate?.sourceTransferRequestId) {
+      const request = await tx.transferRequest.findUnique({
+        where: { id: candidate.sourceTransferRequestId },
+        select: {
+          id: true,
+          originalContractId: true,
+          seriesId: true,
+          requestingMangakaId: true
+        }
+      })
+      if (!request?.originalContractId) {
+        throw new ContractSettlementInvariantError('TRANSFER_REQUEST_MISSING_ORIGINAL_CONTRACT')
+      }
+      if (!this.outbox) {
+        throw new ContractSettlementInvariantError('TRANSFER_REPLACEMENT_OUTBOX_UNAVAILABLE')
+      }
+      await this.outbox.enqueueWithClient(tx, {
+        type: OutboxEventType.TRANSFER_REPLACEMENT_READY,
+        aggregateId: request.id,
+        payload: {
+          transferRequestId: request.id,
+          originalContractId: request.originalContractId,
+          replacementContractId: contractId,
+          seriesId: request.seriesId,
+          toMangakaId: request.requestingMangakaId
+        }
+      })
+    }
+    return { executedNow: res.count === 1 && !candidate?.sourceTransferRequestId }
   }
 
   /**
@@ -307,33 +382,35 @@ export class ContractRepo {
    * phản ánh sự thật; việc lật cờ `boardSignedAt` dùng CAS để chỉ một người thắng.
    */
   async recordBoardSignatureAndSettle(contractId: string, userId: string, requiredSignatures: number) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.contractSignature.create({
-        data: { contractId, userId, role: 'BOARD_EDITOR', signedAt: new Date() }
-      })
-
-      // Đếm SAU khi ghi, BÊN TRONG transaction → không còn cửa sổ TOCTOU.
-      const signatureCount = await tx.contractSignature.count({
-        where: { contractId, role: 'BOARD_EDITOR' }
-      })
-
-      let boardCompletedNow = false
-      if (requiredSignatures > 0 && signatureCount >= requiredSignatures) {
-        const flip = await tx.contract.updateMany({
-          // 🔴 AGENTS §10: hợp đồng chưa từng ký có `boardSignedAt` ABSENT, không phải null.
-          // `where: { boardSignedAt: null }` KHÔNG match doc absent ⇒ CAS không bao giờ khớp
-          // ⇒ hợp đồng không bao giờ chốt. Phải phủ CẢ HAI dạng "chưa ký".
-          where: { id: contractId, OR: [{ boardSignedAt: null }, { boardSignedAt: { isSet: false } }] },
-          data: { boardSignedAt: new Date() }
+    return this.withSettlementFailure(() =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.contractSignature.create({
+          data: { contractId, userId, role: 'BOARD_EDITOR', signedAt: new Date() }
         })
-        boardCompletedNow = flip.count === 1
-      }
 
-      const executedNow = await this.settleFullyExecuted(tx, contractId)
-      const contract = await tx.contract.findUnique({ where: { id: contractId } })
+        // Đếm SAU khi ghi, BÊN TRONG transaction → không còn cửa sổ TOCTOU.
+        const signatureCount = await tx.contractSignature.count({
+          where: { contractId, role: 'BOARD_EDITOR' }
+        })
 
-      return { signatureCount, boardCompletedNow, executedNow, contract }
-    })
+        let boardCompletedNow = false
+        if (requiredSignatures > 0 && signatureCount >= requiredSignatures) {
+          const flip = await tx.contract.updateMany({
+            // 🔴 AGENTS §10: hợp đồng chưa từng ký có `boardSignedAt` ABSENT, không phải null.
+            // `where: { boardSignedAt: null }` KHÔNG match doc absent ⇒ CAS không bao giờ khớp
+            // ⇒ hợp đồng không bao giờ chốt. Phải phủ CẢ HAI dạng "chưa ký".
+            where: { id: contractId, OR: [{ boardSignedAt: null }, { boardSignedAt: { isSet: false } }] },
+            data: { boardSignedAt: new Date() }
+          })
+          boardCompletedNow = flip.count === 1
+        }
+
+        const { executedNow } = await this.settleFullyExecuted(tx, contractId)
+        const contract = await tx.contract.findUnique({ where: { id: contractId } })
+
+        return { signatureCount, boardCompletedNow, executedNow, contract }
+      })
+    )
   }
 
   /**
@@ -343,21 +420,23 @@ export class ContractRepo {
    * → caller ném AlreadySigned và KHÔNG emit.
    */
   async recordMangakaSignatureAndSettle(contractId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const flip = await tx.contract.updateMany({
-        // 🔴 AGENTS §10: xem chú thích ở recordBoardSignatureAndSettle — absent ≠ null.
-        where: { id: contractId, OR: [{ mangakaSignedAt: null }, { mangakaSignedAt: { isSet: false } }] },
-        data: { mangakaSignedAt: new Date(), status: ContractStatus.MANGAKA_SIGNED }
+    return this.withSettlementFailure(() =>
+      this.prisma.$transaction(async (tx) => {
+        const flip = await tx.contract.updateMany({
+          // 🔴 AGENTS §10: xem chú thích ở recordBoardSignatureAndSettle — absent ≠ null.
+          where: { id: contractId, OR: [{ mangakaSignedAt: null }, { mangakaSignedAt: { isSet: false } }] },
+          data: { mangakaSignedAt: new Date(), status: ContractStatus.MANGAKA_SIGNED }
+        })
+        if (flip.count !== 1) {
+          return { signed: false, executedNow: false, contract: null }
+        }
+
+        const { executedNow } = await this.settleFullyExecuted(tx, contractId)
+        const contract = await tx.contract.findUnique({ where: { id: contractId } })
+
+        return { signed: true, executedNow, contract }
       })
-      if (flip.count !== 1) {
-        return { signed: false, executedNow: false, contract: null }
-      }
-
-      const executedNow = await this.settleFullyExecuted(tx, contractId)
-      const contract = await tx.contract.findUnique({ where: { id: contractId } })
-
-      return { signed: true, executedNow, contract }
-    })
+    )
   }
 
   // 9. Lấy tiến độ ký kết hợp đồng chi tiết

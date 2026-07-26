@@ -5,10 +5,14 @@ import type { Redis } from 'ioredis'
 import { REDIS_BULL_CONNECTION } from 'src/infrastructure/redis/redis.constant'
 import { RedisModule } from 'src/infrastructure/redis/redis.module'
 import { QueueService } from './queue.service'
+import { ObservabilityModule } from 'src/core/observability/observability.module'
+import { QueueProcessorMetricsService } from './queue-processor-metrics.service'
+import { QueueDepthMetricsService } from './queue-depth-metrics.service'
 
 @Global()
 @Module({
   imports: [
+    ObservabilityModule,
     BullModule.forRootAsync({
       imports: [RedisModule],
       inject: [REDIS_BULL_CONNECTION],
@@ -17,7 +21,7 @@ import { QueueService } from './queue.service'
       })
     })
   ],
-  providers: [QueueService],
-  exports: [QueueService, BullModule]
+  providers: [QueueService, QueueProcessorMetricsService, QueueDepthMetricsService],
+  exports: [QueueService, QueueProcessorMetricsService, QueueDepthMetricsService, BullModule]
 })
 export class QueueModule {}

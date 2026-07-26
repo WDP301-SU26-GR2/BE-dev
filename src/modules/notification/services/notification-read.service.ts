@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { NotificationNotFoundException } from '../errors/notification.errors'
 import { toNotificationRes } from '../notification.mapper'
 import { NotificationRepository } from '../notification.repo'
 import { ListNotificationsQueryType } from '../schemas/notification-schemas'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class NotificationReadService {
@@ -29,7 +28,7 @@ export class NotificationReadService {
   }
 
   async markRead(id: string, recipientId: string) {
-    if (!OBJECT_ID_RE.test(id)) throw NotificationNotFoundException
+    if (!isObjectId(id)) throw NotificationNotFoundException
     const notification = await this.notificationRepository.markRead(id, recipientId)
     if (!notification) throw NotificationNotFoundException
     return toNotificationRes(notification)

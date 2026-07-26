@@ -122,12 +122,12 @@ describe('AuthOtpService.issueOtp rate-limit', () => {
     expect(emailQueue.enqueueOtp).not.toHaveBeenCalled()
   })
 
-  it('skips the auth email rule for OtpPurpose.VOTE because survey owns its limiter', async () => {
+  it('rejects OtpPurpose.VOTE before raw identity is persisted because Survey owns VoteOtp', async () => {
     const { service, repo, rateLimitService } = makeIssueOtpService(false)
 
-    await service.issueOtp('guest@b.com', OtpPurpose.VOTE)
+    await expect(service.issueOtp('guest@b.com', OtpPurpose.VOTE)).rejects.toMatchObject({ status: 400 })
 
     expect(rateLimitService.checkAndConsume).not.toHaveBeenCalled()
-    expect(repo.createOtpRequest).toHaveBeenCalledTimes(1)
+    expect(repo.createOtpRequest).not.toHaveBeenCalled()
   })
 })

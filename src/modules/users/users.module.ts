@@ -12,11 +12,17 @@ import { StaffProfileService } from './services/staff-profile.service'
 import { UsersController } from './users.controller'
 import { UsersRepository } from './users.repo'
 import { UsersService } from './users.service'
+import { UserAdminFacade } from './services/user-admin.facade'
+import { UserDirectoryFacade } from './services/user-directory.facade'
+import { UserProfileFacade } from './services/user-profile.facade'
 
 @Module({
   controllers: [UsersController],
   providers: [
     UsersService,
+    UserAdminFacade,
+    UserProfileFacade,
+    UserDirectoryFacade,
     UsersRepository,
     MeService,
     AdminUserService,

@@ -1,15 +1,17 @@
-import { BoardService } from './board.service'
 import { DomainEvent } from 'src/core/events/domain-events'
 import * as Errors from '../errors/board.errors'
+import { BoardDecisionWorkflowService } from './board-decision-workflow.service'
+import { BoardQueryService } from './board-query.service'
+import { BoardSessionWorkflowService } from './board-session-workflow.service'
 
 const auditService = { record: jest.fn().mockResolvedValue(undefined) }
 const boardSessionStateService = {
   transition: jest.fn().mockImplementation((id: string, status: string) => Promise.resolve({ id, status }))
 }
 const boardRosterService = { suggest: jest.fn() }
-const boardMeetingService = { advancePhase: jest.fn(), listMessages: jest.fn() }
 
 describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', () => {
+  type VoteFixture = { voterId?: string; voteValue?: string; note?: string | null; votedAt?: Date }
   const activeSession = {
     id: '012345678901234567890123',
     status: 'ACTIVE',
@@ -19,7 +21,7 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
 
   // preVotes = state BEFORE this vote (used for double-vote check + `before.result`);
   // pushedVotes = state AFTER pushVote (used to recompute counters).
-  function makeService(preResult: string, preVotes: any[], pushedVotes: any[]) {
+  function makeService(preResult: string, preVotes: VoteFixture[], pushedVotes: VoteFixture[]) {
     const preDecision = {
       id: '012345678901234567890124',
       boardSessionId: '012345678901234567890123',
@@ -39,15 +41,12 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
     const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
     const eventBus = { emit: jest.fn() }
-    const service = new BoardService(
+    const service = new BoardDecisionWorkflowService(
       boardRepo as never,
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      auditService as never,
-      boardSessionStateService as never,
-      boardRosterService as never,
-      boardMeetingService as never
+      auditService as never
     )
     return { service, eventBus, auditService: { record: auditService.record } }
   }
@@ -93,19 +92,14 @@ describe('BoardService notifications', () => {
       findActiveSessionByTitle: jest.fn().mockResolvedValue(null),
       createSession: jest.fn().mockResolvedValue({ id: 'session-1' })
     }
-    const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
-    const eventBus = { emit: jest.fn() }
 
-    const service = new BoardService(
+    const service = new BoardSessionWorkflowService(
       boardRepo as never,
-      boardGateway as never,
       notificationService as never,
-      eventBus as never,
-      auditService as never,
       boardSessionStateService as never,
       boardRosterService as never,
-      boardMeetingService as never
+      auditService as never
     )
 
     await service.createSession('editor-1', {
@@ -138,18 +132,13 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
       findActiveSessionByTitle: jest.fn().mockResolvedValue(null),
       createSession: jest.fn().mockResolvedValue({ id: 'session-1' })
     }
-    const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
-    const eventBus = { emit: jest.fn() }
-    const service = new BoardService(
+    const service = new BoardSessionWorkflowService(
       boardRepo as never,
-      boardGateway as never,
       notificationService as never,
-      eventBus as never,
-      auditService as never,
       boardSessionStateService as never,
       boardRosterService as never,
-      boardMeetingService as never
+      auditService as never
     )
     return { service, boardRepo }
   }
@@ -162,15 +151,12 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
     const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
     const eventBus = { emit: jest.fn() }
-    const service = new BoardService(
+    const service = new BoardDecisionWorkflowService(
       boardRepo as never,
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      auditService as never,
-      boardSessionStateService as never,
-      boardRosterService as never,
-      boardMeetingService as never
+      auditService as never
     )
     return { service, boardRepo }
   }
@@ -236,6 +222,7 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
 })
 
 describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () => {
+  type VoteFixture = { voterId?: string; voteValue?: string; note?: string | null; votedAt?: Date }
   const activeSession = {
     id: '012345678901234567890123',
     status: 'ACTIVE',
@@ -243,7 +230,7 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
     allowedEditorIds: ['b1', 'b2', 'b3']
   }
 
-  function makeService(preResult: string, preVotes: any[], pushedVotes: any[]) {
+  function makeService(preResult: string, preVotes: VoteFixture[], pushedVotes: VoteFixture[]) {
     const preDecision = {
       id: '012345678901234567890124',
       boardSessionId: '012345678901234567890123',
@@ -267,15 +254,12 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
     const state = {
       transition: jest.fn().mockImplementation((id: string, status: string) => Promise.resolve({ id, status }))
     }
-    const service = new BoardService(
+    const service = new BoardDecisionWorkflowService(
       boardRepo as never,
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      audit as never,
-      state as never,
-      boardRosterService as never,
-      boardMeetingService as never
+      audit as never
     )
     return { service, boardRepo, audit, state }
   }
@@ -289,16 +273,12 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
     const notificationService = { notifySafe: jest.fn() }
     const eventBus = { emit: jest.fn() }
     const audit = { record: jest.fn() }
-    const state = { transition: jest.fn() }
-    const service = new BoardService(
+    const service = new BoardDecisionWorkflowService(
       boardRepo as never,
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      audit as never,
-      state as never,
-      boardRosterService as never,
-      boardMeetingService as never
+      audit as never
     )
     await expect(service.castVote('garbage', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toMatchObject({
       status: 404
@@ -392,16 +372,7 @@ describe('BoardService read response enrichment (Spec 16)', () => {
       findDecisionById: jest.fn().mockResolvedValue(decision),
       findSeriesTitlesByIds: jest.fn().mockResolvedValue([{ id: SERIES_ID, title: 'Series Title' }])
     }
-    const service = new BoardService(
-      boardRepo as never,
-      { broadcastVoteProgress: jest.fn(), broadcastPhaseChanged: jest.fn() } as never,
-      { notifySafe: jest.fn() } as never,
-      { emit: jest.fn() } as never,
-      { record: jest.fn() } as never,
-      { transition: jest.fn() } as never,
-      boardRosterService as never,
-      boardMeetingService as never
-    )
+    const service = new BoardQueryService(boardRepo as never)
     return { service, boardRepo, session, decision }
   }
 
@@ -494,15 +465,12 @@ describe('BoardService.castVote quorum by session roster (Spec 17)', () => {
         .fn()
         .mockImplementation((_id, counters) => Promise.resolve({ id: DECISION_ID, ...counters }))
     }
-    const service = new BoardService(
+    const service = new BoardDecisionWorkflowService(
       boardRepo as never,
       { broadcastVoteProgress: jest.fn() } as never,
       { notifySafe: jest.fn() } as never,
       { emit: jest.fn() } as never,
-      { record: jest.fn() } as never,
-      boardSessionStateService as never,
-      boardRosterService as never,
-      boardMeetingService as never
+      { record: jest.fn() } as never
     )
     return { service, boardRepo, voterId, voteValue: pushedVotes.at(-1)!.voteValue }
   }
@@ -530,7 +498,10 @@ describe('BoardService.castVote quorum by session roster (Spec 17)', () => {
 describe('BoardService.concludeSession (Fix-2 G-7)', () => {
   const SESSION_ID = '012345678901234567890123'
 
-  function makeConcludeService(decisions: any[], sessionOverride: any = {}) {
+  function makeConcludeService(
+    decisions: Array<{ id: string; result: string | null }>,
+    sessionOverride: Partial<{ id: string; status: string; creatorId: string; allowedEditorIds: string[] }> = {}
+  ) {
     const boardRepo = {
       findSessionById: jest.fn().mockResolvedValue({
         id: SESSION_ID,
@@ -545,22 +516,18 @@ describe('BoardService.concludeSession (Fix-2 G-7)', () => {
       getActiveConfig: jest.fn(),
       pushVoteToDecision: jest.fn()
     }
-    const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
     const eventBus = { emit: jest.fn() }
     const audit = { record: jest.fn().mockResolvedValue(undefined) }
     const stateService = {
       transition: jest.fn().mockResolvedValue({ id: SESSION_ID, status: 'CONCLUDED' })
     }
-    const service = new BoardService(
+    const service = new BoardSessionWorkflowService(
       boardRepo as never,
-      boardGateway as never,
       notificationService as never,
-      eventBus as never,
-      audit as never,
       stateService as never,
       boardRosterService as never,
-      boardMeetingService as never
+      audit as never
     )
     return { service, boardRepo, notificationService, eventBus, audit, stateService }
   }
@@ -623,20 +590,17 @@ describe('BoardService.createSession — roster source (Spec 12)', () => {
     }
     const boardRosterService = { suggest: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
-    const service = new BoardService(
+    const service = new BoardSessionWorkflowService(
       boardRepo as never,
-      { broadcastVoteProgress: jest.fn() } as never,
       notificationService as never,
-      { emit: jest.fn() } as never,
-      { record: jest.fn() } as never,
       { transition: jest.fn() } as never,
       boardRosterService as never,
-      boardMeetingService as never
+      { record: jest.fn() } as never
     )
     return { service, boardRepo, boardRosterService }
   }
 
-  const baseDto: any = { title: 'Pitch X', startTime: new Date() }
+  const baseDto = { title: 'Pitch X', startTime: new Date() }
 
   it('auto-assigns the roster when allowedEditorIds is omitted and seriesId is given', async () => {
     const { service, boardRepo, boardRosterService } = makeCreateDeps()

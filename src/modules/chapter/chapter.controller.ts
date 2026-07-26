@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
+import { ApiObjectIdParams, ObjectIdParamPipe } from 'src/core/http/pipes/object-id-param.pipe'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { RoleName } from 'src/core/security/constants/role.constant'
@@ -18,7 +19,7 @@ import {
   HoldChapterBodyDto,
   PageListResDto,
   PageResDto,
-  ReasonBodyDto,
+  ChapterReasonBodyDto,
   RevisionReasonBodyDto,
   SetScheduleBodyDto,
   UpdateChapterBodyDto,
@@ -61,6 +62,9 @@ import {
   StageOutputInvalidException
 } from './errors/production-stage.errors'
 import { ChapterService } from './chapter.service'
+
+const ChapterIdParamPipe = ObjectIdParamPipe.for(() => ChapterNotFoundException)
+const PageIdParamPipe = ObjectIdParamPipe.for(() => PageNotFoundException)
 
 @ApiTags('chapters')
 @ApiBearerAuth()
@@ -127,19 +131,25 @@ export class ChapterController {
   }
 
   @Get('chapters/:id')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Chi tiết 1 chapter (kèm manuscript/schedule)' })
   @ApiErrors(ChapterNotFoundException)
   @ZodResponse({ status: 200, type: ChapterResDto })
-  getOne(@Param('id') id: string) {
+  getOne(@Param('id', ChapterIdParamPipe) id: string) {
     return this.chapterService.getOne(id)
   }
 
   @Put('chapters/:id/schedule')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Editor phụ trách set deadline gốc/hiện tại của chapter' })
   @ApiErrors(NotSeriesEditorException, ChapterNotFoundException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 200, type: ChapterResDto })
-  setSchedule(@Param('id') id: string, @Body() body: SetScheduleBodyDto, @ActiveUser('userId') userId: string) {
+  setSchedule(
+    @Param('id', ChapterIdParamPipe) id: string,
+    @Body() body: SetScheduleBodyDto,
+    @ActiveUser('userId') userId: string
+  ) {
     return this.chapterService.setSchedule(userId, id, body)
   }
 
@@ -200,6 +210,7 @@ export class ChapterController {
   }
 
   @Patch('pages/:pageId')
+  @ApiObjectIdParams('pageId')
   @ApiOperation({
     summary: 'Mangaka cập nhật file gốc/composite/số trang; trạng thái do backend lifecycle quản lý'
   })
@@ -213,7 +224,11 @@ export class ChapterController {
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: PageResDto })
-  updatePage(@Param('pageId') pageId: string, @Body() body: UpdatePageBodyDto, @ActiveUser('userId') userId: string) {
+  updatePage(
+    @Param('pageId', PageIdParamPipe) pageId: string,
+    @Body() body: UpdatePageBodyDto,
+    @ActiveUser('userId') userId: string
+  ) {
     return this.chapterService.updatePage(userId, pageId, body)
   }
 
@@ -251,6 +266,7 @@ export class ChapterController {
   }
 
   @Post('chapters/:id/manuscript/submit')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Mangaka nộp manuscript cho Editor final check → EDITOR_REVIEW' })
   @ApiErrors(
     NotSeriesOwnerException,
@@ -263,7 +279,7 @@ export class ChapterController {
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
-  submit(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  submit(@Param('id', ChapterIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.chapterService.submit(userId, id)
   }
 
@@ -285,6 +301,7 @@ export class ChapterController {
   }
 
   @Post('chapters/:id/manuscript/resubmit')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Mangaka nộp lại sau revision → EDITOR_REVIEW' })
   @ApiErrors(
     NotSeriesOwnerException,
@@ -294,11 +311,12 @@ export class ChapterController {
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
-  resubmit(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  resubmit(@Param('id', ChapterIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.chapterService.resubmit(userId, id)
   }
 
   @Post('chapters/:id/manuscript/approve')
+  @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Editor duyệt manuscript → READY_FOR_PRINT' })
   @ApiErrors(
     NotSeriesEditorException,
@@ -308,11 +326,12 @@ export class ChapterController {
   )
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ChapterResDto })
-  approve(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  approve(@Param('id', ChapterIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.chapterService.approve(userId, id)
   }
 
   @Post('chapters/:id/publish')
+  @ApiObjectIdParams('id')
   @ApiOperation({
     summary:
       'Editor xuất bản chapter (chỉ READY_FOR_PRINT) → PUBLISHED + emit chapter.published. Chặn nếu series chưa có Contract FULLY_EXECUTED (BR-CONTRACT-05). Co-owner gate: defer B3.'
@@ -327,7 +346,7 @@ export class ChapterController {
   )
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ChapterResDto })
-  publish(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+  publish(@Param('id', ChapterIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.chapterService.publish(userId, id)
   }
 
@@ -359,7 +378,7 @@ export class ChapterController {
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: ChapterResDto })
-  coOwnerReject(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body() body: ReasonBodyDto) {
+  coOwnerReject(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body() body: ChapterReasonBodyDto) {
     return this.chapterService.coOwnerReject(userId, id, body.reason ?? '')
   }
 }

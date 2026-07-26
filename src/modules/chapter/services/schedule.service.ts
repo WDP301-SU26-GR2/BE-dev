@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { ChapterNotFoundException, NotSeriesEditorException } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { ExtendDeadlineBodyType, SetScheduleBodyType } from '../schemas/chapter-schemas'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class ScheduleService {
@@ -40,7 +39,7 @@ export class ScheduleService {
   // editor assignment (Board member duyệt thay). Vẫn dùng cùng `extendSchedule` repo để giữ side-effect (currentDeadline,
   // extended=true, push extension) nhất quán với Editor unilateral flow (A-CHP-02).
   async extendDeadlineByBoard(userId: string, chapterId: string, newDeadline: Date, reason?: string) {
-    if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
+    if (!isObjectId(chapterId)) throw ChapterNotFoundException
     const schedule = await this.chapterRepository.findScheduleByChapterId(chapterId)
     return this.chapterRepository.extendSchedule(chapterId, {
       extendedBy: userId,

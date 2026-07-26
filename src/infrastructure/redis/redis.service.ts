@@ -1,12 +1,16 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common'
+import { Inject, Injectable, Logger, OnApplicationShutdown, OnModuleInit, Optional } from '@nestjs/common'
 import type { Redis } from 'ioredis'
-import { REDIS_CLIENT } from './redis.constant'
+import { REDIS_BULL_CONNECTION, REDIS_CLIENT, REDIS_WS_CONNECTION } from './redis.constant'
 
 @Injectable()
-export class RedisService implements OnModuleInit {
+export class RedisService implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(RedisService.name)
 
-  constructor(@Inject(REDIS_CLIENT) private readonly client: Redis) {}
+  constructor(
+    @Inject(REDIS_CLIENT) private readonly client: Redis,
+    @Optional() @Inject(REDIS_BULL_CONNECTION) private readonly bullClient?: Redis,
+    @Optional() @Inject(REDIS_WS_CONNECTION) private readonly wsClient?: Redis
+  ) {}
 
   async onModuleInit(): Promise<void> {
     if (this.client.status !== 'ready') {
@@ -28,6 +32,17 @@ export class RedisService implements OnModuleInit {
     }
     const pong = await this.client.ping()
     this.logger.log(`Redis connected (PING ${pong})`)
+  }
+
+  async ping(): Promise<boolean> {
+    return (await this.client.ping()) === 'PONG'
+  }
+
+  async onApplicationShutdown(): Promise<void> {
+    const clients = [
+      ...new Set([this.client, this.bullClient, this.wsClient].filter((client): client is Redis => !!client))
+    ]
+    await Promise.allSettled(clients.map(async (client) => (client.status === 'end' ? undefined : await client.quit())))
   }
 
   async setNxEx(key: string, ttlSec: number, value = '1'): Promise<boolean> {

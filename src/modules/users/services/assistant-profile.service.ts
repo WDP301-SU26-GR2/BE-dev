@@ -1,12 +1,11 @@
 import { Injectable } from '@nestjs/common'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { ProfileNotFoundException } from '../errors/users.errors'
 import { AssistantProfileBodyType } from '../schemas/users-schemas'
 import { UsersRepository } from '../users.repo'
 import { RoleName } from 'src/core/security/constants/role.constant'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class AssistantProfileService {
@@ -27,7 +26,7 @@ export class AssistantProfileService {
   }
 
   async getByUserId(userId: string) {
-    if (!OBJECT_ID_RE.test(userId)) throw ProfileNotFoundException
+    if (!isObjectId(userId)) throw ProfileNotFoundException
 
     const profile = await this.usersRepository.findAssistantProfileByUserId(userId)
     if (profile) {

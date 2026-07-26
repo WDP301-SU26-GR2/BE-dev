@@ -1,5 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common'
 import { $Enums, ManuscriptStatus, NameStatus, TaskStatus } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { ChapterRepository } from '../chapter.repo'
 import {
@@ -11,8 +12,6 @@ import {
 } from '../chapter.constant'
 import { ChapterAccessDeniedException, ChapterNotFoundException } from '../errors/chapter.errors'
 import { ProductionStageRepository } from '../production-stage.repo'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 const SEVERITY: Record<WarningLevel, number> = {
   [WARNING_LEVEL.CRITICAL]: 0,
@@ -69,7 +68,7 @@ export class ChapterProgressService {
   ) {}
 
   async getProgress(user: { userId: string; roleName: string }, chapterId: string) {
-    if (!OBJECT_ID_RE.test(chapterId)) throw ChapterNotFoundException
+    if (!isObjectId(chapterId)) throw ChapterNotFoundException
     const chapter = await this.chapterRepository.findChapterById(chapterId)
     if (!chapter) throw ChapterNotFoundException
     const series = await this.chapterRepository.findSeriesById(chapter.seriesId)

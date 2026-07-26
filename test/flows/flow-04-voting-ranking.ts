@@ -4,6 +4,7 @@ import { login, seedOtp } from './lib/auth.js'
 import { OtpPurpose, SurveyStatus, SeriesStatus, PublicationType } from '@prisma/client'
 import Redis from 'ioredis'
 import { io } from 'socket.io-client'
+import { createHmac } from 'node:crypto'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@ecom.dev.com'
 const FLOW = 'flow-04-voting-ranking'
@@ -71,6 +72,16 @@ const flushRateLimitRedis = async () => {
     await c.quit()
   } catch (e) {
     console.warn('Redis flush warn:', (e as Error).message)
+  }
+}
+
+const redisContains = async (needle: string) => {
+  const client = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379')
+  try {
+    const keys = await client.keys('*')
+    return keys.some((key) => key.includes(needle))
+  } finally {
+    await client.quit()
   }
 }
 
@@ -207,7 +218,7 @@ const main = async () => {
     ok(
       '04.2d series KHONG có mangakaId/editorId (public-safe)',
       ctxSeries[0].mangakaId === undefined && ctxSeries[0].editorId === undefined,
-      `keys: ${Object.keys(ctxSeries[0]).join(',')}`
+      `keys: ${Object.keys(ctxSeries[0] as unknown as Record<string, unknown>).join(',')}`
     )
   }
 
@@ -215,10 +226,17 @@ const main = async () => {
   const readerEmail = `reader-${Date.now()}@flowtest.local`
   const r3 = await req('POST', '/vote/otp', { body: { identity: readerEmail, captchaToken: 'tok' } })
   ok('04.3a request OTP 200', r3.status === 200, `got ${r3.status} ${r3.raw.slice(0, 200)}`)
-  const otpRow = await prisma.otpRequest.findUnique({
+  const identityHash = createHmac('sha256', process.env.IDENTITY_HASH_PEPPER ?? '')
+    .update(readerEmail.trim().toLowerCase())
+    .digest('hex')
+  const voteOtpRow = await prisma.voteOtp.findUnique({
+    where: { identityHash_authMethod: { identityHash, authMethod: 'EMAIL_OTP' } }
+  })
+  const legacyVoteOtp = await prisma.otpRequest.findUnique({
     where: { email_purpose: { email: readerEmail, purpose: OtpPurpose.VOTE } }
   })
-  ok('04.3b OtpRequest tồn tại purpose VOTE', !!otpRow)
+  ok('04.3b VoteOtp chỉ lưu hash, không tạo legacy raw OtpRequest', !!voteOtpRow && !legacyVoteOtp)
+  ok('04.3c Redis key không chứa raw guest identity', !(await redisContains(readerEmail)))
 
   section('F04.4 OTP cooldown 429')
   const r4 = await req('POST', '/vote/otp', { body: { identity: readerEmail, captchaToken: 'tok' } })
@@ -348,7 +366,7 @@ const main = async () => {
   expectError(r12, 422, 'Error.SeriesNotVotable', '04.12a seriesId rác → SeriesNotVotable')
 
   // Legacy Option B tests are superseded by the scoped-period contract below.
-  if (false) {
+  if (process.env.FLOW04_RUN_LEGACY_OPTION_B === 'true') {
     section('F04.13 [Option B] context filter ?publicationType')
     const rWeekly = await req('GET', '/vote/context?publicationType=WEEKLY')
     const weeklySeries = (rWeekly.json?.data ?? rWeekly.json ?? {}).series ?? []
@@ -371,7 +389,7 @@ const main = async () => {
     ok(
       '04.13c context item kèm publicationType',
       monthlySeries.length > 0 && monthlySeries[0].publicationType === 'MONTHLY',
-      `keys=${monthlySeries.length ? Object.keys(monthlySeries[0]).join(',') : 'empty'}`
+      `keys=${monthlySeries.length ? Object.keys(monthlySeries[0] as unknown as Record<string, unknown>).join(',') : 'empty'}`
     )
 
     section('F04.13b [Option B] mixed-type ballot → 422')
@@ -505,7 +523,7 @@ const main = async () => {
   await req('POST', '/vote/otp', { body: { identity: reader8, captchaToken: 'tok' }, xff: '203.0.113.97' })
   await sleep(50)
   await seedOtp(reader8, OtpPurpose.VOTE)
-  if (false) {
+  if (process.env.FLOW04_RUN_LEGACY_OPTION_B === 'true') {
     const r15 = await req('POST', '/vote', {
       body: {
         surveyPeriodId: closedPeriodId,
@@ -714,17 +732,17 @@ const main = async () => {
     ok(
       '04.36b results KHONG có isAtRisk',
       results[0].isAtRisk === undefined,
-      `keys: ${Object.keys(results[0]).join(',')}`
+      `keys: ${Object.keys(results[0] as unknown as Record<string, unknown>).join(',')}`
     )
     ok(
       '04.36c results KHONG có riskLevel',
       results[0].riskLevel === undefined,
-      `keys: ${Object.keys(results[0]).join(',')}`
+      `keys: ${Object.keys(results[0] as unknown as Record<string, unknown>).join(',')}`
     )
     ok(
       '04.36d results KHONG có isReliable',
       results[0].isReliable === undefined,
-      `keys: ${Object.keys(results[0]).join(',')}`
+      `keys: ${Object.keys(results[0] as unknown as Record<string, unknown>).join(',')}`
     )
   }
 
@@ -815,7 +833,11 @@ const main = async () => {
         : Array.isArray(r49.json?.data?.rankings)
           ? r49.json.data.rankings
           : []
-  ok('04.49b có items', rankItems.length >= 1, `got ${rankItems.length} keys=${Object.keys(r49.json ?? {}).join(',')}`)
+  ok(
+    '04.49b có items',
+    rankItems.length >= 1,
+    `got ${rankItems.length} keys=${Object.keys((r49.json ?? {}) as unknown as Record<string, unknown>).join(',')}`
+  )
 
   section('F04.50 /survey-periods list')
   const r50 = await req('GET', '/survey-periods', { token: editorTok })
@@ -869,15 +891,18 @@ const main = async () => {
   })
 
   const pubCatalog = await req('GET', '/public/series?q=FT%20A')
-  const pubItems = pubCatalog.json?.data?.items ?? []
+  const pubItems = (pubCatalog.json?.data?.items ?? []) as unknown as Array<{
+    id: string
+    publishedChapterCount?: number
+  }>
   ok('PUB1a catalog 200 without token', pubCatalog.status === 200, pubCatalog.raw.slice(0, 200))
   ok(
     'PUB1b catalog contains serialized series',
-    pubItems.some((s: { id: string }) => s.id === s1.id)
+    pubItems.some((s) => s.id === s1.id)
   )
   ok(
     'PUB1c publishedChapterCount is computed in catalog',
-    pubItems.find((s: { id: string }) => s.id === s1.id)?.publishedChapterCount === 8
+    pubItems.find((s) => s.id === s1.id)?.publishedChapterCount === 8
   )
   const pubHidden = await req('GET', '/public/series?q=FT')
   ok(
@@ -887,9 +912,10 @@ const main = async () => {
 
   // Task 1: lọc theo status (tab "đang phát hành" vs "đã hoàn thành").
   const pubSerialized = await req('GET', '/public/series?q=FT%20A&status=SERIALIZED')
+  const pubSerializedItems = (pubSerialized.json?.data?.items ?? []) as unknown as Array<{ id: string }>
   ok(
     'PUB1d1 ?status=SERIALIZED trả series đang phát hành',
-    pubSerialized.status === 200 && (pubSerialized.json?.data?.items ?? []).some((s: { id: string }) => s.id === s1.id),
+    pubSerialized.status === 200 && pubSerializedItems.some((s) => s.id === s1.id),
     `got ${pubSerialized.status}`
   )
   const pubCompleted = await req('GET', '/public/series?q=FT%20A&status=COMPLETED')
@@ -921,10 +947,10 @@ const main = async () => {
       pubPages.json?.data?.pages?.[0]?.pageNumber === 1,
     pubPages.raw.slice(0, 200)
   )
+  const firstPageImageUrl = d(pubPages, 'data', 'pages', '0', 'imageUrl')
   ok(
     'PUB2b reader returns signed page URL',
-    typeof pubPages.json?.data?.pages?.[0]?.imageUrl === 'string' &&
-      pubPages.json.data.pages[0].imageUrl.startsWith('http')
+    typeof firstPageImageUrl === 'string' && firstPageImageUrl.startsWith('http')
   )
   ok(
     'PUB2c reader computes adjacent published chapter ids',
@@ -941,9 +967,10 @@ const main = async () => {
     pubLatest.raw.slice(0, 200)
   )
   const pubPeriods = await req('GET', '/vote/periods?magazine=Jump&publicationType=WEEKLY')
+  const pubPeriodItems = (pubPeriods.json?.data?.items ?? []) as unknown as Array<{ id: string }>
   ok(
     'PUB3b reflected periods include finalized period',
-    pubPeriods.status === 200 && (pubPeriods.json?.data?.items ?? []).some((p: { id: string }) => p.id === periodId)
+    pubPeriods.status === 200 && pubPeriodItems.some((p) => p.id === periodId)
   )
   const pubPeriodsInvalid = await req('GET', '/vote/periods?magazine=Jump&publicationType=WEEKLY&limit=0')
   ok('PUB3c periods limit=0 is 422', pubPeriodsInvalid.status === 422, `got ${pubPeriodsInvalid.status}`)

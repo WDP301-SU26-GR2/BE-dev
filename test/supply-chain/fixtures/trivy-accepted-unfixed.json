@@ -1,0 +1,20 @@
+{
+  "SchemaVersion": 2,
+  "Results": [
+    {
+      "Target": "safe-accepted-fixture",
+      "Class": "lang-pkgs",
+      "Type": "fixture",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2099-0001",
+          "PkgName": "fixture-only",
+          "InstalledVersion": "0.0.0",
+          "FixedVersion": "",
+          "Severity": "HIGH",
+          "Title": "Synthetic unpatched finding used to prove exact scoped risk acceptance"
+        }
+      ]
+    }
+  ]
+}

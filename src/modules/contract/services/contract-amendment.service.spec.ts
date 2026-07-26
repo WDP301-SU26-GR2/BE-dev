@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/unbound-method */
+﻿/* eslint-disable @typescript-eslint/unbound-method */
 import { Test } from '@nestjs/testing'
 import { ContractAmendmentService } from './contract-amendment.service'
 import { ContractAmendmentRepo } from '../contract-amendment.repo'
@@ -7,12 +7,15 @@ import { AuthOtpService } from 'src/modules/auth/services/auth-otp.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { RoleName } from 'src/core/security/constants/role.constant'
+import { ContractAmendmentDraftService } from './contract-amendment-draft.service'
+import { ContractAmendmentQueryService } from './contract-amendment-query.service'
+import { ContractAmendmentSigningService } from './contract-amendment-signing.service'
 
 const EDITOR = '64a000000000000000000001'
 const MANGAKA = '64a000000000000000000002'
 const CONTRACT = '64a000000000000000000010'
 
-const makeContract = (over: Partial<any> = {}): any => {
+const makeContract = (over: Record<string, unknown> = {}): never => {
   return {
     id: CONTRACT,
     editorId: EDITOR,
@@ -22,7 +25,7 @@ const makeContract = (over: Partial<any> = {}): any => {
     boardDecisionId: '64a000000000000000000099',
     versions: [],
     ...over
-  }
+  } as never
 }
 
 describe('ContractAmendmentService', () => {
@@ -34,6 +37,9 @@ describe('ContractAmendmentService', () => {
     const mod = await Test.createTestingModule({
       providers: [
         ContractAmendmentService,
+        ContractAmendmentQueryService,
+        ContractAmendmentDraftService,
+        ContractAmendmentSigningService,
         {
           provide: ContractAmendmentRepo,
           useValue: {
@@ -63,7 +69,7 @@ describe('ContractAmendmentService', () => {
   describe('create', () => {
     it('rejects when contract not FULLY_EXECUTED', async () => {
       contractRepo.findById.mockResolvedValue(makeContract({ status: 'MANGAKA_SIGNED' }))
-      await expect(service.create(CONTRACT, EDITOR, { changedClauses: ['x'] } as any)).rejects.toMatchObject({
+      await expect(service.create(CONTRACT, EDITOR, { changedClauses: ['x'] })).rejects.toMatchObject({
         status: 409,
         response: {
           message: expect.arrayContaining([
@@ -76,14 +82,14 @@ describe('ContractAmendmentService', () => {
     it('rejects when caller is not the assigned editor', async () => {
       contractRepo.findById.mockResolvedValue(makeContract())
       await expect(
-        service.create(CONTRACT, 'someone-else-000000000000', { changedClauses: ['x'] } as any)
+        service.create(CONTRACT, 'someone-else-000000000000', { changedClauses: ['x'] })
       ).rejects.toMatchObject({ status: 403 })
     })
 
     it('rejects when an open amendment already exists', async () => {
       contractRepo.findById.mockResolvedValue(makeContract())
-      amendmentRepo.findOpenByContract.mockResolvedValue({ id: 'open' } as any)
-      await expect(service.create(CONTRACT, EDITOR, { changedClauses: ['x'] } as any)).rejects.toMatchObject({
+      amendmentRepo.findOpenByContract.mockResolvedValue({ id: 'open' } as never)
+      await expect(service.create(CONTRACT, EDITOR, { changedClauses: ['x'] })).rejects.toMatchObject({
         status: 409,
         response: {
           message: expect.arrayContaining([
@@ -94,7 +100,7 @@ describe('ContractAmendmentService', () => {
     })
 
     it('rejects malformed contractId with 404 (no P2023)', async () => {
-      await expect(service.create('not-hex', EDITOR, { changedClauses: ['x'] } as any)).rejects.toMatchObject({
+      await expect(service.create('not-hex', EDITOR, { changedClauses: ['x'] })).rejects.toMatchObject({
         status: 404
       })
     })
@@ -102,7 +108,7 @@ describe('ContractAmendmentService', () => {
     it('creates DRAFT amendment with createdBy + MANUAL trigger', async () => {
       contractRepo.findById.mockResolvedValue(makeContract())
       amendmentRepo.findOpenByContract.mockResolvedValue(null)
-      amendmentRepo.create.mockResolvedValue({ id: 'am1', status: 'DRAFT' } as any)
+      amendmentRepo.create.mockResolvedValue({ id: 'am1', status: 'DRAFT' } as never)
       await service.create(CONTRACT, EDITOR, { changedClauses: ['bump valuation'], valuationAmount: 500 })
       expect(amendmentRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ contractId: CONTRACT, createdBy: EDITOR, triggerSource: 'MANUAL', status: 'DRAFT' })
@@ -128,7 +134,7 @@ describe('ContractAmendmentService', () => {
     it('returns amendments for authorized viewer', async () => {
       const amendments = [{ id: 'a1' }, { id: 'a2' }]
       contractRepo.findById.mockResolvedValue(makeContract())
-      amendmentRepo.findManyByContract.mockResolvedValue(amendments as any)
+      amendmentRepo.findManyByContract.mockResolvedValue(amendments as never)
       const result = await service.list(CONTRACT, EDITOR, RoleName.EDITOR)
       expect(result).toEqual(amendments)
     })
@@ -136,7 +142,7 @@ describe('ContractAmendmentService', () => {
     it('allows BOARD_MEMBER to view any contract amendments', async () => {
       const amendments = [{ id: 'a1' }]
       contractRepo.findById.mockResolvedValue(makeContract())
-      amendmentRepo.findManyByContract.mockResolvedValue(amendments as any)
+      amendmentRepo.findManyByContract.mockResolvedValue(amendments as never)
       const result = await service.list(CONTRACT, 'any-board-member', RoleName.BOARD_MEMBER)
       expect(result).toEqual(amendments)
     })
@@ -184,7 +190,7 @@ describe('ContractAmendmentService', () => {
 
     it('rejects when amendment belongs to different contract', async () => {
       contractRepo.findById.mockResolvedValue(makeContract())
-      amendmentRepo.findById.mockResolvedValue({ id: 'a1', contractId: 'different-contract' } as any)
+      amendmentRepo.findById.mockResolvedValue({ id: 'a1', contractId: 'different-contract' } as never)
       await expect(service.detail(CONTRACT, '64a000000000000000000003', EDITOR, RoleName.EDITOR)).rejects.toMatchObject(
         {
           status: 404
@@ -195,7 +201,7 @@ describe('ContractAmendmentService', () => {
     it('returns amendment for authorized viewer', async () => {
       const amendment = { id: 'a1', contractId: CONTRACT }
       contractRepo.findById.mockResolvedValue(makeContract())
-      amendmentRepo.findById.mockResolvedValue(amendment as any)
+      amendmentRepo.findById.mockResolvedValue(amendment as never)
       const result = await service.detail(CONTRACT, '64a000000000000000000003', EDITOR, RoleName.EDITOR)
       expect(result).toEqual(amendment)
     })
@@ -205,17 +211,17 @@ describe('ContractAmendmentService', () => {
     const AM = '64a000000000000000000003'
 
     it('patch only when DRAFT then clears signatures', async () => {
-      amendmentRepo.findById.mockResolvedValue({ id: AM, contractId: CONTRACT, status: 'DRAFT' } as any)
+      amendmentRepo.findById.mockResolvedValue({ id: AM, contractId: CONTRACT, status: 'DRAFT' } as never)
       contractRepo.findById.mockResolvedValue(makeContract())
-      amendmentRepo.update.mockResolvedValue({ id: AM } as any)
+      amendmentRepo.update.mockResolvedValue({ id: AM } as never)
       await service.update(CONTRACT, AM, EDITOR, { valuationAmount: 999 })
       expect(amendmentRepo.clearSignatures).toHaveBeenCalledWith(AM)
     })
 
     it('patch rejects when not DRAFT', async () => {
-      amendmentRepo.findById.mockResolvedValue({ id: AM, contractId: CONTRACT, status: 'PENDING_SIGNATURES' } as any)
+      amendmentRepo.findById.mockResolvedValue({ id: AM, contractId: CONTRACT, status: 'PENDING_SIGNATURES' } as never)
       contractRepo.findById.mockResolvedValue(makeContract())
-      await expect(service.update(CONTRACT, AM, EDITOR, { valuationAmount: 1 } as any)).rejects.toMatchObject({
+      await expect(service.update(CONTRACT, AM, EDITOR, { valuationAmount: 1 })).rejects.toMatchObject({
         status: 409,
         response: {
           message: expect.arrayContaining([
@@ -237,7 +243,7 @@ describe('ContractAmendmentService', () => {
         terminationClause: null,
         contractStart: null,
         contractEnd: null
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract())
       await expect(service.submit(CONTRACT, AM, EDITOR)).rejects.toMatchObject({
         status: 422,
@@ -249,7 +255,7 @@ describe('ContractAmendmentService', () => {
       })
     })
 
-    it('submit moves DRAFT → PENDING_SIGNATURES', async () => {
+    it('submit moves DRAFT â†’ PENDING_SIGNATURES', async () => {
       amendmentRepo.findById.mockResolvedValue({
         id: AM,
         contractId: CONTRACT,
@@ -261,28 +267,29 @@ describe('ContractAmendmentService', () => {
         terminationClause: null,
         contractStart: null,
         contractEnd: null
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract())
-      amendmentRepo.update.mockResolvedValue({ id: AM, status: 'PENDING_SIGNATURES' } as any)
+      amendmentRepo.update.mockResolvedValue({ id: AM, status: 'PENDING_SIGNATURES' } as never)
       await service.submit(CONTRACT, AM, EDITOR)
       expect(amendmentRepo.update).toHaveBeenCalledWith(AM, expect.objectContaining({ status: 'PENDING_SIGNATURES' }))
     })
   })
 
   describe('signing', () => {
-    const boardCtx = (): any => ({
-      id: CONTRACT,
-      mangakaId: MANGAKA,
-      contractType: 'REVENUE_SHARE',
-      boardDecision: { boardSession: { allowedEditorIds: ['b1', 'b2'] } }
-    })
+    const boardCtx = (): never =>
+      ({
+        id: CONTRACT,
+        mangakaId: MANGAKA,
+        contractType: 'REVENUE_SHARE',
+        boardDecision: { boardSession: { allowedEditorIds: ['b1', 'b2'] } }
+      }) as never
 
     it('mangaka sign rejected for FULL_BUYOUT', async () => {
       amendmentRepo.findById.mockResolvedValue({
         id: '64a000000000000000000003',
         contractId: CONTRACT,
         status: 'PENDING_SIGNATURES'
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract({ contractType: 'FULL_BUYOUT' }))
       await expect(
         service.signMangaka(CONTRACT, '64a000000000000000000003', MANGAKA, 'm@x.com', '123456')
@@ -294,7 +301,7 @@ describe('ContractAmendmentService', () => {
         id: '64a000000000000000000003',
         contractId: CONTRACT,
         status: 'PENDING_SIGNATURES'
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract())
       await expect(
         service.signMangaka(CONTRACT, '64a000000000000000000003', 'intruder000000000000', 'i@x.com', '123456')
@@ -310,7 +317,7 @@ describe('ContractAmendmentService', () => {
         contractId: CONTRACT,
         status: 'PENDING_SIGNATURES',
         mangakaSignedAt: null
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract())
       contractRepo.findWithBoardDecision.mockResolvedValue(boardCtx())
       amendmentRepo.countBoardSignatures.mockResolvedValue(0)
@@ -327,14 +334,14 @@ describe('ContractAmendmentService', () => {
         id: '64a000000000000000000003',
         contractId: CONTRACT,
         status: 'PENDING_SIGNATURES'
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract({ contractType: 'FULL_BUYOUT' }))
       contractRepo.findWithBoardDecision.mockResolvedValue({
         id: CONTRACT,
         mangakaId: MANGAKA,
         contractType: 'FULL_BUYOUT',
         boardDecision: { boardSession: { allowedEditorIds: ['b1'] } }
-      } as any)
+      } as never)
       amendmentRepo.findSignature.mockResolvedValue(null)
       amendmentRepo.countBoardSignatures.mockResolvedValue(1)
       amendmentRepo.executeAndApply.mockResolvedValue({ applied: true })
@@ -347,7 +354,7 @@ describe('ContractAmendmentService', () => {
         id: '64a000000000000000000003',
         contractId: CONTRACT,
         status: 'PENDING_SIGNATURES'
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract())
       contractRepo.findWithBoardDecision.mockResolvedValue(boardCtx())
       await expect(
@@ -357,14 +364,14 @@ describe('ContractAmendmentService', () => {
   })
 
   describe('reject + void', () => {
-    it('mangaka reject (REVENUE_SHARE) → DRAFT + clears signatures', async () => {
+    it('mangaka reject (REVENUE_SHARE) â†’ DRAFT + clears signatures', async () => {
       amendmentRepo.findById.mockResolvedValue({
         id: '64a000000000000000000020',
         contractId: CONTRACT,
         status: 'PENDING_SIGNATURES'
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract())
-      amendmentRepo.update.mockResolvedValue({ id: '64a000000000000000000020', status: 'DRAFT' } as any)
+      amendmentRepo.update.mockResolvedValue({ id: '64a000000000000000000020', status: 'DRAFT' } as never)
       await service.reject(CONTRACT, '64a000000000000000000020', MANGAKA, 'nope')
       expect(amendmentRepo.update).toHaveBeenCalledWith(
         '64a000000000000000000020',
@@ -378,19 +385,19 @@ describe('ContractAmendmentService', () => {
         id: '64a000000000000000000020',
         contractId: CONTRACT,
         status: 'PENDING_SIGNATURES'
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract({ contractType: 'FULL_BUYOUT' }))
       await expect(service.reject(CONTRACT, '64a000000000000000000020', MANGAKA, 'x')).rejects.toThrow(
         /MangakaSignNotRequired/
       )
     })
 
-    it('void terminal amendment → 409', async () => {
+    it('void terminal amendment â†’ 409', async () => {
       amendmentRepo.findById.mockResolvedValue({
         id: '64a000000000000000000020',
         contractId: CONTRACT,
         status: 'FULLY_EXECUTED'
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract())
       await expect(service.void(CONTRACT, '64a000000000000000000020', EDITOR, 'stop')).rejects.toMatchObject({
         status: 409,
@@ -402,14 +409,14 @@ describe('ContractAmendmentService', () => {
       })
     })
 
-    it('void DRAFT → VOIDED', async () => {
+    it('void DRAFT â†’ VOIDED', async () => {
       amendmentRepo.findById.mockResolvedValue({
         id: '64a000000000000000000020',
         contractId: CONTRACT,
         status: 'DRAFT'
-      } as any)
+      } as never)
       contractRepo.findById.mockResolvedValue(makeContract())
-      amendmentRepo.update.mockResolvedValue({ id: '64a000000000000000000020', status: 'VOIDED' } as any)
+      amendmentRepo.update.mockResolvedValue({ id: '64a000000000000000000020', status: 'VOIDED' } as never)
       await service.void(CONTRACT, '64a000000000000000000020', EDITOR, 'stop')
       expect(amendmentRepo.update).toHaveBeenCalledWith(
         '64a000000000000000000020',
