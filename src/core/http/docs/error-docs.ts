@@ -22,6 +22,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.AnnotationForbidden': 'current user cannot update this annotation',
   'Error.AnnotationNotFound': 'annotation does not exist',
   'Error.AnnotationTargetNotFound': 'targetId does not exist (or malformed id) for the chosen targetType',
+  'Error.AnnotationTaskBindingInvalid': 'taskId must belong to the annotated Page/Region/Task target',
   'Error.AssignmentNotActive': 'studio assignment is not active',
   'Error.AssignmentNotFound': 'studio assignment does not exist',
   'Error.AssetNotFound': 'asset does not exist',
