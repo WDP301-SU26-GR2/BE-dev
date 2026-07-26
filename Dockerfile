@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------- Base ----------
-FROM node:22-trixie-slim AS base
+FROM node:26-trixie-slim AS base
 WORKDIR /app
 
 RUN apt-get update \
@@ -43,7 +43,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # The Prisma CLI is a devDependency and is intentionally absent from this stage.
 
 # ---------- Runtime ----------
-FROM node:22-trixie-slim AS runtime
+FROM node:26-trixie-slim AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
