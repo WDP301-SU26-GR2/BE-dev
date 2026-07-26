@@ -125,7 +125,7 @@ function changedProductionLines(): Map<string, Set<number>> {
   const diff = execFileSync(
     'git',
     ['diff', '--unified=0', '--no-ext-diff', '--diff-filter=ACMRT', comparison, '--', 'src'],
-    { cwd: ROOT, encoding: 'utf8' }
+    { cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
   )
   const changed = new Map<string, Set<number>>()
   let currentPath: string | null = null
