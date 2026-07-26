@@ -59,7 +59,7 @@
     "dotenv": "^17.4.2",
     "google-auth-library": "^10.7.0",
     "ioredis": "^5.11.1",
-    "nestjs-zod": "^5.4.0",
+    "nestjs-zod": "^5.5.0",
     "react": "^19.2.7",
     "react-email": "^6.6.0",
     "reflect-metadata": "^0.2.2",

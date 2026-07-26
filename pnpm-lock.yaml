@@ -82,8 +82,8 @@ importers:
         specifier: ^5.11.1
         version: 5.11.1
       nestjs-zod:
-        specifier: ^5.4.0
-        version: 5.4.0(@nestjs/common@11.1.21(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/swagger@11.4.3(@nestjs/common@11.1.21(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.21)(reflect-metadata@0.2.2))(rxjs@7.8.2)(zod@4.4.3)
+        specifier: ^5.5.0
+        version: 5.5.0(@nestjs/common@11.1.21(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/swagger@11.4.3(@nestjs/common@11.1.21(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.21)(reflect-metadata@0.2.2))(rxjs@7.8.2)(zod@4.4.3)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -3407,8 +3407,8 @@ packages:
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
 
-  nestjs-zod@5.4.0:
-    resolution: {integrity: sha512-dxVpy1fjfK4kp+ztK+7xQP46fpvZxkeR/jcEdIvEGh/2o71iwXuy/hrKOWSPhJ1nQXV4iBdHqMizndn2GTaXDg==}
+  nestjs-zod@5.5.0:
+    resolution: {integrity: sha512-V0WMtmICygYE2RoMKk8ExEeoetkC7PoUmUlZNP4JNk1YgrnUnG1vgkRn2DBNqsDi+Obv3c9AOssmXe/k/AvBOg==}
     peerDependencies:
       '@nestjs/common': ^10.0.0 || ^11.0.0
       '@nestjs/swagger': ^7.4.2 || ^8.0.0 || ^11.0.0
@@ -3721,8 +3721,8 @@ packages:
   react-is@18.3.1:
     resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
 
-  react-is@19.2.6:
-    resolution: {integrity: sha512-XjBR15BhXuylgWGuslhDKqlSayuqvqBX91BP8pauG8kd1zY8kotkNWbXksTCNRarse4kuGbe2kIY05ARtwNIvw==}
+  react-is@19.2.8:
+    resolution: {integrity: sha512-s5un28nYxKJw5gvUHyW5PCC28CvBqLu9r3cWgzHT4Vo/5fqqkFcdRYsGcKf50WMPpjjFZS5d76fn3YCo2njKwQ==}
 
   react@19.2.7:
     resolution: {integrity: sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ==}
@@ -8175,7 +8175,7 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  nestjs-zod@5.4.0(@nestjs/common@11.1.21(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/swagger@11.4.3(@nestjs/common@11.1.21(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.21)(reflect-metadata@0.2.2))(rxjs@7.8.2)(zod@4.4.3):
+  nestjs-zod@5.5.0(@nestjs/common@11.1.21(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/swagger@11.4.3(@nestjs/common@11.1.21(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.21)(reflect-metadata@0.2.2))(rxjs@7.8.2)(zod@4.4.3):
     dependencies:
       '@nestjs/common': 11.1.21(reflect-metadata@0.2.2)(rxjs@7.8.2)
       deepmerge: 4.3.1
@@ -8389,7 +8389,7 @@ snapshots:
       '@jest/schemas': 30.4.1
       ansi-styles: 5.2.0
       react-is-18: react-is@18.3.1
-      react-is-19: react-is@19.2.6
+      react-is-19: react-is@19.2.8
 
   prisma@6.19.3(typescript@5.9.3):
     dependencies:
@@ -8486,7 +8486,7 @@ snapshots:
 
   react-is@18.3.1: {}
 
-  react-is@19.2.6: {}
+  react-is@19.2.8: {}
 
   react@19.2.7: {}
 
