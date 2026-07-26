@@ -195,7 +195,10 @@ function summarizeChangedLines(): {
     total.total += counter.total
   }
 
-  return { total, files, hasChangedSourceFiles: changed.size > 0 }
+  const hasChangedSourceFiles = [...changed.keys()].some(
+    (path) => !path.endsWith('.spec.ts') && isChangedLineCoverageEligible(path)
+  )
+  return { total, files, hasChangedSourceFiles }
 }
 
 const failures: string[] = []
