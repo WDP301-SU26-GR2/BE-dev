@@ -1,9 +1,13 @@
 import os
+import json
+import logging
+import time
+import uuid
 
 import cv2
 import httpx
 import numpy as np
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 
 from .heuristic import HEURISTIC_VERSION, segment_heuristic
 from .schemas import SegmentRequest, SegmentResponse
@@ -12,6 +16,29 @@ MAX_IMAGE_BYTES = 15 * 1024 * 1024
 FETCH_TIMEOUT_S = 30
 
 app = FastAPI(title="Mangaka AI Service", version="1.0.0")
+logger = logging.getLogger("mangaka-ai")
+
+
+@app.middleware("http")
+async def request_context(request: Request, call_next):
+    supplied = request.headers.get("x-request-id", "").strip()
+    request_id = supplied if supplied and len(supplied) <= 128 else str(uuid.uuid4())
+    started_at = time.perf_counter()
+    response = await call_next(request)
+    response.headers["x-request-id"] = request_id
+    logger.info(
+        json.dumps(
+            {
+                "service": "mangaka-ai",
+                "requestId": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "statusCode": response.status_code,
+                "durationMs": round((time.perf_counter() - started_at) * 1000, 2),
+            }
+        )
+    )
+    return response
 
 
 def check_api_key(x_api_key: str = Header(default="")):

@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException
 } from '@nestjs/common'
 import { SurveyMessages } from '../survey.messages'
@@ -19,6 +20,7 @@ export const SurveyPeriodInvalidTransitionException = new ConflictException(E.su
 export const DuplicateSurveyPeriodScopeException = new ConflictException(E.duplicateSurveyPeriodScope)
 export const ReaderAlreadyVotedException = new ConflictException(E.readerAlreadyVoted)
 export const VoteOtpNotFoundException = new BadRequestException(E.voteOtpNotFound)
+export const VoteOtpDeliveryFailedException = new ServiceUnavailableException(E.voteOtpDeliveryFailed)
 // `code` derive từ `message` (= 'Error.VoteOtpRateLimit'); trước 2026-07-20 override 'VOTE_OTP_RATE_LIMITED'.
 export const VoteOtpRateLimitException = (retryAfter: number) =>
   new HttpException({ message: E.voteOtpRateLimit, retryAfter }, HttpStatus.TOO_MANY_REQUESTS)

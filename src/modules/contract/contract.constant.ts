@@ -23,6 +23,7 @@ export const CONTRACT_TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
   ],
   [ContractStatus.NEGOTIATION]: [ContractStatus.MANGAKA_REVIEW],
   [ContractStatus.MANGAKA_SIGNED]: [ContractStatus.FULLY_EXECUTED],
+  [ContractStatus.ACTIVATION_PENDING]: [ContractStatus.FULLY_EXECUTED],
   [ContractStatus.FULLY_EXECUTED]: [
     ContractStatus.FULFILLED,
     ContractStatus.TERMINATED,
@@ -62,6 +63,7 @@ export const CONTRACT_CREATION_BLOCKING_STATUSES: ContractStatus[] = [
   ContractStatus.BOARD_APPROVED,
   ContractStatus.NEGOTIATION,
   ContractStatus.MANGAKA_SIGNED,
+  ContractStatus.ACTIVATION_PENDING,
   ContractStatus.FULLY_EXECUTED
 ]
 

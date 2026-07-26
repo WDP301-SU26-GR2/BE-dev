@@ -1,0 +1,28 @@
+import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
+import { BoardRepository } from '../board.repo'
+import { CreateSeriesReportBodyDto, UpdateBoardConfigBodyDto } from '../dto/board.dto'
+import * as Errors from '../errors/board.errors'
+
+@Injectable()
+export class BoardGovernanceService {
+  constructor(private readonly boardRepo: BoardRepository) {}
+
+  async createSeriesReport(userId: string, dto: CreateSeriesReportBodyDto) {
+    if (!isObjectId(dto.boardDecisionId)) throw Errors.DecisionNotFoundException
+    const decision = await this.boardRepo.findDecisionById(dto.boardDecisionId)
+    if (!decision) throw Errors.DecisionNotFoundException
+    const session = await this.boardRepo.findSessionById(decision.boardSessionId)
+    if (!session) throw Errors.SessionNotFoundException
+    if (session.status === 'CONCLUDED') throw Errors.SessionClosedReportException
+    if (!session.allowedEditorIds.includes(userId)) throw Errors.EditorNotInvitedException
+    return this.boardRepo.createSeriesReport({ ...dto, preparedBy: userId })
+  }
+
+  async updateConfig(id: string, userId: string, dto: UpdateBoardConfigBodyDto) {
+    if (!isObjectId(id)) throw Errors.BoardConfigNotFoundException
+    if (!(await this.boardRepo.findConfigById(id))) throw Errors.BoardConfigNotFoundException
+    if (await this.boardRepo.findFirstOpenSession()) throw Errors.ConfigLockedException
+    return this.boardRepo.updateConfig(id, { ...dto, updatedBy: userId })
+  }
+}

@@ -4,6 +4,17 @@ import { PrismaService } from 'src/infrastructure/database/prisma.service'
 
 type StageSeedRow = Prisma.ProductionStageCreateManyInput
 
+export type ConfirmStageOutputCommand = {
+  pageId: string
+  outputSourceType: AiSegmentSource
+  outputFileKey: string
+  outputRevision: number
+  compositeUpdate?: {
+    fileKey: string
+    revision: number
+  }
+}
+
 @Injectable()
 export class ProductionStageRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -94,7 +105,11 @@ export class ProductionStageRepository {
   }
 
   findStagePages(stageId: string) {
-    return this.prisma.productionStagePage.findMany({ where: { stageId }, orderBy: { page: { pageNumber: 'asc' } } })
+    return this.prisma.productionStagePage.findMany({
+      where: { stageId },
+      include: { page: { select: { compositeRevision: true } } },
+      orderBy: { page: { pageNumber: 'asc' } }
+    })
   }
 
   findStagePage(stageId: string, pageId: string) {
@@ -177,34 +192,35 @@ export class ProductionStageRepository {
     })
   }
 
-  async confirmOutputs(
-    stageId: string,
-    actorId: string,
-    items: Array<{ pageId: string; fileKey?: string; reuseInput?: true }>
-  ) {
+  async confirmOutputs(stageId: string, actorId: string, commands: ConfirmStageOutputCommand[]) {
     return this.prisma.$transaction(async (tx) => {
-      const stagePages = await tx.productionStagePage.findMany({ where: { stageId }, include: { page: true } })
-      const byPage = new Map(stagePages.map((item) => [item.pageId, item]))
       const now = new Date()
-      for (const item of items) {
-        const stagePage = byPage.get(item.pageId)
-        if (!stagePage) throw new Error('stage page missing')
-        const reuse = item.reuseInput === true
-        const outputFileKey = reuse ? stagePage.inputFileKey : (item.fileKey as string)
-        const outputSourceType = reuse ? stagePage.inputSourceType : AiSegmentSource.COMPOSITE
-        const outputRevision = reuse ? stagePage.inputRevision : stagePage.page.compositeRevision + 1
-        if (!reuse) {
+      for (const command of commands) {
+        if (command.compositeUpdate) {
           await tx.page.update({
-            where: { id: stagePage.pageId },
-            data: { compositeFile: outputFileKey, compositeRevision: outputRevision }
+            where: { id: command.pageId },
+            data: {
+              compositeFile: command.compositeUpdate.fileKey,
+              compositeRevision: command.compositeUpdate.revision
+            }
           })
         }
         await tx.productionStagePage.update({
-          where: { stageId_pageId: { stageId, pageId: item.pageId } },
-          data: { outputSourceType, outputFileKey, outputRevision, outputConfirmedAt: now, outputConfirmedBy: actorId }
+          where: { stageId_pageId: { stageId, pageId: command.pageId } },
+          data: {
+            outputSourceType: command.outputSourceType,
+            outputFileKey: command.outputFileKey,
+            outputRevision: command.outputRevision,
+            outputConfirmedAt: now,
+            outputConfirmedBy: actorId
+          }
         })
       }
-      return tx.productionStagePage.findMany({ where: { stageId }, orderBy: { page: { pageNumber: 'asc' } } })
+      return tx.productionStagePage.findMany({
+        where: { stageId },
+        include: { page: { select: { compositeRevision: true } } },
+        orderBy: { page: { pageNumber: 'asc' } }
+      })
     })
   }
 }

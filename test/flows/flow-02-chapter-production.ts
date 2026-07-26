@@ -259,7 +259,7 @@ const main = async () => {
   )
 
   // F02-007 — M submit manuscript → EDITOR_REVIEW
-  const subRes = await submitAfterStages(s.tokens.mA, c1.id, 'F02-STG')
+  const subRes = await submitAfterStages(s.tokens.mA, String(c1.id), 'F02-STG')
   ok('F02-007 manuscript submit 201', subRes.status === 201, `got ${subRes.status} ${subRes.raw.slice(0, 200)}`)
   const ms1d = await prisma.manuscript.findFirst({ where: { chapterId: c1.id } })
   ok('F02-007b Manuscript=EDITOR_REVIEW', ms1d?.status === ManuscriptStatus.EDITOR_REVIEW, `got ${ms1d?.status}`)
@@ -541,7 +541,7 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
-  await submitAfterStages(s.tokens.mA, c5.id, 'F02-STG-C5')
+  await submitAfterStages(s.tokens.mA, String(c5.id), 'F02-STG-C5')
   await req('POST', `/chapters/${c5.id}/manuscript/request-revision`, {
     token: s.tokens.e1,
     body: { reason: 'redo' }
@@ -732,7 +732,7 @@ const main = async () => {
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
   ok('F02-038a setup page created', c11p1.status === 201)
-  await submitAfterStages(s.tokens.mA, c11forPub.id, 'F02-STG-C11')
+  await submitAfterStages(s.tokens.mA, String(c11forPub.id), 'F02-STG-C11')
   await req('POST', `/chapters/${c11forPub.id}/manuscript/approve`, { token: s.tokens.e1 })
   // Now terminate contract
   await prisma.contract.updateMany({
@@ -795,7 +795,7 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
-  await submitAfterStages(s.tokens.mA, c8.id, 'F02-STG-C8')
+  await submitAfterStages(s.tokens.mA, String(c8.id), 'F02-STG-C8')
   await req('POST', `/chapters/${c8.id}/manuscript/approve`, { token: s.tokens.e1 })
   const e2PubRes2 = await req('POST', `/chapters/${c8.id}/publish`, { token: s.tokens.e2 })
   expectError(e2PubRes2, 403, 'Error.NotSeriesEditor', 'F02-042 other editor publish')
@@ -882,7 +882,7 @@ const main = async () => {
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
   ok('F02-051a setup page created', p9Res.status === 201)
-  await submitAfterStages(s.tokens.mA, c9.id, 'F02-STG-C9')
+  await submitAfterStages(s.tokens.mA, String(c9.id), 'F02-STG-C9')
   await req('POST', `/chapters/${c9.id}/manuscript/approve`, { token: s.tokens.e1 })
   const pubCoRes = await req('POST', `/chapters/${c9.id}/publish`, { token: s.tokens.e1 })
   ok(
@@ -915,7 +915,7 @@ const main = async () => {
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
   ok('F02-054a setup page created', p10Res.status === 201)
-  await submitAfterStages(s.tokens.mA, c10.id, 'F02-STG-C10')
+  await submitAfterStages(s.tokens.mA, String(c10.id), 'F02-STG-C10')
   await req('POST', `/chapters/${c10.id}/manuscript/approve`, { token: s.tokens.e1 })
   await req('POST', `/chapters/${c10.id}/publish`, { token: s.tokens.e1 })
   const coRejRes = await req('POST', `/chapters/${c10.id}/co-owner-reject`, {
@@ -1142,7 +1142,7 @@ const main = async () => {
   const sListItems = (sListRes.json?.data ?? sListRes.json).items ?? []
   ok(
     'F02-085 /series/:id/names only PROPOSAL',
-    sListItems.every((n: { kind: string }) => n.kind === 'PROPOSAL'),
+    (sListItems as unknown as Array<{ kind: string }>).every((n) => n.kind === 'PROPOSAL'),
     JSON.stringify(sListItems.map((n: { kind: string }) => n.kind))
   )
 
@@ -1402,7 +1402,7 @@ const main = async () => {
     body: { pageNumber: 1, originalFile: 'r2://lock.png' }
   })
   const lockedPage = (lockRes.json?.data ?? lockRes.json) as { id: string }
-  await submitAfterStages(s.tokens.mA, cLocked.id, 'F02-STG-CLOCKED')
+  await submitAfterStages(s.tokens.mA, String(cLocked.id), 'F02-STG-CLOCKED')
   const lockedNow = await prisma.page.findUnique({ where: { id: lockedPage.id } })
   ok('F02-P20 page đã COMPLETED sau submit', lockedNow?.status === PageStatus.COMPLETED, `got ${lockedNow?.status}`)
 
@@ -1454,7 +1454,7 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://gate-1.png' }
   })
-  await submitAfterStages(s.tokens.mA, cGate.id, 'F02-STG-CGATE')
+  await submitAfterStages(s.tokens.mA, String(cGate.id), 'F02-STG-CGATE')
   await req('POST', `/chapters/${cGate.id}/manuscript/approve`, { token: s.tokens.e1 })
   // Thêm 1 page DRAFT SAU khi manuscript đã READY_FOR_PRINT (createPage không chặn) → page chưa duyệt.
   const additionalDraftPage = await req('POST', `/chapters/${cGate.id}/pages`, {

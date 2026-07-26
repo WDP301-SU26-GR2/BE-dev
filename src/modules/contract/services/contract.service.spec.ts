@@ -6,16 +6,22 @@ import { ContractService } from './contract.service'
 import { ContractStatus } from '@prisma/client'
 import { CreateContractBodyDto } from '../dto/contract.dto'
 import { RoleName } from 'src/core/security/constants/role.constant'
+import { ContractDraftService } from './contract-draft.service'
+import { ContractPdfService } from './contract-pdf.service'
+import { ContractQueryService } from './contract-query.service'
+import { ContractRevenueService } from './contract-revenue.service'
+import { ContractSigningService } from './contract-signing.service'
+import { ContractWorkflowService } from './contract-workflow.service'
 
 type Mocks = {
-  contractRepo: any
-  authOtpService: any
-  notificationService: any
-  domainEventBus: any
-  auditService: any
-  pdfRenderService: any
-  objectStorageService: any
-  storageRepository: any
+  contractRepo: Record<string, jest.Mock>
+  authOtpService: Record<string, jest.Mock>
+  notificationService: Record<string, jest.Mock>
+  domainEventBus: Record<string, jest.Mock>
+  auditService: Record<string, jest.Mock>
+  pdfRenderService: Record<string, jest.Mock>
+  objectStorageService: Record<string, jest.Mock>
+  assetRegistry: Record<string, jest.Mock>
 }
 
 function makeMocks(): Mocks {
@@ -46,21 +52,38 @@ function makeMocks(): Mocks {
         .fn()
         .mockResolvedValue({ downloadUrl: 'https://r2/pdf', expiresAt: '2026-07-20T00:00:00.000Z' })
     },
-    storageRepository: { createAsset: jest.fn().mockResolvedValue({ id: 'asset1' }) }
+    assetRegistry: { registerGeneratedAsset: jest.fn().mockResolvedValue({ id: 'asset1' }) }
   }
 }
 
 function makeService(m: Mocks) {
-  return new ContractService(
+  const query = new ContractQueryService(m.contractRepo as never)
+  const draft = new ContractDraftService(m.contractRepo as never, m.notificationService as never)
+  const workflow = new ContractWorkflowService(
+    m.contractRepo as never,
+    m.notificationService as never,
+    m.auditService as never
+  )
+  const signing = new ContractSigningService(
     m.contractRepo as never,
     m.authOtpService as never,
     m.notificationService as never,
     m.domainEventBus as never,
-    m.auditService as never,
+    m.auditService as never
+  )
+  const pdf = new ContractPdfService(
+    m.contractRepo as never,
+    query,
     m.pdfRenderService as never,
     m.objectStorageService as never,
-    m.storageRepository as never
+    m.assetRegistry as never
   )
+  const revenue = new ContractRevenueService(
+    m.contractRepo as never,
+    m.domainEventBus as never,
+    m.auditService as never
+  )
+  return new ContractService(query, draft, workflow, signing, pdf, revenue)
 }
 
 describe('ContractService.mangakaApprove (B-CON-02 auth)', () => {
@@ -431,6 +454,28 @@ describe('ContractService.signByMangakaWithOtp (ContractExecuted emit)', () => {
 
     await makeService(m).signByMangakaWithOtp(CID, 'm1', 'm1@x.test', '123456')
     expect(m.domainEventBus.emit).not.toHaveBeenCalled()
+  })
+})
+
+describe('ContractService settlement failure mapping', () => {
+  const CID = '507f1f77bcf86cd799439044'
+
+  it('maps a typed replacement invariant to the catalogued domain error', async () => {
+    const m = makeMocks()
+    m.contractRepo.findById.mockResolvedValue({
+      id: CID,
+      mangakaId: 'm1',
+      mangakaSignedAt: null,
+      status: ContractStatus.BOARD_APPROVED
+    })
+    m.contractRepo.recordMangakaSignatureAndSettle = jest.fn().mockResolvedValue({
+      settlementFailure: 'TRANSFER_REQUEST_MISSING_ORIGINAL_CONTRACT'
+    })
+
+    await expect(makeService(m).signByMangakaWithOtp(CID, 'm1', 'm1@x.test', '123456')).rejects.toMatchObject({
+      status: 409,
+      response: { message: [{ message: 'Error.ReplacementActivationInvalid', path: 'contractId' }] }
+    })
   })
 })
 

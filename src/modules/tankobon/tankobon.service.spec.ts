@@ -14,7 +14,7 @@ const makeRepo = () => ({
 })
 const makeAudit = () => ({ record: jest.fn().mockResolvedValue(undefined) })
 
-async function build(repo: any, audit: any) {
+async function build(repo: ReturnType<typeof makeRepo>, audit: ReturnType<typeof makeAudit>) {
   const mod = await Test.createTestingModule({
     providers: [TankobonService, { provide: TankobonRepo, useValue: repo }, { provide: AuditService, useValue: audit }]
   }).compile()
@@ -26,11 +26,7 @@ describe('TankobonService.recordSales', () => {
     const repo = makeRepo()
     const svc = await build(repo, makeAudit())
     await expect(
-      svc.recordSales(
-        'garbage',
-        { seriesId: 'garbage', volumeNumber: 1, unitsSold: 10, period: '2026-Q2' } as any,
-        'u1'
-      )
+      svc.recordSales('garbage', { seriesId: 'garbage', volumeNumber: 1, unitsSold: 10, period: '2026-Q2' }, 'u1')
     ).rejects.toMatchObject({ status: 404 })
     expect(repo.findSeriesById).not.toHaveBeenCalled()
   })
@@ -42,7 +38,7 @@ describe('TankobonService.recordSales', () => {
     await expect(
       svc.recordSales(
         '012345678901234567890123',
-        { seriesId: '012345678901234567890123', volumeNumber: 1, unitsSold: 10, period: 'p' } as any,
+        { seriesId: '012345678901234567890123', volumeNumber: 1, unitsSold: 10, period: 'p' },
         'u1'
       )
     ).rejects.toMatchObject({ status: 404 })

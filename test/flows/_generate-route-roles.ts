@@ -18,7 +18,7 @@
  */
 import { NestFactory } from '@nestjs/core'
 import { ModulesContainer } from '@nestjs/core'
-import { RequestMethod } from '@nestjs/common'
+import { RequestMethod, Type } from '@nestjs/common'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -46,7 +46,10 @@ const joinPath = (...parts: Array<string | undefined>): string => {
 type Rule = { method: string; path: string; access: 'PUBLIC' | 'AUTH' | 'ROLES'; allowed: string[] }
 
 const main = async () => {
-  const mod = await import(pathToFileURL(APP_MODULE_PATH).href)
+  const mod = (await import(pathToFileURL(APP_MODULE_PATH).href)) as unknown as {
+    AppModule?: Type<unknown>
+    default?: Type<unknown>
+  }
   const AppModule = mod.AppModule ?? mod.default
   if (!AppModule) throw new Error('AppModule not found — run pnpm build first')
 

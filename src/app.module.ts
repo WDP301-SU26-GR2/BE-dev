@@ -1,5 +1,6 @@
 ﻿import { Module } from '@nestjs/common'
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
+import { MiddlewareConsumer, NestModule } from '@nestjs/common'
 import { ScheduleModule } from '@nestjs/schedule'
 import { ZodSerializerInterceptor } from 'nestjs-zod'
 import { CatchEverythingFilter } from 'src/core/http/filters/catch-everything.filter'
@@ -34,6 +35,9 @@ import { AppConfigModule } from './modules/app-config/app-config.module'
 import { PublicationModule } from './modules/publication/publication.module'
 import { PublicModule } from './modules/public/public.module'
 import { DashboardModule } from './modules/dashboard/dashboard.module'
+import { HealthModule } from './modules/health/health.module'
+import { RequestIdMiddleware } from './core/observability/request-id.middleware'
+import { RuntimeMetricsInterceptor } from './core/http/interceptors/runtime-metrics.interceptor'
 
 @Module({
   imports: [
@@ -66,7 +70,8 @@ import { DashboardModule } from './modules/dashboard/dashboard.module'
     AppConfigModule,
     PublicationModule,
     DashboardModule,
-    PublicModule
+    PublicModule,
+    HealthModule
   ],
   controllers: [],
   providers: [
@@ -76,10 +81,15 @@ import { DashboardModule } from './modules/dashboard/dashboard.module'
     },
     { provide: APP_INTERCEPTOR, useClass: ResponseEnvelopeInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ZodSerializerInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: RuntimeMetricsInterceptor },
     {
       provide: APP_FILTER,
       useClass: CatchEverythingFilter
     }
   ]
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*')
+  }
+}

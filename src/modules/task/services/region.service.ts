@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AuditEntityType, NotificationType, RegionType, TaskStatus } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { PAGE_EDITABLE_STATUSES } from 'src/modules/chapter/chapter.constant'
@@ -17,8 +18,6 @@ import { CreateRegionBodyType, UpdateRegionBodyType } from '../schemas/task-sche
 import { CANCELABLE_TASK_STATUSES } from '../task.constant'
 import { TaskMessages } from '../task.messages'
 import { TaskStateService } from './task-state.service'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 export type AiProposedRegionInput = {
   regionType: RegionType
@@ -41,7 +40,7 @@ export class RegionService {
     pageId: string,
     opts: { checkHold?: boolean; checkEditable?: boolean } = {}
   ) {
-    if (!OBJECT_ID_RE.test(pageId)) throw PageNotFoundException
+    if (!isObjectId(pageId)) throw PageNotFoundException
     const page = await this.taskRepository.findPageWithOwner(pageId)
     if (!page) throw PageNotFoundException
     if (page.chapter.series.mangakaId !== mangakaId) throw NotSeriesOwnerException
@@ -69,7 +68,7 @@ export class RegionService {
   }
 
   private async requireRegionOwner(mangakaId: string, regionId: string) {
-    if (!OBJECT_ID_RE.test(regionId)) throw RegionNotFoundException
+    if (!isObjectId(regionId)) throw RegionNotFoundException
     const region = await this.taskRepository.findRegionById(regionId)
     if (!region) throw RegionNotFoundException
     await this.assertPageOwner(mangakaId, region.pageId)

@@ -2,7 +2,9 @@
   "moduleFileExtensions": ["js", "json", "ts", "tsx"],
   "rootDir": ".",
   "testEnvironment": "node",
-  "testRegex": ".e2e-spec.ts$",
+  "testMatch": ["<rootDir>/**/*.e2e-spec.ts"],
+  "testPathIgnorePatterns": ["/integration/", "/flows/"],
+  "globalSetup": "<rootDir>/jest-test-environment-setup.ts",
   "transform": {
     "^.+\\.(t|j)sx?$": "ts-jest"
   },

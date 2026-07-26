@@ -8,6 +8,9 @@ import { TaskService } from './task.service'
 import { RegionService } from './services/region.service'
 import { TaskStateService } from './services/task-state.service'
 import { TaskAssignService } from './services/task-assign.service'
+import { TaskAssignmentCreateService } from './services/task-assignment-create.service'
+import { TaskAssignmentMutationService } from './services/task-assignment-mutation.service'
+import { TaskAssignmentValidatorService } from './services/task-assignment-validator.service'
 import { TaskReviewService } from './services/task-review.service'
 import { TaskMediaService } from './services/task-media.service'
 import { AssistantAvailabilityListener } from './services/assistant-availability.listener'
@@ -21,6 +24,9 @@ import { AssistantAvailabilityListener } from './services/assistant-availability
     RegionService,
     TaskStateService,
     TaskAssignService,
+    TaskAssignmentValidatorService,
+    TaskAssignmentCreateService,
+    TaskAssignmentMutationService,
     TaskReviewService,
     TaskMediaService,
     AssistantAvailabilityListener

@@ -5,22 +5,172 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      TEST_DATABASE_URL: mongodb://127.0.0.1:27017/deploy_verify_test?replicaSet=rs0&directConnection=true
+      PORT: 4100
+      SALT_OR_ROUNDS: 10
+      NAME_APP: Mangaka Deploy Verify
+      API_KEY: deploy-verify
+      AUTH_TYPE_KEY: authType
+      DATABASE_URL: mongodb://127.0.0.1:27017/deploy_verify_test?replicaSet=rs0
+      TEST_REDIS_URL: redis://127.0.0.1:6379/5
+      REDIS_URL: redis://127.0.0.1:6379/5
+      ACCESS_TOKEN_SECRET: deploy-verify-access
+      REFRESH_TOKEN_SECRET: deploy-verify-refresh
+      ACCESS_TOKEN_EXPIRES_IN: 1h
+      REFRESH_TOKEN_EXPIRES_IN: 7d
+      ADMIN_NAME: Deploy Verify
+      ADMIN_PASSWORD: Deploy-Verify-Password-123
+      ADMIN_EMAIL: deploy-verify@example.com
+      ADMIN_PHONE: '+84000000000'
+      OTP_EXPIRES_IN: 5m
+      OTP_RL_EMAIL_MAX: 5
+      OTP_RL_EMAIL_WINDOW: 3600
+      OTP_RL_IP_MAX: 20
+      OTP_RL_IP_WINDOW: 3600
+      OTP_RL_COOLDOWN: 60
+      RESEND_API_KEY: deploy-verify
+      GOOGLE_CLIENT_ID: deploy-verify
+      R2_ENDPOINT: http://127.0.0.1:9000
+      R2_ACCESS_KEY_ID: mangaka-deploy-verify
+      R2_SECRET_ACCESS_KEY: mangaka-deploy-verify-secret
+      R2_BUCKET: mangaka-deploy-verify
+      R2_REGION: us-east-1
+      AI_SERVICE_URL: ''
+      IDENTITY_HASH_PEPPER: deploy-verify-identity-pepper
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 2
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 11.1.3
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:supply-chain-policy
+      - name: Validate Prometheus alert rules and alert fixtures
+        run: |
+          docker run --rm \
+            -v "${PWD}/ops/prometheus:/prometheus-rules:ro" \
+            --entrypoint /bin/promtool \
+            prom/prometheus:v2.55.1 check rules /prometheus-rules/alerts.yml
+          docker run --rm \
+            -v "${PWD}/ops/prometheus:/prometheus-rules:ro" \
+            --entrypoint /bin/promtool \
+            prom/prometheus:v2.55.1 test rules /prometheus-rules/alerts.test.yml
+      - run: touch .env
+      - name: Start isolated Mongo replica set, Redis, and S3-compatible storage
+        run: |
+          docker run --detach --name mangaka-deploy-mongo-test --publish 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          docker run --detach --name mangaka-deploy-redis-test --publish 6379:6379 redis:7-alpine
+          docker run --detach --name mangaka-deploy-minio-test --publish 9000:9000 \
+            --env MINIO_ROOT_USER="${R2_ACCESS_KEY_ID}" \
+            --env MINIO_ROOT_PASSWORD="${R2_SECRET_ACCESS_KEY}" \
+            minio/minio:RELEASE.2025-04-03T14-56-28Z server /data --address :9000
+          for attempt in {1..30}; do
+            if docker exec mangaka-deploy-mongo-test mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' | grep -q 1; then
+              break
+            fi
+            sleep 2
+          done
+          docker exec mangaka-deploy-mongo-test mongosh --quiet --eval \
+            'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
+          for attempt in {1..30}; do
+            if docker exec mangaka-deploy-mongo-test mongosh --quiet --eval 'rs.status().myState' | grep -q 1; then
+              break
+            fi
+            sleep 2
+          done
+          docker exec mangaka-deploy-redis-test redis-cli ping | grep -q PONG
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:9000/minio/health/ready >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          docker run --rm --network host --entrypoint /bin/sh \
+            minio/mc:RELEASE.2025-02-08T19-14-21Z -c \
+            "mc alias set local ${R2_ENDPOINT} ${R2_ACCESS_KEY_ID} ${R2_SECRET_ACCESS_KEY} && mc mb --ignore-existing local/${R2_BUCKET}"
+      - name: Prepare isolated verification schema
+        run: |
+          pnpm prisma:generate
+          pnpm exec prisma validate
+          pnpm exec prisma db push --skip-generate
+          pnpm db:indexes
+      - run: pnpm lint
+      - run: pnpm test:architecture
+      - run: pnpm build
+      - name: Run real API release flows before image build
+        run: |
+          pnpm start:prod > deploy-flow-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4100/health/ready >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 30 ]; then
+              cat deploy-flow-api.log
+              exit 1
+            fi
+            sleep 2
+          done
+          pnpm flowtest --only=flow-04
+          pnpm flowtest --only=flow-06
+          pnpm flowtest --only=flow-07
+          pnpm flowtest --only=flow-08
+      - run: pnpm test:unit
+      - run: pnpm test:guard
+      - run: pnpm test:integration
+      - run: pnpm test:e2e
+      - name: Enforce coverage gates
+        env:
+          COVERAGE_BASE_REF: ${{ github.event_name == 'push' && github.event.before || 'HEAD^' }}
+        run: pnpm test:cov
+      - run: pnpm audit --prod --audit-level high
+      - name: Validate production compose with AI disabled and enabled
+        env:
+          API_IMAGE: ghcr.io/example/mangaka-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          AI_IMAGE: ghcr.io/example/mangaka-ai@sha256:1111111111111111111111111111111111111111111111111111111111111111
+          AI_SERVICE_API_KEY: deploy-verify-ai-key
+        run: |
+          docker compose -f docker-compose.prod.yml config --quiet
+          docker compose -f docker-compose.prod.yml --profile ai config --quiet
+          docker compose -f docker-compose.prod.yml --profile monitoring config --quiet
+      - name: Verify AI service
+        working-directory: ai-service
+        run: |
+          python -m pip install --disable-pip-version-check pytest pip-audit
+          python -m pytest tests -q
+          python -m pip_audit -r requirements.txt
+
   build-and-push:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     outputs:
-      image_tag: ${{ steps.meta.outputs.tag }}
+      api_image: ${{ steps.meta.outputs.image }}@${{ steps.build-api.outputs.digest }}
+      ai_image: ${{ steps.meta.outputs.ai_image }}@${{ steps.build-ai.outputs.digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -32,10 +182,11 @@ jobs:
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "image=ghcr.io/${OWNER}/mangaka-api" >> $GITHUB_OUTPUT
           echo "ai_image=ghcr.io/${OWNER}/mangaka-ai" >> $GITHUB_OUTPUT
-          echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_SHA}" >> $GITHUB_OUTPUT
 
       - name: Build & push API image
-        uses: docker/build-push-action@v6
+        id: build-api
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: ./Dockerfile
@@ -47,7 +198,8 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build & push AI image
-        uses: docker/build-push-action@v6
+        id: build-ai
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: ./ai-service
           file: ./ai-service/Dockerfile
@@ -58,24 +210,70 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - id: scan-api
+        name: Scan pushed API digest for High/Critical vulnerabilities
+        continue-on-error: true
+        run: |
+          mkdir -p image-scan
+          docker run --rm \
+            -v "${HOME}/.docker:/root/.docker:ro" \
+            -v "${PWD}/image-scan:/reports" \
+            aquasec/trivy:0.58.2 image --exit-code 1 --severity HIGH,CRITICAL \
+            --format json --output /reports/api-trivy.json \
+            "${{ steps.meta.outputs.image }}@${{ steps.build-api.outputs.digest }}"
+
+      - id: scan-ai
+        name: Scan pushed AI digest for High/Critical vulnerabilities
+        continue-on-error: true
+        run: |
+          docker run --rm \
+            -v "${HOME}/.docker:/root/.docker:ro" \
+            -v "${PWD}/image-scan:/reports" \
+            aquasec/trivy:0.58.2 image --exit-code 1 --severity HIGH,CRITICAL \
+            --format json --output /reports/ai-trivy.json \
+            "${{ steps.meta.outputs.ai_image }}@${{ steps.build-ai.outputs.digest }}"
+
+      - id: scan-policy
+        name: Reject High/Critical findings in generated Trivy reports
+        if: always()
+        continue-on-error: true
+        run: |
+          node test/supply-chain/verify-security-policy.mjs validate-trivy image-scan/api-trivy.json
+          node test/supply-chain/verify-security-policy.mjs validate-trivy image-scan/ai-trivy.json
+
+      - name: Upload deploy image scan reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deploy-image-scan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: image-scan/
+          if-no-files-found: warn
+
+      - name: Enforce deploy image scan outcomes
+        if: always()
+        run: |
+          test "${{ steps.scan-api.outcome }}" = "success"
+          test "${{ steps.scan-ai.outcome }}" = "success"
+          test "${{ steps.scan-policy.outcome }}" = "success"
+
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Copy docker-compose via SCP
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634 # v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.prod.yml"
+          source: 'docker-compose.prod.yml,ops/prometheus/prometheus.yml,ops/prometheus/alerts.yml'
           target: ${{ secrets.VPS_APP_DIR }}
 
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -85,6 +283,120 @@ jobs:
           script: |
             set -e
             cd ${{ secrets.VPS_APP_DIR }}
-            docker compose -f docker-compose.prod.yml --profile ai pull api ai-service
-            docker compose -f docker-compose.prod.yml --profile ai up -d --force-recreate api ai-service
-            docker image prune -f
+            export API_IMAGE="${{ needs.build-and-push.outputs.api_image }}"
+            export AI_IMAGE="${{ needs.build-and-push.outputs.ai_image }}"
+            AI_ENABLED="${{ vars.AI_ENABLED || 'false' }}"
+
+            immutable_container_image() {
+              CONTAINER_NAME="$1"
+              CONFIG_IMAGE="$(docker inspect --format '{{.Config.Image}}' "${CONTAINER_NAME}" 2>/dev/null || true)"
+              case "${CONFIG_IMAGE}" in
+                *@sha256:*) printf '%s\n' "${CONFIG_IMAGE}"; return 0 ;;
+                '') return 0 ;;
+              esac
+
+              IMAGE_ID="$(docker inspect --format '{{.Image}}' "${CONTAINER_NAME}" 2>/dev/null || true)"
+              [ -n "${IMAGE_ID}" ] || return 0
+              docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "${IMAGE_ID}" 2>/dev/null \
+                | grep '@sha256:' | head -n 1 || true
+            }
+
+            PREVIOUS_API_IMAGE="$(immutable_container_image mangaka-api)"
+            PREVIOUS_AI_IMAGE=""
+            if [ "${AI_ENABLED}" = "true" ]; then
+              PREVIOUS_AI_IMAGE="$(immutable_container_image mangaka-ai)"
+            fi
+            if docker inspect mangaka-api >/dev/null 2>&1 && [ -z "${PREVIOUS_API_IMAGE}" ]; then
+              echo "Refusing rollout: current API image has no immutable registry digest for rollback"
+              exit 1
+            fi
+            if [ "${AI_ENABLED}" = "true" ] && docker inspect mangaka-ai >/dev/null 2>&1 \
+              && [ -z "${PREVIOUS_AI_IMAGE}" ]; then
+              echo "Refusing rollout: current AI image has no immutable registry digest for rollback"
+              exit 1
+            fi
+            FREE_KB="$(df -Pk . | awk 'NR==2 {print $4}')"
+            if [ "${FREE_KB:-0}" -lt 3145728 ]; then
+              echo "Insufficient disk space for immutable image rollout"
+              exit 1
+            fi
+
+            umask 077
+            mkdir -p .releases
+            if [ -f .releases/current.env ]; then
+              cp .releases/current.env .releases/previous.env
+            elif [ -n "${PREVIOUS_API_IMAGE}" ]; then
+              {
+                printf 'RELEASE_SHA=unknown\n'
+                printf 'API_IMAGE=%s\n' "${PREVIOUS_API_IMAGE}"
+                printf 'AI_IMAGE=%s\n' "${PREVIOUS_AI_IMAGE}"
+                printf 'AI_ENABLED=%s\n' "${AI_ENABLED}"
+              } > .releases/previous.env
+            fi
+
+            rollback() {
+              if [ -n "${PREVIOUS_API_IMAGE}" ]; then
+                export API_IMAGE="${PREVIOUS_API_IMAGE}"
+                if [ "${AI_ENABLED}" = "true" ] && [ -n "${PREVIOUS_AI_IMAGE}" ]; then
+                  export AI_IMAGE="${PREVIOUS_AI_IMAGE}"
+                  docker compose -f docker-compose.prod.yml --profile ai --profile monitoring \
+                    up -d --force-recreate redis api ai-service caddy prometheus
+                else
+                  docker compose -f docker-compose.prod.yml --profile monitoring \
+                    up -d --force-recreate redis api caddy prometheus
+                  [ "${AI_ENABLED}" = "true" ] && \
+                    docker compose -f docker-compose.prod.yml --profile ai stop ai-service || true
+                fi
+              else
+                docker compose -f docker-compose.prod.yml --profile ai stop api ai-service || true
+              fi
+              exit 1
+            }
+
+            docker compose -f docker-compose.prod.yml pull api
+            if [ "${AI_ENABLED}" = "true" ]; then
+              docker compose -f docker-compose.prod.yml --profile ai pull ai-service
+            fi
+            docker compose -f docker-compose.prod.yml run --rm api \
+              node dist/initialScript/bootstrap-mongo-indexes.js
+            if [ "${AI_ENABLED}" = "true" ]; then
+              docker compose -f docker-compose.prod.yml --profile ai --profile monitoring \
+                up -d --force-recreate redis api ai-service caddy prometheus
+            else
+              docker compose -f docker-compose.prod.yml --profile monitoring \
+                up -d --force-recreate redis api caddy prometheus
+            fi
+
+            for attempt in $(seq 1 36); do
+              API_HEALTH="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' mangaka-api)"
+              [ "${API_HEALTH}" = "healthy" ] && break
+              [ "${API_HEALTH}" = "unhealthy" ] && rollback
+              sleep 5
+            done
+            [ "$(docker inspect --format '{{.State.Health.Status}}' mangaka-api)" = "healthy" ] || rollback
+            [ "$(docker inspect --format '{{.State.Health.Status}}' mangaka-redis)" = "healthy" ] || rollback
+            [ "$(docker inspect --format '{{.State.Running}}' mangaka-caddy)" = "true" ] || rollback
+
+            if [ "${AI_ENABLED}" = "true" ]; then
+              AI_HEALTH="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' mangaka-ai)"
+              [ "${AI_HEALTH}" = "healthy" ] || rollback
+            fi
+
+            [ "$(docker inspect --format '{{.State.Running}}' mangaka-prometheus)" = "true" ] || rollback
+
+            curl --fail --silent --show-error --max-time 15 \
+              "${{ secrets.PRODUCTION_HEALTH_URL }}/health/ready" >/dev/null || rollback
+
+            if [ "${AI_ENABLED}" != "true" ]; then
+              docker compose -f docker-compose.prod.yml --profile ai stop ai-service || true
+            fi
+
+            RELEASE_MANIFEST_TMP=".releases/current.env.tmp.$$"
+            {
+              printf 'RELEASE_SHA=%s\n' "${{ github.sha }}"
+              printf 'API_IMAGE=%s\n' "${API_IMAGE}"
+              printf 'AI_IMAGE=%s\n' "${AI_IMAGE}"
+              printf 'AI_ENABLED=%s\n' "${AI_ENABLED}"
+              printf 'DEPLOYED_AT=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            } > "${RELEASE_MANIFEST_TMP}"
+            mv "${RELEASE_MANIFEST_TMP}" .releases/current.env

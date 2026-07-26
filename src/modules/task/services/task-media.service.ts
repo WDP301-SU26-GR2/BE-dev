@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { StorageService } from 'src/infrastructure/storage/storage.service'
 import { TaskFileForbiddenException, TaskNotFoundException } from '../errors/task.errors'
 import { TaskRepository } from '../task.repo'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 // Task-scoped signed download. Generic /uploads/sign-download chỉ cho uploader HOẶC EDITOR/BOARD/ADMIN
 // → Mangaka KHÔNG tải được file version của Assistant (Assistant là uploader), và Assistant KHÔNG tải
@@ -18,7 +17,7 @@ export class TaskMediaService {
   ) {}
 
   async getDownloadUrl(user: { userId: string; roleName: string }, taskId: string, key: string) {
-    if (!OBJECT_ID_RE.test(taskId)) throw TaskNotFoundException
+    if (!isObjectId(taskId)) throw TaskNotFoundException
     const ctx = await this.taskRepository.findTaskDownloadContext(taskId)
     if (!ctx?.page) throw TaskNotFoundException
 

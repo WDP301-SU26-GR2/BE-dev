@@ -1,6 +1,7 @@
 import { $Enums } from '@prisma/client'
 import { z } from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zObjectId } from 'src/core/http/schemas/object-id.schema'
 
 export const StageAnalyticsSchema = z.object({
   taskCount: z.number(),
@@ -52,7 +53,7 @@ export const CreateStageBodySchema = z
   .object({
     name: z.string().trim().min(1).max(120),
     taskTypes: z.array(zEnum($Enums.Specialization, 'Specialization')).default([]),
-    afterStageId: z.string().regex(/^[0-9a-fA-F]{24}$/)
+    afterStageId: zObjectId()
   })
   .strict()
 
@@ -74,7 +75,7 @@ export const StagePageListResSchema = z.object({ items: z.array(StagePageResSche
 
 const StageOutputItemSchema = z
   .object({
-    pageId: z.string().regex(/^[0-9a-fA-F]{24}$/),
+    pageId: zObjectId(),
     fileKey: z.string().min(1).optional(),
     reuseInput: z.literal(true).optional()
   })

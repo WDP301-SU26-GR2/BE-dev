@@ -12,21 +12,22 @@ function makeRepo() {
     deleteChapterCascade: jest.fn().mockResolvedValue(undefined)
   }
 }
-const make = (repo: any) => new ChapterCrudService(repo)
+const make = (repo: ReturnType<typeof makeRepo>) =>
+  new ChapterCrudService(repo as unknown as ConstructorParameters<typeof ChapterCrudService>[0])
 
 describe('ChapterCrudService.updateChapter', () => {
   it('malformed id → 404', async () => {
-    await expect(make(makeRepo()).updateChapter('u', 'garbage', {} as any)).rejects.toMatchObject({ status: 404 })
+    await expect(make(makeRepo()).updateChapter('u', 'garbage', {})).rejects.toMatchObject({ status: 404 })
   })
   it('not owner → 403', async () => {
     const repo = makeRepo()
     repo.findChapterWithSeries.mockResolvedValue({ id: CH, status: 'DRAFT', series: { mangakaId: 'other' } })
-    await expect(make(repo).updateChapter('u', CH, { title: 'x' } as any)).rejects.toMatchObject({ status: 403 })
+    await expect(make(repo).updateChapter('u', CH, { title: 'x' })).rejects.toMatchObject({ status: 403 })
   })
   it('PUBLISHED → 409 ChapterNotEditable', async () => {
     const repo = makeRepo()
     repo.findChapterWithSeries.mockResolvedValue({ id: CH, status: 'PUBLISHED', series: { mangakaId: 'u' } })
-    await expect(make(repo).updateChapter('u', CH, { title: 'x' } as any)).rejects.toMatchObject({ status: 409 })
+    await expect(make(repo).updateChapter('u', CH, { title: 'x' })).rejects.toMatchObject({ status: 409 })
   })
   it('chapterNumber change when IN_PRODUCTION → 409 ChapterNumberLocked', async () => {
     const repo = makeRepo()
@@ -38,7 +39,7 @@ describe('ChapterCrudService.updateChapter', () => {
       nameId: null,
       series: { mangakaId: 'u' }
     })
-    await expect(make(repo).updateChapter('u', CH, { chapterNumber: 6 } as any)).rejects.toMatchObject({ status: 409 })
+    await expect(make(repo).updateChapter('u', CH, { chapterNumber: 6 })).rejects.toMatchObject({ status: 409 })
   })
   it('chapterNumber change when DRAFT, dup → 409', async () => {
     const repo = makeRepo()
@@ -51,7 +52,7 @@ describe('ChapterCrudService.updateChapter', () => {
       series: { mangakaId: 'u' }
     })
     repo.findChapterByNumber.mockResolvedValue({ id: 'dup' })
-    await expect(make(repo).updateChapter('u', CH, { chapterNumber: 6 } as any)).rejects.toMatchObject({ status: 409 })
+    await expect(make(repo).updateChapter('u', CH, { chapterNumber: 6 })).rejects.toMatchObject({ status: 409 })
   })
   it('chapterNumber change DRAFT ok + syncs Name.chapterNumber', async () => {
     const repo = makeRepo()

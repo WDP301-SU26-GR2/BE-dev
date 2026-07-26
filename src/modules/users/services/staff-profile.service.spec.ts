@@ -12,7 +12,8 @@ function makeDeps() {
     }
   }
 }
-const make = (d: any) => new StaffProfileService(d.repo)
+const make = (d: ReturnType<typeof makeDeps>) =>
+  new StaffProfileService(d.repo as unknown as ConstructorParameters<typeof StaffProfileService>[0])
 
 describe('StaffProfileService', () => {
   it('returns the profile when it exists', async () => {

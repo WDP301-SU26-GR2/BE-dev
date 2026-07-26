@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common'
 import { $Enums } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { UserNotFoundException } from '../errors/users.errors'
 import { ListUsersQueryType } from '../schemas/users-schemas'
 import { AdminUserFilter, UsersRepository } from '../users.repo'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 export type AdminUserRow = {
   id: string
@@ -64,7 +63,7 @@ export class AdminUserQueryService {
   }
 
   async getById(id: string) {
-    if (!OBJECT_ID_RE.test(id)) throw UserNotFoundException
+    if (!isObjectId(id)) throw UserNotFoundException
     const row = await this.usersRepository.findUserByIdForAdmin(id)
     if (!row) throw UserNotFoundException
     return toAdminUserView(row)

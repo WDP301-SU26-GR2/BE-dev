@@ -9,16 +9,19 @@ jest.mock('src/core/config/envConfig', () => ({
 describe('RecaptchaService', () => {
   let service: RecaptchaService
   const fetchMock = jest.fn()
+  const metrics = { recordSecurityDegraded: jest.fn() }
   const originalFetch = global.fetch
 
   beforeEach(() => {
-    service = new RecaptchaService()
+    service = new RecaptchaService(metrics as never)
     global.fetch = fetchMock as never
     fetchMock.mockReset()
+    metrics.recordSecurityDegraded.mockReset()
   })
 
   afterEach(() => {
     envConfig.RECAPTCHA_SECRET = 'test-secret'
+    envConfig.NODE_ENV = 'development'
     jest.useRealTimers()
   })
 
@@ -28,6 +31,13 @@ describe('RecaptchaService', () => {
 
   it('skips verification in dev mode when the secret is empty', async () => {
     envConfig.RECAPTCHA_SECRET = ''
+
+    await expect(service.verify('any-token')).resolves.toEqual({ ok: true, score: null, degraded: false })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('never calls the external provider in the test environment', async () => {
+    envConfig.NODE_ENV = 'test'
 
     await expect(service.verify('any-token')).resolves.toEqual({ ok: true, score: null, degraded: false })
     expect(fetchMock).not.toHaveBeenCalled()
@@ -64,6 +74,7 @@ describe('RecaptchaService', () => {
     fetchMock.mockRejectedValue(new Error('ETIMEDOUT'))
 
     await expect(service.verify('tok')).resolves.toEqual({ ok: true, score: null, degraded: true })
+    expect(metrics.recordSecurityDegraded).toHaveBeenCalledWith('captcha')
   })
 
   it('aborts siteverify after three seconds and fails open in degraded mode', async () => {

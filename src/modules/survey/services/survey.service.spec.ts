@@ -6,13 +6,27 @@ import { ReaderVoteBodySchema, VoteOtpRequestBodySchema } from '../schemas/surve
 import { AuditEntityType } from '@prisma/client'
 import { CaptchaRejectedException } from '../errors/survey.errors'
 import { asCacheService, makeCacheServiceMock } from 'src/infrastructure/redis/cache.service.mock'
+import { SurveyOtpRequestService } from './survey-otp-request.service'
+import { ReaderVoteService } from './reader-vote.service'
+import { GuestVoteService } from './guest-vote.service'
+import { SurveyPeriodService } from './survey-period.service'
+import { SurveyImportService } from './survey-import.service'
+import { RankingFinalizeService } from './ranking-finalize.service'
+import { RankingFinalizeEffectsService } from './ranking-finalize-effects.service'
+import { RankingFinalizePersistenceService } from './ranking-finalize-persistence.service'
+import { InternalRankingQueryService } from './internal-ranking-query.service'
+import { PublicVoteQueryService } from './public-vote-query.service'
+import { PublicVoteContextQueryService } from './public-vote-context-query.service'
+import { PublicRankingQueryService } from './public-ranking-query.service'
+import { RankingAggregateService } from './ranking-aggregate.service'
+import { RankingQueryService } from './ranking-query.service'
 
 // Real (not mocked) so identity/ip hashing determinism is exercised end-to-end in submitVote tests.
 const identityHash = new IdentityHashService('test-pepper')
 
 type Mocks = {
   surveyRepository: any
-  authOtpService: any
+  surveyOtpService: any
   identityHashService: IdentityHashService
   rateLimitService: any
   domainEventBus: any
@@ -51,7 +65,12 @@ function makeMocks(): Mocks {
       findManySerializedSeriesPublic: jest.fn().mockResolvedValue([]),
       findSeriesTitlesByIds: jest.fn().mockResolvedValue([])
     },
-    authOtpService: { sendOTPService: jest.fn(), validateOtpCode: jest.fn(), burnOtp: jest.fn() },
+    surveyOtpService: {
+      issueEmailOtp: jest.fn().mockResolvedValue(undefined),
+      createVoteWithOtp: jest.fn().mockResolvedValue(undefined),
+      hashIdentity: jest.fn((value: string) => identityHash.hash(value.trim().toLowerCase())),
+      hashIp: jest.fn((value: string) => identityHash.hash(value.trim()))
+    },
     identityHashService: identityHash,
     rateLimitService: { checkAndConsume: jest.fn().mockResolvedValue({ allowed: true }) },
     domainEventBus: { emit: jest.fn() },
@@ -86,21 +105,60 @@ function makeMocks(): Mocks {
 }
 
 function makeService(m: Mocks) {
-  return new SurveyService(
-    m.surveyRepository as never,
-    m.authOtpService as never,
-    m.identityHashService,
-    m.rateLimitService as never,
-    m.domainEventBus as never,
-    m.notificationService as never,
+  const cacheService = asCacheService(makeCacheServiceMock())
+  const otpRequestService = new SurveyOtpRequestService(
     m.surveyConfigService as never,
-    m.appConfigService as never,
-    m.auditService as never,
+    m.rateLimitService as never,
+    m.surveyOtpService as never,
+    m.recaptchaService as never
+  )
+  const readerVoteService = new ReaderVoteService(
+    m.surveyRepository as never,
+    m.surveyConfigService as never,
+    m.surveyOtpService as never,
     m.recaptchaService as never,
     m.redisService as never,
-    asCacheService(makeCacheServiceMock()),
-    m.voteTallyService as never,
     m.voteGateway as never
+  )
+  const guestVoteService = new GuestVoteService(otpRequestService, readerVoteService, m.voteTallyService as never)
+  const periodService = new SurveyPeriodService(
+    m.surveyRepository as never,
+    m.notificationService as never,
+    m.auditService as never,
+    cacheService
+  )
+  const importService = new SurveyImportService(m.surveyRepository as never, m.notificationService as never)
+  const finalizeEffects = new RankingFinalizeEffectsService(
+    m.surveyRepository as never,
+    m.auditService as never,
+    m.notificationService as never,
+    m.domainEventBus as never,
+    cacheService
+  )
+  const finalizePersistence = new RankingFinalizePersistenceService(m.surveyRepository as never)
+  const finalizeService = new RankingFinalizeService(
+    m.surveyRepository as never,
+    m.appConfigService as never,
+    finalizeEffects,
+    finalizePersistence
+  )
+  const internalQuery = new InternalRankingQueryService(m.surveyRepository as never, cacheService)
+  const voteContextQuery = new PublicVoteContextQueryService(
+    m.surveyRepository as never,
+    m.surveyConfigService as never,
+    cacheService
+  )
+  const publicRankingQuery = new PublicRankingQueryService(m.surveyRepository as never, cacheService)
+  const publicQuery = new PublicVoteQueryService(voteContextQuery, publicRankingQuery)
+  const aggregate = new RankingAggregateService(m.surveyRepository as never, m.appConfigService as never, cacheService)
+  const rankingQuery = new RankingQueryService(internalQuery, publicQuery, aggregate)
+  return new SurveyService(
+    guestVoteService,
+    periodService,
+    importService,
+    finalizeService,
+    rankingQuery,
+    m.surveyConfigService as never
   )
 }
 
@@ -134,10 +192,10 @@ describe('SurveyService.finalizeRanking — RankingFinalized event payload (B-VO
         '127.0.0.1'
       )
 
-      expect(m.surveyRepository.createReaderVote).toHaveBeenCalled()
+      expect(m.surveyOtpService.createVoteWithOtp).toHaveBeenCalled()
       expect(m.voteGateway.broadcastTally).toHaveBeenCalledWith(periodId)
-      expect(m.surveyRepository.createReaderVote.mock.invocationCallOrder[0]).toBeLessThan(
-        m.voteGateway.broadcastTally.mock.invocationCallOrder[0]
+      expect(m.surveyOtpService.createVoteWithOtp.mock.invocationCallOrder[0] as number).toBeLessThan(
+        m.voteGateway.broadcastTally.mock.invocationCallOrder[0] as number
       )
     })
 
@@ -172,7 +230,7 @@ describe('SurveyService.finalizeRanking — RankingFinalized event payload (B-VO
         )
       ).resolves.toEqual({ message: SurveyMessages.response.voteSubmitted })
 
-      expect(m.surveyRepository.createReaderVote).toHaveBeenCalled()
+      expect(m.surveyOtpService.createVoteWithOtp).toHaveBeenCalled()
     })
   })
 
@@ -271,8 +329,14 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
       'WEEKLY'
     )
     // stored vote carries the SAME deterministic hash + the derived type (unique now (period,type,identity))
-    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledWith(
-      expect.objectContaining({ identityHash: expectedIdentityHash, ipHash: expectedIpHash, publicationType: 'WEEKLY' })
+    expect(m.surveyOtpService.createVoteWithOtp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vote: expect.objectContaining({
+          identityHash: expectedIdentityHash,
+          ipHash: expectedIpHash,
+          publicationType: 'WEEKLY'
+        })
+      })
     )
   })
 
@@ -291,8 +355,8 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
       identityHash.hash(VOTE_BODY.identity),
       'MONTHLY'
     )
-    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledWith(
-      expect.objectContaining({ publicationType: 'MONTHLY' })
+    expect(m.surveyOtpService.createVoteWithOtp).toHaveBeenCalledWith(
+      expect.objectContaining({ vote: expect.objectContaining({ publicationType: 'MONTHLY' }) })
     )
   })
 
@@ -307,9 +371,7 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
     await expect(
       makeService(m).submitVote({ ...VOTE_BODY, seriesIds: [SERIES_A, SERIES_B] }, IP)
     ).rejects.toMatchObject({ status: 422 })
-    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
-    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
-    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 
   it('rejects a second vote from the same identity in the same period (dedup hit)', async () => {
@@ -319,7 +381,7 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
     m.surveyRepository.findReaderVoteByPeriodAndIdentity.mockResolvedValue({ id: 'existing' })
 
     await expect(makeService(m).submitVote(VOTE_BODY as never, IP)).rejects.toBeDefined()
-    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 
   it('rejects when seriesIds exceeds config.maxSeriesPerVote (dynamic)', async () => {
@@ -345,7 +407,7 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
         '1.1.1.1'
       )
     ).rejects.toBeDefined()
-    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 
   // PB-03 (6): seriesIds không trùng + mọi series phải SERIALIZED — validate TRƯỚC khi đụng OTP.
@@ -356,8 +418,7 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
       makeService(m).submitVote({ ...VOTE_BODY, seriesIds: [SERIES_A, SERIES_A] }, IP)
     ).rejects.toMatchObject({ status: 422 })
     expect(m.surveyRepository.findSeriesOwnershipByIds).not.toHaveBeenCalled()
-    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
-    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 
   it('rejects malformed (non-24-hex) seriesId with 422 — never reaches Prisma (no P2023/500)', async () => {
@@ -367,7 +428,7 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
       status: 422
     })
     expect(m.surveyRepository.findSeriesOwnershipByIds).not.toHaveBeenCalled()
-    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 
   it('rejects vote for a series that is not SERIALIZED (422, OTP not burned)', async () => {
@@ -380,9 +441,7 @@ describe('SurveyService.submitVote — deterministic identity hashing (B-VOT-03)
     await expect(
       makeService(m).submitVote({ ...VOTE_BODY, seriesIds: [SERIES_A, SERIES_B] }, IP)
     ).rejects.toMatchObject({ status: 422 })
-    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
-    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
-    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 })
 
@@ -858,7 +917,7 @@ describe('SurveyService captcha verification (Spec 15 Part C)', () => {
     )
 
     expect(m.recaptchaService.verify).toHaveBeenCalledWith('bad', IP)
-    expect(m.authOtpService.sendOTPService).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.issueEmailOtp).not.toHaveBeenCalled()
   })
 
   it('requestOtp: score dưới threshold → 403 và không gửi OTP', async () => {
@@ -869,7 +928,7 @@ describe('SurveyService captcha verification (Spec 15 Part C)', () => {
       CaptchaRejectedException
     )
 
-    expect(m.authOtpService.sendOTPService).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.issueEmailOtp).not.toHaveBeenCalled()
   })
 
   it('requestOtp: score=null dev/degraded → gửi OTP bình thường', async () => {
@@ -878,7 +937,7 @@ describe('SurveyService captcha verification (Spec 15 Part C)', () => {
 
     await expect(makeService(m).requestOtp({ identity: 'r@x.com', captchaToken: 'tok' }, IP)).resolves.toBeDefined()
 
-    expect(m.authOtpService.sendOTPService).toHaveBeenCalled()
+    expect(m.surveyOtpService.issueEmailOtp).toHaveBeenCalled()
   })
 
   it('requestOtp: IP rate-limit chặn trước captcha', async () => {
@@ -892,7 +951,7 @@ describe('SurveyService captcha verification (Spec 15 Part C)', () => {
     })
 
     expect(m.recaptchaService.verify).not.toHaveBeenCalled()
-    expect(m.authOtpService.sendOTPService).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.issueEmailOtp).not.toHaveBeenCalled()
   })
 
   it('submitVote: ok=false → 403 sau IP-limit nhưng trước validate/burn OTP', async () => {
@@ -904,9 +963,7 @@ describe('SurveyService captcha verification (Spec 15 Part C)', () => {
 
     expect(m.surveyRepository.countReaderVotesByPeriodAndIp).toHaveBeenCalled()
     expect(m.recaptchaService.verify).toHaveBeenCalledWith('tok', IP)
-    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
-    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
-    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 
   it('submitVote: IP cap chặn trước captcha và OTP', async () => {
@@ -917,8 +974,7 @@ describe('SurveyService captcha verification (Spec 15 Part C)', () => {
     await expect(makeService(m).submitVote(validVoteBody, IP)).rejects.toMatchObject({ status: 429 })
 
     expect(m.recaptchaService.verify).not.toHaveBeenCalled()
-    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
-    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -949,7 +1005,9 @@ describe('SurveyService captcha verification (Spec 15 Part C)', () => {
 
     await makeService(m).submitVote(validVoteBody, IP)
 
-    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledWith(expect.objectContaining(expected))
+    expect(m.surveyOtpService.createVoteWithOtp).toHaveBeenCalledWith(
+      expect.objectContaining({ vote: expect.objectContaining(expected) })
+    )
   })
 })
 
@@ -963,28 +1021,31 @@ describe('SurveyService public ranking discovery (Spec 15 Part B)', () => {
 
   it('có kỳ → period map ISO + results tái dùng getVoteResults theo id kỳ đó', async () => {
     const m = makeMocks()
+    const reflectedPeriodId = '507f1f77bcf86cd799439011'
     m.surveyRepository.findLatestReflectedPeriod.mockResolvedValue({
-      id: 'p1',
+      id: reflectedPeriodId,
       issueNumber: 7,
       reflectedIssueNumber: 5,
       startDate: new Date('2026-07-01T00:00:00.000Z'),
       endDate: new Date('2026-07-08T00:00:00.000Z'),
       status: 'REFLECTED'
     })
-    const service = makeService(m)
-    const spy = jest.spyOn(service, 'getVoteResults').mockResolvedValue({
-      surveyPeriodId: 'p1',
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue({
+      id: reflectedPeriodId,
       issueNumber: 7,
-      results: [
-        { rankPosition: 1, seriesId: 's1', seriesTitle: 'T', publicationType: null, voteCount: 3, rankChange: null }
-      ]
+      status: 'REFLECTED'
     })
+    m.surveyRepository.getRankingRecordsByPeriod.mockResolvedValue([
+      { rankPosition: 1, seriesId: 's1', voteCount: 3, rankChange: null }
+    ])
+    m.surveyRepository.findSeriesTitlesByIds.mockResolvedValue([{ id: 's1', title: 'T', publicationType: null }])
+    const service = makeService(m)
 
     const result = await service.getLatestVoteResults()
 
-    expect(spy).toHaveBeenCalledWith('p1', undefined)
+    expect(m.surveyRepository.findSurveyPeriodById).toHaveBeenCalledWith(reflectedPeriodId)
     expect(result.period).toEqual({
-      id: 'p1',
+      id: reflectedPeriodId,
       issueNumber: 7,
       reflectedIssueNumber: 5,
       startDate: '2026-07-01T00:00:00.000Z',
@@ -1066,11 +1127,13 @@ describe('Fix-2 G-5 - identity semantics', () => {
 
     await svc.requestOtp({ identity: 'reader@example.com', captchaToken: 'tok' }, '1.2.3.4')
 
-    expect(m.authOtpService.sendOTPService).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'reader@example.com' })
+    expect(m.surveyOtpService.issueEmailOtp).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: 'reader@example.com', ip: '1.2.3.4' })
     )
     expect(m.rateLimitService.checkAndConsume).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'survey:otp:identity:reader@example.com' })
+      expect.objectContaining({
+        key: `survey:otp:identity:v2:${identityHash.hash('reader@example.com')}`
+      })
     )
   })
 
@@ -1091,13 +1154,13 @@ describe('Fix-2 G-5 - identity semantics', () => {
       '1.2.3.4'
     )
 
-    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledWith(
-      expect.objectContaining({ authMethod: 'EMAIL_OTP' })
+    expect(m.surveyOtpService.createVoteWithOtp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identity: 'reader@example.com',
+        code: '123456',
+        vote: expect.objectContaining({ authMethod: 'EMAIL_OTP' })
+      })
     )
-    expect(m.authOtpService.validateOtpCode).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'reader@example.com' })
-    )
-    expect(m.authOtpService.burnOtp).toHaveBeenCalledWith('reader@example.com', expect.anything())
   })
 })
 
@@ -1116,7 +1179,11 @@ describe('Fix-2 G-4a - OTP cooldown', () => {
     await makeService(m).requestOtp({ identity: 'r@example.com', captchaToken: 't' }, '1.2.3.4')
 
     expect(m.rateLimitService.checkAndConsume).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'survey:otp:identity:r@example.com', max: 3, cooldownSec: 45 })
+      expect.objectContaining({
+        key: `survey:otp:identity:v2:${identityHash.hash('r@example.com')}`,
+        max: 3,
+        cooldownSec: 45
+      })
     )
   })
 
@@ -1134,7 +1201,7 @@ describe('Fix-2 G-4a - OTP cooldown', () => {
       status: 429,
       response: expect.objectContaining({ message: 'Error.VoteOtpRateLimit', retryAfter: 42 })
     })
-    expect(m.authOtpService.sendOTPService).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.issueEmailOtp).not.toHaveBeenCalled()
   })
 })
 
@@ -1155,8 +1222,7 @@ describe('SurveyService — ObjectId guard cho id lấy từ BODY (Spec 11 §1.1
     ).rejects.toMatchObject({ status: 404 })
 
     expect(m.surveyRepository.findSurveyPeriodById).not.toHaveBeenCalled()
-    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
-    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 
   it('importSurveyData: surveyPeriodId rác → 404, KHÔNG chạm repo', async () => {
@@ -1201,7 +1267,7 @@ describe('Fix-2 G-4b - IP vote limit per period', () => {
 
     await makeService(m).submitVote(body, '1.2.3.4')
 
-    expect(m.surveyRepository.createReaderVote).toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).toHaveBeenCalled()
   })
 
   it('at the IP cap returns 429 before OTP burn or vote creation', async () => {
@@ -1213,8 +1279,7 @@ describe('Fix-2 G-4b - IP vote limit per period', () => {
       status: 429,
       response: 'Error.VoteIpLimitExceeded'
     })
-    expect(m.authOtpService.burnOtp).not.toHaveBeenCalled()
-    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 })
 
@@ -1298,20 +1363,19 @@ describe('SurveyService IP quota reservation nguyên tử (Spec 15.1 hardening)'
       expect.any(Number)
     )
     expect(m.redisService.decrSafe).toHaveBeenCalledTimes(1)
-    expect(m.authOtpService.validateOtpCode).not.toHaveBeenCalled()
-    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).not.toHaveBeenCalled()
   })
 
   it('OTP sai → refund reservation (quota chỉ đếm phiếu ghi thật)', async () => {
     const m = makeMocks()
     primeVote(m)
     m.redisService.incrWithTtl.mockResolvedValue(1)
-    m.authOtpService.validateOtpCode.mockRejectedValue(new Error('bad otp'))
+    m.surveyOtpService.createVoteWithOtp.mockRejectedValue(new Error('bad otp'))
 
     await expect(makeService(m).submitVote(voteBody, IP)).rejects.toBeDefined()
 
     expect(m.redisService.decrSafe).toHaveBeenCalledTimes(1)
-    expect(m.surveyRepository.createReaderVote).not.toHaveBeenCalled()
+    expect(m.surveyOtpService.createVoteWithOtp).toHaveBeenCalled()
   })
 
   it('danh tính đã vote (409) → refund reservation', async () => {
@@ -1332,7 +1396,7 @@ describe('SurveyService IP quota reservation nguyên tử (Spec 15.1 hardening)'
 
     await expect(makeService(m).submitVote(voteBody, IP)).resolves.toBeDefined()
 
-    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledTimes(1)
+    expect(m.surveyOtpService.createVoteWithOtp).toHaveBeenCalledTimes(1)
     expect(m.redisService.decrSafe).not.toHaveBeenCalled()
   })
 
@@ -1340,7 +1404,7 @@ describe('SurveyService IP quota reservation nguyên tử (Spec 15.1 hardening)'
     const m = makeMocks()
     primeVote(m)
     m.redisService.incrWithTtl.mockResolvedValue(null)
-    m.authOtpService.validateOtpCode.mockRejectedValue(new Error('bad otp'))
+    m.surveyOtpService.createVoteWithOtp.mockRejectedValue(new Error('bad otp'))
 
     await expect(makeService(m).submitVote(voteBody, IP)).rejects.toBeDefined()
 
@@ -1354,7 +1418,7 @@ describe('SurveyService IP quota reservation nguyên tử (Spec 15.1 hardening)'
 
     await expect(makeService(m).submitVote(voteBody, IP)).resolves.toBeDefined()
 
-    expect(m.surveyRepository.createReaderVote).toHaveBeenCalledTimes(1)
+    expect(m.surveyOtpService.createVoteWithOtp).toHaveBeenCalledTimes(1)
   })
 
   it('DB count đã đạt trần → 429 TRƯỚC khi reservation (không đụng Redis)', async () => {
@@ -1424,13 +1488,20 @@ describe('SurveyService.getVoteResults — filter publicationType (Spec 15.2, b�
       startDate: null,
       endDate: null
     })
-    const service = makeService(m)
-    const spy = jest.spyOn(service, 'getVoteResults').mockResolvedValue({
-      surveyPeriodId: P,
+    m.surveyRepository.findSurveyPeriodById.mockResolvedValue({
+      id: P,
       issueNumber: 12,
-      results: []
+      status: 'REFLECTED'
     })
-    await service.getLatestVoteResults('WEEKLY')
-    expect(spy).toHaveBeenCalledWith(P, 'WEEKLY')
+    m.surveyRepository.getRankingRecordsByPeriod.mockResolvedValue([
+      { rankPosition: 1, seriesId: 'weekly', voteCount: 3, rankChange: null },
+      { rankPosition: 2, seriesId: 'monthly', voteCount: 2, rankChange: null }
+    ])
+    m.surveyRepository.findSeriesTitlesByIds.mockResolvedValue([
+      { id: 'weekly', title: 'W', publicationType: 'WEEKLY' },
+      { id: 'monthly', title: 'M', publicationType: 'MONTHLY' }
+    ])
+    const result = await makeService(m).getLatestVoteResults('WEEKLY')
+    expect(result.results).toEqual([expect.objectContaining({ seriesId: 'weekly', publicationType: 'WEEKLY' })])
   })
 })

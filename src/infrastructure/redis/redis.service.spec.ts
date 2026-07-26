@@ -7,6 +7,7 @@ describe('RedisService', () => {
       ping: jest.fn().mockResolvedValue('PONG'),
       set: jest.fn().mockResolvedValue('OK'),
       eval: jest.fn().mockResolvedValue(1),
+      quit: jest.fn().mockResolvedValue('OK'),
       ...over
     }) as never
 
@@ -60,5 +61,21 @@ describe('RedisService', () => {
 
     await expect(svc.decrSafe('survey:vote:ipq:p1:h1')).resolves.toBeUndefined()
     expect(decr).toHaveBeenCalledWith('survey:vote:ipq:p1:h1')
+  })
+
+  it('closes every owned Redis connection once during application shutdown', async () => {
+    const generalQuit = jest.fn().mockResolvedValue('OK')
+    const bullQuit = jest.fn().mockResolvedValue('OK')
+    const websocketQuit = jest.fn().mockResolvedValue('OK')
+    const general = makeRedis({ quit: generalQuit })
+    const bull = makeRedis({ quit: bullQuit })
+    const websocket = makeRedis({ quit: websocketQuit })
+    const svc = new RedisService(general, bull, websocket)
+
+    await svc.onApplicationShutdown()
+
+    expect(generalQuit).toHaveBeenCalledTimes(1)
+    expect(bullQuit).toHaveBeenCalledTimes(1)
+    expect(websocketQuit).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { API, DATABASE_URL } from './lib/env.js'
+import { API, DATABASE_URL, TEST_DATABASE_NAME } from './lib/env.js'
 
 // Thứ tự chạy (theo spec §19): 11 → 01 → 06 → 02 → 03 → 04 → 05 → 07 → 08 → 10 → 12-13 → rbac → ws → cron → events
 const FILES = [
@@ -22,7 +22,7 @@ const FILES = [
 ]
 
 const main = async () => {
-  console.log(`[flowtest] DATABASE_URL=${DATABASE_URL}`)
+  console.log(`[flowtest] database=${TEST_DATABASE_NAME} (isolated test target)`)
   console.log(`[flowtest] API=${API}`)
 
   // Probe server

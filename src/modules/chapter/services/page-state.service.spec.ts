@@ -7,9 +7,12 @@ describe('PageStateService (Spec 18)', () => {
     findPageById: jest.fn(),
     updatePageStatus: jest.fn(),
     findPagesByChapterId: jest.fn()
-  } as any
-  const audit = { record: jest.fn() } as any
-  const service = new PageStateService(repo, audit)
+  }
+  const audit = { record: jest.fn() }
+  const service = new PageStateService(
+    repo as unknown as ConstructorParameters<typeof PageStateService>[0],
+    audit as unknown as ConstructorParameters<typeof PageStateService>[1]
+  )
 
   beforeEach(() => jest.clearAllMocks())
 

@@ -1,0 +1,11 @@
+{
+  "SchemaVersion": 2,
+  "Results": [
+    {
+      "Target": "safe-clean-fixture",
+      "Class": "lang-pkgs",
+      "Type": "fixture",
+      "Vulnerabilities": []
+    }
+  ]
+}

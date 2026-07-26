@@ -1,0 +1,44 @@
+groups:
+  - name: mangaka-backend
+    rules:
+      - alert: MangakaRedisAndCaptchaDegraded
+        expr: |
+          sum(increase(mangaka_security_degraded_total{control="captcha"}[5m])) > 0
+          and
+          sum(increase(mangaka_security_degraded_total{control="redis_rate_limit"}[5m])) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: CAPTCHA and Redis rate-limit controls are degraded together
+
+      - alert: MangakaQueueFailures
+        expr: increase(mangaka_queue_jobs_total{outcome="failure"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: A backend queue is exhausting its retry budget
+
+      - alert: MangakaAiFailures
+        expr: increase(mangaka_ai_inference_total{outcome="failure"}[10m]) >= 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: AI region proposal calls are repeatedly failing
+
+      - alert: MangakaDiskPressure
+        expr: mangaka_disk_free_bytes < 5368709120
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: API data filesystem has less than 5 GiB free
+
+      - alert: MangakaApiProcessRestarted
+        expr: changes(mangaka_process_start_time_seconds[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: API process restarted within the last 15 minutes

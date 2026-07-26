@@ -24,7 +24,11 @@ function makeDeps() {
     audit: { record: jest.fn().mockResolvedValue(undefined) }
   }
 }
-const make = (d: any) => new MeService(d.repo, d.audit)
+const make = (d: ReturnType<typeof makeDeps>) =>
+  new MeService(
+    d.repo as unknown as ConstructorParameters<typeof MeService>[0],
+    d.audit as unknown as ConstructorParameters<typeof MeService>[1]
+  )
 
 describe('MeService', () => {
   it('getMe maps createdAt to ISO and never leaks password', async () => {
@@ -73,7 +77,7 @@ describe('MeService', () => {
   it('updateMe throws 404 when the user does not exist', async () => {
     const d = makeDeps()
     d.repo.findMeById.mockResolvedValue(null)
-    await expect(make(d).updateMe(USER_ID, { name: 'X' } as any)).rejects.toBe(UserNotFoundException)
+    await expect(make(d).updateMe(USER_ID, { name: 'X' })).rejects.toBe(UserNotFoundException)
     expect(d.repo.updateMe).not.toHaveBeenCalled()
   })
 })

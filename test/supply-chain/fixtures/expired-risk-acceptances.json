@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "acceptances": [
+    {
+      "id": "RA-2000-001",
+      "findingId": "CVE-2000-0001",
+      "scope": "Negative test fixture",
+      "rationale": "This fixture must be rejected because it is expired.",
+      "compensatingControls": ["Negative test only"],
+      "owner": "fixture-owner@example.invalid",
+      "approvedBy": "fixture-approver@example.invalid",
+      "expiresOn": "2000-01-01"
+    }
+  ]
+}

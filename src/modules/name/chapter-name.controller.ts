@@ -6,13 +6,13 @@ import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
-import { NameService } from './name.service'
+import { NameFacade } from './services/name.facade'
 import {
   AddNamePageBodyDto,
   CreateChapterNameBodyDto,
   NameListResDto,
   NameResDto,
-  ReasonBodyDto,
+  NameReasonBodyDto,
   UpdateNamePagesBodyDto
 } from './dto/name.dto'
 import {
@@ -31,7 +31,7 @@ import {
 @ApiBearerAuth()
 @Controller('chapters/:id/names')
 export class ChapterNameController {
-  constructor(private readonly nameService: NameService) {}
+  constructor(private readonly nameService: NameFacade) {}
 
   @Post()
   @ApiOperation({
@@ -89,7 +89,7 @@ export class ChapterNameController {
   requestRevision(
     @Param('id') id: string,
     @Param('nameId') nameId: string,
-    @Body() body: ReasonBodyDto,
+    @Body() body: NameReasonBodyDto,
     @ActiveUser('userId') userId: string
   ) {
     return this.nameService.chapterRequestRevision(userId, id, nameId, body.reason)

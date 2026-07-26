@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common'
 import { $Enums, AuditEntityType, BoardMessage } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { BoardRepository } from '../board.repo'
 import * as Errors from '../errors/board.errors'
 
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 const PHASE_ORDER: Record<$Enums.BoardSessionPhase, number> = { PRESENTING: 0, QA: 1, VOTING: 2 }
 const MESSAGE_MAX_LENGTH = 1000
 
@@ -66,7 +66,7 @@ export class BoardMeetingService {
   }
 
   async advancePhase(sessionId: string, actorId: string, roleName: string, targetPhase: $Enums.BoardSessionPhase) {
-    if (!OBJECT_ID_RE.test(sessionId)) throw Errors.SessionNotFoundException
+    if (!isObjectId(sessionId)) throw Errors.SessionNotFoundException
     const session = await this.boardRepo.findSessionById(sessionId)
     if (!session) throw Errors.SessionNotFoundException
     if (roleName !== RoleName.SUPER_ADMIN && session.creatorId !== actorId) throw Errors.NotSessionCreatorException
@@ -96,7 +96,7 @@ export class BoardMeetingService {
     sessionId: string,
     content: string
   ): Promise<SendMessageResult> {
-    if (!OBJECT_ID_RE.test(sessionId)) return { status: 'DENIED', reason: 'NOT_PARTICIPANT' }
+    if (!isObjectId(sessionId)) return { status: 'DENIED', reason: 'NOT_PARTICIPANT' }
     const session = await this.boardRepo.findSessionById(sessionId)
     if (!session || !this.isParticipant(session, userId, roleName)) {
       return { status: 'DENIED', reason: 'NOT_PARTICIPANT' }
@@ -129,7 +129,7 @@ export class BoardMeetingService {
     sessionId: string,
     page: { limit: number; offset: number }
   ): Promise<{ items: BoardMessageView[]; total: number }> {
-    if (!OBJECT_ID_RE.test(sessionId)) throw Errors.SessionNotFoundException
+    if (!isObjectId(sessionId)) throw Errors.SessionNotFoundException
     const session = await this.boardRepo.findSessionById(sessionId)
     if (!session) throw Errors.SessionNotFoundException
     if (!this.isParticipant(session, userId, roleName)) throw Errors.NotSessionParticipantException

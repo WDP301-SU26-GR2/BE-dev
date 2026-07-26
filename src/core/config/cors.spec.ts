@@ -35,4 +35,8 @@ describe('parseCorsOrigins', () => {
   it('collapses multiple trailing slashes too', () => {
     expect(parseCorsOrigins('https://app.example.com///')).toEqual(['https://app.example.com'])
   })
+
+  it.each(['', '*', 'http://app.example.com'])('rejects unsafe production origins', (raw) => {
+    expect(() => parseCorsOrigins(raw, 'production')).toThrow('CORS_ORIGINS')
+  })
 })

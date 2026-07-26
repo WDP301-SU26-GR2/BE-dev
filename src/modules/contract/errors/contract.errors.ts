@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException
 } from '@nestjs/common'
 import { ContractMessages } from '../contract.messages'
@@ -14,7 +15,7 @@ export const ContractErrors = {
   NotFound: () => new NotFoundException(E.contractNotFound),
 
   // B-CON-01: chỉ được tạo hợp đồng sau khi series đã được Board serial hoá (SERIALIZED)
-  SeriesNotSerialized: () => new ConflictException([{ message: 'Error.SeriesNotSerialized', path: 'seriesId' }]),
+  SeriesNotSerialized: () => new ConflictException([{ message: E.seriesNotSerialized, path: 'seriesId' }]),
 
   // B-CON-07: route revenue chỉ áp dụng cho hợp đồng REVENUE_SHARE đã FULLY_EXECUTED
   RevenueNotApplicable: () => new ConflictException(E.revenueNotApplicable),
@@ -58,6 +59,11 @@ export const ContractErrors = {
 
   ContractNotExecutedForPdf: () => new ConflictException([{ message: E.contractNotExecutedForPdf, path: 'id' }]),
 
+  ReplacementActivationInvalid: () =>
+    new ConflictException([{ message: E.replacementActivationInvalid, path: 'contractId' }]),
+
+  ReplacementActivationUnavailable: () => new ServiceUnavailableException(E.replacementActivationUnavailable),
+
   NotAuthorizedInBoard: () =>
     new ForbiddenException(
       E.notAuthorizedInBoard,
@@ -70,34 +76,34 @@ export const ContractErrors = {
   // --- Spec 4: ContractAmendment errors (chuẩn BE-A Error.PascalCase) ---
 
   // Chỉ hợp đồng FULLY_EXECUTED mới được tạo phụ lục (BR-CONTRACT-01)
-  ContractNotAmendable: () => new ConflictException([{ message: 'Error.ContractNotAmendable', path: 'contractId' }]),
+  ContractNotAmendable: () => new ConflictException([{ message: E.contractNotAmendable, path: 'contractId' }]),
 
   // Đã có 1 phụ lục chưa kết thúc (DRAFT/PENDING_SIGNATURES) trên hợp đồng này
-  OpenAmendmentExists: () => new ConflictException([{ message: 'Error.OpenAmendmentExists', path: 'contractId' }]),
+  OpenAmendmentExists: () => new ConflictException([{ message: E.openAmendmentExists, path: 'contractId' }]),
 
-  AmendmentNotFound: () => new NotFoundException([{ message: 'Error.AmendmentNotFound', path: 'id' }]),
+  AmendmentNotFound: () => new NotFoundException([{ message: E.amendmentNotFound, path: 'id' }]),
 
   // Chỉ sửa được khi DRAFT
-  AmendmentNotEditable: () => new ConflictException([{ message: 'Error.AmendmentNotEditable', path: 'status' }]),
+  AmendmentNotEditable: () => new ConflictException([{ message: E.amendmentNotEditable, path: 'status' }]),
 
   // Chỉ submit được khi DRAFT
-  AmendmentNotSubmittable: () => new ConflictException([{ message: 'Error.AmendmentNotSubmittable', path: 'status' }]),
+  AmendmentNotSubmittable: () => new ConflictException([{ message: E.amendmentNotSubmittable, path: 'status' }]),
 
   // Submit nhưng không có field term nào thay đổi
   AmendmentNoChanges: () =>
-    new UnprocessableEntityException([{ message: 'Error.AmendmentNoChanges', path: 'changedClauses' }]),
+    new UnprocessableEntityException([{ message: E.amendmentNoChanges, path: 'changedClauses' }]),
 
   // Ký/reject nhưng phụ lục không ở PENDING_SIGNATURES
   AmendmentNotPendingSignatures: () =>
-    new ConflictException([{ message: 'Error.AmendmentNotPendingSignatures', path: 'status' }]),
+    new ConflictException([{ message: E.amendmentNotPendingSignatures, path: 'status' }]),
 
   // FULL_BUYOUT: Mangaka không cần ký (Board toàn quyền — BR-CONTRACT-03)
   MangakaSignNotRequired: () => new ConflictException(E.mangakaSignNotRequired),
 
   // Void nhưng phụ lục đã terminal (FULLY_EXECUTED/VOIDED)
-  AmendmentNotVoidable: () => new ConflictException([{ message: 'Error.AmendmentNotVoidable', path: 'status' }]),
+  AmendmentNotVoidable: () => new ConflictException([{ message: E.amendmentNotVoidable, path: 'status' }]),
 
   // Amendment đổi FULL_BUYOUT sang tỉ lệ share (không cho — phải làm HĐ mới)
   OwnershipMismatch: () =>
-    new UnprocessableEntityException([{ message: 'Error.OwnershipMismatch', path: 'mangakaOwnershipPct' }])
+    new UnprocessableEntityException([{ message: E.ownershipMismatch, path: 'mangakaOwnershipPct' }])
 }

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { VotingConfig } from '@prisma/client'
 import { SurveyRepository } from '../survey.repo'
+import { VotingConfigBodyDto } from '../dto/survey.dto'
+import { mapVotingConfig } from './survey.mapper'
 
 const CACHE_TTL_MS = 30_000
 
@@ -23,5 +25,25 @@ export class SurveyConfigService {
 
   invalidate(): void {
     this.cached = null
+  }
+
+  async getResponse() {
+    return mapVotingConfig(await this.get())
+  }
+
+  async update(body: VotingConfigBodyDto) {
+    const config = await this.surveyRepository.updateVotingConfig({
+      authMode: body.authMode,
+      maxSeriesPerVote: body.maxSeriesPerVote,
+      otpExpirySeconds: body.otpExpirySeconds,
+      otpMaxAttempts: body.otpMaxAttempts,
+      ipRateLimit: body.ipRateLimit,
+      phoneRateLimit: body.phoneRateLimit,
+      otpCooldownSeconds: body.otpCooldownSeconds,
+      ipVotesPerPeriod: body.ipVotesPerPeriod,
+      captchaThreshold: body.captchaThreshold
+    })
+    this.invalidate()
+    return mapVotingConfig(config)
   }
 }

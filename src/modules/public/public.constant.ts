@@ -9,5 +9,3 @@ export const PUBLIC_SERIES_STATUSES: SeriesStatus[] = [
   SeriesStatus.COMPLETED,
   SeriesStatus.CANCELLED
 ]
-
-export const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/

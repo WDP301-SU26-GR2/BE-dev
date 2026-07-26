@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { PublicationType } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { SurveyPeriodNotFoundException, SurveyPeriodNotOpenException } from '../errors/survey.errors'
 import { SurveyRepository } from '../survey.repo'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 export type VoteTallyPayload = {
   periodId: string
@@ -40,7 +39,7 @@ export class VoteTallyService {
   }
 
   async getLiveTally(periodId: string): Promise<VoteTallyPayload> {
-    if (!OBJECT_ID_RE.test(periodId)) throw SurveyPeriodNotFoundException
+    if (!isObjectId(periodId)) throw SurveyPeriodNotFoundException
 
     const period = await this.repository.findSurveyPeriodById(periodId)
     if (!period) throw SurveyPeriodNotFoundException

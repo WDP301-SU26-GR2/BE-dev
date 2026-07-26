@@ -8,12 +8,22 @@ import { BoardSessionStateService } from './services/board-session-state.service
 import { BoardSchedulerService } from './services/board-scheduler.service'
 import { BoardRosterService } from './services/board-roster.service'
 import { BoardMeetingService } from './services/board-meeting.service'
+import { BoardFacade } from './services/board.facade'
+import { BoardQueryService } from './services/board-query.service'
+import { BoardSessionWorkflowService } from './services/board-session-workflow.service'
+import { BoardDecisionWorkflowService } from './services/board-decision-workflow.service'
+import { BoardGovernanceService } from './services/board-governance.service'
 
 @Module({
   imports: [NotificationModule],
   controllers: [BoardController],
   providers: [
     BoardService,
+    BoardFacade,
+    BoardQueryService,
+    BoardSessionWorkflowService,
+    BoardDecisionWorkflowService,
+    BoardGovernanceService,
     BoardRepository,
     BoardGateway,
     BoardSessionStateService,

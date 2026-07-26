@@ -1,5 +1,6 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { validateTestEnvironment } from './environment-guard.js'
 
 // Tự load `.env.flowtest` (không dựa --env-file để flowtest:one cũng chạy được trần).
 // Format hỗ trợ: KEY=value, KEY="value", KEY='value', KEY="value" (kể cả giá trị có '#').
@@ -10,6 +11,14 @@ import * as path from 'node:path'
 // REDIS_URL db0 lọt vào cron-context → enqueue notification vào QUEUE CỦA DEV SERVER →
 // dev server (nối Mongo DEV) tranh job → notification "biến mất" khỏi DB flowtest ngẫu nhiên.
 // Flowtest là môi trường hermetic: .env.flowtest là nguồn sự thật duy nhất cho MỌI biến.
+const explicitSafetyEnvironment = {
+  NODE_ENV: process.env.NODE_ENV,
+  PORT: process.env.PORT,
+  TEST_DATABASE_URL: process.env.TEST_DATABASE_URL,
+  TEST_REDIS_URL: process.env.TEST_REDIS_URL,
+  PRODUCTION_DATABASE_HOSTS: process.env.PRODUCTION_DATABASE_HOSTS
+}
+
 const envPath = path.resolve(process.cwd(), '.env.flowtest')
 if (fs.existsSync(envPath)) {
   for (const rawLine of fs.readFileSync(envPath, 'utf-8').split('\n')) {
@@ -26,16 +35,22 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-export const DATABASE_URL = process.env.DATABASE_URL ?? ''
-export const API = `http://localhost:${process.env.PORT ?? '4100'}`
-
-// 🔴 GUARD SỐNG CÒN: chống wipe nhầm DB dev/prod.
-// lib/seed.ts (wipeDb) chạy deleteMany trên MỌI collection — nếu trỏ nhầm DB là mất sạch.
-if (!DATABASE_URL.includes('flowtest')) {
-  console.error(`[flowtest] DATABASE_URL không chứa 'flowtest' — DỪNG để bảo vệ DB. Got: ${DATABASE_URL || '(empty)'}`)
-  process.exit(2)
+// Safety controls supplied by CI/caller always win over the convenience file.
+// This prevents `.env.flowtest` from downgrading NODE_ENV or replacing the isolated targets.
+for (const [key, value] of Object.entries(explicitSafetyEnvironment)) {
+  if (value != null) process.env[key] = value
 }
 
-// Tránh BE load .env default (ghi đè DATABASE_URL và các vars khác)
-// khi nest AppModule khởi chạy.
-process.env.NODE_ENV = process.env.NODE_ENV ?? 'flowtest'
+// Guard runs before PrismaClient is constructed in seed.ts. It never logs credentials.
+const testEnvironment = validateTestEnvironment(process.env)
+process.env.DATABASE_URL = testEnvironment.databaseUrl
+process.env.REDIS_URL = testEnvironment.redisUrl
+
+export const DATABASE_URL = testEnvironment.databaseUrl
+export const API = `http://localhost:${process.env.PORT ?? '4100'}`
+export const TEST_DATABASE_NAME = testEnvironment.databaseName
+export const TEST_REDIS_DATABASE = testEnvironment.redisDatabase
+
+console.info(
+  `[flowtest] isolated targets: Mongo=${testEnvironment.sanitizedDatabaseTarget}, Redis=${testEnvironment.sanitizedRedisTarget}`
+)

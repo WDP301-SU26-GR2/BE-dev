@@ -1,23 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { AuditEntityType, NotificationType, PublicationType, SeriesStatus } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
+import { PublicationType, SeriesStatus } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
-import { AuditService } from 'src/modules/audit/audit.service'
-import { NotificationService } from 'src/modules/notification/notification.service'
 import { SeriesMessages } from '../series.messages'
 import {
   SeriesNotFoundException,
   SeriesNotInCancellingStateException,
-  SeriesNotInEndingStateException,
-  SeriesNotProposableForCompletionException
+  SeriesNotInEndingStateException
 } from '../errors/series.errors'
 import { SeriesRepository } from '../series.repo'
 import { requireAssignedEditor } from './series-editor.guard'
-import { requireSeriesParticipant } from './series-participant.guard'
 import { ProposeCompletionBodyType } from '../schemas/series-schemas'
 import { SeriesStateService } from './series-state.service'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
+import { SeriesLifecycleNotificationService } from './series-lifecycle-notification.service'
+import { SeriesCompletionProposalService } from './series-completion-proposal.service'
 
 @Injectable()
 export class SeriesLifecycleService {
@@ -27,30 +24,9 @@ export class SeriesLifecycleService {
     private readonly seriesStateService: SeriesStateService,
     private readonly seriesRepository: SeriesRepository,
     private readonly eventBus: DomainEventBus,
-    private readonly notificationService: NotificationService,
-    private readonly auditService: AuditService
+    private readonly lifecycleNotifications: SeriesLifecycleNotificationService,
+    private readonly completionProposalService: SeriesCompletionProposalService
   ) {}
-
-  private async notifyOwners(
-    series: { mangakaId?: string | null; editorId?: string | null },
-    referenceType: string,
-    content: string,
-    seriesId: string
-  ) {
-    await Promise.all(
-      [series.mangakaId, series.editorId]
-        .filter((id): id is string => !!id)
-        .map((recipientId) =>
-          this.notificationService.notifySafe({
-            recipientId,
-            type: NotificationType.SYSTEM,
-            referenceId: seriesId,
-            referenceType,
-            content
-          })
-        )
-    )
-  }
 
   // Called by listener (system, changedBy=null) when Board APPROVED CANCELLATION.
   async cancel(seriesId: string, endingChapterAllowance?: number) {
@@ -60,7 +36,7 @@ export class SeriesLifecycleService {
     const series = await this.seriesStateService.transition(seriesId, SeriesStatus.CANCELLING, { changedBy: null })
     await this.seriesRepository.setEndingChapterAllowance(seriesId, allowance, chapterCount)
     this.eventBus.emit(DomainEvent.SeriesCancelling, { seriesId })
-    await this.notifyOwners(
+    await this.lifecycleNotifications.notifyOwners(
       series,
       'SERIES_CANCELLING',
       SeriesMessages.notification.seriesCancelling(allowance),
@@ -72,7 +48,12 @@ export class SeriesLifecycleService {
   // Called by listener when Board APPROVED COMPLETION.
   async complete(seriesId: string) {
     const series = await this.seriesStateService.transition(seriesId, SeriesStatus.COMPLETING, { changedBy: null })
-    await this.notifyOwners(series, 'SERIES_COMPLETING', SeriesMessages.notification.seriesCompleting, seriesId)
+    await this.lifecycleNotifications.notifyOwners(
+      series,
+      'SERIES_COMPLETING',
+      SeriesMessages.notification.seriesCompleting,
+      seriesId
+    )
     this.eventBus.emit(DomainEvent.ContractAmendmentRequested, {
       seriesId,
       trigger: 'COMPLETION',
@@ -90,7 +71,7 @@ export class SeriesLifecycleService {
     await this.seriesRepository.updatePublicationType(seriesId, publicationType)
     const series = await this.seriesRepository.findById(seriesId)
     if (series) {
-      await this.notifyOwners(
+      await this.lifecycleNotifications.notifyOwners(
         series,
         'SERIES_FORMAT_CHANGED',
         SeriesMessages.notification.seriesFormatChanged,
@@ -106,7 +87,7 @@ export class SeriesLifecycleService {
 
   // Editor-driven. Guard assigned editor + SERIALIZED (transition table enforces).
   async hiatus(seriesId: string, actorId: string, reason: string, expectedReturnDate?: string) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
     const current = await this.seriesRepository.findById(seriesId)
     if (!current) throw SeriesNotFoundException
     requireAssignedEditor(current, actorId)
@@ -117,12 +98,17 @@ export class SeriesLifecycleService {
     })
     await this.seriesRepository.setHiatusStartedAt(seriesId, new Date())
     this.eventBus.emit(DomainEvent.SeriesHiatusStarted, { seriesId })
-    await this.notifyOwners(series, 'SERIES_HIATUS_STARTED', SeriesMessages.notification.seriesHiatusStarted, seriesId)
+    await this.lifecycleNotifications.notifyOwners(
+      series,
+      'SERIES_HIATUS_STARTED',
+      SeriesMessages.notification.seriesHiatusStarted,
+      seriesId
+    )
     return series
   }
 
   async resume(seriesId: string, actorId: string) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
     const current = await this.seriesRepository.findById(seriesId)
     if (!current) throw SeriesNotFoundException
     requireAssignedEditor(current, actorId)
@@ -132,25 +118,40 @@ export class SeriesLifecycleService {
     const series = await this.seriesStateService.transition(seriesId, SeriesStatus.SERIALIZED, { changedBy: actorId })
     await this.seriesRepository.setHiatusStartedAt(seriesId, null)
     this.eventBus.emit(DomainEvent.SeriesHiatusEnded, { seriesId, pausedMs })
-    await this.notifyOwners(series, 'SERIES_RESUMED', SeriesMessages.notification.seriesResumed, seriesId)
+    await this.lifecycleNotifications.notifyOwners(
+      series,
+      'SERIES_RESUMED',
+      SeriesMessages.notification.seriesResumed,
+      seriesId
+    )
     return series
   }
 
   // Editor manually closes: CANCELLING→CANCELLED / COMPLETING→COMPLETED.
   async finalizeEnding(seriesId: string, actorId: string) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
     const current = await this.seriesRepository.findById(seriesId)
     if (!current) throw SeriesNotFoundException
     requireAssignedEditor(current, actorId)
     if (current.status === SeriesStatus.CANCELLING) {
       const series = await this.seriesStateService.transition(seriesId, SeriesStatus.CANCELLED, { changedBy: actorId })
       this.eventBus.emit(DomainEvent.SeriesCancelled, { seriesId })
-      await this.notifyOwners(series, 'SERIES_CANCELLED', SeriesMessages.notification.seriesCancelled, seriesId)
+      await this.lifecycleNotifications.notifyOwners(
+        series,
+        'SERIES_CANCELLED',
+        SeriesMessages.notification.seriesCancelled,
+        seriesId
+      )
       return series
     }
     if (current.status === SeriesStatus.COMPLETING) {
       const series = await this.seriesStateService.transition(seriesId, SeriesStatus.COMPLETED, { changedBy: actorId })
-      await this.notifyOwners(series, 'SERIES_COMPLETED', SeriesMessages.notification.seriesCompleted, seriesId)
+      await this.lifecycleNotifications.notifyOwners(
+        series,
+        'SERIES_COMPLETED',
+        SeriesMessages.notification.seriesCompleted,
+        seriesId
+      )
       return series
     }
     throw SeriesNotInEndingStateException
@@ -160,57 +161,19 @@ export class SeriesLifecycleService {
   // it persists `completionProposal` so the counterparty (and downstream flows) can see the intent.
   // The proposal becomes actionable only when escalated to the Board (out of scope for this method).
   async proposeCompletion(seriesId: string, actorId: string, roleName: string, body: ProposeCompletionBodyType) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
-    const series = await this.seriesRepository.findById(seriesId)
-    if (!series) throw SeriesNotFoundException
-    requireSeriesParticipant(series, actorId)
-    if (series.status !== SeriesStatus.SERIALIZED && series.status !== SeriesStatus.HIATUS)
-      throw SeriesNotProposableForCompletionException
-
-    const updated = await this.seriesRepository.setCompletionProposal(seriesId, {
-      proposedByRole: roleName,
-      proposedById: actorId,
-      reason: body.reason,
-      proposedEndingChapters: body.proposedEndingChapters ?? null,
-      proposedAt: new Date()
-    })
+    return this.completionProposalService.propose(seriesId, actorId, roleName, body)
 
     // Spec 9 §2.1: proposal không đi qua SeriesStateService (không đổi status) nên phải ghi
     // audit riêng — best-effort, AuditService tự nuốt lỗi.
-    await this.auditService.record({
-      actorId,
-      entityType: AuditEntityType.SERIES,
-      entityId: seriesId,
-      action: 'COMPLETION_PROPOSED',
-      reason: body.reason
-    })
 
     // Notify the counterparty. Same call signature as `notifyOwners` but only one side, to keep
     // the proposal intent between the two participants (Board not auto-notified).
-    if (roleName === 'MANGAKA' && series.editorId) {
-      await this.notificationService.notifySafe({
-        recipientId: series.editorId,
-        type: NotificationType.SYSTEM,
-        referenceId: seriesId,
-        referenceType: 'SERIES_COMPLETION_PROPOSED',
-        content: SeriesMessages.notification.completionProposedToEditor
-      })
-    } else if (roleName === 'EDITOR' && series.mangakaId) {
-      await this.notificationService.notifySafe({
-        recipientId: series.mangakaId,
-        type: NotificationType.SYSTEM,
-        referenceId: seriesId,
-        referenceType: 'SERIES_COMPLETION_PROPOSED',
-        content: SeriesMessages.notification.completionProposedToMangaka
-      })
-    }
-    return updated
   }
 
   // PB-06: Editor closes a CANCELLING series without an ending — mangaka could not deliver.
   // Req 1.11c. The Board already authorized CANCELLATION; this just finalizes without ending chapters.
   async forceCancel(seriesId: string, actorId: string) {
-    if (!OBJECT_ID_RE.test(seriesId)) throw SeriesNotFoundException
+    if (!isObjectId(seriesId)) throw SeriesNotFoundException
     const series = await this.seriesRepository.findById(seriesId)
     if (!series) throw SeriesNotFoundException
     requireAssignedEditor(series, actorId)
@@ -220,7 +183,12 @@ export class SeriesLifecycleService {
       reason: SeriesMessages.reason.forceCancelNoEnding
     })
     this.eventBus.emit(DomainEvent.SeriesCancelled, { seriesId })
-    await this.notifyOwners(updated, 'SERIES_CANCELLED', SeriesMessages.notification.seriesCancelled, seriesId)
+    await this.lifecycleNotifications.notifyOwners(
+      updated,
+      'SERIES_CANCELLED',
+      SeriesMessages.notification.seriesCancelled,
+      seriesId
+    )
     return updated
   }
 }

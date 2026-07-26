@@ -23,13 +23,27 @@ import { ProductionStageRepository } from './production-stage.repo'
 import { ProductionStagePageService } from './services/production-stage-page.service'
 import { ProductionStageSeedListener } from './services/production-stage-seed.listener'
 import { ProductionStageService } from './services/production-stage.service'
+import { ProductionStageFacade } from './services/production-stage.facade'
 import { ProductionStageStateService } from './services/production-stage-state.service'
+import { ProductionStageQueryService } from './services/production-stage-query.service'
+import { ProductionStageQueryPort as TaskProductionStageQueryPort } from 'src/modules/task/ports/production-stage-query.port'
+import { ProductionStageQueryPort as AiProductionStageQueryPort } from 'src/modules/ai/ports/production-stage-query.port'
+import { ChapterPageAccessService } from './services/chapter-page-access.service'
+import { PageCleanupService } from './services/page-cleanup.service'
+import { ProductionStageAccessService } from './services/production-stage-access.service'
+import { ProductionStageAnalyticsService } from './services/production-stage-analytics.service'
+import { ChapterPlanningService } from './services/chapter-planning.service'
+import { ChapterProductionService } from './services/chapter-production.service'
+import { ChapterQueryService } from './services/chapter-query.service'
 
 @Module({
   imports: [StudioModule],
   controllers: [ChapterController, StudioOverviewController, ProductionStageController],
   providers: [
     ChapterService,
+    ChapterPlanningService,
+    ChapterProductionService,
+    ChapterQueryService,
     ChapterRepository,
     ManuscriptStateService,
     PageStateService,
@@ -39,6 +53,8 @@ import { ProductionStageStateService } from './services/production-stage-state.s
     ChapterProgressService,
     ScheduleService,
     PageService,
+    ChapterPageAccessService,
+    PageCleanupService,
     ManuscriptReviewService,
     ChapterPublishService,
     ChapterCoOwnerService,
@@ -46,8 +62,14 @@ import { ProductionStageStateService } from './services/production-stage-state.s
     DeadlineWarningCron,
     CoOwnerEscalationCron,
     ProductionStageRepository,
+    ProductionStageQueryService,
+    { provide: TaskProductionStageQueryPort, useExisting: ProductionStageQueryService },
+    { provide: AiProductionStageQueryPort, useExisting: ProductionStageQueryService },
     ProductionStageStateService,
     ProductionStageService,
+    ProductionStageFacade,
+    ProductionStageAccessService,
+    ProductionStageAnalyticsService,
     ProductionStagePageService,
     ProductionStageSeedListener
   ],
@@ -56,7 +78,8 @@ import { ProductionStageStateService } from './services/production-stage-state.s
     ManuscriptStateService,
     ScheduleService,
     ChapterProgressService,
-    ProductionStageRepository,
+    TaskProductionStageQueryPort,
+    AiProductionStageQueryPort,
     ProductionStageStateService
   ]
 })

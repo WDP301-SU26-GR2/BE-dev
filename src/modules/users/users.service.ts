@@ -1,14 +1,4 @@
 import { Injectable } from '@nestjs/common'
-import { AdminModerationService } from './services/admin-moderation.service'
-import { AdminStatsService } from './services/admin-stats.service'
-import { AdminUserQueryService } from './services/admin-user-query.service'
-import { AdminUserService } from './services/admin-user.service'
-import { AssistantDirectoryService } from './services/assistant-directory.service'
-import { AssistantProfileService } from './services/assistant-profile.service'
-import { MangakaProfileService } from './services/mangaka-profile.service'
-import { MangakaDirectoryService } from './services/mangaka-directory.service'
-import { MeService } from './services/me.service'
-import { StaffProfileService } from './services/staff-profile.service'
 import {
   AdminCreateUserBodyType,
   AdminUpdateUserStatusBodyType,
@@ -20,103 +10,81 @@ import {
   StaffProfileBodyType,
   UpdateMeBodyType
 } from './schemas/users-schemas'
+import { MeService } from './services/me.service'
+import { UserAdminFacade } from './services/user-admin.facade'
+import { UserDirectoryFacade } from './services/user-directory.facade'
+import { UserProfileFacade } from './services/user-profile.facade'
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly meService: MeService,
-    private readonly adminUserService: AdminUserService,
-    private readonly adminUserQueryService: AdminUserQueryService,
-    private readonly adminModerationService: AdminModerationService,
-    private readonly adminStatsService: AdminStatsService,
-    private readonly mangakaProfileService: MangakaProfileService,
-    private readonly assistantProfileService: AssistantProfileService,
-    private readonly assistantDirectoryService: AssistantDirectoryService,
-    private readonly mangakaDirectoryService: MangakaDirectoryService,
-    private readonly staffProfileService: StaffProfileService
+    private readonly adminFacade: UserAdminFacade,
+    private readonly profileFacade: UserProfileFacade,
+    private readonly directoryFacade: UserDirectoryFacade
   ) {}
 
   getMe(userId: string) {
     return this.meService.getMe(userId)
   }
-
   updateMe(userId: string, body: UpdateMeBodyType) {
     return this.meService.updateMe(userId, body)
   }
-
   createUserByAdmin(body: AdminCreateUserBodyType) {
-    return this.adminUserService.createUser(body)
+    return this.adminFacade.createUser(body)
   }
-
   listUsers(callerId: string, query: ListUsersQueryType) {
-    return this.adminUserQueryService.list(callerId, query)
+    return this.adminFacade.listUsers(callerId, query)
   }
-
   getUserById(id: string) {
-    return this.adminUserQueryService.getById(id)
+    return this.adminFacade.getUserById(id)
   }
-
   updateUserStatus(id: string, body: AdminUpdateUserStatusBodyType, adminId: string) {
-    return this.adminModerationService.updateStatus(id, body, adminId)
+    return this.adminFacade.updateUserStatus(id, body, adminId)
   }
-
   deleteUser(id: string, adminId: string) {
-    return this.adminModerationService.deleteUser(id, adminId)
+    return this.adminFacade.deleteUser(id, adminId)
   }
-
   restoreUser(id: string, adminId: string) {
-    return this.adminModerationService.restoreUser(id, adminId)
+    return this.adminFacade.restoreUser(id, adminId)
   }
-
   resetUserPassword(id: string, adminId: string) {
-    return this.adminModerationService.resetPassword(id, adminId)
+    return this.adminFacade.resetUserPassword(id, adminId)
   }
-
   getAdminStats() {
-    return this.adminStatsService.getStats()
+    return this.adminFacade.getStats()
   }
-
   upsertMangakaProfile(userId: string, body: MangakaProfileBodyType) {
-    return this.mangakaProfileService.upsertMyProfile(userId, body)
+    return this.profileFacade.upsertMangaka(userId, body)
   }
-
   getMyMangakaProfile(userId: string) {
-    return this.mangakaProfileService.getByUserId(userId)
+    return this.profileFacade.getMangaka(userId)
   }
-
   getMangakaProfile(userId: string) {
-    return this.mangakaProfileService.getByUserId(userId)
+    return this.profileFacade.getMangaka(userId)
   }
-
   upsertAssistantProfile(userId: string, body: AssistantProfileBodyType) {
-    return this.assistantProfileService.upsertMyProfile(userId, body)
+    return this.profileFacade.upsertAssistant(userId, body)
   }
-
   getMyAssistantProfile(userId: string) {
-    return this.assistantProfileService.getByUserId(userId)
+    return this.profileFacade.getAssistant(userId)
   }
-
   getAssistantProfile(userId: string) {
-    return this.assistantProfileService.getByUserId(userId)
+    return this.profileFacade.getAssistant(userId)
   }
-
   listAssistants(query: ListAssistantsQueryType) {
-    return this.assistantDirectoryService.list(query)
+    return this.directoryFacade.listAssistants(query)
   }
-
   listMangakas(query: ListMangakasQueryType) {
-    return this.mangakaDirectoryService.list(query)
+    return this.directoryFacade.listMangakas(query)
   }
-
   upsertStaffProfile(userId: string, body: StaffProfileBodyType) {
-    return this.staffProfileService.upsertMyProfile(userId, body)
+    return this.profileFacade.upsertStaff(userId, body)
   }
-
   getMyStaffProfile(userId: string) {
-    return this.staffProfileService.getByUserId(userId)
+    return this.profileFacade.getStaff(userId)
   }
-
   getStaffProfile(userId: string) {
-    return this.staffProfileService.getByUserId(userId)
+    return this.profileFacade.getStaff(userId)
   }
 }

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { ChapterStatus, ManuscriptStatus, NameStatus, PageStatus, ProductionStageStatus } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zObjectId } from 'src/core/http/schemas/object-id.schema'
 import { WARNING_LEVEL } from '../chapter.constant'
 
 // ---- Requests ----
@@ -56,7 +57,7 @@ export const DeletePagesBulkBodySchema = extendApi(
   z
     .object({
       pageIds: z
-        .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'pageId không hợp lệ'))
+        .array(zObjectId('pageId không hợp lệ'))
         .min(1)
         .max(50)
         .describe('Danh sách page cần xoá (tối đa 50) — all-or-nothing')

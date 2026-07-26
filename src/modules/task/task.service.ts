@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { RegionService } from './services/region.service'
 import { TaskAssignService } from './services/task-assign.service'
@@ -20,8 +21,6 @@ import {
   UpdateTaskBodyType
 } from './schemas/task-schemas'
 import { TaskNotFoundException } from './errors/task.errors'
-
-const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 
 @Injectable()
 export class TaskService {
@@ -93,7 +92,7 @@ export class TaskService {
 
   // Reads
   async getTask(userId: string, roleName: string, id: string) {
-    if (!OBJECT_ID_RE.test(id)) throw TaskNotFoundException
+    if (!isObjectId(id)) throw TaskNotFoundException
     const task = await this.taskRepository.findTaskById(id)
     if (!task) throw TaskNotFoundException
     if (roleName === RoleName.ASSISTANT) {
@@ -108,7 +107,7 @@ export class TaskService {
   async listTasks(userId: string, roleName: string, query: ListTasksQueryType) {
     const empty = { items: [], total: 0, limit: query.limit, offset: query.offset }
     const ids = [query.pageId, query.regionId, query.assistantId, query.seriesId, query.chapterId]
-    if (ids.some((id) => id != null && !OBJECT_ID_RE.test(id))) return empty
+    if (ids.some((id) => id != null && !isObjectId(id))) return empty
 
     const isAssistant = roleName === RoleName.ASSISTANT
     const scopeFilters: { seriesId?: string; chapterId?: string } = {

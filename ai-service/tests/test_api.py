@@ -10,7 +10,9 @@ client = TestClient(main.app)
 
 
 def test_healthz():
-    assert client.get("/healthz").status_code == 200
+    response = client.get("/healthz", headers={"x-request-id": "req-health-1"})
+    assert response.status_code == 200
+    assert response.headers["x-request-id"] == "req-health-1"
 
 
 def test_auth_required():
