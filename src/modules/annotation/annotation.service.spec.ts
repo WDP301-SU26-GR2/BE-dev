@@ -75,6 +75,15 @@ describe('AnnotationService', () => {
     expect(repo.setResolved).toHaveBeenCalledWith('an1', true)
   })
 
+  it('resolving an already-resolved annotation remains resolved (idempotent)', async () => {
+    const repo = makeRepo({
+      findById: jest.fn().mockResolvedValue({ id: 'an1', authorId: 'u1', isResolved: true, createdAt: new Date() })
+    })
+    const svc = new AnnotationService(repo as never, makeAccess() as never)
+    await svc.resolve('u1', 'an1')
+    expect(repo.setResolved).toHaveBeenCalledWith('an1', true)
+  })
+
   it('non-author cannot resolve (403)', async () => {
     const repo = makeRepo({
       findById: jest
