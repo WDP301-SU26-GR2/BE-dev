@@ -44,8 +44,9 @@ export class AnnotationService {
   }
 
   async resolve(userId: string, id: string) {
-    const annotation = await this.requireAuthor(userId, id)
-    const updated = await this.annotationRepository.setResolved(id, !annotation.isResolved)
+    await this.requireAuthor(userId, id)
+    // Keep PATCH /resolve idempotent: retries or double-clicks must not reopen a resolved annotation.
+    const updated = await this.annotationRepository.setResolved(id, true)
     return toAnnotationRes(updated)
   }
 

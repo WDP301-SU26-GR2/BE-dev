@@ -39,11 +39,11 @@ lerna-debug.log*
 !.vscode/extensions.json
 
 # dotenv environment variable files
-.env.development.local
+# Keep only committed templates; every runtime environment file can contain secrets.
 .env
-.env.production
-.env.local
-.env.flowtest
+.env.*
+!.env.example
+!.env.*.example
 
 # Spec/plan docs (superpowers) — root-level docs/ ONLY.
 # Leading slash = anchored to repo root, so `src/core/http/docs/` (real source,
@@ -78,6 +78,8 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 !/scripts/smoke-spec13.mjs
 !/scripts/smoke-spec19.mjs
 !/scripts/smoke-spec22.mjs
+!/scripts/smoke-spec23.mjs
+!/scripts/smoke-spec24.mjs
 !/scripts/smoke-admin-hardening.mjs
 
 # ---- AI service (Python) — runtime/generated, never commit ----
