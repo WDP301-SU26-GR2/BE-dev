@@ -139,6 +139,16 @@ export const TransferRequestSchema = extendApi(
   { title: 'TransferRequestRes', description: 'Chi tiết yêu cầu chuyển nhượng' }
 )
 
+export const TransferRequestListItemSchema = extendApi(
+  TransferRequestSchema.omit({
+    planDescription: true
+  }),
+  {
+    title: 'TransferRequestListItemRes',
+    description: 'Transfer request list item without long handover plan payload'
+  }
+)
+
 export const TransferContractSignatureSchema = extendApi(
   z.object({
     id: z.string(),
@@ -176,7 +186,7 @@ export const TransferContractSchema = extendApi(
 
 export const TransferRequestListSchema = extendApi(
   z.object({
-    data: z.array(TransferRequestSchema)
+    data: z.array(TransferRequestListItemSchema)
   }),
   { title: 'TransferRequestListRes', description: 'Danh sách yêu cầu chuyển nhượng' }
 )

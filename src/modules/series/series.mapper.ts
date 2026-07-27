@@ -49,3 +49,21 @@ export function toSeriesRes(series: SeriesWithPeople) {
     ...(series.editor !== undefined ? { editor: series.editor ? toUserMini(series.editor) : null } : {})
   }
 }
+
+export function toSeriesListItem(series: SeriesWithPeople) {
+  return {
+    id: series.id,
+    mangakaId: series.mangakaId,
+    editorId: series.editorId,
+    title: series.title,
+    coverImage: series.coverImage,
+    genres: series.genres,
+    demographic: series.demographic,
+    publicationType: series.publicationType,
+    magazine: series.magazine,
+    status: series.status,
+    createdAt: series.createdAt.toISOString(),
+    ...(series.mangaka !== undefined ? { mangaka: toUserMini(series.mangaka) } : {}),
+    ...(series.editor !== undefined ? { editor: series.editor ? toUserMini(series.editor) : null } : {})
+  }
+}

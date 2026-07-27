@@ -18,7 +18,10 @@ describe('AnnotationRepository response enrichment', () => {
       series: { findMany: jest.fn() }
     }
 
-    const result = await new AnnotationRepository(prisma as unknown as PrismaService).findByTarget('PAGE', 'p1')
+    const result = await new AnnotationRepository(prisma as unknown as PrismaService).findByTarget('PAGE', 'p1', {
+      limit: 20,
+      offset: 0
+    })
 
     expect(prisma.user.findMany).toHaveBeenCalledTimes(1)
     expect(toAnnotationRes(result[0]).author?.displayName).toBe('Author')
@@ -29,7 +32,9 @@ describe('AnnotationRepository response enrichment', () => {
     const prisma = { annotation: { findMany: jest.fn() } }
     const repository = new AnnotationRepository(prisma as unknown as PrismaService)
 
-    await expect(repository.findByTargetForTaskIds(AnnotationTargetType.PAGE, 'p1', [])).resolves.toEqual([])
+    await expect(
+      repository.findByTargetForTaskIds(AnnotationTargetType.PAGE, 'p1', [], { limit: 20, offset: 0 })
+    ).resolves.toEqual([])
     expect(prisma.annotation.findMany).not.toHaveBeenCalled()
   })
 

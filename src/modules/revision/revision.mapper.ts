@@ -5,6 +5,7 @@ import { SeriesMiniType, UserMiniType } from 'src/core/models/user-mini.model'
 type RevisionRequestWithContext = RevisionRequest & {
   requester?: UserMiniType | null
   recipient?: UserMiniType | null
+  resolver?: UserMiniType | null
   series?: SeriesMiniType | null
 }
 
@@ -24,6 +25,7 @@ export function toRevisionRequestRes(row: RevisionRequestWithContext): RevisionR
     createdAt: row.createdAt.toISOString(),
     ...(row.requester !== undefined ? { requester: row.requester } : {}),
     ...(row.recipient !== undefined ? { recipient: row.recipient } : {}),
+    ...(row.resolver !== undefined ? { resolver: row.resolver } : {}),
     ...(row.series !== undefined ? { series: row.series } : {})
   }
 }

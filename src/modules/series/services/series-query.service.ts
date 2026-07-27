@@ -3,7 +3,7 @@ import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { Series, SeriesStatus } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { SeriesAccessDeniedException, SeriesNotFoundException } from '../errors/series.errors'
-import { toSeriesRes } from '../series.mapper'
+import { toSeriesListItem, toSeriesRes } from '../series.mapper'
 import { SeriesListScope, SeriesRepository } from '../series.repo'
 import { ListSeriesQueryType } from '../schemas/series-schemas'
 
@@ -27,7 +27,7 @@ export class SeriesQueryService {
       this.seriesRepository.countSeriesForList(filter)
     ])
     return {
-      items: rows.map(toSeriesRes),
+      items: rows.map(toSeriesListItem),
       total,
       limit: query.limit,
       offset: query.offset

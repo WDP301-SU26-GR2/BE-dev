@@ -106,9 +106,20 @@ export const ReprintRequestResSchema = extendApi(
   }
 )
 
+export const ReprintRequestListItemSchema = extendApi(
+  ReprintRequestResSchema.omit({
+    chapters: true,
+    reason: true
+  }),
+  {
+    title: 'ReprintRequestListItemRes',
+    description: 'Reprint request list item without chapters and long reason payload'
+  }
+)
+
 export const ReprintRequestListResSchema = extendApi(
   z.object({
-    data: z.array(ReprintRequestResSchema)
+    data: z.array(ReprintRequestListItemSchema)
   }),
   {
     title: 'ReprintRequestListRes',

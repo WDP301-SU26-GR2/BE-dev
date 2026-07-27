@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-26T14:30:32.897Z — 276 routes.
+// Sinh lúc: 2026-07-27T09:56:32.658Z — 276 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -41,8 +41,13 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'PATCH', path: '/admin/users/:id/status', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   { method: 'GET', path: '/ai-jobs/:id', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/ai-jobs/:id/apply', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  { method: 'GET', path: '/annotations', access: 'AUTH', allowed: [] },
-  { method: 'POST', path: '/annotations', access: 'AUTH', allowed: [] },
+  {
+    method: 'GET',
+    path: '/annotations',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.ASSISTANT]
+  },
+  { method: 'POST', path: '/annotations', access: 'ROLES', allowed: [RoleCode.MANGAKA, RoleCode.EDITOR] },
   { method: 'DELETE', path: '/annotations/:id', access: 'AUTH', allowed: [] },
   { method: 'PATCH', path: '/annotations/:id/resolve', access: 'AUTH', allowed: [] },
   { method: 'GET', path: '/assistant-reviews', access: 'AUTH', allowed: [] },

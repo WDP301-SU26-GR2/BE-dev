@@ -52,7 +52,19 @@ export const ReaderVoteResSchema = extendApi(
   { title: 'ReaderVoteRes', description: 'Một phiếu vote reader' }
 )
 
-export const ReaderVoteListResSchema = extendApi(z.object({ data: z.array(ReaderVoteResSchema) }).strict(), {
+export const ReaderVoteListItemSchema = extendApi(
+  ReaderVoteResSchema.omit({
+    identityHash: true,
+    ipHash: true,
+    captchaScore: true
+  }),
+  {
+    title: 'ReaderVoteListItemRes',
+    description: 'Reader vote list item without internal hash/captcha signals'
+  }
+)
+
+export const ReaderVoteListResSchema = extendApi(z.object({ data: z.array(ReaderVoteListItemSchema) }).strict(), {
   title: 'ReaderVoteListRes',
   description: 'Danh sách phiếu vote reader'
 })

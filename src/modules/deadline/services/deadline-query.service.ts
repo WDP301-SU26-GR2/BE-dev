@@ -3,7 +3,7 @@ import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName, RoleNameType } from 'src/core/security/constants/role.constant'
 import { ScheduleService } from 'src/modules/chapter/services/schedule.service'
 import { resolveSide } from '../deadline.constant'
-import { toDeadlineRequestRes } from '../deadline.mapper'
+import { toDeadlineRequestListItem, toDeadlineRequestRes } from '../deadline.mapper'
 import { DeadlineRepository } from '../deadline.repo'
 import { DeadlineRequestAccessDeniedException, DeadlineRequestNotFoundException } from '../errors/deadline.errors'
 import { ListDeadlineRequestQueryType } from '../schemas/deadline-schemas'
@@ -29,7 +29,7 @@ export class DeadlineQueryService {
   async list(userId: string, roleName: string, query: ListDeadlineRequestQueryType) {
     await this.assertCanAccessChapter(userId, roleName, query.chapterId)
     const items = await this.deadlineRepository.listByChapter(query.chapterId, query.status)
-    return { items: items.map(toDeadlineRequestRes) }
+    return { items: items.map(toDeadlineRequestListItem) }
   }
 
   async getOne(userId: string, roleName: string, id: string) {

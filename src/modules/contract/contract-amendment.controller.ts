@@ -6,6 +6,7 @@ import { RoleName } from 'src/core/security/constants/role.constant'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 import { Roles } from 'src/core/security/decorators/roles.decorator'
 import {
+  AmendmentListItemDto,
   AmendmentResDto,
   CreateAmendmentBodyDto,
   RejectAmendmentBodyDto,
@@ -45,7 +46,7 @@ export class ContractAmendmentController {
   @Get(':contractId/amendments')
   @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
   @ApiErrors(ContractErrors.NotFound(), ContractErrors.ContractAccessDenied())
-  @ZodResponse({ status: 200, type: [AmendmentResDto] })
+  @ZodResponse({ status: 200, type: [AmendmentListItemDto] })
   listAmendments(
     @Param('contractId') contractId: string,
     @ActiveUser('userId') userId: string,

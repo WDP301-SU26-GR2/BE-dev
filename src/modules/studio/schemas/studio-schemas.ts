@@ -39,8 +39,15 @@ export const InviteResSchema = extendApi(
   { title: 'CollaborationInviteRes', description: 'Một lời mời cộng tác' }
 )
 
+export const InviteListItemSchema = extendApi(
+  InviteResSchema.omit({
+    taskTypes: true
+  }),
+  { title: 'CollaborationInviteListItemRes', description: 'Collaboration invite item gon cho danh sach' }
+)
+
 export const InviteListResSchema = extendApi(
-  z.object({ items: z.array(InviteResSchema), total: z.number(), limit: z.number(), offset: z.number() }),
+  z.object({ items: z.array(InviteListItemSchema), total: z.number(), limit: z.number(), offset: z.number() }),
   { title: 'CollaborationInviteListRes', description: 'Danh sách invite phân trang' }
 )
 
@@ -76,8 +83,16 @@ export const AssignmentResSchema = extendApi(
   { title: 'StudioAssignmentRes', description: 'Một hợp tác studio' }
 )
 
+export const AssignmentListItemSchema = extendApi(
+  AssignmentResSchema.omit({
+    assignedTaskTypes: true,
+    terminatedReason: true
+  }),
+  { title: 'StudioAssignmentListItemRes', description: 'Studio assignment item gon cho danh sach' }
+)
+
 export const AssignmentListResSchema = extendApi(
-  z.object({ items: z.array(AssignmentResSchema), total: z.number(), limit: z.number(), offset: z.number() }),
+  z.object({ items: z.array(AssignmentListItemSchema), total: z.number(), limit: z.number(), offset: z.number() }),
   { title: 'StudioAssignmentListRes', description: 'Danh sách assignment phân trang' }
 )
 
@@ -104,7 +119,9 @@ export const TerminateAssignmentBodySchema = extendApi(z.object({ reason: z.stri
 
 export type CreateInviteBodyType = z.infer<typeof CreateInviteBodySchema>
 export type InviteResType = z.infer<typeof InviteResSchema>
+export type InviteListItemType = z.infer<typeof InviteListItemSchema>
 export type ListInvitesQueryType = z.infer<typeof ListInvitesQuerySchema>
 export type AssignmentResType = z.infer<typeof AssignmentResSchema>
+export type AssignmentListItemType = z.infer<typeof AssignmentListItemSchema>
 export type ListAssignmentsQueryType = z.infer<typeof ListAssignmentsQuerySchema>
 export type TerminateAssignmentBodyType = z.infer<typeof TerminateAssignmentBodySchema>

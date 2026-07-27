@@ -6,7 +6,9 @@ function makeRepo(over: Record<string, unknown> = {}) {
     create: jest.fn().mockResolvedValue({ id: 'an1', isResolved: false, createdAt: new Date() }),
     findById: jest.fn().mockResolvedValue({ id: 'an1', authorId: 'u1', isResolved: false, createdAt: new Date() }),
     findByTarget: jest.fn().mockResolvedValue([]),
+    countByTarget: jest.fn().mockResolvedValue(0),
     findByTargetForTaskIds: jest.fn().mockResolvedValue([]),
+    countByTargetForTaskIds: jest.fn().mockResolvedValue(0),
     setResolved: jest.fn().mockResolvedValue({ id: 'an1', isResolved: true, createdAt: new Date() }),
     delete: jest.fn().mockResolvedValue({ id: 'an1' }),
     ...over
@@ -63,9 +65,16 @@ describe('AnnotationService', () => {
     const repo = makeRepo()
     const access = makeAccess({ listScope: jest.fn().mockResolvedValue({ taskIds: ['t1'] }) })
     const svc = new AnnotationService(repo as never, access as never)
-    await svc.list('assistant-1', 'ASSISTANT', AnnotationTargetType.PAGE, body.targetId)
-    expect(repo.findByTargetForTaskIds).toHaveBeenCalledWith(AnnotationTargetType.PAGE, body.targetId, ['t1'])
+    const query = { targetType: AnnotationTargetType.PAGE, targetId: body.targetId, limit: 20, offset: 0 }
+    await svc.list('assistant-1', 'ASSISTANT', query)
+    expect(repo.findByTargetForTaskIds).toHaveBeenCalledWith(AnnotationTargetType.PAGE, body.targetId, ['t1'], {
+      limit: 20,
+      offset: 0
+    })
     expect(repo.findByTarget).not.toHaveBeenCalled()
+    // Scope Assistant: `total` phải đếm CÙNG scope, nếu không nó tố cáo số annotation họ không được đọc.
+    expect(repo.countByTargetForTaskIds).toHaveBeenCalledWith(AnnotationTargetType.PAGE, body.targetId, ['t1'])
+    expect(repo.countByTarget).not.toHaveBeenCalled()
   })
 
   it('owner can resolve', async () => {
