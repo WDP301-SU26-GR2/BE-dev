@@ -1,4 +1,449 @@
 {
   "schemaVersion": 1,
-  "acceptances": []
+  "acceptances": [
+    {
+      "id": "RA-2026-001",
+      "findingId": "CVE-2025-59375",
+      "scope": "target=debian 13.6;package=libexpat1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-002",
+      "findingId": "CVE-2025-69720",
+      "scope": "target=debian 13.6;package=libncursesw6",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-003",
+      "findingId": "CVE-2025-69720",
+      "scope": "target=debian 13.6;package=libtinfo6",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-004",
+      "findingId": "CVE-2025-69720",
+      "scope": "target=debian 13.6;package=ncurses-base",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-005",
+      "findingId": "CVE-2025-69720",
+      "scope": "target=debian 13.6;package=ncurses-bin",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-006",
+      "findingId": "CVE-2026-13221",
+      "scope": "target=debian 13.6;package=perl-base",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-007",
+      "findingId": "CVE-2026-25210",
+      "scope": "target=debian 13.6;package=libexpat1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-008",
+      "findingId": "CVE-2026-41992",
+      "scope": "target=debian 13.6;package=gzip",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-009",
+      "findingId": "CVE-2026-42496",
+      "scope": "target=debian 13.6;package=perl-base",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-010",
+      "findingId": "CVE-2026-42497",
+      "scope": "target=debian 13.6;package=perl-base",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-011",
+      "findingId": "CVE-2026-45186",
+      "scope": "target=debian 13.6;package=libexpat1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-012",
+      "findingId": "CVE-2026-48962",
+      "scope": "target=debian 13.6;package=perl-base",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-013",
+      "findingId": "CVE-2026-53615",
+      "scope": "target=debian 13.6;package=bsdutils",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-014",
+      "findingId": "CVE-2026-53615",
+      "scope": "target=debian 13.6;package=libblkid1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-015",
+      "findingId": "CVE-2026-53615",
+      "scope": "target=debian 13.6;package=liblastlog2-2",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-016",
+      "findingId": "CVE-2026-53615",
+      "scope": "target=debian 13.6;package=libmount1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-017",
+      "findingId": "CVE-2026-53615",
+      "scope": "target=debian 13.6;package=libsmartcols1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-018",
+      "findingId": "CVE-2026-53615",
+      "scope": "target=debian 13.6;package=libuuid1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-019",
+      "findingId": "CVE-2026-53615",
+      "scope": "target=debian 13.6;package=login",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-020",
+      "findingId": "CVE-2026-53615",
+      "scope": "target=debian 13.6;package=mount",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-021",
+      "findingId": "CVE-2026-53615",
+      "scope": "target=debian 13.6;package=util-linux",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-022",
+      "findingId": "CVE-2026-54369",
+      "scope": "target=debian 13.6;package=libacl1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-023",
+      "findingId": "CVE-2026-56131",
+      "scope": "target=debian 13.6;package=libexpat1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-024",
+      "findingId": "CVE-2026-56407",
+      "scope": "target=debian 13.6;package=libexpat1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-025",
+      "findingId": "CVE-2026-56408",
+      "scope": "target=debian 13.6;package=libexpat1",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-026",
+      "findingId": "CVE-2026-57432",
+      "scope": "target=debian 13.6;package=perl-base",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-027",
+      "findingId": "CVE-2026-57433",
+      "scope": "target=debian 13.6;package=perl-base",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-028",
+      "findingId": "CVE-2026-58010",
+      "scope": "target=debian 13.6;package=libglib2.0-0t64",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-029",
+      "findingId": "CVE-2026-58011",
+      "scope": "target=debian 13.6;package=libglib2.0-0t64",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-030",
+      "findingId": "CVE-2026-58012",
+      "scope": "target=debian 13.6;package=libglib2.0-0t64",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-031",
+      "findingId": "CVE-2026-58013",
+      "scope": "target=debian 13.6;package=libglib2.0-0t64",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-032",
+      "findingId": "CVE-2026-58014",
+      "scope": "target=debian 13.6;package=libglib2.0-0t64",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-033",
+      "findingId": "CVE-2026-58015",
+      "scope": "target=debian 13.6;package=libglib2.0-0t64",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-034",
+      "findingId": "CVE-2026-58016",
+      "scope": "target=debian 13.6;package=libglib2.0-0t64",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-035",
+      "findingId": "CVE-2026-6653",
+      "scope": "target=debian 13.6;package=libxml2",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-036",
+      "findingId": "CVE-2026-8376",
+      "scope": "target=debian 13.6;package=perl-base",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    },
+    {
+      "id": "RA-2026-037",
+      "findingId": "CVE-2026-9538",
+      "scope": "target=debian 13.6;package=perl-base",
+      "rationale": "No fixed Debian 13.6 package was reported by Trivy on 2026-07-27.",
+      "compensatingControls": [
+        "CI rescans every image build; production images run as unprivileged users; base-image review is required before expiry."
+      ],
+      "owner": "WDP301-SU26-GR2 repository maintainers",
+      "approvedBy": "WDP301-SU26-GR2 repository maintainers",
+      "expiresOn": "2026-08-10"
+    }
+  ]
 }

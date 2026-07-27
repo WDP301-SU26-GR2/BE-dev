@@ -75,7 +75,13 @@ function validateRiskRegistry(path) {
   return registry
 }
 
-const findingScope = (target, packageName) => `target=${target};package=${packageName}`
+const findingScope = (target, packageName) => {
+  // Image tags are unique per CI run. For OS findings, bind acceptance to the
+  // detected distribution/version instead, so a base-image upgrade requires
+  // renewed review rather than inheriting a stale exception.
+  const stableTarget = String(target).match(/\(([^)]+)\)$/)?.[1] ?? target
+  return `target=${stableTarget};package=${packageName}`
+}
 
 function validateTrivyReport(path, acceptancePath = registryPath) {
   const report = readJson(path)
