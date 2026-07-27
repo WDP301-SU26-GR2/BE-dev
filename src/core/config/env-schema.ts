@@ -42,6 +42,10 @@ const EnvironmentSchema = z
     ORPHAN_ASSET_TTL_HOURS: positiveInt(24, 8760),
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(20).default(1),
     CORS_ORIGINS: z.string().default(''),
+    ALLOW_INSECURE_LOCAL_CORS: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     IDENTITY_HASH_PEPPER: z.string().default(''),
     AI_SERVICE_URL: z.string().default(''),
     AI_SERVICE_API_KEY: z.string().default(''),
@@ -102,8 +106,14 @@ const EnvironmentSchema = z
     const origins = environment.CORS_ORIGINS.split(',')
       .map((origin) => origin.trim())
       .filter(Boolean)
-    if (origins.length === 0 || origins.includes('*') || origins.some((origin) => !hasProtocol(origin, ['https:']))) {
-      issue('CORS_ORIGINS', 'must be a non-empty HTTPS allow-list without wildcard')
+    const isAllowedInsecureLocalOrigin = (origin: string) =>
+      environment.ALLOW_INSECURE_LOCAL_CORS && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+    if (
+      origins.length === 0 ||
+      origins.includes('*') ||
+      origins.some((origin) => !hasProtocol(origin, ['https:']) && !isAllowedInsecureLocalOrigin(origin))
+    ) {
+      issue('CORS_ORIGINS', 'must be a non-empty HTTPS allow-list, except explicitly allowed HTTP localhost origins')
     }
   })
 
