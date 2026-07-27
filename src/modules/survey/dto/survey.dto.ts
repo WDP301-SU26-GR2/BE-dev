@@ -12,6 +12,7 @@ import {
   RankingRecordListResSchema,
   BoardRankingListResSchema,
   GetSeriesTrendQuerySchema,
+  ReaderVoteListItemSchema,
   ReaderVoteResSchema,
   ReaderVoteListResSchema,
   SurveyDataResSchema,
@@ -42,6 +43,7 @@ export class RankingRecordResDto extends createZodDto(RankingRecordResSchema) {}
 export class RankingRecordListResDto extends createZodDto(RankingRecordListResSchema) {}
 export class BoardRankingListResDto extends createZodDto(BoardRankingListResSchema) {}
 export class GetSeriesTrendQueryDto extends createZodDto(GetSeriesTrendQuerySchema) {}
+export class ReaderVoteListItemDto extends createZodDto(ReaderVoteListItemSchema) {}
 export class ReaderVoteResDto extends createZodDto(ReaderVoteResSchema) {}
 export class ReaderVoteListResDto extends createZodDto(ReaderVoteListResSchema) {}
 export class SurveyDataResDto extends createZodDto(SurveyDataResSchema) {}

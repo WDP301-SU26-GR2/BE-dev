@@ -154,6 +154,20 @@ export const ContractResSchema = extendApi(
   { title: 'ContractRes', description: 'Chi tiết hợp đồng' }
 )
 
+export const ContractListItemSchema = extendApi(
+  ContractResSchema.omit({
+    boardDecision: true,
+    terminationClause: true,
+    sourceTransferRequestId: true,
+    mangakaSignedAt: true,
+    boardSignedAt: true
+  }),
+  {
+    title: 'ContractListItemRes',
+    description: 'Contract list item without Board decision payload and signature timestamps'
+  }
+)
+
 export const ContractVersionResSchema = extendApi(
   z.object({
     id: z.string(),

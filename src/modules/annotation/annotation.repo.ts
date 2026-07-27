@@ -61,21 +61,39 @@ export class AnnotationRepository {
     return (await this.attachAuthors([row]))[0]
   }
 
-  async findByTarget(targetType: AnnotationTargetType, targetId: string) {
+  async findByTarget(targetType: AnnotationTargetType, targetId: string, page: { limit: number; offset: number }) {
     const rows = await this.prismaService.annotation.findMany({
       where: { targetType, targetId },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'asc' },
+      skip: page.offset,
+      take: page.limit
     })
     return this.attachAuthors(rows)
   }
 
-  async findByTargetForTaskIds(targetType: AnnotationTargetType, targetId: string, taskIds: string[]) {
+  countByTarget(targetType: AnnotationTargetType, targetId: string) {
+    return this.prismaService.annotation.count({ where: { targetType, targetId } })
+  }
+
+  async findByTargetForTaskIds(
+    targetType: AnnotationTargetType,
+    targetId: string,
+    taskIds: string[],
+    page: { limit: number; offset: number }
+  ) {
     if (taskIds.length === 0) return []
     const rows = await this.prismaService.annotation.findMany({
       where: { targetType, targetId, taskId: { in: taskIds } },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'asc' },
+      skip: page.offset,
+      take: page.limit
     })
     return this.attachAuthors(rows)
+  }
+
+  countByTargetForTaskIds(targetType: AnnotationTargetType, targetId: string, taskIds: string[]) {
+    if (taskIds.length === 0) return Promise.resolve(0)
+    return this.prismaService.annotation.count({ where: { targetType, targetId, taskId: { in: taskIds } } })
   }
 
   async findTargetContext(targetType: AnnotationTargetType, targetId: string): Promise<AnnotationTargetContext | null> {

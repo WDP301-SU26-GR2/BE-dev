@@ -84,7 +84,17 @@ export const DeadlineRequestResSchema = extendApi(
   { title: 'DeadlineRequestRes', description: 'Deadline request view' }
 )
 
-export const DeadlineRequestListResSchema = extendApi(z.object({ items: z.array(DeadlineRequestResSchema) }), {
+export const DeadlineRequestListItemSchema = extendApi(
+  DeadlineRequestResSchema.omit({
+    reason: true,
+    boardReviewedBy: true,
+    scheduleId: true,
+    resolvedAt: true
+  }),
+  { title: 'DeadlineRequestListItemRes', description: 'Deadline request item gon cho danh sach' }
+)
+
+export const DeadlineRequestListResSchema = extendApi(z.object({ items: z.array(DeadlineRequestListItemSchema) }), {
   title: 'DeadlineRequestListRes',
   description: 'Danh sách deadline request'
 })
@@ -95,3 +105,4 @@ export type DeadlineReasonBodyType = z.infer<typeof DeadlineReasonBodySchema>
 export type BoardResolveBodyType = z.infer<typeof BoardResolveBodySchema>
 export type ListDeadlineRequestQueryType = z.infer<typeof ListDeadlineRequestQuerySchema>
 export type DeadlineRequestResType = z.infer<typeof DeadlineRequestResSchema>
+export type DeadlineRequestListItemType = z.infer<typeof DeadlineRequestListItemSchema>

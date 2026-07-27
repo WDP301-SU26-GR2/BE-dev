@@ -473,8 +473,10 @@ KHÔNG throw — mirror `notifySafe`); gọi SAU commit, NGOÀI transaction. C�
 
 ### AppConfig — `AppConfigService` (`@Global`, PA-10)
 
-`get()` trả registry 7 tham số nghiệp vụ (cache in-memory TTL 30s + lazy-seed + invalidate-on-PATCH). `GET/PATCH /admin/app-config`
-(SUPER_ADMIN). Wire BE-A: `nameMaxReviewRounds`/`maxUploadBytes`/`reputationRecommendThreshold`; env/constant cũ = **seed default**.
+`get()` trả registry 8 tham số nghiệp vụ (cache in-memory TTL 30s + lazy-seed + invalidate-on-PATCH):
+`coOwnerApprovalGraceDays`, `nameMaxReviewRounds`, `reputationRecommendThreshold`, `hiatusTooLongDays`,
+`lowVoteReliabilityThreshold`, `rankingAggregateMinCoverageRatio`, `maxUploadBytes`, `assignmentGraceDays`.
+`GET/PATCH /admin/app-config` (SUPER_ADMIN). Wire BE-A: `nameMaxReviewRounds`/`maxUploadBytes`/`reputationRecommendThreshold`; env/constant cũ = **seed default**.
 
 ### State Machine (single-writer)
 Mỗi state machine chỉ ghi bởi 1 `<entity>-state.service.ts`: validate transition theo `*_TRANSITIONS` (sai → 409) +

@@ -41,11 +41,18 @@ export const RevisionRequestResSchema = extendApi(
     createdAt: z.string(),
     requester: UserMiniSchema.nullable().optional().describe('Người yêu cầu sửa — có ở GET list/detail'),
     recipient: UserMiniSchema.nullable().optional().describe('Người nhận yêu cầu — có ở GET list/detail'),
+    // Spec 20 AC1 (embed là additive): giữ `resolvedBy` scalar cho logic/điều hướng, thêm `resolver`
+    // để hiển thị. Cần vì Mangaka KHÔNG có endpoint nào resolve id→tên của Assistant.
+    resolver: UserMiniSchema.nullable().optional().describe('Người đã resolve — có ở GET list; null khi chưa resolve'),
     series: SeriesMiniSchema.nullable().optional().describe('Series — có ở GET list/detail')
   }),
   { title: 'RevisionRequestRes', description: 'Một vòng yêu cầu sửa' }
 )
 
+// Spec 25: KHÔNG tách list-item cho revision. Module này KHÔNG có route detail
+// (`GET /revision-requests/:id` không tồn tại) nên field bỏ khỏi list là biến mất khỏi mọi đường GET.
+// `reason` = nội dung "cần sửa cái gì" (phải đọc trước khi resolve); `resolvedBy` + `resolver` =
+// "ai đã sửa xong" (Mangaka không có endpoint nào resolve id→tên Assistant). Cả hai đều phải ở lại.
 export const RevisionRequestListResSchema = extendApi(
   z.object({
     items: z.array(RevisionRequestResSchema),

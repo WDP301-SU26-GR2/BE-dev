@@ -2,6 +2,7 @@ import {
   CreateRegionBodySchema,
   CreateTaskBodySchema,
   ListTasksQuerySchema,
+  TaskListItemSchema,
   TaskResSchema,
   UpdateRegionBodySchema,
   UpdateTaskBodySchema
@@ -97,5 +98,64 @@ describe('task-schemas', () => {
     })
     expect(create.description).toBe('Keep dialogue bubbles intact.')
     expect(UpdateTaskBodySchema.parse({ description: null })).toEqual({ description: null })
+  })
+})
+
+// Spec 25 — chống drift giữa list và detail. `.omit()` giữ 2 schema đồng bộ tự động,
+// nhưng không có gì ngăn người sau thêm/bớt key trong danh sách omit. 3 test dưới là lưới đó.
+describe('TaskListItemSchema (Spec 25)', () => {
+  const listKeys = Object.keys(TaskListItemSchema.shape)
+  const detailKeys = Object.keys(TaskResSchema.shape)
+
+  it('bỏ đúng 10 field nặng khỏi list item', () => {
+    for (const key of [
+      'versions',
+      'assets',
+      'description',
+      'stageInputFile',
+      'stageInputSourceType',
+      'stageInputRevision',
+      'pageOriginalFile',
+      'statusReason',
+      'startedAt',
+      'completedAt'
+    ]) {
+      expect(listKeys).not.toContain(key)
+    }
+    expect(listKeys).toHaveLength(16)
+  })
+
+  // 🔴 RÀNG BUỘC NGHIỆP VỤ — KHÔNG được bỏ 2 field này để "cho gọn".
+  // Assistant bị 403 ở GET /pages/:id/regions ⇒ endpoint task là đường DUY NHẤT
+  // họ lấy được toạ độ vùng cần làm (§74 vá lỗ hổng "Flow 3 đứt ở BE").
+  // Bỏ đi sẽ làm vỡ F03-RE05 / F03-RE06 — 2 case flowtest tồn tại đúng để canh điều này.
+  it('GIỮ regions[] và regionIds cho Assistant', () => {
+    expect(listKeys).toContain('regions')
+    expect(listKeys).toContain('regionIds')
+  })
+
+  it('giữ field mà card danh sách cần', () => {
+    for (const key of [
+      'id',
+      'pageId',
+      'assistantId',
+      'assistant',
+      'taskType',
+      'status',
+      'stageId',
+      'priority',
+      'deadline',
+      'assetIds',
+      'groupId',
+      'groupTitle',
+      'pageDisplayFile',
+      'createdAt'
+    ]) {
+      expect(listKeys).toContain(key)
+    }
+  })
+
+  it('là tập con thực sự của TaskResSchema', () => {
+    for (const key of listKeys) expect(detailKeys).toContain(key)
   })
 })
