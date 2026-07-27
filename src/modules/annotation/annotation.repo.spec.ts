@@ -38,6 +38,17 @@ describe('AnnotationRepository response enrichment', () => {
     expect(prisma.annotation.findMany).not.toHaveBeenCalled()
   })
 
+  it('counts scoped annotations and short-circuits an empty task scope', async () => {
+    const prisma = { annotation: { count: jest.fn().mockResolvedValue(2) } }
+    const repository = new AnnotationRepository(prisma as unknown as PrismaService)
+
+    await expect(repository.countByTargetForTaskIds(AnnotationTargetType.PAGE, 'p1', [])).resolves.toBe(0)
+    await expect(repository.countByTargetForTaskIds(AnnotationTargetType.PAGE, 'p1', ['t1'])).resolves.toBe(2)
+    expect(prisma.annotation.count).toHaveBeenCalledWith({
+      where: { targetType: AnnotationTargetType.PAGE, targetId: 'p1', taskId: { in: ['t1'] } }
+    })
+  })
+
   it.each([
     [AnnotationTargetType.PAGE, 'page', { chapter: { series: { mangakaId: 'm1', editorId: 'e1' } } }],
     [AnnotationTargetType.REGION, 'region', { page: { chapter: { series: { mangakaId: 'm1', editorId: 'e1' } } } }],

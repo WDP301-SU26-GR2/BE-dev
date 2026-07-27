@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-27T09:56:32.658Z — 276 routes.
+// Sinh lúc: 2026-07-27T15:38:55.640Z — 277 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -721,6 +721,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'GET', path: '/vote/live', access: 'PUBLIC', allowed: [] },
   { method: 'POST', path: '/vote/otp', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/vote/periods', access: 'PUBLIC', allowed: [] },
+  { method: 'GET', path: '/vote/periods/open', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/vote/results', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/vote/results/latest', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/voting-config', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },

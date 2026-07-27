@@ -15,6 +15,38 @@ export class PublicVoteContextQueryService {
     private readonly cache: CacheService
   ) {}
 
+  // Guest discovery (lấp lỗ hổng: `/vote/context` + `/vote/live` đều đòi periodId, còn
+  // `/vote/periods` chỉ trả kỳ REFLECTED ⇒ guest không có đường public nào biết kỳ nào đang mở).
+  // Trả LIST vì Option B cho phép nhiều kỳ scoped OPEN đồng thời (WEEKLY + MONTHLY).
+  // Cache dùng namespace `votectx` — đã được bump sẵn mỗi khi kỳ mở/đóng (survey-period.service).
+  async getOpenPeriods(magazine?: string, publicationType?: PublicationType) {
+    const canonicalMagazine = magazine?.trim() || undefined
+    return this.cache.getOrSet(
+      'votectx',
+      `open:${canonicalMagazine ?? 'ALL'}:${publicationType ?? 'ALL'}`,
+      VOTE_CTX_TTL_SEC,
+      async () => {
+        const periods = await this.repository.findOpenPeriods({
+          magazine: canonicalMagazine,
+          publicationType
+        })
+        return {
+          items: periods
+            // Kỳ legacy (thiếu scope) không vote được — ẩn khỏi discovery để guest không vào ngõ cụt.
+            .filter((period) => period.magazine && period.publicationType)
+            .map((period) => ({
+              id: period.id,
+              magazine: period.magazine as string,
+              publicationType: period.publicationType as PublicationType,
+              issueNumber: period.issueNumber ?? null,
+              startDate: period.startDate ? period.startDate.toISOString() : null,
+              endDate: period.endDate ? period.endDate.toISOString() : null
+            }))
+        }
+      }
+    )
+  }
+
   async getVoteContext(periodId?: string) {
     const legacyType =
       periodId && Object.values(PublicationType).includes(periodId as PublicationType)

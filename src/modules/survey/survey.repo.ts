@@ -55,6 +55,9 @@ export class SurveyRepository {
   findLatestOpenSurveyPeriod() {
     return this.periods.findLatestOpen()
   }
+  findOpenPeriods(filter: { magazine?: string; publicationType?: PublicationType }) {
+    return this.periods.findOpenPeriods(filter)
+  }
   findLatestReflectedPeriod() {
     return this.periods.findLatestReflected()
   }

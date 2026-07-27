@@ -58,6 +58,19 @@ export class SurveyPeriodRepository {
     })
   }
 
+  // Guest discovery: mọi kỳ đang OPEN (Option B cho phép nhiều scope mở song song).
+  // Lọc scope là optional vì guest chưa biết gì khi mở trang lần đầu.
+  findOpenPeriods(filter: { magazine?: string; publicationType?: PublicationType }) {
+    return this.prisma.surveyPeriod.findMany({
+      where: {
+        status: 'OPEN',
+        ...(filter.magazine ? { magazine: filter.magazine } : {}),
+        ...(filter.publicationType ? { publicationType: filter.publicationType } : {})
+      },
+      orderBy: [{ publicationType: 'asc' }, { startDate: 'desc' }]
+    })
+  }
+
   findLatestReflected() {
     return this.prisma.surveyPeriod.findFirst({
       where: { status: 'REFLECTED' },

@@ -58,6 +58,33 @@ for (const file of walk(MODULES_ROOT).filter((candidate) => candidate.endsWith('
             `injects ${member.parameters.length} dependencies (controllers may inject only one orchestrator)`
         )
       }
+
+      // Handler "chết": method được trang trí như một route (@ApiOperation/@ZodResponse/@IsPublic/
+      // @Roles/@ApiErrors) nhưng THIẾU @Get/@Post/... ⇒ Nest không map, code không bao giờ chạy,
+      // mà mọi assertion kiểu Reflect.getMetadata trong spec vẫn "xanh" → bảo đảm giả.
+      // Đã xảy ra thật: 4 handler public của SurveyController bị nhân bản sang PublicRankingController
+      // nhưng bản gốc không được xoá (phát hiện + dọn 2026-07-27).
+      // Helper thường (vd `private actor(...)`) không có decorator nào nên không dính guard này.
+      if (!ts.isMethodDeclaration(member)) continue
+      const decorators = ts.getDecorators(member) ?? []
+      if (decorators.length === 0) continue
+      const decoratorNames = decorators.map((decorator) => {
+        const expression = ts.isCallExpression(decorator.expression)
+          ? decorator.expression.expression
+          : decorator.expression
+        return expression.getText(sourceFile)
+      })
+      const HTTP_METHOD_DECORATORS = ['Get', 'Post', 'Put', 'Patch', 'Delete', 'All', 'Head', 'Options']
+      const ROUTE_SHAPED_DECORATORS = ['ApiOperation', 'ZodResponse', 'IsPublic', 'Roles', 'ApiErrors', 'ApiResponse']
+      const hasHttpMethod = decoratorNames.some((name) => HTTP_METHOD_DECORATORS.includes(name))
+      const looksLikeRoute = decoratorNames.some((name) => ROUTE_SHAPED_DECORATORS.includes(name))
+      if (looksLikeRoute && !hasHttpMethod) {
+        failures.push(
+          `${relative(file)}:${sourceFile.getLineAndCharacterOfPosition(member.getStart()).line + 1} ` +
+            `${member.name.getText(sourceFile)} is decorated like a route but has no HTTP method decorator ` +
+            `(dead handler — Nest never maps it)`
+        )
+      }
     }
   })
 }
