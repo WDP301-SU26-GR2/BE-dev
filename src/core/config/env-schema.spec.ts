@@ -51,6 +51,24 @@ describe('production environment schema', () => {
     expect(() => parseEnvironment({ ...productionEnv, [key]: value })).toThrow(key)
   })
 
+  it('allows only explicit HTTP localhost origins when the production escape hatch is enabled', () => {
+    expect(
+      parseEnvironment({
+        ...productionEnv,
+        ALLOW_INSECURE_LOCAL_CORS: 'true',
+        CORS_ORIGINS: 'https://app.example.com,http://localhost:5173,http://127.0.0.1:3000'
+      }).ALLOW_INSECURE_LOCAL_CORS
+    ).toBe(true)
+
+    expect(() =>
+      parseEnvironment({
+        ...productionEnv,
+        ALLOW_INSECURE_LOCAL_CORS: 'true',
+        CORS_ORIGINS: 'http://192.168.1.8:5173'
+      })
+    ).toThrow('CORS_ORIGINS')
+  })
+
   it('requires a strong AI key only when the optional AI URL is enabled', () => {
     expect(() =>
       parseEnvironment({
