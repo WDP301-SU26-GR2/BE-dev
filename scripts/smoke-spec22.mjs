@@ -1,6 +1,6 @@
-// Spec 22 smoke against a real local/flowtest MongoDB, API, and Redis.
+// Spec 22 smoke against a real local flow-test MongoDB, API, and Redis.
 // Prerequisite: built server already running at SMOKE_API (default http://localhost:4100).
-// Safety: this script refuses every write unless DATABASE_URL is both localhost and a dedicated flowtest database.
+// Safety: this script refuses every write unless DATABASE_URL is both localhost and a dedicated flow-test database.
 import 'dotenv/config'
 import { MongoClient, ObjectId } from 'mongodb'
 import { PrismaClient } from '@prisma/client'
@@ -12,6 +12,7 @@ const TAG_PREFIX = 'spec22smoke'
 const TAG = `${TAG_PREFIX}-${process.pid}-${Date.now()}`
 const DATABASE_URL = process.env.DATABASE_URL
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
+const FLOW_TEST_DATABASE = /flow[_-]?test$/i
 
 function assertSafeWriteTarget() {
   if (!DATABASE_URL) throw new Error('SAFETY GUARD: DATABASE_URL is missing; refusing all writes')
@@ -23,10 +24,10 @@ function assertSafeWriteTarget() {
   }
   const host = parsed.hostname.toLowerCase()
   const databaseName = decodeURIComponent(parsed.pathname.replace(/^\/+/, '').split('/')[0] ?? '')
-  const safe = LOCAL_HOSTS.has(host) && databaseName.toLowerCase().includes('flowtest')
+  const safe = LOCAL_HOSTS.has(host) && FLOW_TEST_DATABASE.test(databaseName)
   if (!safe) {
     throw new Error(
-      `SAFETY GUARD: refusing writes unless Mongo is localhost and its database contains flowtest (host=${host}, database=${databaseName || '<none>'})`
+      `SAFETY GUARD: refusing writes unless Mongo is localhost and its database ends in flowtest, flow_test, or flow-test (host=${host}, database=${databaseName || '<none>'})`
     )
   }
   return { host, databaseName }

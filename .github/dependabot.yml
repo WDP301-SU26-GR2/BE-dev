@@ -4,28 +4,30 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Keep security updates enabled, but pause routine version-update PRs until
+    # the current dependency backlog has been triaged.
+    open-pull-requests-limit: 0
 
   - package-ecosystem: pip
     directory: /ai-service
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
 
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
 
   - package-ecosystem: docker
     directory: /ai-service
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0

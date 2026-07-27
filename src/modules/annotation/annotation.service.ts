@@ -1,24 +1,25 @@
 import { Injectable } from '@nestjs/common'
-import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AnnotationTargetType } from '@prisma/client'
 import { AnnotationRepository } from './annotation.repo'
-import {
-  AnnotationForbiddenException,
-  AnnotationNotFoundException,
-  AnnotationTargetNotFoundException
-} from './errors/annotation.errors'
+import { AnnotationForbiddenException, AnnotationNotFoundException } from './errors/annotation.errors'
 import { toAnnotationRes } from './annotation.mapper'
 import { CreateAnnotationBodyType } from './schemas/annotation-schemas'
+import { AnnotationAccessService } from './services/annotation-access.service'
 
 @Injectable()
 export class AnnotationService {
-  constructor(private readonly annotationRepository: AnnotationRepository) {}
+  constructor(
+    private readonly annotationRepository: AnnotationRepository,
+    private readonly annotationAccessService: AnnotationAccessService
+  ) {}
 
   async create(authorId: string, authorRole: string, body: CreateAnnotationBodyType) {
-    if (!isObjectId(body.targetId)) throw AnnotationTargetNotFoundException
-    if (!(await this.annotationRepository.targetExists(body.targetType, body.targetId))) {
-      throw AnnotationTargetNotFoundException
-    }
+    await this.annotationAccessService.assertCanCreate(
+      { userId: authorId, roleName: authorRole },
+      body.targetType,
+      body.targetId
+    )
+    await this.annotationAccessService.assertTaskBinding(body.targetType, body.targetId, body.taskId)
     const created = await this.annotationRepository.create({
       authorId,
       authorRole,
@@ -33,15 +34,19 @@ export class AnnotationService {
     return toAnnotationRes(created)
   }
 
-  async list(targetType: AnnotationTargetType, targetId: string) {
-    if (!isObjectId(targetId)) return { items: [] }
-    const items = await this.annotationRepository.findByTarget(targetType, targetId)
+  async list(userId: string, roleName: string, targetType: AnnotationTargetType, targetId: string) {
+    const scope = await this.annotationAccessService.listScope({ userId, roleName }, targetType, targetId)
+    const items =
+      scope.taskIds === null
+        ? await this.annotationRepository.findByTarget(targetType, targetId)
+        : await this.annotationRepository.findByTargetForTaskIds(targetType, targetId, scope.taskIds)
     return { items: items.map(toAnnotationRes) }
   }
 
   async resolve(userId: string, id: string) {
-    const annotation = await this.requireAuthor(userId, id)
-    const updated = await this.annotationRepository.setResolved(id, !annotation.isResolved)
+    await this.requireAuthor(userId, id)
+    // Keep PATCH /resolve idempotent: retries or double-clicks must not reopen a resolved annotation.
+    const updated = await this.annotationRepository.setResolved(id, true)
     return toAnnotationRes(updated)
   }
 

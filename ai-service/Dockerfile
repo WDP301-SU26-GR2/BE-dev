@@ -19,5 +19,9 @@ RUN python scripts/download_models.py
 COPY app ./app
 ENV MODEL_M109_PATH=/srv/models/manga109_yolo.pt MODEL_BUBBLE_PATH=/srv/models/bubble_seg.pt
 
+RUN groupadd --system app && useradd --system --gid app --home-dir /srv --shell /usr/sbin/nologin app && chown -R app:app /srv
+
+USER app
+
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

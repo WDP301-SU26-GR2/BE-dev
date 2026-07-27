@@ -6,11 +6,13 @@ export const AnnotationMessages = {
   error: {
     annotationNotFound: 'Error.AnnotationNotFound',
     annotationForbidden: 'Error.AnnotationForbidden',
-    targetNotFound: 'Error.AnnotationTargetNotFound'
+    targetNotFound: 'Error.AnnotationTargetNotFound',
+    taskBindingInvalid: 'Error.AnnotationTaskBindingInvalid'
   },
   errorText: {
     'Error.AnnotationNotFound': 'Không tìm thấy ghi chú',
     'Error.AnnotationForbidden': 'Bạn không có quyền thao tác với ghi chú này',
-    'Error.AnnotationTargetNotFound': 'Không tìm thấy đối tượng được ghi chú'
+    'Error.AnnotationTargetNotFound': 'Không tìm thấy đối tượng được ghi chú',
+    'Error.AnnotationTaskBindingInvalid': 'Task không khớp với đối tượng được ghi chú'
   }
 } as const
