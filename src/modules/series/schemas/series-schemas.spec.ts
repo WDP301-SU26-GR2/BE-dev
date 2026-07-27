@@ -1,5 +1,6 @@
 import {
   CreateProposalBodySchema,
+  SeriesListItemSchema,
   SeriesResSchema,
   UpdateProposalBodySchema,
   UpdateSeriesMetadataBodySchema
@@ -165,5 +166,43 @@ describe('UpdateSeriesMetadataBodySchema', () => {
 
   it('rejects an empty title', () => {
     expect(UpdateSeriesMetadataBodySchema.safeParse({ title: '' }).success).toBe(false)
+  })
+})
+
+// Spec 25 — chống drift giữa list và detail.
+describe('SeriesListItemSchema (Spec 25)', () => {
+  const listKeys = Object.keys(SeriesListItemSchema.shape)
+  const detailKeys = Object.keys(SeriesResSchema.shape)
+
+  it('bỏ proposal/completionProposal và field chỉ dùng ở detail', () => {
+    for (const key of [
+      'proposal',
+      'completionProposal',
+      'statusReason',
+      'reviewStartedAt',
+      'franchiseConsentStatus',
+      'coOwnerId',
+      'parentSeriesId',
+      'relationshipType',
+      'startIssueNumber'
+    ]) {
+      expect(listKeys).not.toContain(key)
+    }
+    expect(listKeys).toHaveLength(13)
+  })
+
+  // FE chốt 2026-07-26: magazine dùng làm tab lọc theo tạp chí → PHẢI giữ ở list.
+  it('giữ magazine cho tab lọc theo tạp chí', () => {
+    expect(listKeys).toContain('magazine')
+  })
+
+  // Spec 20 AC4: mini-embed để FE khỏi gọi thêm endpoint directory;
+  // Spec 20 AC3: field ID vô hướng vẫn giữ vì mutation response không có embed.
+  it('giữ mini-embed mangaka/editor kèm field ID vô hướng', () => {
+    for (const key of ['mangaka', 'editor', 'mangakaId', 'editorId']) expect(listKeys).toContain(key)
+  })
+
+  it('là tập con thực sự của SeriesResSchema', () => {
+    for (const key of listKeys) expect(detailKeys).toContain(key)
   })
 })

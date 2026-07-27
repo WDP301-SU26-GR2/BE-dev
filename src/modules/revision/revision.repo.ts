@@ -9,13 +9,14 @@ export type RevisionListWhere = Prisma.RevisionRequestWhereInput
 export class RevisionRepository {
   constructor(private readonly prismaService: PrismaService) {}
 
-  private async attachContext<T extends { requestedBy: string; recipientId: string; seriesId: string | null }>(
-    rows: T[]
-  ) {
+  private async attachContext<
+    T extends { requestedBy: string; recipientId: string; resolvedBy: string | null; seriesId: string | null }
+  >(rows: T[]) {
     const [users, series] = await Promise.all([
+      // `resolvedBy` đi chung 1 lượt lookup với requester/recipient — thêm embed KHÔNG thêm query.
       fetchUserMiniMap(
         this.prismaService,
-        rows.flatMap((row) => [row.requestedBy, row.recipientId])
+        rows.flatMap((row) => [row.requestedBy, row.recipientId, row.resolvedBy])
       ),
       fetchSeriesMiniMap(
         this.prismaService,
@@ -26,6 +27,7 @@ export class RevisionRepository {
       ...row,
       requester: users.get(row.requestedBy) ?? null,
       recipient: users.get(row.recipientId) ?? null,
+      resolver: row.resolvedBy ? (users.get(row.resolvedBy) ?? null) : null,
       series: row.seriesId ? (series.get(row.seriesId) ?? null) : null
     }))
   }

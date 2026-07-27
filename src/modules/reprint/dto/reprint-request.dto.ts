@@ -7,6 +7,7 @@ import {
   EditorApproveChapterBodySchema,
   AssignReviserBodySchema,
   ReprintRequestResSchema,
+  ReprintRequestListItemSchema,
   ReprintRequestListResSchema,
   ReprintChapterResSchema,
   ReprintChapterListResSchema
@@ -19,6 +20,7 @@ export class SubmitChapterManuscriptBodyDto extends createZodDto(SubmitChapterMa
 export class EditorApproveChapterBodyDto extends createZodDto(EditorApproveChapterBodySchema) {}
 export class AssignReviserBodyDto extends createZodDto(AssignReviserBodySchema) {}
 export class ReprintRequestResDto extends createZodDto(ReprintRequestResSchema) {}
+export class ReprintRequestListItemDto extends createZodDto(ReprintRequestListItemSchema) {}
 export class ReprintRequestListResDto extends createZodDto(ReprintRequestListResSchema) {}
 export class ReprintChapterResDto extends createZodDto(ReprintChapterResSchema) {}
 export class ReprintChapterListResDto extends createZodDto(ReprintChapterListResSchema) {}

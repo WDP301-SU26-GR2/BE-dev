@@ -215,6 +215,18 @@ export const BoardSessionResSchema = extendApi(
   { title: 'BoardSessionRes', description: 'Chi tiết phiên họp Hội đồng' }
 )
 
+export const BoardSessionListItemSchema = extendApi(
+  BoardSessionResSchema.omit({
+    members: true,
+    allowedEditorIds: true,
+    description: true
+  }),
+  {
+    title: 'BoardSessionListItemRes',
+    description: 'Board session list item without member roster payload'
+  }
+)
+
 export const BoardDecisionResSchema = extendApi(
   z.object({
     id: z.string(),
@@ -239,6 +251,18 @@ export const BoardDecisionResSchema = extendApi(
     createdAt: zDateField().optional()
   }),
   { title: 'BoardDecisionRes', description: 'Chi tiết quyết định Hội đồng' }
+)
+
+export const BoardDecisionListItemSchema = extendApi(
+  BoardDecisionResSchema.omit({
+    votes: true,
+    details: true,
+    allowedEditorIds: true
+  }),
+  {
+    title: 'BoardDecisionListItemRes',
+    description: 'Board decision list item without votes and free-form details payload'
+  }
 )
 
 export const SeriesReportResSchema = extendApi(

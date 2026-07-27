@@ -9,6 +9,7 @@ import {
   EditorApproveChapterBodyDto,
   SubmitChapterManuscriptBodyDto,
   AssignReviserBodyDto,
+  ReprintRequestListItemDto,
   ReprintRequestResDto,
   ReprintChapterResDto
 } from './dto/reprint-request.dto'
@@ -32,7 +33,7 @@ export class ReprintRequestController {
   @ApiOperation({ summary: 'Danh sách yêu cầu tái bản (filter status/seriesId, scope theo role)' })
   @Get()
   @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.MANGAKA, RoleName.SUPER_ADMIN)
-  @ZodResponse({ status: 200, type: [ReprintRequestResDto] })
+  @ZodResponse({ status: 200, type: [ReprintRequestListItemDto] })
   findAll(
     @ActiveUser('userId') userId: string,
     @ActiveUser('roleName') roleName: string,

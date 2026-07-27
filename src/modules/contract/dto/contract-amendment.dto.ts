@@ -5,6 +5,7 @@ import {
   RejectAmendmentBodySchema,
   VoidAmendmentBodySchema,
   SignAmendmentBodySchema,
+  AmendmentListItemSchema,
   AmendmentResSchema
 } from '../schemas/contract-amendment-schema'
 
@@ -13,4 +14,5 @@ export class UpdateAmendmentBodyDto extends createZodDto(UpdateAmendmentBodySche
 export class RejectAmendmentBodyDto extends createZodDto(RejectAmendmentBodySchema) {}
 export class VoidAmendmentBodyDto extends createZodDto(VoidAmendmentBodySchema) {}
 export class SignAmendmentBodyDto extends createZodDto(SignAmendmentBodySchema) {}
+export class AmendmentListItemDto extends createZodDto(AmendmentListItemSchema) {}
 export class AmendmentResDto extends createZodDto(AmendmentResSchema) {}

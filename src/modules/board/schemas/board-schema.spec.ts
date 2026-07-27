@@ -1,5 +1,9 @@
 import {
   BoardConfigResSchema,
+  BoardDecisionListItemSchema,
+  BoardDecisionResSchema,
+  BoardSessionListItemSchema,
+  BoardSessionResSchema,
   CreateBoardDecisionBodySchema,
   CreateBoardSessionBodySchema,
   ListBoardDecisionsQuerySchema,
@@ -106,5 +110,42 @@ describe('Board API contracts (Spec 17)', () => {
   it('documents quorumMin as the default roster size instead of vote quorum', () => {
     expect(UpdateBoardConfigBodySchema.shape.quorumMin.description).toContain('roster')
     expect(BoardConfigResSchema.shape.quorumMin.description).toContain('roster')
+  })
+})
+
+// Spec 25 — chống drift giữa list và detail.
+describe('BoardDecisionListItemSchema (Spec 25)', () => {
+  const listKeys = Object.keys(BoardDecisionListItemSchema.shape)
+  const detailKeys = Object.keys(BoardDecisionResSchema.shape)
+
+  it('bỏ votes/details/allowedEditorIds khỏi list', () => {
+    for (const key of ['votes', 'details', 'allowedEditorIds']) expect(listKeys).not.toContain(key)
+    expect(listKeys).toHaveLength(13)
+  })
+
+  // 🔴 Card danh sách quyết định phải hiện được "3/5 phiếu, đủ quorum". Các số đếm đã tính sẵn ở
+  // cấp decision nên bỏ votes[] KHÔNG làm mất thông tin — nhưng bỏ nhầm 4 field này thì mất.
+  it('giữ số đếm phiếu + quorum cho card', () => {
+    for (const key of ['quorumMet', 'totalVotes', 'approveCount', 'rejectCount']) {
+      expect(listKeys).toContain(key)
+    }
+  })
+
+  it('là tập con thực sự của BoardDecisionResSchema', () => {
+    for (const key of listKeys) expect(detailKeys).toContain(key)
+  })
+})
+
+describe('BoardSessionListItemSchema (Spec 25)', () => {
+  const listKeys = Object.keys(BoardSessionListItemSchema.shape)
+  const detailKeys = Object.keys(BoardSessionResSchema.shape)
+
+  it('bỏ members/allowedEditorIds/description khỏi list', () => {
+    for (const key of ['members', 'allowedEditorIds', 'description']) expect(listKeys).not.toContain(key)
+    expect(listKeys).toHaveLength(10)
+  })
+
+  it('là tập con thực sự của BoardSessionResSchema', () => {
+    for (const key of listKeys) expect(detailKeys).toContain(key)
   })
 })

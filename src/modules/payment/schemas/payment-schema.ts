@@ -92,9 +92,29 @@ export const PaymentRecordResSchema = extendApi(
   }
 )
 
+export const PaymentRecordListItemSchema = extendApi(
+  PaymentRecordResSchema.omit({
+    description: true,
+    note: true,
+    cancelReason: true,
+    transactionReference: true,
+    paymentMethod: true,
+    approvedBy: true,
+    approvedAt: true,
+    cancelledAt: true,
+    createdBy: true,
+    conditionId: true,
+    approver: true
+  }),
+  {
+    title: 'PaymentRecordListItemRes',
+    description: 'Payment record list item without detail-only audit/action fields'
+  }
+)
+
 export const PaymentRecordListSchema = extendApi(
   z.object({
-    data: z.array(PaymentRecordResSchema)
+    data: z.array(PaymentRecordListItemSchema)
   }),
   {
     title: 'PaymentRecordList',

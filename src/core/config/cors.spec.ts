@@ -44,7 +44,9 @@ describe('parseCorsOrigins', () => {
     expect(
       parseCorsOrigins('https://app.example.com,http://localhost:5173,http://127.0.0.1:3000', 'production', true)
     ).toEqual(['https://app.example.com', 'http://localhost:5173', 'http://127.0.0.1:3000'])
-    expect(() => parseCorsOrigins('http://localhost:5173', 'production')).toThrow('CORS_ORIGINS')
+    // Truyền `false` TƯỜNG MINH: bỏ trống thì tham số rơi về default `envConfig.ALLOW_INSECURE_LOCAL_CORS`,
+    // nghĩa là test đọc `.env` của từng máy → đỏ/xanh tuỳ máy. `.env` không commit nên không sửa được ở đó.
+    expect(() => parseCorsOrigins('http://localhost:5173', 'production', false)).toThrow('CORS_ORIGINS')
     expect(() => parseCorsOrigins('http://192.168.1.8:5173', 'production', true)).toThrow('CORS_ORIGINS')
   })
 })

@@ -15,7 +15,7 @@ import {
   LatestVoteResultsResDto,
   LatestVoteResultsQueryDto,
   ReaderVoteBodyDto,
-  ReaderVoteResDto,
+  ReaderVoteListItemDto,
   RankingRecordListResDto,
   SurveyDataResDto,
   SurveyPeriodResDto,
@@ -169,7 +169,7 @@ export class SurveyController {
   @Get('survey-periods/:id/votes')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
   @ApiOperation({ summary: 'Danh sách phiếu vote của kỳ bình chọn' })
-  @ZodResponse({ status: 200, type: [ReaderVoteResDto] })
+  @ZodResponse({ status: 200, type: [ReaderVoteListItemDto] })
   getSurveyPeriodVotes(@Param('id') id: string) {
     return this.surveyService.getSurveyPeriodVotes(id)
   }

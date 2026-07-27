@@ -269,9 +269,30 @@ export const ApproveTaskGroupResSchema = extendApi(
   { title: 'ApproveTaskGroupRes', description: 'Kết quả duyệt cả nhóm' }
 )
 
+export const TaskListItemSchema = extendApi(
+  TaskResSchema.omit({
+    versions: true,
+    assets: true,
+    description: true,
+    stageInputFile: true,
+    stageInputSourceType: true,
+    stageInputRevision: true,
+    pageOriginalFile: true,
+    statusReason: true,
+    startedAt: true,
+    completedAt: true
+  }),
+  { title: 'TaskListItemRes', description: 'Task item gon cho danh sach; detail xem GET /tasks/:id' }
+)
+
 export const TaskListResSchema = extendApi(
+  z.object({ items: z.array(TaskListItemSchema), total: z.number(), limit: z.number(), offset: z.number() }),
+  { title: 'TaskListRes', description: 'Danh sách task phân trang (shape gọn)' }
+)
+
+export const TaskBatchListResSchema = extendApi(
   z.object({ items: z.array(TaskResSchema), total: z.number(), limit: z.number(), offset: z.number() }),
-  { title: 'TaskListRes', description: 'Danh sách task phân trang' }
+  { title: 'TaskBatchListRes', description: 'Danh sách task vừa tạo theo batch (detail shape)' }
 )
 
 export const ListTasksQuerySchema = extendApi(
@@ -308,3 +329,4 @@ export type ReassignTaskBodyType = z.infer<typeof ReassignTaskBodySchema>
 export type CancelTaskBodyType = z.infer<typeof CancelTaskBodySchema>
 export type CreateTaskGroupBodyType = z.infer<typeof CreateTaskGroupBodySchema>
 export type ListTasksQueryType = z.infer<typeof ListTasksQuerySchema>
+export type TaskListItemType = z.infer<typeof TaskListItemSchema>

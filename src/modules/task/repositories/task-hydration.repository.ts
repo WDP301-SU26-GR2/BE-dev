@@ -90,4 +90,25 @@ export class TaskHydrationRepository {
       }
     })
   }
+
+  async attachListEmbeds<T extends Pick<Task, 'assistantId' | 'regionIds' | 'pageId'>>(rows: T[]) {
+    const [users, regions, pageFiles] = await Promise.all([
+      fetchUserMiniMap(
+        this.prisma,
+        rows.map((row) => row.assistantId)
+      ),
+      this.fetchRegionMap(rows.flatMap((row) => row.regionIds)),
+      this.fetchPageFileMap(rows.map((row) => row.pageId))
+    ])
+
+    return rows.map((row) => {
+      const page = pageFiles.get(row.pageId)
+      return {
+        ...row,
+        assistant: row.assistantId ? (users.get(row.assistantId) ?? null) : null,
+        regions: row.regionIds.map((id) => regions.get(id)).filter((region): region is Region => Boolean(region)),
+        pageDisplayFile: page ? (page.compositeFile ?? page.originalFile) : null
+      }
+    })
+  }
 }

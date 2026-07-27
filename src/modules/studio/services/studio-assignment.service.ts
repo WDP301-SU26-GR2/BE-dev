@@ -9,7 +9,7 @@ import {
   NotAssignmentOwnerException
 } from '../errors/studio.errors'
 import { AssignmentListWhere, StudioRepository } from '../studio.repo'
-import { toAssignmentRes } from '../studio.mapper'
+import { toAssignmentListItem, toAssignmentRes } from '../studio.mapper'
 import { ListAssignmentsQueryType } from '../schemas/studio-schemas'
 import { StudioMessages } from '../studio.messages'
 
@@ -69,7 +69,7 @@ export class StudioAssignmentService {
       this.studioRepository.listAssignments(where, page),
       this.studioRepository.countAssignments(where)
     ])
-    return { items: rows.map((r) => toAssignmentRes(r, now)), total, limit: query.limit, offset: query.offset }
+    return { items: rows.map((r) => toAssignmentListItem(r, now)), total, limit: query.limit, offset: query.offset }
   }
 
   // ---- Exported helpers (A4-b enforce + reviews gate) ----

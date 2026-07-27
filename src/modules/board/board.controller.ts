@@ -20,6 +20,8 @@ import {
   ListBoardDecisionsQueryDto,
   ListBoardReportsQueryDto,
   ListBoardMessagesQueryDto,
+  BoardSessionListItemDto,
+  BoardDecisionListItemDto,
   BoardMessageListResDto
 } from './dto/board.dto'
 import { RoleName } from 'src/core/security/constants/role.constant'
@@ -87,7 +89,7 @@ export class BoardController {
   @ApiOperation({ summary: 'Danh sách phiên họp Hội đồng' })
   @Get('sessions')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
-  @ZodResponse({ status: 200, type: [BoardSessionResDto] })
+  @ZodResponse({ status: 200, type: [BoardSessionListItemDto] })
   getSessions(@ActiveUser() user: JwtAccessTokenPayload, @Query() query: ListBoardSessionsQueryDto) {
     return this.boardService.getSessions({ userId: user.userId }, query)
   }
@@ -168,7 +170,7 @@ export class BoardController {
   @ApiOperation({ summary: 'Danh sách quyết định Hội đồng' })
   @Get('decisions')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
-  @ZodResponse({ status: 200, type: [BoardDecisionResDto] })
+  @ZodResponse({ status: 200, type: [BoardDecisionListItemDto] })
   getDecisions(@Query() query: ListBoardDecisionsQueryDto) {
     return this.boardService.getDecisions(query)
   }

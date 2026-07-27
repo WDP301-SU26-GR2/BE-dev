@@ -18,6 +18,8 @@ import {
   ListBoardDecisionsQuerySchema,
   ListBoardReportsQuerySchema,
   ListBoardMessagesQuerySchema,
+  BoardSessionListItemSchema,
+  BoardDecisionListItemSchema,
   BoardMessageListResSchema
 } from '../schemas/board-schema'
 
@@ -27,7 +29,9 @@ export class CastVoteBodyDto extends createZodDto(CastVoteBodySchema) {}
 export class CreateSeriesReportBodyDto extends createZodDto(CreateSeriesReportBodySchema) {}
 export class UpdateBoardConfigBodyDto extends createZodDto(UpdateBoardConfigBodySchema) {}
 export class BoardSessionResDto extends createZodDto(BoardSessionResSchema) {}
+export class BoardSessionListItemDto extends createZodDto(BoardSessionListItemSchema) {}
 export class BoardDecisionResDto extends createZodDto(BoardDecisionResSchema) {}
+export class BoardDecisionListItemDto extends createZodDto(BoardDecisionListItemSchema) {}
 export class BoardVoteResDto extends createZodDto(BoardVoteResSchema) {}
 export class BoardVoteListResDto extends createZodDto(BoardVoteListResSchema) {}
 export class SeriesReportResDto extends createZodDto(SeriesReportResSchema) {}

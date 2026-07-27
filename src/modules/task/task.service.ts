@@ -6,7 +6,7 @@ import { TaskAssignService } from './services/task-assign.service'
 import { TaskReviewService } from './services/task-review.service'
 import { TaskMediaService } from './services/task-media.service'
 import { TaskRepository, TaskListWhere } from './task.repo'
-import { toTaskRes } from './task.mapper'
+import { toTaskListItem, toTaskRes } from './task.mapper'
 import {
   BatchCreateTaskBodyType,
   CreateTaskGroupBodyType,
@@ -152,6 +152,6 @@ export class TaskService {
       this.taskRepository.listTasks(where, page),
       this.taskRepository.countTasks(where)
     ])
-    return { items: rows.map(toTaskRes), total, limit: query.limit, offset: query.offset }
+    return { items: rows.map(toTaskListItem), total, limit: query.limit, offset: query.offset }
   }
 }
