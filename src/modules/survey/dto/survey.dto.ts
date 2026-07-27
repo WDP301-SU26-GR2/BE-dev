@@ -23,6 +23,8 @@ import {
   VoteResultsQuerySchema,
   LatestVoteResultsResSchema,
   LatestVoteResultsQuerySchema,
+  OpenVotePeriodsQuerySchema,
+  OpenVotePeriodsResSchema,
   VotePeriodsQuerySchema,
   VotePeriodsResSchema,
   RankingAggregateQuerySchema,
@@ -56,6 +58,8 @@ export class LatestVoteResultsResDto extends createZodDto(LatestVoteResultsResSc
 export class LatestVoteResultsQueryDto extends createZodDto(LatestVoteResultsQuerySchema) {}
 export class VotePeriodsQueryDto extends createZodDto(VotePeriodsQuerySchema) {}
 export class VotePeriodsResDto extends createZodDto(VotePeriodsResSchema) {}
+export class OpenVotePeriodsQueryDto extends createZodDto(OpenVotePeriodsQuerySchema) {}
+export class OpenVotePeriodsResDto extends createZodDto(OpenVotePeriodsResSchema) {}
 export class RankingAggregateQueryDto extends createZodDto(RankingAggregateQuerySchema) {}
 export class RankingAggregateResDto extends createZodDto(RankingAggregateResSchema) {}
 export class VoteLiveQueryDto extends createZodDto(VoteLiveQuerySchema) {}

@@ -10,6 +10,10 @@ export class PublicVoteQueryService {
     private readonly rankingQuery: PublicRankingQueryService
   ) {}
 
+  getOpenPeriods(magazine?: string, publicationType?: PublicationType) {
+    return this.voteContextQuery.getOpenPeriods(magazine, publicationType)
+  }
+
   getVoteContext(periodId?: string) {
     return this.voteContextQuery.getVoteContext(periodId)
   }

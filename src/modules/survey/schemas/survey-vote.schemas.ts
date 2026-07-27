@@ -215,6 +215,44 @@ export const VotePeriodsQuerySchema = extendApi(
   { title: 'VotePeriodsQuery' }
 )
 
+// Guest discovery: kỳ đang OPEN. Khác VotePeriodsQuerySchema (REFLECTED) ở chỗ scope là OPTIONAL —
+// guest mở trang lần đầu chưa biết magazine/type nào, nên không được bắt buộc filter.
+export const OpenVotePeriodsQuerySchema = extendApi(
+  z
+    .object({
+      magazine: z.string().trim().min(1).optional().describe('Lọc theo tạp chí; bỏ trống = mọi tạp chí'),
+      publicationType: zEnum(PublicationType, 'PublicationType')
+        .optional()
+        .describe('Lọc theo nhịp xuất bản (tab Tuần/Tháng); bỏ trống = mọi nhịp')
+    })
+    .strict(),
+  { title: 'OpenVotePeriodsQuery' }
+)
+
+export const OpenVotePeriodsResSchema = extendApi(
+  z
+    .object({
+      items: z.array(
+        z
+          .object({
+            id: z.string().describe('Dùng làm periodId cho /vote/context, /vote/live, POST /vote'),
+            magazine: z.string(),
+            publicationType: zEnum(PublicationType, 'PublicationType'),
+            issueNumber: z.number().int().nullable(),
+            startDate: z.string().nullable().describe('ISO 8601 UTC'),
+            endDate: z.string().nullable().describe('ISO 8601 UTC — null = chưa ấn định ngày đóng')
+          })
+          .strict()
+      )
+    })
+    .strict(),
+  {
+    title: 'OpenVotePeriodsRes',
+    description:
+      'Kỳ bình chọn đang OPEN cho Guest. Danh sách rỗng = hiện không có kỳ nào mở. Option B: nhiều kỳ scoped có thể mở song song (WEEKLY + MONTHLY) nên đây là LIST, không phải 1 kỳ.'
+  }
+)
+
 export const VotePeriodsResSchema = extendApi(
   z
     .object({

@@ -13,6 +13,7 @@ function makeDeps() {
     findPublicSeriesByIds: jest.fn().mockResolvedValue([]),
     findLatestReflectedPeriod: jest.fn(),
     findLatestReflectedScopedPeriod: jest.fn(),
+    findOpenPeriods: jest.fn().mockResolvedValue([]),
     findReflectedPeriods: jest.fn().mockResolvedValue([]),
     findReflectedScopedPeriods: jest.fn().mockResolvedValue([]),
     getRankingRecordsByPeriod: jest.fn().mockResolvedValue([]),
@@ -301,5 +302,89 @@ describe('PublicVoteQueryService reflected ranking disclosure', () => {
     ])
     expect(weekly.results).toHaveLength(1)
     expect(weekly.results[0].seriesId).toBe('s1')
+  })
+})
+
+// Guest discovery gap: `/vote/context` and `/vote/live` both require a periodId, while
+// `/vote/periods` only lists REFLECTED (closed) periods — so a guest had no public way to learn
+// which period is currently OPEN. Option B allows several scoped periods to be OPEN at once
+// (WEEKLY + MONTHLY, different magazines), so discovery must return a LIST, not a single period.
+describe('PublicVoteQueryService open-period discovery for guests', () => {
+  const OPEN_WEEKLY = {
+    id: PERIOD_ID,
+    magazine: 'Shonen Jump',
+    publicationType: 'WEEKLY',
+    issueNumber: 31,
+    startDate: new Date('2026-07-20T00:00:00.000Z'),
+    endDate: new Date('2026-07-27T00:00:00.000Z')
+  }
+  const OPEN_MONTHLY = {
+    id: OTHER_PERIOD_ID,
+    magazine: 'Shonen Jump',
+    publicationType: 'MONTHLY',
+    issueNumber: 7,
+    startDate: new Date('2026-07-01T00:00:00.000Z'),
+    endDate: null
+  }
+
+  it('lists every currently OPEN period so the guest can pick a voting tab', async () => {
+    const deps = makeDeps()
+    deps.repo.findOpenPeriods.mockResolvedValue([OPEN_WEEKLY, OPEN_MONTHLY])
+
+    await expect(make(deps).getOpenPeriods()).resolves.toEqual({
+      items: [
+        {
+          id: PERIOD_ID,
+          magazine: 'Shonen Jump',
+          publicationType: 'WEEKLY',
+          issueNumber: 31,
+          startDate: '2026-07-20T00:00:00.000Z',
+          endDate: '2026-07-27T00:00:00.000Z'
+        },
+        {
+          id: OTHER_PERIOD_ID,
+          magazine: 'Shonen Jump',
+          publicationType: 'MONTHLY',
+          issueNumber: 7,
+          startDate: '2026-07-01T00:00:00.000Z',
+          endDate: null
+        }
+      ]
+    })
+    expect(deps.repo.findOpenPeriods).toHaveBeenCalledWith({ magazine: undefined, publicationType: undefined })
+  })
+
+  it('narrows discovery to one magazine/publicationType scope when the guest filters a tab', async () => {
+    const deps = makeDeps()
+    deps.repo.findOpenPeriods.mockResolvedValue([OPEN_WEEKLY])
+
+    const result = await make(deps).getOpenPeriods('  Shonen Jump  ', 'WEEKLY')
+
+    expect(deps.repo.findOpenPeriods).toHaveBeenCalledWith({
+      magazine: 'Shonen Jump',
+      publicationType: 'WEEKLY'
+    })
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0].id).toBe(PERIOD_ID)
+  })
+
+  it('returns an empty list (not an error) when no period is open', async () => {
+    const deps = makeDeps()
+    deps.repo.findOpenPeriods.mockResolvedValue([])
+
+    await expect(make(deps).getOpenPeriods()).resolves.toEqual({ items: [] })
+  })
+
+  it('never leaks a legacy unscoped period, because a guest cannot vote on it', async () => {
+    const deps = makeDeps()
+    deps.repo.findOpenPeriods.mockResolvedValue([
+      OPEN_WEEKLY,
+      { id: 'legacy1', magazine: null, publicationType: null, issueNumber: null, startDate: null, endDate: null }
+    ])
+
+    const result = await make(deps).getOpenPeriods()
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0].id).toBe(PERIOD_ID)
   })
 })

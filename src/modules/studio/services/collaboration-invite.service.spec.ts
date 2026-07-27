@@ -209,3 +209,22 @@ describe('CollaborationInviteService.decline / cancel', () => {
     await expect(service.decline(ASSISTANT_ID, INVITE_ID)).rejects.toBeDefined()
   })
 })
+
+describe('CollaborationInviteService.list', () => {
+  it('scopes Assistant invites and preserves pagination/filter values', async () => {
+    const { service, studioRepository } = make()
+    studioRepository.listInvites.mockResolvedValueOnce([])
+    studioRepository.countInvites.mockResolvedValueOnce(0)
+
+    await expect(
+      service.list(ASSISTANT_ID, 'ASSISTANT', { status: 'PENDING', limit: 20, offset: 0 })
+    ).resolves.toMatchObject({
+      items: [],
+      total: 0
+    })
+    expect(studioRepository.listInvites).toHaveBeenCalledWith(
+      { assistantId: ASSISTANT_ID, status: 'PENDING' },
+      { limit: 20, offset: 0 }
+    )
+  })
+})

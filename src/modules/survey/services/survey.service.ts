@@ -83,6 +83,10 @@ export class SurveyService {
     return this.rankingQueryService.getSeriesTrend(seriesId, periods, caller)
   }
 
+  getOpenPeriods(magazine?: string, publicationType?: PublicationType) {
+    return this.rankingQueryService.getOpenPeriods(magazine, publicationType)
+  }
+
   getVoteContext(periodId?: string) {
     return this.rankingQueryService.getVoteContext(periodId)
   }
