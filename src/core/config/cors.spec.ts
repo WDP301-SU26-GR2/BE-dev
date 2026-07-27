@@ -39,4 +39,12 @@ describe('parseCorsOrigins', () => {
   it.each(['', '*', 'http://app.example.com'])('rejects unsafe production origins', (raw) => {
     expect(() => parseCorsOrigins(raw, 'production')).toThrow('CORS_ORIGINS')
   })
+
+  it('allows explicit HTTP localhost origins in production only when opted in', () => {
+    expect(
+      parseCorsOrigins('https://app.example.com,http://localhost:5173,http://127.0.0.1:3000', 'production', true)
+    ).toEqual(['https://app.example.com', 'http://localhost:5173', 'http://127.0.0.1:3000'])
+    expect(() => parseCorsOrigins('http://localhost:5173', 'production')).toThrow('CORS_ORIGINS')
+    expect(() => parseCorsOrigins('http://192.168.1.8:5173', 'production', true)).toThrow('CORS_ORIGINS')
+  })
 })
