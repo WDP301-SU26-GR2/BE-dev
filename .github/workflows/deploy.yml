@@ -334,11 +334,11 @@ jobs:
             fi
             FREE_KB="$(df -Pk . | awk 'NR==2 {print $4}')"
             if [ "${FREE_KB:-0}" -lt 2097152 ]; then
-              echo "Low disk space; pruning only unused Docker images and build cache older than seven days"
+              echo "Low disk space; pruning unused Docker images and build cache"
               # Do not prune containers, volumes, or images still used by a container. Volumes contain
               # stateful Redis/Prometheus data and are intentionally never removed by deployment.
-              docker image prune --all --force --filter 'until=168h' || true
-              docker builder prune --all --force --filter 'until=168h' || true
+              docker image prune --all --force || true
+              docker builder prune --all --force || true
               FREE_KB="$(df -Pk . | awk 'NR==2 {print $4}')"
             fi
             if [ "${FREE_KB:-0}" -lt 2097152 ]; then
