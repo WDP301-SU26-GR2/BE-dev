@@ -21,6 +21,9 @@ export class RankingQueryService {
   getSeriesTrend(id: string, periods: number, caller: { userId: string; roleName: string }) {
     return this.internalQuery.getSeriesTrend(id, periods, caller)
   }
+  getOpenPeriods(magazine?: string, type?: PublicationType) {
+    return this.publicQuery.getOpenPeriods(magazine, type)
+  }
   getVoteContext(id?: string) {
     return this.publicQuery.getVoteContext(id)
   }

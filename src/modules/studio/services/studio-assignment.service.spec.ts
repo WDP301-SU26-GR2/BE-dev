@@ -107,3 +107,21 @@ describe('StudioAssignmentService.findEndedForPairById', () => {
     expect(await service.findEndedForPairById('m1', 'a1', 'bad')).toBeNull()
   })
 })
+
+describe('StudioAssignmentService.list', () => {
+  it('applies activeNow as an additional ACTIVE hire-window filter', async () => {
+    const { service, studioRepository } = make()
+    await expect(service.list('a1', 'ASSISTANT', { activeNow: true, limit: 20, offset: 0 })).resolves.toMatchObject({
+      items: [],
+      total: 0
+    })
+
+    expect(studioRepository.listAssignments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assistantId: 'a1',
+        AND: expect.arrayContaining([expect.objectContaining({ status: 'ACTIVE' })])
+      }),
+      { limit: 20, offset: 0 }
+    )
+  })
+})
