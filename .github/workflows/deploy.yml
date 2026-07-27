@@ -285,7 +285,24 @@ jobs:
             cd ${{ secrets.VPS_APP_DIR }}
             export API_IMAGE="${{ needs.build-and-push.outputs.api_image }}"
             export AI_IMAGE="${{ needs.build-and-push.outputs.ai_image }}"
-            AI_ENABLED="${{ vars.AI_ENABLED || 'false' }}"
+
+            read_deploy_env() {
+              key="$1"
+              value="$(sed -n "s/^[[:space:]]*${key}=//p" .env | tail -n 1)"
+              value="${value%$'\r'}"
+              case "${value}" in
+                \"*\") value="${value#\"}"; value="${value%\"}" ;;
+                \'*\') value="${value#\'}"; value="${value%\'}" ;;
+              esac
+              printf '%s' "${value}"
+            }
+
+            [ -f .env ] || { echo 'Deployment .env is missing'; exit 1; }
+            AI_ENABLED="$(read_deploy_env AI_ENABLED)"
+            AI_ENABLED="${AI_ENABLED:-false}"
+            case "${AI_ENABLED}" in true|false) ;; *) echo 'AI_ENABLED must be true or false'; exit 1 ;; esac
+            PRODUCTION_HEALTH_URL="$(read_deploy_env PRODUCTION_HEALTH_URL)"
+            case "${PRODUCTION_HEALTH_URL}" in https://*) ;; *) echo 'PRODUCTION_HEALTH_URL must be a non-empty HTTPS URL'; exit 1 ;; esac
 
             immutable_container_image() {
               CONTAINER_NAME="$1"
@@ -385,7 +402,7 @@ jobs:
             [ "$(docker inspect --format '{{.State.Running}}' mangaka-prometheus)" = "true" ] || rollback
 
             curl --fail --silent --show-error --max-time 15 \
-              "${{ secrets.PRODUCTION_HEALTH_URL }}/health/ready" >/dev/null || rollback
+              "${PRODUCTION_HEALTH_URL%/}/health/ready" >/dev/null || rollback
 
             if [ "${AI_ENABLED}" != "true" ]; then
               docker compose -f docker-compose.prod.yml --profile ai stop ai-service || true
