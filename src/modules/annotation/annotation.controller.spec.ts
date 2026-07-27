@@ -21,9 +21,14 @@ describe('AnnotationController', () => {
   it('forwards the authenticated user and target query when listing annotations', () => {
     const service = { list: jest.fn().mockReturnValue({ items: [] }) }
     const controller = new AnnotationController(service as never)
-    const query = { targetType: AnnotationTargetType.REGION, targetId: '507f1f77bcf86cd799439012' }
+    const query = {
+      targetType: AnnotationTargetType.REGION,
+      targetId: '507f1f77bcf86cd799439012',
+      limit: 20,
+      offset: 0
+    }
 
     expect(controller.list(query, user as never)).toEqual({ items: [] })
-    expect(service.list).toHaveBeenCalledWith('u1', 'EDITOR', query.targetType, query.targetId)
+    expect(service.list).toHaveBeenCalledWith('u1', 'EDITOR', query)
   })
 })

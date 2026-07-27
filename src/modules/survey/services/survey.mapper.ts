@@ -1,4 +1,4 @@
-import { PublicationType } from '@prisma/client'
+import { PublicationType, ReaderVote } from '@prisma/client'
 
 export function mapSurveyPeriod(surveyPeriod: {
   id: string
@@ -53,6 +53,19 @@ export function mapVotingConfig(config: {
     ipVotesPerPeriod: config.ipVotesPerPeriod,
     captchaThreshold: config.captchaThreshold,
     updatedAt: config.updatedAt.toISOString()
+  }
+}
+
+export function mapReaderVoteListItem(vote: ReaderVote) {
+  return {
+    id: vote.id,
+    surveyPeriodId: vote.surveyPeriodId,
+    seriesIds: vote.seriesIds,
+    publicationType: vote.publicationType,
+    authMethod: vote.authMethod,
+    voteWeight: vote.voteWeight,
+    isFlagged: vote.isFlagged,
+    votedAt: vote.votedAt
   }
 }
 

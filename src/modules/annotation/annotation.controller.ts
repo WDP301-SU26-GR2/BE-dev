@@ -44,13 +44,13 @@ export class AnnotationController {
 
   // Query validate qua global CustomZodValidationPipe (createZodDto) — thiếu/sai targetType|targetId → 422.
   @Get()
-  @ApiOperation({ summary: 'List annotation theo targetType + targetId' })
+  @ApiOperation({ summary: 'List annotation theo targetType + targetId (phân trang, mặc định 20/trang)' })
   @ApiResponse({ status: 422, description: 'Thiếu/sai query targetType hoặc targetId' })
   @ApiErrors(AnnotationForbiddenException, AnnotationTargetNotFoundException)
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.ASSISTANT)
   @ZodResponse({ status: 200, type: AnnotationListResDto })
   list(@Query() query: ListAnnotationQueryDto, @ActiveUser() user: JwtAccessTokenPayload) {
-    return this.annotationService.list(user.userId, user.roleName, query.targetType, query.targetId)
+    return this.annotationService.list(user.userId, user.roleName, query)
   }
 
   @Patch(':id/resolve')

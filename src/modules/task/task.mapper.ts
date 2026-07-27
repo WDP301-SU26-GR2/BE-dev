@@ -1,5 +1,6 @@
 import { AiSegmentSource, Asset, Region, Task } from '@prisma/client'
 import { UserMiniType } from 'src/core/models/user-mini.model'
+import { TaskListItemType } from './schemas/task-schemas'
 
 type TaskAssetEmbed = Pick<Asset, 'id' | 'filePath' | 'name' | 'assetType'>
 
@@ -27,6 +28,27 @@ type TaskWithPeople = Omit<Task, 'versions'> & {
   stageInputSourceType?: AiSegmentSource | null
   stageInputRevision?: number | null
   versions: Array<Task['versions'][number] & { submitter?: UserMiniType | null }>
+}
+
+type TaskListRow = Pick<
+  Task,
+  | 'id'
+  | 'pageId'
+  | 'regionIds'
+  | 'assistantId'
+  | 'taskType'
+  | 'status'
+  | 'stageId'
+  | 'priority'
+  | 'deadline'
+  | 'assetIds'
+  | 'groupId'
+  | 'groupTitle'
+  | 'createdAt'
+> & {
+  assistant?: UserMiniType | null
+  regions?: Region[]
+  pageDisplayFile?: string | null
 }
 
 export function toTaskRes(t: TaskWithPeople) {
@@ -73,6 +95,27 @@ export function toTaskRes(t: TaskWithPeople) {
         }
       : {}),
     ...(t.pageOriginalFile !== undefined ? { pageOriginalFile: t.pageOriginalFile } : {}),
+    ...(t.pageDisplayFile !== undefined ? { pageDisplayFile: t.pageDisplayFile } : {})
+  }
+}
+
+export function toTaskListItem(t: TaskListRow): TaskListItemType {
+  return {
+    id: t.id,
+    pageId: t.pageId,
+    regionIds: t.regionIds ?? [],
+    assistantId: t.assistantId ?? null,
+    taskType: t.taskType ?? null,
+    status: t.status,
+    stageId: t.stageId ?? null,
+    priority: t.priority,
+    deadline: t.deadline ? t.deadline.toISOString() : null,
+    assetIds: t.assetIds ?? [],
+    createdAt: t.createdAt.toISOString(),
+    groupId: t.groupId ?? null,
+    groupTitle: t.groupTitle ?? null,
+    ...(t.assistant !== undefined ? { assistant: t.assistant } : {}),
+    ...(t.regions !== undefined ? { regions: t.regions.map(toRegionRes) } : {}),
     ...(t.pageDisplayFile !== undefined ? { pageDisplayFile: t.pageDisplayFile } : {})
   }
 }

@@ -14,6 +14,7 @@ import {
   ReassignTaskBodySchema,
   RequestRevisionBodySchema,
   SubmitTaskBodySchema,
+  TaskBatchListResSchema,
   TaskFileDownloadBodySchema,
   TaskFileDownloadResSchema,
   TaskListResSchema,
@@ -39,6 +40,7 @@ export class RequestRevisionBodyDto extends createZodDto(RequestRevisionBodySche
 export class ReassignTaskBodyDto extends createZodDto(ReassignTaskBodySchema) {}
 export class TaskResDto extends createZodDto(TaskResSchema) {}
 export class TaskListResDto extends createZodDto(TaskListResSchema) {}
+export class TaskBatchListResDto extends createZodDto(TaskBatchListResSchema) {}
 export class ListTasksQueryDto extends createZodDto(ListTasksQuerySchema) {}
 export class TaskFileDownloadBodyDto extends createZodDto(TaskFileDownloadBodySchema) {}
 export class TaskFileDownloadResDto extends createZodDto(TaskFileDownloadResSchema) {}

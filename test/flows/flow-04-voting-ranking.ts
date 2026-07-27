@@ -778,13 +778,18 @@ const main = async () => {
   const r42 = await req('GET', `/survey-periods/${periodId}/votes`, { token: editorTok })
   ok('04.42a votes list 200', r42.status === 200, `got ${r42.status}`)
   const votes = Array.isArray(r42.json?.data) ? r42.json.data : []
-  if (votes.length > 0) {
-    ok(
-      '04.42b votes identityHash không phải email gốc',
-      typeof votes[0].identityHash === 'string' && !votes[0].identityHash.includes('@'),
-      `got ${votes[0].identityHash?.slice(0, 20)}`
-    )
-  }
+  const firstVote = votes[0] as Record<string, unknown> | undefined
+  ok(
+    '04.42b response khong lo identityHash/ipHash',
+    firstVote === undefined || (!('identityHash' in firstVote) && !('ipHash' in firstVote)),
+    `got keys ${Object.keys(firstVote ?? {}).join(',')}`
+  )
+  const dbVote = await prisma.readerVote.findFirst({ where: { surveyPeriodId: periodId } })
+  ok(
+    '04.42c DB luu hash, khong luu email goc',
+    dbVote == null || (typeof dbVote.identityHash === 'string' && !dbVote.identityHash.includes('@')),
+    `got ${dbVote?.identityHash?.slice(0, 20)}`
+  )
 
   section('F04.43 voting-config PATCH by E → 403')
   const r43 = await req('PATCH', '/voting-config', {

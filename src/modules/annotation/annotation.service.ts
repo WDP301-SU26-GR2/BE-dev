@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import { AnnotationTargetType } from '@prisma/client'
 import { AnnotationRepository } from './annotation.repo'
 import { AnnotationForbiddenException, AnnotationNotFoundException } from './errors/annotation.errors'
 import { toAnnotationRes } from './annotation.mapper'
-import { CreateAnnotationBodyType } from './schemas/annotation-schemas'
+import { CreateAnnotationBodyType, ListAnnotationQueryType } from './schemas/annotation-schemas'
 import { AnnotationAccessService } from './services/annotation-access.service'
 
 @Injectable()
@@ -34,13 +33,23 @@ export class AnnotationService {
     return toAnnotationRes(created)
   }
 
-  async list(userId: string, roleName: string, targetType: AnnotationTargetType, targetId: string) {
+  async list(userId: string, roleName: string, query: ListAnnotationQueryType) {
+    const { targetType, targetId, limit, offset } = query
     const scope = await this.annotationAccessService.listScope({ userId, roleName }, targetType, targetId)
-    const items =
+    const page = { limit, offset }
+    // Assistant chỉ thấy annotation thuộc task được giao ⇒ count phải cùng scope với find,
+    // nếu không `total` sẽ tố cáo số annotation họ không được đọc.
+    const [items, total] =
       scope.taskIds === null
-        ? await this.annotationRepository.findByTarget(targetType, targetId)
-        : await this.annotationRepository.findByTargetForTaskIds(targetType, targetId, scope.taskIds)
-    return { items: items.map(toAnnotationRes) }
+        ? await Promise.all([
+            this.annotationRepository.findByTarget(targetType, targetId, page),
+            this.annotationRepository.countByTarget(targetType, targetId)
+          ])
+        : await Promise.all([
+            this.annotationRepository.findByTargetForTaskIds(targetType, targetId, scope.taskIds, page),
+            this.annotationRepository.countByTargetForTaskIds(targetType, targetId, scope.taskIds)
+          ])
+    return { items: items.map(toAnnotationRes), total, limit, offset }
   }
 
   async resolve(userId: string, id: string) {

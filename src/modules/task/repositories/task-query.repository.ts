@@ -98,7 +98,7 @@ export class TaskQueryRepository {
       skip: page.offset,
       take: page.limit
     })
-    return this.hydration.attachEmbeds(rows)
+    return this.hydration.attachListEmbeds(rows)
   }
 
   countTasks(where: TaskListWhere) {

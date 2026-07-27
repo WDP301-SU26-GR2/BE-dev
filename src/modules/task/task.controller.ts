@@ -22,6 +22,7 @@ import {
   SubmitTaskBodyDto,
   TaskFileDownloadBodyDto,
   TaskFileDownloadResDto,
+  TaskBatchListResDto,
   TaskListResDto,
   TaskResDto,
   UpdateRegionBodyDto,
@@ -146,11 +147,11 @@ export class TaskController {
     PageNotEditableTaskException
   )
   @Roles(RoleName.MANGAKA)
-  @ZodResponse({ status: 201, type: TaskListResDto })
+  @ZodResponse({ status: 201, type: TaskBatchListResDto })
   createTaskBatch(
     @Body() body: BatchCreateTaskBodyDto,
     @ActiveUser('userId') userId: string
-  ): Promise<InstanceType<typeof TaskListResDto>> {
+  ): Promise<InstanceType<typeof TaskBatchListResDto>> {
     return this.taskService.createTaskBatch(userId, body)
   }
 

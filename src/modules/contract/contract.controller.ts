@@ -6,6 +6,7 @@ import {
   CreateContractBodyDto,
   EditorUpdateContractBodyDto,
   SignContractWithOtpBodyDto,
+  ContractListItemDto,
   ContractResDto,
   ContractVersionResDto,
   ContractHealthResDto,
@@ -39,7 +40,7 @@ export class ContractController {
   @ApiOperation({ summary: 'Danh sách hợp đồng theo scope role hiện tại' })
   @Get()
   @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
-  @ZodResponse({ status: 200, type: [ContractResDto] })
+  @ZodResponse({ status: 200, type: [ContractListItemDto] })
   getContracts(@ActiveUser('userId') userId: string, @ActiveUser('roleName') roleName: string) {
     return this.contractService.getContracts(userId, roleName)
   }

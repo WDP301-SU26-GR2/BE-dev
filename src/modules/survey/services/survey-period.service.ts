@@ -13,7 +13,7 @@ import {
 } from '../errors/survey.errors'
 import { SurveyMessages } from '../survey.messages'
 import { SurveyRepository } from '../survey.repo'
-import { mapSurveyPeriod } from './survey.mapper'
+import { mapReaderVoteListItem, mapSurveyPeriod } from './survey.mapper'
 
 @Injectable()
 export class SurveyPeriodService {
@@ -40,7 +40,8 @@ export class SurveyPeriodService {
     if (!isObjectId(id)) throw SurveyPeriodNotFoundException
     const surveyPeriod = await this.surveyRepository.findSurveyPeriodById(id)
     if (!surveyPeriod) throw SurveyPeriodNotFoundException
-    return this.surveyRepository.getReaderVotesByPeriod(id)
+    const votes = await this.surveyRepository.getReaderVotesByPeriod(id)
+    return votes.map((vote) => mapReaderVoteListItem(vote))
   }
 
   async getSurveyPeriodSurveyData(id: string) {

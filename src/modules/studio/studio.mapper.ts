@@ -1,5 +1,5 @@
 import { CollaborationInvite, StudioAssignment } from '@prisma/client'
-import { AssignmentResType, InviteResType } from './schemas/studio-schemas'
+import { AssignmentListItemType, AssignmentResType, InviteListItemType, InviteResType } from './schemas/studio-schemas'
 import { SeriesMiniType, UserMiniType } from 'src/core/models/user-mini.model'
 
 type StudioPeople = {
@@ -25,6 +25,12 @@ export function toInviteRes(i: CollaborationInvite & StudioPeople): InviteResTyp
   }
 }
 
+export function toInviteListItem(i: CollaborationInvite & StudioPeople): InviteListItemType {
+  const listItem = { ...toInviteRes(i) }
+  delete (listItem as { taskTypes?: unknown }).taskTypes
+  return listItem
+}
+
 // activeNow (lazy): status ACTIVE và `at` ∈ [hireStart, hireEnd].
 export function isAssignmentActiveNow(a: StudioAssignment, at: Date = new Date()): boolean {
   return a.status === 'ACTIVE' && a.hireStart != null && a.hireEnd != null && a.hireStart <= at && a.hireEnd >= at
@@ -47,4 +53,14 @@ export function toAssignmentRes(a: StudioAssignment & StudioPeople, at: Date = n
     ...(a.assistant !== undefined ? { assistant: a.assistant } : {}),
     ...(a.series !== undefined ? { series: a.series } : {})
   }
+}
+
+export function toAssignmentListItem(
+  a: StudioAssignment & StudioPeople,
+  at: Date = new Date()
+): AssignmentListItemType {
+  const listItem = { ...toAssignmentRes(a, at) }
+  delete (listItem as { assignedTaskTypes?: unknown }).assignedTaskTypes
+  delete (listItem as { terminatedReason?: unknown }).terminatedReason
+  return listItem
 }

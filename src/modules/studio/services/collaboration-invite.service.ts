@@ -13,7 +13,7 @@ import {
   NotInviteeException,
   TargetNotAssistantException
 } from '../errors/studio.errors'
-import { toAssignmentRes, toInviteRes } from '../studio.mapper'
+import { toAssignmentRes, toInviteListItem, toInviteRes } from '../studio.mapper'
 import { StudioRepository } from '../studio.repo'
 import { CreateInviteBodyType, ListInvitesQueryType } from '../schemas/studio-schemas'
 import { StudioAssignmentService } from './studio-assignment.service'
@@ -104,7 +104,7 @@ export class CollaborationInviteService {
       this.studioRepository.listInvites(where, page),
       this.studioRepository.countInvites(where)
     ])
-    return { items: rows.map(toInviteRes), total, limit: query.limit, offset: query.offset }
+    return { items: rows.map(toInviteListItem), total, limit: query.limit, offset: query.offset }
   }
 
   private async requireInvite(inviteId: string) {

@@ -183,14 +183,29 @@ export const ListSeriesQuerySchema = extendApi(
   { title: 'ListSeriesQuery', description: 'Lọc danh sách series (theo scope vai trò)' }
 )
 
+export const SeriesListItemSchema = extendApi(
+  SeriesResSchema.omit({
+    proposal: true,
+    completionProposal: true,
+    statusReason: true,
+    reviewStartedAt: true,
+    franchiseConsentStatus: true,
+    coOwnerId: true,
+    parentSeriesId: true,
+    relationshipType: true,
+    startIssueNumber: true
+  }),
+  { title: 'SeriesListItemRes', description: 'Series item gon cho danh sach; detail xem GET /series/:id' }
+)
+
 export const SeriesListResSchema = extendApi(
   z.object({
-    items: z.array(SeriesResSchema),
+    items: z.array(SeriesListItemSchema),
     total: z.number(),
     limit: z.number(),
     offset: z.number()
   }),
-  { title: 'SeriesListRes', description: 'Danh sách series phân trang' }
+  { title: 'SeriesListRes', description: 'Danh sách series phân trang (shape gọn)' }
 )
 
 // Spec 2 / Flow 5: Editor gửi series vào HIATUS. reason bắt buộc; expectedReturnDate optional (ISO 8601).

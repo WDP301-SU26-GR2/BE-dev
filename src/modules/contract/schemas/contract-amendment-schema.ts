@@ -117,5 +117,21 @@ export const AmendmentResSchema = extendApi(
   { title: 'AmendmentRes', description: 'Chi tiết phụ lục hợp đồng' }
 )
 
+export const AmendmentListItemSchema = extendApi(
+  AmendmentResSchema.omit({
+    signatures: true,
+    changedClauses: true,
+    reason: true,
+    terminationClause: true,
+    voidReason: true,
+    mangakaSignedAt: true,
+    boardSignedAt: true
+  }),
+  {
+    title: 'AmendmentListItemRes',
+    description: 'Contract amendment list item without clause/signature detail payload'
+  }
+)
+
 export type CreateAmendmentBodyType = z.infer<typeof CreateAmendmentBodySchema>
 export type UpdateAmendmentBodyType = z.infer<typeof UpdateAmendmentBodySchema>
