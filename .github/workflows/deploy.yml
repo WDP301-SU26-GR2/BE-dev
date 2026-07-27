@@ -333,8 +333,18 @@ jobs:
               exit 1
             fi
             FREE_KB="$(df -Pk . | awk 'NR==2 {print $4}')"
-            if [ "${FREE_KB:-0}" -lt 3145728 ]; then
-              echo "Insufficient disk space for immutable image rollout"
+            if [ "${FREE_KB:-0}" -lt 2097152 ]; then
+              echo "Low disk space; pruning only unused Docker images and build cache older than seven days"
+              # Do not prune containers, volumes, or images still used by a container. Volumes contain
+              # stateful Redis/Prometheus data and are intentionally never removed by deployment.
+              docker image prune --all --force --filter 'until=168h' || true
+              docker builder prune --all --force --filter 'until=168h' || true
+              FREE_KB="$(df -Pk . | awk 'NR==2 {print $4}')"
+            fi
+            if [ "${FREE_KB:-0}" -lt 2097152 ]; then
+              df -h .
+              docker system df || true
+              echo "Insufficient disk space for rollout: at least 2 GiB free is required after safe cleanup"
               exit 1
             fi
 
@@ -356,11 +366,11 @@ jobs:
                 export API_IMAGE="${PREVIOUS_API_IMAGE}"
                 if [ "${AI_ENABLED}" = "true" ] && [ -n "${PREVIOUS_AI_IMAGE}" ]; then
                   export AI_IMAGE="${PREVIOUS_AI_IMAGE}"
-                  docker compose -f docker-compose.prod.yml --profile ai --profile monitoring \
-                    up -d --force-recreate redis api ai-service caddy prometheus
+                  docker compose -f docker-compose.prod.yml --profile ai \
+                    up -d --no-deps --force-recreate ai-service api
                 else
-                  docker compose -f docker-compose.prod.yml --profile monitoring \
-                    up -d --force-recreate redis api caddy prometheus
+                  docker compose -f docker-compose.prod.yml \
+                    up -d --no-deps --force-recreate api
                   [ "${AI_ENABLED}" = "true" ] && \
                     docker compose -f docker-compose.prod.yml --profile ai stop ai-service || true
                 fi
@@ -370,35 +380,62 @@ jobs:
               exit 1
             }
 
+            api_diagnostics() {
+              echo 'API container diagnostics (secrets and connection URLs are redacted):'
+              docker inspect --format \
+                'state={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+                mangaka-api || true
+              docker inspect --format '{{range .State.Health.Log}}{{println .End "exit=" .ExitCode}}{{println .Output}}{{end}}' mangaka-api 2>/dev/null || true
+              docker logs --tail 120 mangaka-api 2>&1 | sed -E \
+                -e 's/((API_KEY|ACCESS_TOKEN_SECRET|REFRESH_TOKEN_SECRET|AI_SERVICE_API_KEY|R2_SECRET_ACCESS_KEY|DATABASE_URL|REDIS_URL|RECAPTCHA_SECRET|IDENTITY_HASH_PEPPER)=)[^[:space:]]+/\1<redacted>/g' \
+                -e 's#(mongodb(\+srv)?|redis)://[^[:space:]]+#<redacted-url>#g' || true
+            }
+
+            wait_for_health() {
+              CONTAINER_NAME="$1"
+              ATTEMPTS="$2"
+              for attempt in $(seq 1 "${ATTEMPTS}"); do
+                HEALTH="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' "${CONTAINER_NAME}" 2>/dev/null || true)"
+                [ "${HEALTH}" = "healthy" ] && return 0
+                [ "${HEALTH}" = "unhealthy" ] && return 1
+                sleep 5
+              done
+              return 1
+            }
+
             docker compose -f docker-compose.prod.yml pull api
             if [ "${AI_ENABLED}" = "true" ]; then
               docker compose -f docker-compose.prod.yml --profile ai pull ai-service
             fi
-            docker compose -f docker-compose.prod.yml run --rm api \
+            docker compose -f docker-compose.prod.yml run --rm --no-deps api \
               node dist/initialScript/bootstrap-mongo-indexes.js
+
+            # Preserve stateful/shared services during an application rollout. Recreating Redis,
+            # Caddy, and Prometheus on every push adds minutes of downtime and needless disk churn.
+            docker compose -f docker-compose.prod.yml up -d redis
+            if ! wait_for_health mangaka-redis 12; then
+              echo 'Redis is not healthy; refusing to replace the API container'
+              rollback
+            fi
             if [ "${AI_ENABLED}" = "true" ]; then
-              docker compose -f docker-compose.prod.yml --profile ai --profile monitoring \
-                up -d --force-recreate redis api ai-service caddy prometheus
-            else
-              docker compose -f docker-compose.prod.yml --profile monitoring \
-                up -d --force-recreate redis api caddy prometheus
+              docker compose -f docker-compose.prod.yml --profile ai \
+                up -d --no-deps --force-recreate ai-service
+              if ! wait_for_health mangaka-ai 36; then
+                echo 'AI service is not healthy; refusing to replace the API container'
+                docker logs --tail 120 mangaka-ai 2>&1 || true
+                rollback
+              fi
+            fi
+            docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate api
+
+            if ! wait_for_health mangaka-api 36; then
+              api_diagnostics
+              rollback
             fi
 
-            for attempt in $(seq 1 36); do
-              API_HEALTH="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' mangaka-api)"
-              [ "${API_HEALTH}" = "healthy" ] && break
-              [ "${API_HEALTH}" = "unhealthy" ] && rollback
-              sleep 5
-            done
-            [ "$(docker inspect --format '{{.State.Health.Status}}' mangaka-api)" = "healthy" ] || rollback
-            [ "$(docker inspect --format '{{.State.Health.Status}}' mangaka-redis)" = "healthy" ] || rollback
+            # Start optional edge/monitoring services when absent, without recreating healthy ones.
+            docker compose -f docker-compose.prod.yml --profile monitoring up -d caddy prometheus
             [ "$(docker inspect --format '{{.State.Running}}' mangaka-caddy)" = "true" ] || rollback
-
-            if [ "${AI_ENABLED}" = "true" ]; then
-              AI_HEALTH="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' mangaka-ai)"
-              [ "${AI_HEALTH}" = "healthy" ] || rollback
-            fi
-
             [ "$(docker inspect --format '{{.State.Running}}' mangaka-prometheus)" = "true" ] || rollback
 
             curl --fail --silent --show-error --max-time 15 \
