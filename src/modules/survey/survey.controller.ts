@@ -12,8 +12,6 @@ import {
   CreateSurveyPeriodBodyDto,
   GetSeriesTrendQueryDto,
   ImportSurveyDataBodyDto,
-  LatestVoteResultsResDto,
-  LatestVoteResultsQueryDto,
   ReaderVoteBodyDto,
   ReaderVoteListItemDto,
   RankingRecordListResDto,
@@ -23,16 +21,12 @@ import {
   VotingConfigBodyDto,
   VotingConfigResDto,
   VoteContextResDto,
+  OpenVotePeriodsQueryDto,
+  OpenVotePeriodsResDto,
   VoteContextQueryDto,
   VoteOtpRequestBodyDto,
-  VotePeriodsQueryDto,
-  VotePeriodsResDto,
-  RankingAggregateQueryDto,
-  RankingAggregateResDto,
   VoteLiveQueryDto,
-  VoteTallyResDto,
-  VoteResultsQueryDto,
-  VoteResultsResDto
+  VoteTallyResDto
 } from './dto/survey.dto'
 import { SurveyService } from './services/survey.service'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
@@ -41,7 +35,6 @@ import {
   RankingAccessDeniedException,
   SeriesNotFoundForRankingException,
   SurveyDataImportNotAllowedException,
-  SurveyPeriodNotFinalizedException,
   SurveyPeriodNotFoundException,
   SurveyPeriodNotOpenException,
   SurveyPeriodAlreadyFinalizedException,
@@ -93,6 +86,23 @@ export class SurveyController {
   }
 
   // Fix-1 G-2: Public — kỳ OPEN + list series SERIALIZED cho trang vote Guest (B-VOT-08).
+  // Guest discovery: `/vote/context` + `/vote/live` + `POST /vote` đều cần periodId, còn
+  // `/vote/periods` chỉ trả kỳ REFLECTED ⇒ trước đây guest không có đường public nào biết kỳ nào
+  // đang mở. Trả LIST vì Option B cho phép nhiều kỳ scoped OPEN song song (WEEKLY + MONTHLY).
+  @Get('vote/periods/open')
+  @IsPublic()
+  @UseGuards(PublicRateLimitGuard)
+  @ApiOperation({
+    summary:
+      'Public — danh sách kỳ bình chọn đang OPEN (điểm vào của Guest: lấy periodId cho /vote/context, /vote/live, POST /vote). Lọc tuỳ chọn ?magazine=&publicationType=; mảng rỗng = chưa có kỳ nào mở',
+    security: []
+  })
+  @ApiErrors(PublicRateLimitedException(0))
+  @ZodResponse({ status: 200, type: OpenVotePeriodsResDto })
+  getOpenVotePeriods(@Query() query: OpenVotePeriodsQueryDto) {
+    return this.surveyService.getOpenPeriods(query.magazine, query.publicationType)
+  }
+
   @Get('vote/live')
   @IsPublic()
   @ApiOperation({
@@ -116,39 +126,10 @@ export class SurveyController {
     return this.surveyService.getVoteContext(query.periodId)
   }
 
-  // Spec 15 §3.1 — discover the latest public ranking without a known period id.
-  @IsPublic()
-  @UseGuards(PublicRateLimitGuard)
-  @ApiOperation({
-    summary: 'Public — bảng xếp hạng kỳ REFLECTED mới nhất (period null nếu chưa có kỳ nào chốt)',
-    security: []
-  })
-  @ApiErrors(PublicRateLimitedException(0))
-  @ZodResponse({ status: 200, type: LatestVoteResultsResDto })
-  getLatestVoteResults(@Query() query: LatestVoteResultsQueryDto) {
-    return this.surveyService.getLatestVoteResults(query.magazine, query.publicationType)
-  }
-
-  // Spec 15 §3.2 — reflected-only history for ranking discovery.
-  @IsPublic()
-  @UseGuards(PublicRateLimitGuard)
-  @ApiOperation({ summary: 'Public — danh sách kỳ REFLECTED (dropdown lịch sử ranking)', security: [] })
-  @ApiErrors(PublicRateLimitedException(0))
-  @ZodResponse({ status: 200, type: VotePeriodsResDto })
-  getVotePeriods(@Query() query: VotePeriodsQueryDto) {
-    return this.surveyService.getReflectedPeriods(query.magazine, query.publicationType, query.limit)
-  }
-
-  // Fix-1 G-2: Public — kết quả kỳ đã chốt (REFLECTED); ẩn tín hiệu biên tập nội bộ.
-  @IsPublic()
-  @ApiOperation({
-    summary: 'Public — bảng xếp hạng của kỳ đã chốt (REFLECTED); ẩn tín hiệu biên tập nội bộ'
-  })
-  @ApiErrors(SurveyPeriodNotFoundException, SurveyPeriodNotFinalizedException)
-  @ZodResponse({ status: 200, type: VoteResultsResDto })
-  getVoteResults(@Query() query: VoteResultsQueryDto) {
-    return this.surveyService.getVoteResults(query.surveyPeriodId)
-  }
+  // Spec 15 §3.1/§3.2 + Fix-1 G-2: các route ranking public (`/vote/results/latest`,
+  // `/vote/periods`, `/vote/results`, `/rankings/aggregate`) sống ở `PublicRankingController`.
+  // Bản nhân bản trong controller này thiếu `@Get` nên chưa bao giờ được Nest map — đã xoá
+  // 2026-07-27 (guard `has no dead handler` trong spec chặn tái diễn).
 
   @Get('survey-periods')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
@@ -251,16 +232,6 @@ export class SurveyController {
     @ActiveUser('roleName') roleName: string
   ) {
     return this.surveyService.getSeriesTrend(q.seriesId, q.periods, { userId, roleName })
-  }
-
-  @IsPublic()
-  @ApiOperation({
-    summary: 'Public participation-adjusted ranking aggregate for a magazine, publication type, and UTC month or year',
-    security: []
-  })
-  @ZodResponse({ status: 200, type: RankingAggregateResDto })
-  getRankingAggregate(@Query() query: RankingAggregateQueryDto) {
-    return this.surveyService.getRankingAggregate(query)
   }
 
   @Get('voting-config')
