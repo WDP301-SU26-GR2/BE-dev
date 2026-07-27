@@ -3,6 +3,17 @@ import { AnnotationTargetType, AnnotationType, Prisma, ReviewStage } from '@pris
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { fetchUserMiniMap } from 'src/core/models/user-mini.model'
 
+export type AnnotationTargetContext = {
+  mangakaId: string
+  editorId: string | null
+  task: {
+    id: string
+    pageId: string
+    regionIds: string[]
+    assistantId: string | null
+  } | null
+}
+
 @Injectable()
 export class AnnotationRepository {
   constructor(private readonly prismaService: PrismaService) {}
@@ -56,6 +67,85 @@ export class AnnotationRepository {
       orderBy: { createdAt: 'asc' }
     })
     return this.attachAuthors(rows)
+  }
+
+  async findByTargetForTaskIds(targetType: AnnotationTargetType, targetId: string, taskIds: string[]) {
+    if (taskIds.length === 0) return []
+    const rows = await this.prismaService.annotation.findMany({
+      where: { targetType, targetId, taskId: { in: taskIds } },
+      orderBy: { createdAt: 'asc' }
+    })
+    return this.attachAuthors(rows)
+  }
+
+  async findTargetContext(targetType: AnnotationTargetType, targetId: string): Promise<AnnotationTargetContext | null> {
+    const selectSeries = { mangakaId: true, editorId: true } as const
+    switch (targetType) {
+      case AnnotationTargetType.PAGE: {
+        const page = await this.prismaService.page.findUnique({
+          where: { id: targetId },
+          select: { chapter: { select: { series: { select: selectSeries } } } }
+        })
+        return page ? { ...page.chapter.series, task: null } : null
+      }
+      case AnnotationTargetType.REGION: {
+        const region = await this.prismaService.region.findUnique({
+          where: { id: targetId },
+          select: { page: { select: { chapter: { select: { series: { select: selectSeries } } } } } }
+        })
+        return region ? { ...region.page.chapter.series, task: null } : null
+      }
+      case AnnotationTargetType.TASK: {
+        const task = await this.prismaService.task.findUnique({
+          where: { id: targetId },
+          select: { id: true, pageId: true, regionIds: true, assistantId: true }
+        })
+        if (!task) return null
+        const page = await this.prismaService.page.findUnique({
+          where: { id: task.pageId },
+          select: { chapter: { select: { series: { select: selectSeries } } } }
+        })
+        return page
+          ? {
+              ...page.chapter.series,
+              task: { id: task.id, pageId: task.pageId, regionIds: task.regionIds, assistantId: task.assistantId }
+            }
+          : null
+      }
+      case AnnotationTargetType.MANUSCRIPT: {
+        const manuscript = await this.prismaService.manuscript.findUnique({
+          where: { id: targetId },
+          select: { chapter: { select: { series: { select: selectSeries } } } }
+        })
+        return manuscript ? { ...manuscript.chapter.series, task: null } : null
+      }
+      case AnnotationTargetType.NAME: {
+        const name = await this.prismaService.name.findUnique({
+          where: { id: targetId },
+          select: { series: { select: selectSeries } }
+        })
+        return name ? { ...name.series, task: null } : null
+      }
+    }
+  }
+
+  async findTaskForAnnotation(taskId: string) {
+    return this.prismaService.task.findUnique({
+      where: { id: taskId },
+      select: { id: true, pageId: true, regionIds: true, assistantId: true }
+    })
+  }
+
+  async findAssignedTaskIdsForTarget(assistantId: string, targetType: AnnotationTargetType, targetId: string) {
+    const where =
+      targetType === AnnotationTargetType.PAGE
+        ? { assistantId, pageId: targetId }
+        : targetType === AnnotationTargetType.REGION
+          ? { assistantId, regionIds: { has: targetId } }
+          : null
+    if (!where) return []
+    const tasks = await this.prismaService.task.findMany({ where, select: { id: true } })
+    return tasks.map((task) => task.id)
   }
 
   async targetExists(targetType: AnnotationTargetType, targetId: string): Promise<boolean> {

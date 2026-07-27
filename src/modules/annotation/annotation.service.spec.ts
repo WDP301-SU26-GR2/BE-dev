@@ -6,9 +6,18 @@ function makeRepo(over: Record<string, unknown> = {}) {
     create: jest.fn().mockResolvedValue({ id: 'an1', isResolved: false, createdAt: new Date() }),
     findById: jest.fn().mockResolvedValue({ id: 'an1', authorId: 'u1', isResolved: false, createdAt: new Date() }),
     findByTarget: jest.fn().mockResolvedValue([]),
-    targetExists: jest.fn().mockResolvedValue(true),
+    findByTargetForTaskIds: jest.fn().mockResolvedValue([]),
     setResolved: jest.fn().mockResolvedValue({ id: 'an1', isResolved: true, createdAt: new Date() }),
     delete: jest.fn().mockResolvedValue({ id: 'an1' }),
+    ...over
+  }
+}
+
+function makeAccess(over: Record<string, unknown> = {}) {
+  return {
+    assertCanCreate: jest.fn().mockResolvedValue(undefined),
+    assertTaskBinding: jest.fn().mockResolvedValue(undefined),
+    listScope: jest.fn().mockResolvedValue({ taskIds: null }),
     ...over
   }
 }
@@ -23,44 +32,54 @@ const body = {
 describe('AnnotationService', () => {
   it('creates annotation with author + role', async () => {
     const repo = makeRepo()
-    const svc = new AnnotationService(repo as never)
+    const access = makeAccess()
+    const svc = new AnnotationService(repo as never, access as never)
     await svc.create('u1', 'EDITOR', body)
     expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ authorId: 'u1', authorRole: 'EDITOR' }))
+    expect(access.assertCanCreate).toHaveBeenCalledWith(
+      { userId: 'u1', roleName: 'EDITOR' },
+      AnnotationTargetType.MANUSCRIPT,
+      body.targetId
+    )
   })
 
-  it('creates annotation for an existing NAME target', async () => {
+  it('delegates task-target consistency to access policy', async () => {
     const repo = makeRepo()
-    const svc = new AnnotationService(repo as never)
-    await svc.create('u1', 'EDITOR', { ...body, targetType: AnnotationTargetType.NAME })
-    expect(repo.targetExists).toHaveBeenCalledWith(AnnotationTargetType.NAME, body.targetId)
-    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ targetType: AnnotationTargetType.NAME }))
+    const access = makeAccess()
+    const svc = new AnnotationService(repo as never, access as never)
+    await svc.create('u1', 'EDITOR', { ...body, targetType: AnnotationTargetType.PAGE, taskId: 'task-1' })
+    expect(access.assertTaskBinding).toHaveBeenCalledWith(AnnotationTargetType.PAGE, body.targetId, 'task-1')
   })
 
-  it('rejects missing target with 422', async () => {
-    const repo = makeRepo({ targetExists: jest.fn().mockResolvedValue(false) })
-    const svc = new AnnotationService(repo as never)
-    await expect(svc.create('u1', 'EDITOR', body)).rejects.toMatchObject({ status: 422 })
+  it('does not persist when access policy rejects the target', async () => {
+    const repo = makeRepo()
+    const access = makeAccess({ assertCanCreate: jest.fn().mockRejectedValue(new Error('forbidden')) })
+    const svc = new AnnotationService(repo as never, access as never)
+    await expect(svc.create('u1', 'EDITOR', body)).rejects.toThrow('forbidden')
     expect(repo.create).not.toHaveBeenCalled()
   })
 
-  it('rejects malformed target id without repository lookup', async () => {
+  it('uses a scoped query for an Assistant page/region view', async () => {
     const repo = makeRepo()
-    const svc = new AnnotationService(repo as never)
-    await expect(svc.create('u1', 'EDITOR', { ...body, targetId: 'bad-id' })).rejects.toMatchObject({ status: 422 })
-    expect(repo.targetExists).not.toHaveBeenCalled()
-    expect(repo.create).not.toHaveBeenCalled()
-  })
-
-  it('returns empty list for malformed target id without querying Prisma', async () => {
-    const repo = makeRepo()
-    const svc = new AnnotationService(repo as never)
-    await expect(svc.list(AnnotationTargetType.NAME, 'bad-id')).resolves.toEqual({ items: [] })
+    const access = makeAccess({ listScope: jest.fn().mockResolvedValue({ taskIds: ['t1'] }) })
+    const svc = new AnnotationService(repo as never, access as never)
+    await svc.list('assistant-1', 'ASSISTANT', AnnotationTargetType.PAGE, body.targetId)
+    expect(repo.findByTargetForTaskIds).toHaveBeenCalledWith(AnnotationTargetType.PAGE, body.targetId, ['t1'])
     expect(repo.findByTarget).not.toHaveBeenCalled()
   })
 
   it('owner can resolve', async () => {
     const repo = makeRepo()
-    const svc = new AnnotationService(repo as never)
+    const svc = new AnnotationService(repo as never, makeAccess() as never)
+    await svc.resolve('u1', 'an1')
+    expect(repo.setResolved).toHaveBeenCalledWith('an1', true)
+  })
+
+  it('resolving an already-resolved annotation remains resolved (idempotent)', async () => {
+    const repo = makeRepo({
+      findById: jest.fn().mockResolvedValue({ id: 'an1', authorId: 'u1', isResolved: true, createdAt: new Date() })
+    })
+    const svc = new AnnotationService(repo as never, makeAccess() as never)
     await svc.resolve('u1', 'an1')
     expect(repo.setResolved).toHaveBeenCalledWith('an1', true)
   })
@@ -71,13 +90,13 @@ describe('AnnotationService', () => {
         .fn()
         .mockResolvedValue({ id: 'an1', authorId: 'someone', isResolved: false, createdAt: new Date() })
     })
-    const svc = new AnnotationService(repo as never)
+    const svc = new AnnotationService(repo as never, makeAccess() as never)
     await expect(svc.resolve('u1', 'an1')).rejects.toBeDefined()
   })
 
   it('not found → 404', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue(null) })
-    const svc = new AnnotationService(repo as never)
+    const svc = new AnnotationService(repo as never, makeAccess() as never)
     await expect(svc.resolve('u1', 'anX')).rejects.toBeDefined()
   })
 
@@ -87,7 +106,7 @@ describe('AnnotationService', () => {
         .fn()
         .mockResolvedValue({ id: 'an1', authorId: 'someone', isResolved: false, createdAt: new Date() })
     })
-    const svc = new AnnotationService(repo as never)
+    const svc = new AnnotationService(repo as never, makeAccess() as never)
     await expect(svc.remove('u1', 'an1')).rejects.toBeDefined()
   })
 })

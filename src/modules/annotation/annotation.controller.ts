@@ -4,6 +4,8 @@ import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
 import { ApiObjectIdParams, ObjectIdParamPipe } from 'src/core/http/pipes/object-id-param.pipe'
 import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
+import { Roles } from 'src/core/security/decorators/roles.decorator'
+import { RoleName } from 'src/core/security/constants/role.constant'
 import type { JwtAccessTokenPayload } from 'src/infrastructure/token/jwt.type'
 import { AnnotationService } from './annotation.service'
 import {
@@ -15,7 +17,8 @@ import {
 import {
   AnnotationForbiddenException,
   AnnotationNotFoundException,
-  AnnotationTargetNotFoundException
+  AnnotationTargetNotFoundException,
+  AnnotationTaskBindingInvalidException
 } from './errors/annotation.errors'
 
 const AnnotationIdParamPipe = ObjectIdParamPipe.for(() => AnnotationNotFoundException)
@@ -32,7 +35,8 @@ export class AnnotationController {
       'Tạo annotation/markup (TEXT/HIGHLIGHT/DRAWING + coordinates) trên target (Page/Region/Task/Manuscript/Name)'
   })
   @ApiResponse({ status: 422, description: 'Validation fail (targetType/targetId/annotationType/...)' })
-  @ApiErrors(AnnotationTargetNotFoundException)
+  @ApiErrors(AnnotationForbiddenException, AnnotationTargetNotFoundException, AnnotationTaskBindingInvalidException)
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR)
   @ZodResponse({ status: 201, type: AnnotationResDto })
   create(@Body() body: CreateAnnotationBodyDto, @ActiveUser() user: JwtAccessTokenPayload) {
     return this.annotationService.create(user.userId, user.roleName, body)
@@ -42,9 +46,11 @@ export class AnnotationController {
   @Get()
   @ApiOperation({ summary: 'List annotation theo targetType + targetId' })
   @ApiResponse({ status: 422, description: 'Thiếu/sai query targetType hoặc targetId' })
+  @ApiErrors(AnnotationForbiddenException, AnnotationTargetNotFoundException)
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.ASSISTANT)
   @ZodResponse({ status: 200, type: AnnotationListResDto })
-  list(@Query() query: ListAnnotationQueryDto) {
-    return this.annotationService.list(query.targetType, query.targetId)
+  list(@Query() query: ListAnnotationQueryDto, @ActiveUser() user: JwtAccessTokenPayload) {
+    return this.annotationService.list(user.userId, user.roleName, query.targetType, query.targetId)
   }
 
   @Patch(':id/resolve')

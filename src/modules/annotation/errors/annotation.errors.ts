@@ -8,3 +8,6 @@ export const AnnotationForbiddenException = new ForbiddenException(E.annotationF
 export const AnnotationTargetNotFoundException = new UnprocessableEntityException([
   { message: E.targetNotFound, path: 'targetId' }
 ])
+export const AnnotationTaskBindingInvalidException = new UnprocessableEntityException([
+  { message: E.taskBindingInvalid, path: 'taskId' }
+])
