@@ -12,6 +12,9 @@ export const seedRankingsAndVoting = async (context: DemoContext, series: Series
     const period = await context.prisma.surveyPeriod.create({
       data: {
         createdBy: creator.id,
+        magazine: 'Manga Nexus Weekly',
+        publicationType: PublicationType.WEEKLY,
+        eligibleSeriesIds: series.map((row) => row.id),
         issueNumber: 200 + periodIndex,
         reflectedIssueNumber: 192 + periodIndex,
         startDate: new Date(context.now.getTime() - (DEMO_HISTORY_DAYS - periodIndex + 1) * DAY),
@@ -38,6 +41,7 @@ export const seedRankingsAndVoting = async (context: DemoContext, series: Series
           seriesId: row.id,
           rankPosition: rank,
           voteCount: 2450 - index * 165 + periodIndex * 12,
+          normalizedScore: Number(((2450 - index * 165 + periodIndex * 12) / 2450).toFixed(4)),
           previousRank: old ?? null,
           rankChange: old ? old - rank : null,
           isAtRisk: atRiskIds.has(row.id),
@@ -61,6 +65,9 @@ export const seedRankingsAndVoting = async (context: DemoContext, series: Series
     const period = await context.prisma.surveyPeriod.create({
       data: {
         createdBy: creator.id,
+        magazine: 'Manga Nexus Weekly',
+        publicationType: PublicationType.WEEKLY,
+        eligibleSeriesIds: series.map((row) => row.id),
         issueNumber: 300 + index,
         reflectedIssueNumber: 292 + index,
         startDate: new Date(context.now.getTime() - (index + 2) * DAY),
@@ -99,6 +106,9 @@ export const seedRankingsAndVoting = async (context: DemoContext, series: Series
   await context.prisma.surveyPeriod.create({
     data: {
       createdBy: creator.id,
+      magazine: 'Manga Nexus Weekly',
+      publicationType: PublicationType.WEEKLY,
+      eligibleSeriesIds: series.map((row) => row.id),
       issueNumber: 400,
       reflectedIssueNumber: 400,
       startDate: new Date(context.now.getTime() - DAY),

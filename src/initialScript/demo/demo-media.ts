@@ -20,7 +20,8 @@ export interface DemoMediaSource {
   downloadUrl?: string
 }
 
-export const DEMO_MEDIA_PREFIX = 'demo-seed/v1'
+export const DEMO_MEDIA_PREFIX = 'demo-seed/v2'
+export const DEMO_MEDIA_LEGACY_PREFIX = 'demo-seed/v1'
 
 // All files are real works hosted by Wikimedia Commons. The seed downloads the
 // original file and mirrors it into the configured private R2 bucket. Keep the
@@ -104,6 +105,17 @@ export const DEMO_MEDIA: readonly DemoMediaSource[] = [
     sourcePage: 'https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page4.jpg'
   },
   {
+    slug: 'manga-page-cc0',
+    fileName: 'Manga_page_publicdomainq.png',
+    contentType: 'image/png',
+    purpose: 'MANGA_PAGE',
+    title: 'Manga page example from Public Domain Q',
+    author: 'Public Domain Q',
+    license: 'CC0 1.0',
+    licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+    sourcePage: 'https://commons.wikimedia.org/wiki/File:Manga_page_publicdomainq.png'
+  },
+  {
     slug: 'cleaned-lettering-page',
     fileName: 'Wikipe-tan_manga_page1_-_waifu2x_-_cleaned.png',
     contentType: 'image/png',
@@ -151,6 +163,8 @@ export const DEMO_MEDIA: readonly DemoMediaSource[] = [
 ] as const
 
 export const demoMediaKey = (source: DemoMediaSource) => `${DEMO_MEDIA_PREFIX}/${source.slug}.${extension(source)}`
+export const demoMediaLegacyKey = (source: DemoMediaSource) =>
+  `${DEMO_MEDIA_LEGACY_PREFIX}/${source.slug}.${extension(source)}`
 
 export const demoMediaDownloadUrl = (source: DemoMediaSource) => source.downloadUrl ?? directCommonsUrl(source.fileName)
 
