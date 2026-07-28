@@ -222,7 +222,7 @@ export const ContractStatusProgressResSchema = extendApi(
       pendingEditors: z.array(
         z.object({
           id: z.string(),
-          actionAt: z.null()
+          actionAt: zDateField().nullable()
         })
       )
     })

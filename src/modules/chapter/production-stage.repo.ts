@@ -192,6 +192,36 @@ export class ProductionStageRepository {
     })
   }
 
+  async reopenStageAndRelockAfter(stageId: string, laterStageIds: string[], now: Date) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.productionStage.update({
+        where: { id: stageId },
+        data: { status: ProductionStageStatus.ACTIVE, startedAt: now, completedAt: null }
+      })
+      // Clear only the CONFIRMATION marks, never the values.
+      // INPUT is the immutable snapshot handed to assistants as their stage prompt.
+      // OUTPUT values stay readable on purpose: the later stages' rows are deleted in this very
+      // transaction, so wiping outputFileKey here would destroy the only remaining copy of this
+      // stage's previous result — the next stage would then be seeded from the pre-stage artwork
+      // and an assistant would silently redo work on a regressed image.
+      // Dropping outputConfirmedAt is enough to force a re-confirmation: completeStage requires it,
+      // and confirmOutputs' idempotency guard (`if (stagePage.outputConfirmedAt)`) is skipped so a
+      // new fileKey overwrites cleanly.
+      await tx.productionStagePage.updateMany({
+        where: { stageId },
+        data: { outputConfirmedAt: null, outputConfirmedBy: null }
+      })
+      if (laterStageIds.length === 0) return { clearedStagePages: 0 }
+      await tx.productionStage.updateMany({
+        where: { id: { in: laterStageIds } },
+        data: { status: ProductionStageStatus.LOCKED, startedAt: null, completedAt: null }
+      })
+      // Delete, do not reset: completeAndOpenNext recreates these rows and @@unique([stageId, pageId]) would collide.
+      const cleared = await tx.productionStagePage.deleteMany({ where: { stageId: { in: laterStageIds } } })
+      return { clearedStagePages: cleared.count }
+    })
+  }
+
   async confirmOutputs(stageId: string, actorId: string, commands: ConfirmStageOutputCommand[]) {
     return this.prisma.$transaction(async (tx) => {
       const now = new Date()

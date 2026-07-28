@@ -1,10 +1,11 @@
-import { ManuscriptStatus, PageStatus } from '@prisma/client'
+import { ManuscriptStatus, PageStatus, ProductionStageStatus } from '@prisma/client'
 import {
   NoPagesToSubmitException,
   NotSeriesOwnerException,
   RevisionNotResolvedException,
   TasksNotAllApprovedException
 } from '../errors/chapter.errors'
+import { ProductionNotFinalizedException } from '../errors/production-stage.errors'
 import { ManuscriptReviewService } from './manuscript-review.service'
 
 function makeDeps() {
@@ -33,6 +34,43 @@ function makeDeps() {
   )
   return { repo, manuscriptState, notification, revision, service }
 }
+
+type StageFixtureRow = {
+  id: string
+  order: number
+  name: string
+  isFinalCheck: boolean
+  status: ProductionStageStatus
+}
+
+const STAGES_ALL_DONE: StageFixtureRow[] = [
+  { id: 's1', order: 1, name: 'INKING', isFinalCheck: false, status: ProductionStageStatus.COMPLETED },
+  { id: 's2', order: 2, name: 'DETAILING', isFinalCheck: false, status: ProductionStageStatus.COMPLETED },
+  { id: 's3', order: 3, name: 'LETTERING', isFinalCheck: false, status: ProductionStageStatus.COMPLETED },
+  { id: 's4', order: 4, name: 'FINAL_CHECK', isFinalCheck: true, status: ProductionStageStatus.COMPLETED }
+]
+
+function makeStageDeps(stages = STAGES_ALL_DONE) {
+  const base = makeDeps()
+  const stageRepo = {
+    countByChapter: jest.fn().mockResolvedValue(stages.length),
+    findByChapter: jest.fn().mockResolvedValue(stages),
+    findFinalCheck: jest.fn().mockResolvedValue(stages.find((stage) => stage.isFinalCheck))
+  }
+  const stageStateService = { markFinalCheckCompleted: jest.fn().mockResolvedValue(undefined) }
+  const service = new ManuscriptReviewService(
+    base.repo as never,
+    base.manuscriptState as never,
+    base.notification as never,
+    base.revision as never,
+    stageRepo as never,
+    stageStateService as never
+  )
+  return { ...base, stageRepo, stageStateService, service }
+}
+
+const withActive = (id: string) =>
+  STAGES_ALL_DONE.map((stage) => (stage.id === id ? { ...stage, status: ProductionStageStatus.ACTIVE } : stage))
 
 describe('ManuscriptReviewService (Spec 18)', () => {
   it('checks authorization before state and business gates', async () => {
@@ -122,5 +160,46 @@ describe('ManuscriptReviewService (Spec 18)', () => {
     const d = makeDeps()
     d.repo.countTasksByStatusForChapter.mockResolvedValue({})
     await expect(d.service.resubmit('m1', 'c1')).resolves.toBeDefined()
+  })
+
+  describe('resubmit stage gating (Spec 26)', () => {
+    it('rejects when a production non-final stage is still ACTIVE', async () => {
+      const d = makeStageDeps(withActive('s3'))
+      await expect(d.service.resubmit('m1', 'c1')).rejects.toBe(ProductionNotFinalizedException)
+    })
+
+    it('allows resubmit when only FINAL_CHECK is ACTIVE', async () => {
+      const d = makeStageDeps(withActive('s4'))
+      await expect(d.service.resubmit('m1', 'c1')).resolves.toBeDefined()
+    })
+
+    it('allows resubmit when every stage is COMPLETED', async () => {
+      const d = makeStageDeps()
+      await expect(d.service.resubmit('m1', 'c1')).resolves.toBeDefined()
+    })
+
+    it('closes FINAL_CHECK on resubmit', async () => {
+      const d = makeStageDeps(withActive('s4'))
+      await d.service.resubmit('m1', 'c1')
+      expect(d.stageStateService.markFinalCheckCompleted).toHaveBeenCalledWith('c1')
+    })
+
+    it('never inspects findByChapter on the submit path', async () => {
+      const d = makeStageDeps(withActive('s4'))
+      await d.service.submit('m1', 'c1')
+      expect(d.stageRepo.findByChapter).not.toHaveBeenCalled()
+      expect(d.stageRepo.findFinalCheck).toHaveBeenCalledWith('c1')
+    })
+
+    it('keeps submit requiring an ACTIVE FINAL_CHECK', async () => {
+      const d = makeStageDeps()
+      await expect(d.service.submit('m1', 'c1')).rejects.toBe(ProductionNotFinalizedException)
+    })
+
+    it('leaves the legacy no-stage path unchanged on resubmit', async () => {
+      const d = makeDeps()
+      d.repo.countTasksByStatusForChapter.mockResolvedValue({ ASSIGNED: 1 })
+      await expect(d.service.resubmit('m1', 'c1')).rejects.toBe(TasksNotAllApprovedException)
+    })
   })
 })

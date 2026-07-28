@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common'
-import { ProductionStageStatus, TaskStatus } from '@prisma/client'
+import { ManuscriptStatus, ProductionStageStatus, TaskStatus } from '@prisma/client'
+import { isObjectId } from 'src/core/http/schemas/object-id.schema'
+import { ChapterMessages } from '../chapter.messages'
 import { ChapterRepository } from '../chapter.repo'
 import { ChapterOnHoldException } from '../errors/chapter.errors'
 import {
   StageNotDeletableException,
   StageNotEditableException,
-  StageNotFoundException
+  StageNotFoundException,
+  StageNotInsertableException,
+  StageReopenNotAllowedException
 } from '../errors/production-stage.errors'
 import { ProductionStageRepository } from '../production-stage.repo'
 import { CreateStageBodyType, UpdateStageBodyType } from '../schemas/production-stage-schemas'
@@ -32,7 +36,17 @@ export class ProductionStageService {
     const { chapter } = await this.accessService.assertMangakaOwner(user.userId, chapterId)
     if (chapter.hold) throw ChapterOnHoldException
     await this.stateService.completeStage(chapterId, stageId, user.userId)
-    return { message: 'Đã hoàn thành giai đoạn' }
+    return { message: ChapterMessages.response.stageCompleted }
+  }
+
+  async reopen(user: { userId: string; roleName: string }, chapterId: string, stageId: string) {
+    if (!isObjectId(stageId)) throw StageNotFoundException
+    const { chapter } = await this.accessService.assertMangakaOwner(user.userId, chapterId)
+    if (chapter.hold) throw ChapterOnHoldException
+    const manuscript = await this.chapterRepo.findManuscriptByChapterId(chapterId)
+    if (manuscript?.status !== ManuscriptStatus.EDITOR_REVISION) throw StageReopenNotAllowedException
+    const result = await this.stateService.reopenStage(chapterId, stageId, user.userId)
+    return { message: ChapterMessages.response.stageReopened, ...result }
   }
 
   async patch(
@@ -75,7 +89,7 @@ export class ProductionStageService {
       after.status === ProductionStageStatus.COMPLETED ||
       (active && after.order < active.order)
     ) {
-      throw StageNotDeletableException
+      throw StageNotInsertableException
     }
     const order = after.order + 1
     await this.repo.shiftOrderFrom(chapterId, order, 1)
@@ -100,6 +114,6 @@ export class ProductionStageService {
       throw StageNotDeletableException
     await this.repo.deleteById(stageId)
     await this.repo.shiftOrderFrom(chapterId, stage.order + 1, -1)
-    return { message: 'Đã xoá giai đoạn' }
+    return { message: ChapterMessages.response.stageRemoved }
   }
 }

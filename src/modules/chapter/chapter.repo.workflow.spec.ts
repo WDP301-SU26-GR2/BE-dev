@@ -8,11 +8,12 @@ const createFixture = () => {
     name: { deleteMany: jest.fn() },
     manuscript: { deleteMany: jest.fn(), update: jest.fn() },
     schedule: { deleteMany: jest.fn() },
-    page: { deleteMany: jest.fn(), findMany: jest.fn(), update: jest.fn() },
-    productionStagePage: { deleteMany: jest.fn() },
-    aiJob: { deleteMany: jest.fn() },
-    task: { deleteMany: jest.fn() },
-    region: { deleteMany: jest.fn() },
+    page: { deleteMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
+    productionStagePage: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    aiJob: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    annotation: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    task: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    region: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
     chapterCoOwnerApproval: { deleteMany: jest.fn() },
     deadlineRequest: { deleteMany: jest.fn() },
     chapter: { delete: jest.fn(), update: jest.fn() }
@@ -228,11 +229,57 @@ describe('ChapterRepository workflow persistence', () => {
     ])
     await expect(repo.deletePagesCascade(chapterId, ['deleted'])).resolves.toEqual({
       deletedTasks: 2,
-      deletedRegions: 3
+      deletedRegions: 3,
+      deletedAnnotations: 0,
+      removedTasks: []
     })
+    expect(tx.task.findMany).toHaveBeenCalledWith({
+      where: { pageId: { in: ['deleted'] } },
+      select: { id: true, assistantId: true, status: true, taskType: true, versions: true }
+    })
+    expect(tx.annotation.deleteMany).toHaveBeenCalledWith({ where: { taskId: { in: [] } } })
     expect(tx.productionStagePage.deleteMany).toHaveBeenCalledWith({ where: { pageId: { in: ['deleted'] } } })
     expect(tx.aiJob.deleteMany).toHaveBeenCalledWith({ where: { pageId: { in: ['deleted'] } } })
     expect(tx.page.update).toHaveBeenCalledWith({ where: { id: 'p3' }, data: { pageNumber: 2 } })
+  })
+
+  it('deletes task-linked annotations and reports the removed tasks', async () => {
+    const { tx, repo } = createFixture()
+    tx.task.findMany.mockResolvedValue([
+      { id: 't1', assistantId: 'a1', status: 'IN_PROGRESS', taskType: 'INKING', versions: [{}, {}] },
+      { id: 't2', assistantId: null, status: 'ASSIGNED', taskType: null, versions: [] }
+    ])
+    tx.annotation.deleteMany.mockResolvedValue({ count: 5 })
+    tx.task.deleteMany.mockResolvedValue({ count: 2 })
+    tx.region.deleteMany.mockResolvedValue({ count: 3 })
+
+    await expect(repo.deletePagesCascade(chapterId, ['p1'])).resolves.toEqual({
+      deletedTasks: 2,
+      deletedRegions: 3,
+      deletedAnnotations: 5,
+      removedTasks: [
+        { id: 't1', assistantId: 'a1', status: 'IN_PROGRESS', taskType: 'INKING', versionCount: 2 },
+        { id: 't2', assistantId: null, status: 'ASSIGNED', taskType: null, versionCount: 0 }
+      ]
+    })
+    expect(tx.annotation.deleteMany).toHaveBeenCalledWith({ where: { taskId: { in: ['t1', 't2'] } } })
+  })
+
+  it('reads the task list inside the transaction before deleting tasks', async () => {
+    const { tx, repo } = createFixture()
+    const order: string[] = []
+    tx.task.findMany.mockImplementation(() => {
+      order.push('read')
+      return Promise.resolve([])
+    })
+    tx.task.deleteMany.mockImplementation(() => {
+      order.push('delete')
+      return Promise.resolve({ count: 0 })
+    })
+
+    await repo.deletePagesCascade(chapterId, ['p1'])
+
+    expect(order).toEqual(['read', 'delete'])
   })
 
   it.each([
