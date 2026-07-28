@@ -73,6 +73,13 @@ export const StagePageResSchema = z.object({
 
 export const StagePageListResSchema = z.object({ items: z.array(StagePageResSchema) })
 
+export const StageReopenResSchema = z.object({
+  message: z.string(),
+  stageId: z.string().describe('Stage vừa được mở lại, nay ở ACTIVE'),
+  relockedStageIds: z.array(z.string()).describe('Các stage phía sau đã bị đưa về LOCKED'),
+  clearedStagePages: z.number().int().describe('Số ProductionStagePage của các stage phía sau đã bị xoá')
+})
+
 const StageOutputItemSchema = z
   .object({
     pageId: zObjectId(),

@@ -167,7 +167,13 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.TaskTypeNotInStage': 'taskType must be included in the selected stage taskTypes list',
   'Error.StageNotEditable': 'completed stages are immutable',
   'Error.StageNotDeletable': 'only a LOCKED non-final stage with no tasks may be deleted',
-  'Error.ProductionNotFinalized': 'submit requires FINAL_CHECK to be ACTIVE in stage-mode chapters',
+  'Error.StageNotReopenable':
+    'only a COMPLETED stage can be reopened; LOCKED stages never ran and ACTIVE is already open',
+  'Error.StageReopenNotAllowed': 'reopening a stage requires the manuscript to be in EDITOR_REVISION',
+  'Error.StageNotInsertable': 'a new stage can only be inserted after a non-COMPLETED stage that precedes FINAL_CHECK',
+  'Error.FinalCheckNotCompletable': 'FINAL_CHECK is closed by submit/resubmit, never by the complete route',
+  'Error.ProductionNotFinalized':
+    'submit requires FINAL_CHECK to be ACTIVE; resubmit requires no production stage left ACTIVE',
   'Error.TaskDescriptionLocked': 'task description can only change while the task remains ASSIGNED',
   'Error.AiSourceCanvasMismatch': 'AI source dimensions differ from the established page canvas dimensions',
   'Error.AiJobSourceStale': 'the AI job source snapshot no longer matches an ACTIVE stage page input',

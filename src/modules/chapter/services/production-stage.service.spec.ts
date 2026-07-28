@@ -1,10 +1,12 @@
-import { ProductionStageStatus, TaskStatus } from '@prisma/client'
+import { ManuscriptStatus, ProductionStageStatus, TaskStatus } from '@prisma/client'
 import { ChapterNotFoundException, ChapterOnHoldException } from '../errors/chapter.errors'
 import {
   StageAccessDeniedException,
   StageNotDeletableException,
   StageNotEditableException,
-  StageNotFoundException
+  StageNotFoundException,
+  StageNotInsertableException,
+  StageReopenNotAllowedException
 } from '../errors/production-stage.errors'
 import { ProductionStageService } from './production-stage.service'
 import { ProductionStageAccessService } from './production-stage-access.service'
@@ -49,9 +51,13 @@ const createFixture = (options: { chapter?: unknown; series?: unknown } = {}) =>
     findSeriesById: jest
       .fn()
       .mockResolvedValue(options.series === undefined ? { id: 's1', mangakaId: 'm1', editorId: 'e1' } : options.series),
-    findScheduleByChapterId: jest.fn()
+    findScheduleByChapterId: jest.fn(),
+    findManuscriptByChapterId: jest.fn().mockResolvedValue({ status: ManuscriptStatus.EDITOR_REVISION })
   }
-  const stateService = { completeStage: jest.fn().mockResolvedValue(undefined) }
+  const stateService = {
+    completeStage: jest.fn().mockResolvedValue(undefined),
+    reopenStage: jest.fn().mockResolvedValue({ stageId, relockedStageIds: ['later1'], clearedStagePages: 2 })
+  }
   const accessService = new ProductionStageAccessService(chapterRepo as never)
   const analyticsService = new ProductionStageAnalyticsService(repo as never, accessService)
   return {
@@ -217,6 +223,52 @@ describe('ProductionStageService', () => {
     })
   })
 
+  describe('reopen', () => {
+    it('returns a payload that carries the custom message field', async () => {
+      const fixture = createFixture()
+      await expect(fixture.service.reopen(user, chapterId, stageId)).resolves.toEqual({
+        message: 'Đã mở lại giai đoạn sản xuất',
+        stageId,
+        relockedStageIds: ['later1'],
+        clearedStagePages: 2
+      })
+    })
+
+    it('rejects a malformed stage id with 404 instead of reaching the state service', async () => {
+      const fixture = createFixture()
+      await expect(fixture.service.reopen(user, chapterId, 'not-an-id')).rejects.toBe(StageNotFoundException)
+      expect(fixture.stateService.reopenStage).not.toHaveBeenCalled()
+    })
+
+    it('rejects when the chapter is on hold', async () => {
+      const fixture = createFixture({ chapter: { id: chapterId, seriesId: 's1', hold: { reason: 'pause' } } })
+      await expect(fixture.service.reopen(user, chapterId, stageId)).rejects.toBe(ChapterOnHoldException)
+    })
+
+    it('rejects a user who is not the owning mangaka', async () => {
+      const fixture = createFixture({ series: { id: 's1', mangakaId: 'someone-else', editorId: 'e1' } })
+      await expect(fixture.service.reopen(user, chapterId, stageId)).rejects.toBe(StageAccessDeniedException)
+    })
+
+    it.each([
+      ManuscriptStatus.EDITOR_REVIEW,
+      ManuscriptStatus.READY_FOR_PRINT,
+      ManuscriptStatus.PUBLISHED,
+      ManuscriptStatus.IN_PRODUCTION
+    ])('rejects when the manuscript is %s', async (status) => {
+      const fixture = createFixture()
+      fixture.chapterRepo.findManuscriptByChapterId.mockResolvedValue({ status })
+      await expect(fixture.service.reopen(user, chapterId, stageId)).rejects.toBe(StageReopenNotAllowedException)
+    })
+
+    it('checks ownership before manuscript state', async () => {
+      const fixture = createFixture({ series: { id: 's1', mangakaId: 'someone-else', editorId: 'e1' } })
+      fixture.chapterRepo.findManuscriptByChapterId.mockResolvedValue({ status: ManuscriptStatus.PUBLISHED })
+      await expect(fixture.service.reopen(user, chapterId, stageId)).rejects.toBe(StageAccessDeniedException)
+      expect(fixture.chapterRepo.findManuscriptByChapterId).not.toHaveBeenCalled()
+    })
+  })
+
   describe('patch', () => {
     it.each([[null], [stage({ chapterId: 'other' })]])('hides missing or cross-chapter stage', async (value) => {
       const fixture = createFixture()
@@ -275,18 +327,18 @@ describe('ProductionStageService', () => {
     it.each([
       [null, [stage(), stage({ isFinalCheck: true, order: 4 })], StageNotFoundException],
       [stage({ chapterId: 'other' }), [stage({ isFinalCheck: true, order: 4 })], StageNotFoundException],
-      [stage({ isFinalCheck: true }), [stage({ isFinalCheck: true, order: 4 })], StageNotDeletableException],
-      [stage(), [stage()], StageNotDeletableException],
-      [stage({ order: 4 }), [stage({ isFinalCheck: true, order: 4 })], StageNotDeletableException],
+      [stage({ isFinalCheck: true }), [stage({ isFinalCheck: true, order: 4 })], StageNotInsertableException],
+      [stage(), [stage()], StageNotInsertableException],
+      [stage({ order: 4 }), [stage({ isFinalCheck: true, order: 4 })], StageNotInsertableException],
       [
         stage({ status: ProductionStageStatus.COMPLETED }),
         [stage({ isFinalCheck: true, order: 4 })],
-        StageNotDeletableException
+        StageNotInsertableException
       ],
       [
         stage({ order: 1 }),
         [stage({ id: 'active', order: 2 }), stage({ isFinalCheck: true, order: 4 })],
-        StageNotDeletableException
+        StageNotInsertableException
       ]
     ])('rejects insertion at an invalid workflow boundary', async (after, stages, error) => {
       const fixture = createFixture()
@@ -320,6 +372,23 @@ describe('ProductionStageService', () => {
         expect.objectContaining({ chapterId, order: 2, isFinalCheck: false, status: ProductionStageStatus.LOCKED })
       )
       expect(result).toMatchObject({ id: 'new', order: 2 })
+    })
+
+    it('uses the insert-specific error for add and keeps the delete-specific error for remove', async () => {
+      const completed = stage({ status: ProductionStageStatus.COMPLETED, order: 1 })
+      const finalCheck = stage({ id: 'final1', isFinalCheck: true, order: 4, status: ProductionStageStatus.COMPLETED })
+
+      const fAdd = createFixture()
+      fAdd.repo.findById.mockResolvedValue(completed)
+      fAdd.repo.findByChapter.mockResolvedValue([completed, finalCheck])
+      await expect(
+        fAdd.service.add(user, chapterId, { name: 'REWORK', taskTypes: [], afterStageId: stageId })
+      ).rejects.toBe(StageNotInsertableException)
+
+      const fRemove = createFixture()
+      fRemove.repo.findById.mockResolvedValue(stage({ status: ProductionStageStatus.ACTIVE }))
+      fRemove.repo.countTasksByStage.mockResolvedValue(0)
+      await expect(fRemove.service.remove(user, chapterId, stageId)).rejects.toBe(StageNotDeletableException)
     })
   })
 

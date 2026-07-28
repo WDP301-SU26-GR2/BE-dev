@@ -5,6 +5,7 @@ import {
   ProductionStageResSchema,
   StageListResSchema,
   StagePageListResSchema,
+  StageReopenResSchema,
   UpdateStageBodySchema
 } from '../schemas/production-stage-schemas'
 
@@ -13,4 +14,5 @@ export class ProductionStageResDto extends createZodDto(ProductionStageResSchema
 export class UpdateStageBodyDto extends createZodDto(UpdateStageBodySchema) {}
 export class CreateStageBodyDto extends createZodDto(CreateStageBodySchema) {}
 export class StagePageListResDto extends createZodDto(StagePageListResSchema) {}
+export class StageReopenResDto extends createZodDto(StageReopenResSchema) {}
 export class ConfirmStageOutputsBodyDto extends createZodDto(ConfirmStageOutputsBodySchema) {}

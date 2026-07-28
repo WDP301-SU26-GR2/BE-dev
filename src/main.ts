@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { vi } from 'zod/locales'
 import { RequestContextService } from 'src/core/observability/request-context.service'
 import { StructuredJsonLogger } from 'src/core/observability/structured-json.logger'
+import { normalizeOpenApi30Document } from 'src/core/http/docs/openapi-30-normalizer'
 
 z.config(vi())
 
@@ -44,7 +45,7 @@ async function bootstrap() {
     .setVersion('1.0')
     .addBearerAuth()
     .build()
-  const documentFactory = () => cleanupOpenApiDoc(SwaggerModule.createDocument(app, config))
+  const documentFactory = () => normalizeOpenApi30Document(cleanupOpenApiDoc(SwaggerModule.createDocument(app, config)))
   SwaggerModule.setup('api', app, documentFactory())
   await app.listen(envConfig.PORT ?? 4000)
 }

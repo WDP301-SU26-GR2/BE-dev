@@ -66,10 +66,17 @@ export const ChapterMessages = {
     taskTypeNotInStage: 'Error.TaskTypeNotInStage',
     stageNotEditable: 'Error.StageNotEditable',
     stageNotDeletable: 'Error.StageNotDeletable',
-    productionNotFinalized: 'Error.ProductionNotFinalized'
+    productionNotFinalized: 'Error.ProductionNotFinalized',
+    stageNotReopenable: 'Error.StageNotReopenable',
+    stageReopenNotAllowed: 'Error.StageReopenNotAllowed',
+    stageNotInsertable: 'Error.StageNotInsertable',
+    finalCheckNotCompletable: 'Error.FinalCheckNotCompletable'
   },
   response: {
-    chapterDeleted: 'Đã xoá chương'
+    chapterDeleted: 'Đã xoá chương',
+    stageReopened: 'Đã mở lại giai đoạn sản xuất',
+    stageCompleted: 'Đã hoàn thành giai đoạn',
+    stageRemoved: 'Đã xoá giai đoạn'
   },
   errorText: {
     'Error.ChapterNotFound': 'Không tìm thấy chương',
@@ -117,6 +124,10 @@ export const ChapterMessages = {
     'Error.TaskTypeNotInStage': 'Loại công việc không thuộc giai đoạn này',
     'Error.StageNotEditable': 'Giai đoạn đã hoàn thành, không sửa được',
     'Error.StageNotDeletable': 'Chỉ xoá được giai đoạn chưa mở, chưa có task và không phải bước chốt',
-    'Error.ProductionNotFinalized': 'Chưa tới bước tổng hợp cuối — hoàn thành các giai đoạn trước khi nộp'
+    'Error.ProductionNotFinalized': 'Chưa tới bước tổng hợp cuối — hoàn thành các giai đoạn trước khi nộp',
+    'Error.StageNotReopenable': 'Chỉ giai đoạn đã hoàn thành mới mở lại được',
+    'Error.StageReopenNotAllowed': 'Chỉ mở lại giai đoạn khi bản thảo đang ở trạng thái Editor yêu cầu chỉnh sửa',
+    'Error.StageNotInsertable': 'Không thể chèn giai đoạn mới ở vị trí này',
+    'Error.FinalCheckNotCompletable': 'Giai đoạn kiểm tra cuối được đóng khi nộp bản thảo, không đóng thủ công'
   }
 } as const
