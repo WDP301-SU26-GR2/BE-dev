@@ -19,6 +19,10 @@ export class ProductionStageFacade {
     return this.stages.complete(user, chapterId, stageId)
   }
 
+  reopen(user: JwtAccessTokenPayload, chapterId: string, stageId: string) {
+    return this.stages.reopen(user, chapterId, stageId)
+  }
+
   patch(user: JwtAccessTokenPayload, chapterId: string, stageId: string, body: UpdateStageBodyDto) {
     return this.stages.patch(user, chapterId, stageId, body)
   }

@@ -6,6 +6,8 @@ import { AppModule } from './../src/app.module'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { cleanupOpenApiDoc } from 'nestjs-zod'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import SwaggerParser from '@apidevtools/swagger-parser'
+import { normalizeOpenApi30Document } from 'src/core/http/docs/openapi-30-normalizer'
 
 describe('AppModule (e2e)', () => {
   let app: INestApplication<App>
@@ -34,11 +36,15 @@ describe('AppModule (e2e)', () => {
     return request(app.getHttpServer()).post('/auth/login').send({}).expect(422)
   })
 
-  it('builds Swagger and exposes the expected public contract path', () => {
-    const document = cleanupOpenApiDoc(
-      SwaggerModule.createDocument(app, new DocumentBuilder().setTitle('E2E').setVersion('1').build())
+  it('publishes an OpenAPI 3.0 document consumable by code generators', async () => {
+    const document = normalizeOpenApi30Document(
+      cleanupOpenApiDoc(
+        SwaggerModule.createDocument(app, new DocumentBuilder().setTitle('E2E').setVersion('1').build())
+      )
     )
+    const documentForValidation = JSON.parse(JSON.stringify(document)) as Parameters<typeof SwaggerParser.validate>[0]
 
+    await expect(SwaggerParser.validate(documentForValidation)).resolves.toBeDefined()
     expect(document.paths['/auth/login']?.post).toBeDefined()
     expect(document.paths['/health/ready']?.get).toBeDefined()
   })
