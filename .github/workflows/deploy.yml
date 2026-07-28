@@ -35,6 +35,10 @@ jobs:
       - run: pnpm lint
       - run: pnpm test:architecture
       - run: pnpm build
+      # Compose validates the declared env_file path even though this runner
+      # only checks configuration and never receives production secrets.
+      - name: Create non-secret compose env marker
+        run: touch .env
       - name: Validate production compose with AI disabled and enabled
         env:
           API_IMAGE: ghcr.io/example/mangaka-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
