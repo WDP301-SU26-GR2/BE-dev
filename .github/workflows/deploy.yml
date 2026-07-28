@@ -5,50 +5,21 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Keep a production rollout atomic. GitHub retains only the newest pending run,
+# while an already-running rollout is allowed to finish and roll back safely.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
 jobs:
   verify:
+    name: Release preflight
     runs-on: ubuntu-latest
-    env:
-      NODE_ENV: test
-      TEST_DATABASE_URL: mongodb://127.0.0.1:27017/deploy_verify_test?replicaSet=rs0&directConnection=true
-      PORT: 4100
-      SALT_OR_ROUNDS: 10
-      NAME_APP: Mangaka Deploy Verify
-      API_KEY: deploy-verify
-      AUTH_TYPE_KEY: authType
-      DATABASE_URL: mongodb://127.0.0.1:27017/deploy_verify_test?replicaSet=rs0
-      TEST_REDIS_URL: redis://127.0.0.1:6379/5
-      REDIS_URL: redis://127.0.0.1:6379/5
-      ACCESS_TOKEN_SECRET: deploy-verify-access
-      REFRESH_TOKEN_SECRET: deploy-verify-refresh
-      ACCESS_TOKEN_EXPIRES_IN: 1h
-      REFRESH_TOKEN_EXPIRES_IN: 7d
-      ADMIN_NAME: Deploy Verify
-      ADMIN_PASSWORD: Deploy-Verify-Password-123
-      ADMIN_EMAIL: deploy-verify@example.com
-      ADMIN_PHONE: '+84000000000'
-      OTP_EXPIRES_IN: 5m
-      OTP_RL_EMAIL_MAX: 5
-      OTP_RL_EMAIL_WINDOW: 3600
-      OTP_RL_IP_MAX: 20
-      OTP_RL_IP_WINDOW: 3600
-      OTP_RL_COOLDOWN: 60
-      RESEND_API_KEY: deploy-verify
-      GOOGLE_CLIENT_ID: deploy-verify
-      R2_ENDPOINT: http://127.0.0.1:9000
-      R2_ACCESS_KEY_ID: mangaka-deploy-verify
-      R2_SECRET_ACCESS_KEY: mangaka-deploy-verify-secret
-      R2_BUCKET: mangaka-deploy-verify
-      R2_REGION: us-east-1
-      AI_SERVICE_URL: ''
-      IDENTITY_HASH_PEPPER: deploy-verify-identity-pepper
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          fetch-depth: 2
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 11.1.3
@@ -57,87 +28,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Full test/coverage, integration, E2E, API flow and AI verification run
+      # in CI for every PR. `main` must be branch-protected and require that
+      # CI job before merging; deploy only repeats release-specific checks.
       - run: pnpm test:supply-chain-policy
-      - name: Validate Prometheus alert rules and alert fixtures
-        run: |
-          docker run --rm \
-            -v "${PWD}/ops/prometheus:/prometheus-rules:ro" \
-            --entrypoint /bin/promtool \
-            prom/prometheus:v2.55.1 check rules /prometheus-rules/alerts.yml
-          docker run --rm \
-            -v "${PWD}/ops/prometheus:/prometheus-rules:ro" \
-            --entrypoint /bin/promtool \
-            prom/prometheus:v2.55.1 test rules /prometheus-rules/alerts.test.yml
-      - run: touch .env
-      - name: Start isolated Mongo replica set, Redis, and S3-compatible storage
-        run: |
-          docker run --detach --name mangaka-deploy-mongo-test --publish 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
-          docker run --detach --name mangaka-deploy-redis-test --publish 6379:6379 redis:7-alpine
-          docker run --detach --name mangaka-deploy-minio-test --publish 9000:9000 \
-            --env MINIO_ROOT_USER="${R2_ACCESS_KEY_ID}" \
-            --env MINIO_ROOT_PASSWORD="${R2_SECRET_ACCESS_KEY}" \
-            minio/minio:RELEASE.2025-04-03T14-56-28Z server /data --address :9000
-          for attempt in {1..30}; do
-            if docker exec mangaka-deploy-mongo-test mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' | grep -q 1; then
-              break
-            fi
-            sleep 2
-          done
-          docker exec mangaka-deploy-mongo-test mongosh --quiet --eval \
-            'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
-          for attempt in {1..30}; do
-            if docker exec mangaka-deploy-mongo-test mongosh --quiet --eval 'rs.status().myState' | grep -q 1; then
-              break
-            fi
-            sleep 2
-          done
-          docker exec mangaka-deploy-redis-test redis-cli ping | grep -q PONG
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:9000/minio/health/ready >/dev/null; then
-              break
-            fi
-            sleep 2
-          done
-          docker run --rm --network host --entrypoint /bin/sh \
-            minio/mc:RELEASE.2025-02-08T19-14-21Z -c \
-            "mc alias set local ${R2_ENDPOINT} ${R2_ACCESS_KEY_ID} ${R2_SECRET_ACCESS_KEY} && mc mb --ignore-existing local/${R2_BUCKET}"
-      - name: Prepare isolated verification schema
-        run: |
-          pnpm prisma:generate
-          pnpm exec prisma validate
-          pnpm exec prisma db push --skip-generate
-          pnpm db:indexes
       - run: pnpm lint
       - run: pnpm test:architecture
       - run: pnpm build
-      - name: Run real API release flows before image build
-        run: |
-          pnpm start:prod > deploy-flow-api.log 2>&1 &
-          api_pid=$!
-          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:4100/health/ready >/dev/null; then
-              break
-            fi
-            if [ "$attempt" = 30 ]; then
-              cat deploy-flow-api.log
-              exit 1
-            fi
-            sleep 2
-          done
-          pnpm flowtest --only=flow-04
-          pnpm flowtest --only=flow-06
-          pnpm flowtest --only=flow-07
-          pnpm flowtest --only=flow-08
-      - run: pnpm test:unit
-      - run: pnpm test:guard
-      - run: pnpm test:integration
-      - run: pnpm test:e2e
-      - name: Enforce coverage gates
-        env:
-          COVERAGE_BASE_REF: ${{ github.event_name == 'push' && github.event.before || 'HEAD^' }}
-        run: pnpm test:cov
-      - run: pnpm audit --prod --audit-level high
       - name: Validate production compose with AI disabled and enabled
         env:
           API_IMAGE: ghcr.io/example/mangaka-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
@@ -147,12 +44,6 @@ jobs:
           docker compose -f docker-compose.prod.yml config --quiet
           docker compose -f docker-compose.prod.yml --profile ai config --quiet
           docker compose -f docker-compose.prod.yml --profile monitoring config --quiet
-      - name: Verify AI service
-        working-directory: ai-service
-        run: |
-          python -m pip install --disable-pip-version-check -r requirements.txt pytest pip-audit
-          python -m pytest tests -q
-          python -m pip_audit -r requirements.txt
 
   build-and-push:
     needs: verify
@@ -194,8 +85,8 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.image }}:latest
             ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=mangaka-api
+          cache-to: type=gha,mode=max,scope=mangaka-api
 
       - name: Build & push AI image
         id: build-ai
@@ -207,8 +98,8 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.ai_image }}:latest
             ${{ steps.meta.outputs.ai_image }}:${{ steps.meta.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=mangaka-ai
+          cache-to: type=gha,mode=max,scope=mangaka-ai
 
       - id: scan-api
         name: Scan pushed API digest for High/Critical vulnerabilities
