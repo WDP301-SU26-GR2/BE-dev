@@ -7,6 +7,12 @@ on:
   schedule:
     - cron: '0 17 * * *'
 
+# A newer commit supersedes an in-flight PR/develop validation.  Keep the
+# scheduled regression run independent so it is never cancelled by a PR push.
+concurrency:
+  group: ci-${{ github.event_name == 'schedule' && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -150,13 +156,6 @@ jobs:
           set -o pipefail
           pnpm test:architecture 2>&1 | tee ci-baseline/architecture.txt
 
-      - id: unit
-        name: Unit tests
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          pnpm test:unit 2>&1 | tee ci-baseline/unit.txt
-
       - id: guard
         name: Test-environment guard tests
         continue-on-error: true
@@ -206,7 +205,7 @@ jobs:
           fi
 
       - id: coverage
-        name: Coverage baseline
+        name: Unit tests and coverage baseline
         continue-on-error: true
         env:
           COVERAGE_BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
@@ -258,7 +257,6 @@ jobs:
           test "${{ steps.lint.outcome }}" = "success"
           test "${{ steps.architecture.outcome }}" = "success"
           test "${{ steps.build.outcome }}" = "success"
-          test "${{ steps.unit.outcome }}" = "success"
           test "${{ steps.guard.outcome }}" = "success"
           test "${{ steps.integration.outcome }}" = "success"
           test "${{ steps.e2e.outcome }}" = "success"
@@ -285,8 +283,8 @@ jobs:
           push: false
           load: true
           tags: mangaka-api:ci-${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=mangaka-api
+          cache-to: type=gha,mode=max,scope=mangaka-api
 
       - id: scan-api
         name: Scan API image for High/Critical vulnerabilities
@@ -308,8 +306,8 @@ jobs:
           push: false
           load: true
           tags: mangaka-ai:ci-${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=mangaka-ai
+          cache-to: type=gha,mode=max,scope=mangaka-ai
 
       - id: scan-ai
         name: Scan AI image for High/Critical vulnerabilities
