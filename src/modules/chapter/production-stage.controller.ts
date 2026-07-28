@@ -13,9 +13,12 @@ import {
   ProductionStageResDto,
   StageListResDto,
   StagePageListResDto,
+  StageReopenResDto,
   UpdateStageBodyDto
 } from './dto/production-stage.dto'
+import { ChapterNotFoundException, ChapterOnHoldException } from './errors/chapter.errors'
 import {
+  FinalCheckNotCompletableException,
   ProductionNotFinalizedException,
   StageAccessDeniedException,
   StageHasOpenTasksException,
@@ -23,9 +26,12 @@ import {
   StageNotDeletableException,
   StageNotEditableException,
   StageNotFoundException,
+  StageNotInsertableException,
+  StageNotReopenableException,
   StageOutputInvalidException,
   StageOutputNotReadyException,
-  StagePageNotFoundException
+  StagePageNotFoundException,
+  StageReopenNotAllowedException
 } from './errors/production-stage.errors'
 import { ProductionStageFacade } from './services/production-stage.facade'
 
@@ -52,11 +58,31 @@ export class ProductionStageController {
     StageNotFoundException,
     StageNotActiveException,
     StageHasOpenTasksException,
-    StageOutputNotReadyException
+    StageOutputNotReadyException,
+    FinalCheckNotCompletableException
   )
   @ZodResponse({ status: 201, type: MessageResDto })
   complete(@ActiveUser() user: JwtAccessTokenPayload, @Param('id') id: string, @Param('stageId') stageId: string) {
     return this.facade.complete(user, id, stageId)
+  }
+
+  @Post('chapters/:id/stages/:stageId/reopen')
+  @Roles(RoleName.MANGAKA)
+  @ApiOperation({
+    summary: 'Mở lại stage COMPLETED khi Editor yêu cầu chỉnh sửa; các stage phía sau bị đưa về LOCKED'
+  })
+  @ApiErrors(
+    ChapterNotFoundException,
+    StageAccessDeniedException,
+    ChapterOnHoldException,
+    StageReopenNotAllowedException,
+    StageNotFoundException,
+    StageNotReopenableException,
+    StageHasOpenTasksException
+  )
+  @ZodResponse({ status: 201, type: StageReopenResDto })
+  reopen(@ActiveUser() user: JwtAccessTokenPayload, @Param('id') id: string, @Param('stageId') stageId: string) {
+    return this.facade.reopen(user, id, stageId)
   }
 
   @Patch('chapters/:id/stages/:stageId')
@@ -76,7 +102,7 @@ export class ProductionStageController {
   @Post('chapters/:id/stages')
   @Roles(RoleName.MANGAKA)
   @ApiOperation({ summary: 'Chèn custom stage trong vùng chưa mở' })
-  @ApiErrors(StageAccessDeniedException, StageNotFoundException, StageNotDeletableException)
+  @ApiErrors(StageAccessDeniedException, StageNotFoundException, StageNotInsertableException)
   @ZodResponse({ status: 201, type: ProductionStageResDto })
   add(@ActiveUser() user: JwtAccessTokenPayload, @Param('id') id: string, @Body() body: CreateStageBodyDto) {
     return this.facade.add(user, id, body)

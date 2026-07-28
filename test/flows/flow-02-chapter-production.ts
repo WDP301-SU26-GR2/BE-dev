@@ -18,10 +18,20 @@ import {
   NameKind,
   PageStatus,
   ContractStatus,
-  TaskStatus
+  TaskStatus,
+  Specialization
 } from '@prisma/client'
 
 const FLOW = 'flow-02-chapter-production.ts'
+
+type FlowChapterRef = { id: string }
+type FlowPageRef = { id: string; pageNumber: number }
+
+const responseData = <T>(res: { json: unknown }): T => {
+  const json = res.json
+  if (json && typeof json === 'object' && 'data' in json) return json.data as T
+  return json as T
+}
 
 // Local helper: build a fast-forward happy-path scenario.
 // seriesA: SERIALIZED + contract FULLY_EXECUTED → chapters can publish.
@@ -171,6 +181,84 @@ const advanceToFinalCheck = async (token: string, chapterId: string, label: stri
 const submitAfterStages = async (token: string, chapterId: string, label: string) => {
   await advanceToFinalCheck(token, chapterId, label)
   return req('POST', `/chapters/${chapterId}/manuscript/submit`, { token })
+}
+
+const getStages = (chapterId: string) => {
+  return prisma.productionStage.findMany({ where: { chapterId }, orderBy: { order: 'asc' } })
+}
+
+const stageByName = <T extends { name: string }>(stages: T[], name: string) => {
+  const stage = stages.find((item) => item.name === name)
+  if (!stage) throw new Error(`missing stage ${name}`)
+  return stage
+}
+
+const resolveLatestManuscriptRevision = async (token: string, chapterId: string, label: string) => {
+  const list = await req('GET', `/revision-requests?targetType=MANUSCRIPT&targetId=${chapterId}`, { token })
+  const items = (list.json?.data?.items ?? []) as Array<{ id: string; isResolved?: boolean }>
+  const open = items.find((item) => item.isResolved !== true)
+  ok(
+    `${label} list open revision`,
+    list.status === 200 && Boolean(open),
+    `got ${list.status} ${list.raw.slice(0, 200)}`
+  )
+  if (!open) return
+  const resolved = await req('PATCH', `/revision-requests/${open.id}/resolve`, { token, body: {} })
+  ok(`${label} resolve revision`, resolved.status === 200, `got ${resolved.status} ${resolved.raw.slice(0, 200)}`)
+}
+
+const requestRevisionAndResolve = async (
+  tokens: { editor: string; mangaka: string },
+  chapterId: string,
+  label: string
+) => {
+  const revision = await req('POST', `/chapters/${chapterId}/manuscript/request-revision`, {
+    token: tokens.editor,
+    body: { reason: `${label} revision` }
+  })
+  ok(`${label} request revision`, revision.status === 201, `got ${revision.status} ${revision.raw.slice(0, 200)}`)
+  await resolveLatestManuscriptRevision(tokens.mangaka, chapterId, label)
+  return revision
+}
+
+const closeActiveStage = async (
+  token: string,
+  chapterId: string,
+  stageId: string,
+  label: string,
+  fileOverrides: Record<string, string> = {}
+) => {
+  const pages = await req('GET', `/chapters/${chapterId}/stages/${stageId}/pages`, { token })
+  const items = ((pages.json?.data ?? pages.json)?.items ?? []) as Array<{ pageId: string }>
+  ok(`${label} list stage pages`, pages.status === 200, `got ${pages.status} ${pages.raw.slice(0, 200)}`)
+  const outputs = await req('PUT', `/chapters/${chapterId}/stages/${stageId}/outputs`, {
+    token,
+    body: {
+      items: items.map((item) =>
+        fileOverrides[item.pageId]
+          ? { pageId: item.pageId, fileKey: fileOverrides[item.pageId] }
+          : { pageId: item.pageId, reuseInput: true }
+      )
+    }
+  })
+  ok(`${label} confirm outputs`, outputs.status === 200, `got ${outputs.status} ${outputs.raw.slice(0, 200)}`)
+  const done = await req('POST', `/chapters/${chapterId}/stages/${stageId}/complete`, { token })
+  ok(`${label} complete`, done.status === 201, `got ${done.status} ${done.raw.slice(0, 200)}`)
+  return done
+}
+
+const approveTaskThroughApi = async (
+  tokens: { mangaka: string; assistant: string },
+  taskId: string,
+  label: string,
+  file = `r2://${label.toLowerCase()}-task.png`
+) => {
+  const start = await req('POST', `/tasks/${taskId}/start`, { token: tokens.assistant, body: {} })
+  ok(`${label} start task`, start.status === 201, `got ${start.status} ${start.raw.slice(0, 200)}`)
+  const submit = await req('POST', `/tasks/${taskId}/submit`, { token: tokens.assistant, body: { file } })
+  ok(`${label} submit task`, submit.status === 201, `got ${submit.status} ${submit.raw.slice(0, 200)}`)
+  const approve = await req('POST', `/tasks/${taskId}/approve`, { token: tokens.mangaka, body: {} })
+  ok(`${label} approve task`, approve.status === 201, `got ${approve.status} ${approve.raw.slice(0, 200)}`)
 }
 
 const main = async () => {
@@ -1462,6 +1550,384 @@ const main = async () => {
     body: { pageNumber: 2, originalFile: 'r2://gate-2.png' }
   })
   expectError(additionalDraftPage, 409, 'Error.ProductionPageSetLocked', 'F02-P24 production page set is locked')
+
+  section('§3.9 F02-RO — mở lại giai đoạn sản xuất sau khi Editor yêu cầu sửa')
+
+  const roAssistant = await makeUser('ASSISTANT')
+  await makeStudioAssignment({ mangakaId: s.mangakaA.id, assistantId: roAssistant.id, seriesId: s.seriesA.id })
+  const roAssistantToken = await login(roAssistant.email)
+
+  const createRoChapter = async (chapterNumber: number, title: string, pageCount = 3) => {
+    const chapter = (await createChapterWithApprovedName(s, s.seriesA.id, chapterNumber, title))
+      .chapter as FlowChapterRef
+    const pages: FlowPageRef[] = []
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
+      const page = await req('POST', `/chapters/${chapter.id}/pages`, {
+        token: s.tokens.mA,
+        body: { pageNumber, originalFile: `r2://ro-${chapterNumber}-${pageNumber}.png` }
+      })
+      ok(
+        `F02-RO setup ch${chapterNumber} page ${pageNumber}`,
+        page.status === 201,
+        `got ${page.status} ${page.raw.slice(0, 200)}`
+      )
+      pages.push(responseData<FlowPageRef>(page))
+    }
+    return { chapter, pages }
+  }
+
+  const roSetup = await createRoChapter(40, 'ChReopen')
+  const roSubmit = await submitAfterStages(s.tokens.mA, String(roSetup.chapter.id), 'F02-RO-SETUP')
+  ok('F02-RO01 submit sau production stages → 201', roSubmit.status === 201, `got ${roSubmit.status}`)
+  const stagesAfterSubmit = await getStages(roSetup.chapter.id)
+  ok(
+    'F02-RO01b mọi stage COMPLETED sau submit',
+    stagesAfterSubmit.every((stage) => stage.status === 'COMPLETED'),
+    `got ${stagesAfterSubmit.map((stage) => `${stage.name}=${stage.status}`).join(',')}`
+  )
+  const lettering = stageByName(stagesAfterSubmit, 'LETTERING')
+  const finalCheck = stagesAfterSubmit.find((stage) => stage.isFinalCheck)!
+
+  const roRevision = await req('POST', `/chapters/${roSetup.chapter.id}/manuscript/request-revision`, {
+    token: s.tokens.e1,
+    body: { reason: 'F02-RO revision' }
+  })
+  ok('F02-RO02 request-revision → 201', roRevision.status === 201, `got ${roRevision.status}`)
+  const roManuscriptRevision = await prisma.manuscript.findFirst({ where: { chapterId: roSetup.chapter.id } })
+  const roPageRevision = await prisma.page.findUnique({ where: { id: roSetup.pages[0].id } })
+  ok(
+    'F02-RO02b Manuscript EDITOR_REVISION + Page REVISING',
+    roManuscriptRevision?.status === ManuscriptStatus.EDITOR_REVISION && roPageRevision?.status === PageStatus.REVISING,
+    `ms=${roManuscriptRevision?.status} page=${roPageRevision?.status}`
+  )
+  await resolveLatestManuscriptRevision(s.tokens.mA, roSetup.chapter.id, 'F02-RO02c')
+
+  const blockedTask = await req('POST', '/tasks', {
+    token: s.tokens.mA,
+    body: {
+      pageId: roSetup.pages[0].id,
+      assistantId: roAssistant.id,
+      taskType: Specialization.LETTERING,
+      stageId: lettering.id
+    }
+  })
+  expectError(blockedTask, 409, 'Error.StageLocked', 'F02-RO01c giao task khi không còn stage ACTIVE → 409')
+
+  const inputBefore = await prisma.productionStagePage.findFirst({
+    where: { stageId: lettering.id, pageId: roSetup.pages[0].id },
+    select: { inputFileKey: true, inputRevision: true }
+  })
+  const reopenRes = await req('POST', `/chapters/${roSetup.chapter.id}/stages/${lettering.id}/reopen`, {
+    token: s.tokens.mA
+  })
+  ok('F02-RO03 reopen LETTERING → 201', reopenRes.status === 201, `got ${reopenRes.status}`)
+  const reopenBody = responseData<{
+    stageId?: string
+    relockedStageIds?: unknown
+    clearedStagePages?: unknown
+  }>(reopenRes)
+  ok(
+    'F02-RO03b payload đủ message + stage fields',
+    typeof reopenRes.json?.message === 'string' &&
+      reopenBody?.stageId === String(lettering.id) &&
+      Array.isArray(reopenBody?.relockedStageIds) &&
+      typeof reopenBody?.clearedStagePages === 'number',
+    `got ${JSON.stringify(reopenRes.json)}`
+  )
+  const letteringAfter = await prisma.productionStage.findUnique({ where: { id: lettering.id } })
+  const finalAfter = await prisma.productionStage.findUnique({ where: { id: finalCheck.id } })
+  const finalPages = await prisma.productionStagePage.count({ where: { stageId: finalCheck.id } })
+  const inputAfter = await prisma.productionStagePage.findFirst({
+    where: { stageId: lettering.id, pageId: roSetup.pages[0].id },
+    select: { inputFileKey: true, inputRevision: true, outputConfirmedAt: true }
+  })
+  ok('F02-RO04a LETTERING ACTIVE', letteringAfter?.status === 'ACTIVE', `got ${letteringAfter?.status}`)
+  ok('F02-RO04b completedAt đã xoá', letteringAfter?.completedAt === null, `got ${String(letteringAfter?.completedAt)}`)
+  ok('F02-RO04c FINAL_CHECK LOCKED', finalAfter?.status === 'LOCKED', `got ${finalAfter?.status}`)
+  ok('F02-RO04d StagePage của FINAL_CHECK bị XOÁ hết', finalPages === 0, `got ${finalPages}`)
+  ok(
+    'F02-RO04e input snapshot giữ nguyên',
+    inputAfter?.inputFileKey === inputBefore?.inputFileKey && inputAfter?.inputRevision === inputBefore?.inputRevision,
+    `before=${inputBefore?.inputFileKey}@${inputBefore?.inputRevision} after=${inputAfter?.inputFileKey}@${inputAfter?.inputRevision}`
+  )
+  ok('F02-RO04f output đã xoá', inputAfter?.outputConfirmedAt === null, `got ${String(inputAfter?.outputConfirmedAt)}`)
+
+  const reopenedTask = await req('POST', '/tasks', {
+    token: s.tokens.mA,
+    body: {
+      pageId: roSetup.pages[0].id,
+      assistantId: roAssistant.id,
+      taskType: Specialization.LETTERING,
+      stageId: lettering.id
+    }
+  })
+  ok('F02-RO05 giao task LETTERING sau reopen → 201', reopenedTask.status === 201, `got ${reopenedTask.status}`)
+  const reopenedTaskId = responseData<{ id: string }>(reopenedTask).id
+  const resubmitWhileActive = await req('POST', `/chapters/${roSetup.chapter.id}/manuscript/resubmit`, {
+    token: s.tokens.mA
+  })
+  expectError(
+    resubmitWhileActive,
+    409,
+    'Error.ProductionNotFinalized',
+    'F02-RO06 resubmit khi LETTERING còn ACTIVE → 409'
+  )
+
+  await approveTaskThroughApi(
+    { mangaka: s.tokens.mA, assistant: roAssistantToken },
+    reopenedTaskId,
+    'F02-RO07',
+    'r2://ro-lettering-task.png'
+  )
+  await closeActiveStage(s.tokens.mA, roSetup.chapter.id, lettering.id, 'F02-RO07', {
+    [roSetup.pages[0].id]: 'r2://ro-lettering-fixed.png'
+  })
+  const finalReopened = await prisma.productionStage.findUnique({ where: { id: finalCheck.id } })
+  const finalRecreated = await prisma.productionStagePage.count({ where: { stageId: finalCheck.id } })
+  ok('F02-RO07b FINAL_CHECK reactivated', finalReopened?.status === 'ACTIVE', `got ${finalReopened?.status}`)
+  ok('F02-RO07c StagePage FINAL_CHECK tạo lại đủ trang', finalRecreated === 3, `got ${finalRecreated}`)
+
+  const roResubmit = await req('POST', `/chapters/${roSetup.chapter.id}/manuscript/resubmit`, { token: s.tokens.mA })
+  ok('F02-RO08 resubmit sau khép LETTERING → 201', roResubmit.status === 201, `got ${roResubmit.status}`)
+  const roManuscriptResubmitted = await prisma.manuscript.findFirst({ where: { chapterId: roSetup.chapter.id } })
+  const finalCompletedAgain = await prisma.productionStage.findUnique({ where: { id: finalCheck.id } })
+  ok(
+    'F02-RO08b Manuscript EDITOR_REVIEW + FINAL_CHECK COMPLETED',
+    roManuscriptResubmitted?.status === ManuscriptStatus.EDITOR_REVIEW && finalCompletedAgain?.status === 'COMPLETED',
+    `ms=${roManuscriptResubmitted?.status} final=${finalCompletedAgain?.status}`
+  )
+
+  await requestRevisionAndResolve({ editor: s.tokens.e1, mangaka: s.tokens.mA }, roSetup.chapter.id, 'F02-RO09')
+  const roCycleStages = await getStages(roSetup.chapter.id)
+  const inking = stageByName(roCycleStages, 'INKING')
+  const reopenInking = await req('POST', `/chapters/${roSetup.chapter.id}/stages/${inking.id}/reopen`, {
+    token: s.tokens.mA
+  })
+  ok('F02-RO09 reopen INKING → 201', reopenInking.status === 201, `got ${reopenInking.status}`)
+  const addedRevisionPage = await req('POST', `/chapters/${roSetup.chapter.id}/pages`, {
+    token: s.tokens.mA,
+    body: { pageNumber: 4, originalFile: 'r2://ro-added-after-reopen.png' }
+  })
+  ok(
+    'F02-RO09b thêm trang sau reopen stage 1 → 201',
+    addedRevisionPage.status === 201,
+    `got ${addedRevisionPage.status}`
+  )
+
+  const readySetup = await createRoChapter(41, 'ChReadyForPrint', 1)
+  await submitAfterStages(s.tokens.mA, String(readySetup.chapter.id), 'F02-RO10-SETUP')
+  const readyApprove = await req('POST', `/chapters/${readySetup.chapter.id}/manuscript/approve`, {
+    token: s.tokens.e1
+  })
+  ok('F02-RO10 setup approve → 201', readyApprove.status === 201, `got ${readyApprove.status}`)
+  const readyStage = stageByName(await getStages(readySetup.chapter.id), 'LETTERING')
+  const reopenReady = await req('POST', `/chapters/${readySetup.chapter.id}/stages/${readyStage.id}/reopen`, {
+    token: s.tokens.mA
+  })
+  expectError(reopenReady, 409, 'Error.StageReopenNotAllowed', 'F02-RO10 reopen READY_FOR_PRINT → 409')
+
+  const roleSetup = await createRoChapter(42, 'ChReopenRole', 1)
+  await submitAfterStages(s.tokens.mA, String(roleSetup.chapter.id), 'F02-RO11-SETUP')
+  await req('POST', `/chapters/${roleSetup.chapter.id}/manuscript/request-revision`, {
+    token: s.tokens.e1,
+    body: { reason: 'role guard' }
+  })
+  const roleStage = stageByName(await getStages(roleSetup.chapter.id), 'LETTERING')
+  const editorReopen = await req('POST', `/chapters/${roleSetup.chapter.id}/stages/${roleStage.id}/reopen`, {
+    token: s.tokens.e1
+  })
+  expectError(editorReopen, 403, 'Error.ForbiddenResource', 'F02-RO11 Editor gọi reopen → 403 role guard')
+  const otherMangakaReopen = await req('POST', `/chapters/${roleSetup.chapter.id}/stages/${roleStage.id}/reopen`, {
+    token: s.tokens.mA2
+  })
+  expectError(otherMangakaReopen, 403, 'Error.StageAccessDenied', 'F02-RO11b Mangaka khác gọi reopen → 403 ownership')
+
+  const openTaskSetup = await createRoChapter(43, 'ChOpenTaskGuard', 1)
+  await submitAfterStages(s.tokens.mA, String(openTaskSetup.chapter.id), 'F02-RO12-SETUP')
+  await requestRevisionAndResolve({ editor: s.tokens.e1, mangaka: s.tokens.mA }, openTaskSetup.chapter.id, 'F02-RO12a')
+  const openTaskStages = await getStages(openTaskSetup.chapter.id)
+  const openTaskLettering = stageByName(openTaskStages, 'LETTERING')
+  const openTaskInking = stageByName(openTaskStages, 'INKING')
+  await req('POST', `/chapters/${openTaskSetup.chapter.id}/stages/${openTaskLettering.id}/reopen`, {
+    token: s.tokens.mA
+  })
+  const openLaterTask = await req('POST', '/tasks', {
+    token: s.tokens.mA,
+    body: {
+      pageId: openTaskSetup.pages[0].id,
+      assistantId: roAssistant.id,
+      taskType: Specialization.LETTERING,
+      stageId: openTaskLettering.id
+    }
+  })
+  ok('F02-RO12b tạo task ở stage sau → 201', openLaterTask.status === 201, `got ${openLaterTask.status}`)
+  const blockedEarlierReopen = await req(
+    'POST',
+    `/chapters/${openTaskSetup.chapter.id}/stages/${openTaskInking.id}/reopen`,
+    {
+      token: s.tokens.mA
+    }
+  )
+  expectError(
+    blockedEarlierReopen,
+    409,
+    'Error.StageHasOpenTasks',
+    'F02-RO12c reopen stage trước khi stage sau còn task mở → 409'
+  )
+  const openLaterTaskId = responseData<{ id: string }>(openLaterTask).id
+  const cancelLaterTask = await req('POST', `/tasks/${openLaterTaskId}/cancel`, {
+    token: s.tokens.mA,
+    body: { reason: 'reopen earlier stage' }
+  })
+  ok('F02-RO12d cancel task mở → 201', cancelLaterTask.status === 201, `got ${cancelLaterTask.status}`)
+  const reopenAfterCancel = await req(
+    'POST',
+    `/chapters/${openTaskSetup.chapter.id}/stages/${openTaskInking.id}/reopen`,
+    {
+      token: s.tokens.mA
+    }
+  )
+  ok(
+    'F02-RO12e cancel xong reopen stage trước → 201',
+    reopenAfterCancel.status === 201,
+    `got ${reopenAfterCancel.status}`
+  )
+
+  const insertBlockedSetup = await createRoChapter(44, 'ChInsertBlocked', 1)
+  await submitAfterStages(s.tokens.mA, String(insertBlockedSetup.chapter.id), 'F02-RO13-SETUP')
+  const insertBlockedStage = stageByName(await getStages(insertBlockedSetup.chapter.id), 'LETTERING')
+  const insertBlocked = await req('POST', `/chapters/${insertBlockedSetup.chapter.id}/stages`, {
+    token: s.tokens.mA,
+    body: { name: 'REWORK', taskTypes: [Specialization.LETTERING], afterStageId: insertBlockedStage.id }
+  })
+  expectError(insertBlocked, 409, 'Error.StageNotInsertable', 'F02-RO13 add khi mọi stage COMPLETED → 409')
+
+  const insertSetup = await createRoChapter(45, 'ChInsertAfterReopen', 2)
+  await submitAfterStages(s.tokens.mA, String(insertSetup.chapter.id), 'F02-RO14-SETUP')
+  await requestRevisionAndResolve({ editor: s.tokens.e1, mangaka: s.tokens.mA }, insertSetup.chapter.id, 'F02-RO14a')
+  const insertStages = await getStages(insertSetup.chapter.id)
+  const insertLettering = stageByName(insertStages, 'LETTERING')
+  const insertFinal = insertStages.find((stage) => stage.isFinalCheck)!
+  await req('POST', `/chapters/${insertSetup.chapter.id}/stages/${insertLettering.id}/reopen`, { token: s.tokens.mA })
+  const addInserted = await req('POST', `/chapters/${insertSetup.chapter.id}/stages`, {
+    token: s.tokens.mA,
+    body: { name: 'REWORK_EFFECT', taskTypes: [Specialization.LETTERING], afterStageId: insertLettering.id }
+  })
+  ok('F02-RO14b add sau stage vừa reopen → 201', addInserted.status === 201, `got ${addInserted.status}`)
+  const insertedBody = responseData<{ id: string }>(addInserted)
+  const finalShifted = await prisma.productionStage.findUnique({ where: { id: insertFinal.id } })
+  ok('F02-RO14c FINAL_CHECK dời order 4→5', finalShifted?.order === 5, `got ${finalShifted?.order}`)
+  await closeActiveStage(s.tokens.mA, insertSetup.chapter.id, insertLettering.id, 'F02-RO14d')
+  const insertedStage = await prisma.productionStage.findUnique({ where: { id: insertedBody.id } })
+  const insertedPages = await prisma.productionStagePage.count({ where: { stageId: insertedBody.id } })
+  ok(
+    'F02-RO14e stage mới ACTIVE và có đủ StagePage',
+    insertedStage?.status === 'ACTIVE' && insertedPages === 2,
+    `status=${insertedStage?.status} pages=${insertedPages}`
+  )
+
+  const reuseSetup = await createRoChapter(46, 'ChReuseInput', 2)
+  await submitAfterStages(s.tokens.mA, String(reuseSetup.chapter.id), 'F02-RO15-SETUP')
+  await requestRevisionAndResolve({ editor: s.tokens.e1, mangaka: s.tokens.mA }, reuseSetup.chapter.id, 'F02-RO15a')
+  const reuseDetailing = stageByName(await getStages(reuseSetup.chapter.id), 'DETAILING')
+  const reopenReuse = await req('POST', `/chapters/${reuseSetup.chapter.id}/stages/${reuseDetailing.id}/reopen`, {
+    token: s.tokens.mA
+  })
+  ok('F02-RO15b reopen DETAILING → 201', reopenReuse.status === 201, `got ${reopenReuse.status}`)
+  await closeActiveStage(s.tokens.mA, reuseSetup.chapter.id, reuseDetailing.id, 'F02-RO15c')
+  const letteringAfterReuse = await prisma.productionStage.findFirst({
+    where: { chapterId: reuseSetup.chapter.id, name: 'LETTERING' }
+  })
+  ok(
+    'F02-RO15d reuseInput không task vẫn complete được',
+    letteringAfterReuse?.status === 'ACTIVE',
+    `got ${letteringAfterReuse?.status}`
+  )
+
+  const finalGuardSetup = await createRoChapter(47, 'ChFinalGuard', 1)
+  await advanceToFinalCheck(s.tokens.mA, String(finalGuardSetup.chapter.id), 'F02-RO16-SETUP')
+  const finalGuard = (await getStages(finalGuardSetup.chapter.id)).find((stage) => stage.isFinalCheck)!
+  const completeFinal = await req('POST', `/chapters/${finalGuardSetup.chapter.id}/stages/${finalGuard.id}/complete`, {
+    token: s.tokens.mA
+  })
+  expectError(completeFinal, 409, 'Error.FinalCheckNotCompletable', 'F02-RO16 FINAL_CHECK complete route → 409')
+  const submitAfterFinalBlocked = await req('POST', `/chapters/${finalGuardSetup.chapter.id}/manuscript/submit`, {
+    token: s.tokens.mA
+  })
+  ok(
+    'F02-RO16b submit ngay sau FINAL_CHECK complete bị chặn vẫn → 201',
+    submitAfterFinalBlocked.status === 201,
+    `got ${submitAfterFinalBlocked.status} ${submitAfterFinalBlocked.raw.slice(0, 200)}`
+  )
+
+  // ── F02-RO17 — reopen KHÔNG được xoá giá trị output cũ ──────────────────────────────────────
+  // 🔴 Bug BE-A tự bắt khi verify Spec 26 (probe DB thật): bản gốc xoá cả outputFileKey. Vì StagePage
+  // của các stage SAU bị xoá trong cùng transaction, đó là bản sao CUỐI CÙNG của kết quả stage này
+  // ⇒ mất vĩnh viễn khỏi API. Hệ quả: trang không cần sửa mà Mangaka bấm "giữ nguyên" thì stage kế
+  // nhận input tụt về ảnh TRƯỚC stage vừa mở lại, Assistant vẽ lại trên bản đã mất phần việc trước đó.
+  // Case này dùng FILE KHÁC NHAU cho từng stage — các case RO khác đều reuseInput nên compositeFile
+  // luôn null và KHÔNG THỂ lộ lớp bug này.
+  const keepSetup = await createRoChapter(48, 'ChKeepOutput', 1)
+  const keepPageId = String(keepSetup.pages[0].id)
+  const keepStages = await getStages(keepSetup.chapter.id)
+  for (const [name, fileKey] of [
+    ['INKING', 'r2://keep-ink.png'],
+    ['DETAILING', 'r2://keep-detail.png'],
+    ['LETTERING', 'r2://keep-letter.png']
+  ] as const) {
+    const stage = stageByName(keepStages, name)
+    await closeActiveStage(s.tokens.mA, keepSetup.chapter.id, stage.id, `F02-RO17-${name}`, {
+      [keepPageId]: fileKey
+    })
+  }
+  // 3 stage sản xuất đã đi bằng tay ở trên; chỉ còn FINAL_CHECK đang ACTIVE nên submit thẳng.
+  // (KHÔNG dùng submitAfterStages — nó sẽ đi lại 3 stage đã COMPLETED → 409 StageNotActive.)
+  const keepSubmit = await req('POST', `/chapters/${keepSetup.chapter.id}/manuscript/submit`, { token: s.tokens.mA })
+  ok(
+    'F02-RO17-SUBMIT submit → 201',
+    keepSubmit.status === 201,
+    `got ${keepSubmit.status} ${keepSubmit.raw.slice(0, 200)}`
+  )
+  await requestRevisionAndResolve({ editor: s.tokens.e1, mangaka: s.tokens.mA }, keepSetup.chapter.id, 'F02-RO17a')
+
+  const keepDetailing = stageByName(await getStages(keepSetup.chapter.id), 'DETAILING')
+  const keepReopen = await req('POST', `/chapters/${keepSetup.chapter.id}/stages/${keepDetailing.id}/reopen`, {
+    token: s.tokens.mA
+  })
+  ok('F02-RO17b reopen DETAILING → 201', keepReopen.status === 201, `got ${keepReopen.status}`)
+
+  const keptOutput = await prisma.productionStagePage.findFirst({
+    where: { stageId: keepDetailing.id, pageId: keepPageId }
+  })
+  ok(
+    'F02-RO17c output cũ VẪN đọc được sau reopen (không bị xoá)',
+    keptOutput?.outputFileKey === 'r2://keep-detail.png',
+    `got ${keptOutput?.outputFileKey} — mất bản sao cuối cùng của kết quả DETAILING`
+  )
+  ok(
+    'F02-RO17d dấu xác nhận đã xoá nên vẫn buộc confirm lại',
+    keptOutput?.outputConfirmedAt === null && keptOutput?.outputConfirmedBy === null,
+    `got ${String(keptOutput?.outputConfirmedAt)}`
+  )
+  ok(
+    'F02-RO17e input snapshot vẫn là output của INKING',
+    keptOutput?.inputFileKey === 'r2://keep-ink.png',
+    `got ${keptOutput?.inputFileKey}`
+  )
+
+  // Trang không cần sửa: echo lại outputFileKey cũ ⇒ chuỗi stage giữ nguyên phần việc DETAILING.
+  await closeActiveStage(s.tokens.mA, keepSetup.chapter.id, keepDetailing.id, 'F02-RO17f', {
+    [keepPageId]: String(keptOutput?.outputFileKey)
+  })
+  const keepLettering = stageByName(await getStages(keepSetup.chapter.id), 'LETTERING')
+  const keepLetteringInput = await prisma.productionStagePage.findFirst({
+    where: { stageId: keepLettering.id, pageId: keepPageId }
+  })
+  ok(
+    'F02-RO17g LETTERING nhận input = kết quả DETAILING, KHÔNG tụt về bản mực thô',
+    keepLetteringInput?.inputFileKey === 'r2://keep-detail.png',
+    `got ${keepLetteringInput?.inputFileKey}`
+  )
 
   await prisma.$disconnect()
   const fail = summary(FLOW)

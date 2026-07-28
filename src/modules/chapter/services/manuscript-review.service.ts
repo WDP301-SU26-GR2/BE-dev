@@ -48,14 +48,19 @@ export class ManuscriptReviewService {
     if (chapter.hold) throw ChapterOnHoldException
   }
 
-  private async assertReadyForEditor(chapterId: string, requireActiveFinalCheck = true): Promise<boolean> {
+  private async assertReadyForEditor(chapterId: string, mode: 'SUBMIT' | 'RESUBMIT'): Promise<boolean> {
     const pages = await this.chapterRepository.findPagesByChapterId(chapterId)
     if (pages.length === 0) throw NoPagesToSubmitException
     const stageCount = this.stageRepo ? await this.stageRepo.countByChapter(chapterId) : 0
     if (stageCount > 0) {
-      const finalCheck = await this.stageRepo!.findFinalCheck(chapterId)
-      if (requireActiveFinalCheck && (!finalCheck || finalCheck.status !== ProductionStageStatus.ACTIVE)) {
-        throw ProductionNotFinalizedException
+      if (mode === 'SUBMIT') {
+        const finalCheck = await this.stageRepo!.findFinalCheck(chapterId)
+        if (!finalCheck || finalCheck.status !== ProductionStageStatus.ACTIVE) throw ProductionNotFinalizedException
+      } else {
+        const stages = await this.stageRepo!.findByChapter(chapterId)
+        if (stages.some((stage) => !stage.isFinalCheck && stage.status === ProductionStageStatus.ACTIVE)) {
+          throw ProductionNotFinalizedException
+        }
       }
       return true
     }
@@ -70,7 +75,7 @@ export class ManuscriptReviewService {
     if (series.mangakaId !== userId) throw NotSeriesOwnerException
     this.assertNotOnHold(chapter)
     await this.manuscriptStateService.assertCanTransition(chapterId, ManuscriptStatus.EDITOR_REVIEW)
-    const stageMode = await this.assertReadyForEditor(chapterId)
+    const stageMode = await this.assertReadyForEditor(chapterId, 'SUBMIT')
 
     const result = await this.manuscriptStateService.transitionWithPages(
       chapterId,
@@ -131,7 +136,7 @@ export class ManuscriptReviewService {
     if (await this.revisionService.hasOpenRequest(RevisionTargetType.MANUSCRIPT, chapterId)) {
       throw RevisionNotResolvedException
     }
-    await this.assertReadyForEditor(chapterId, false)
+    const stageMode = await this.assertReadyForEditor(chapterId, 'RESUBMIT')
 
     const result = await this.manuscriptStateService.transitionWithPages(
       chapterId,
@@ -140,6 +145,7 @@ export class ManuscriptReviewService {
       [PageStatus.REVISING, PageStatus.DRAFT],
       PageStatus.COMPLETED
     )
+    if (stageMode) await this.stageStateService?.markFinalCheckCompleted(chapterId)
     if (series.editorId) {
       const round = await this.revisionService.currentRound(RevisionTargetType.MANUSCRIPT, chapterId)
       await this.notificationService.notifySafe({

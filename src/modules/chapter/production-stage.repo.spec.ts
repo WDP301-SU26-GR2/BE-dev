@@ -11,13 +11,16 @@ const createFixture = () => {
       count: jest.fn(),
       create: jest.fn(),
       findFirst: jest.fn(),
-      update: jest.fn()
+      update: jest.fn(),
+      updateMany: jest.fn()
     },
     productionStagePage: {
       create: jest.fn(),
       createMany: jest.fn(),
       findMany: jest.fn(),
-      update: jest.fn()
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      deleteMany: jest.fn()
     },
     page: {
       create: jest.fn(),
@@ -226,6 +229,70 @@ describe('ProductionStageRepository workflow persistence', () => {
     expect(tx.productionStage.update).toHaveBeenLastCalledWith({
       where: { id: 'next' },
       data: { status: ProductionStageStatus.ACTIVE, startedAt: at }
+    })
+  })
+
+  describe('reopenStageAndRelockAfter', () => {
+    it('reopens the target stage, relocks later stages and deletes their stage pages', async () => {
+      const { tx, repo } = createFixture()
+      const now = new Date('2026-07-28T00:00:00.000Z')
+      tx.productionStagePage.deleteMany.mockResolvedValue({ count: 7 })
+
+      const result = await repo.reopenStageAndRelockAfter('stage3', ['stage4', 'stage5'], now)
+
+      expect(tx.productionStage.update).toHaveBeenCalledWith({
+        where: { id: 'stage3' },
+        data: { status: ProductionStageStatus.ACTIVE, startedAt: now, completedAt: null }
+      })
+      // 🔴 Chỉ xoá DẤU XÁC NHẬN, GIỮ giá trị output cũ.
+      // Xoá luôn outputFileKey làm mất vĩnh viễn kết quả của stage này: StagePage của các stage sau
+      // đã bị xoá ở cùng transaction, nên không còn bản sao nào ⇒ FE không thể cho Mangaka "giữ nguyên
+      // kết quả cũ" cho trang không cần sửa, và stage kế tiếp nhận input tụt về ảnh trước-stage.
+      expect(tx.productionStagePage.updateMany).toHaveBeenCalledWith({
+        where: { stageId: 'stage3' },
+        data: { outputConfirmedAt: null, outputConfirmedBy: null }
+      })
+      expect(tx.productionStage.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['stage4', 'stage5'] } },
+        data: { status: ProductionStageStatus.LOCKED, startedAt: null, completedAt: null }
+      })
+      expect(tx.productionStagePage.deleteMany).toHaveBeenCalledWith({
+        where: { stageId: { in: ['stage4', 'stage5'] } }
+      })
+      expect(result).toEqual({ clearedStagePages: 7 })
+    })
+
+    it('never touches input snapshot fields of the reopened stage', async () => {
+      const { tx, repo } = createFixture()
+      await repo.reopenStageAndRelockAfter('stage1', [], new Date())
+
+      const data = tx.productionStagePage.updateMany.mock.calls[0][0].data
+      expect(data).not.toHaveProperty('inputFileKey')
+      expect(data).not.toHaveProperty('inputRevision')
+      expect(data).not.toHaveProperty('inputSourceType')
+    })
+
+    it('preserves the previous output values so the old result stays readable', async () => {
+      const { tx, repo } = createFixture()
+      await repo.reopenStageAndRelockAfter('stage1', [], new Date())
+
+      const data = tx.productionStagePage.updateMany.mock.calls[0][0].data
+      expect(data).not.toHaveProperty('outputFileKey')
+      expect(data).not.toHaveProperty('outputRevision')
+      expect(data).not.toHaveProperty('outputSourceType')
+      // Xoá dấu xác nhận là đủ: completeStage đòi outputConfirmedAt nên vẫn buộc confirm lại,
+      // và guard idempotency của confirmOutputs (`if (stagePage.outputConfirmedAt)`) được bỏ qua
+      // nên Mangaka ghi đè được bằng file mới.
+      expect(data).toEqual({ outputConfirmedAt: null, outputConfirmedBy: null })
+    })
+
+    it('skips the relock queries entirely when there is no later stage', async () => {
+      const { tx, repo } = createFixture()
+      const result = await repo.reopenStageAndRelockAfter('final', [], new Date())
+
+      expect(tx.productionStage.updateMany).not.toHaveBeenCalled()
+      expect(tx.productionStagePage.deleteMany).not.toHaveBeenCalled()
+      expect(result).toEqual({ clearedStagePages: 0 })
     })
   })
 

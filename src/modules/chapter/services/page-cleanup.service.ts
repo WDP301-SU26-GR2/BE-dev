@@ -17,6 +17,29 @@ import { ProductionStageRepository } from '../production-stage.repo'
 import { DeletePagesBulkBodyType } from '../schemas/chapter-schemas'
 import { ChapterPageAccessService } from './chapter-page-access.service'
 
+type RemovedTaskSummary = {
+  id: string
+  assistantId: string | null
+  status: string
+  taskType: string | null
+  versionCount: number
+}
+
+const AUDIT_TASK_LIMIT = 20
+
+function summarizeRemovedTasks(tasks: RemovedTaskSummary[]) {
+  const shown = tasks.slice(0, AUDIT_TASK_LIMIT)
+  const body = shown
+    .map((task) => {
+      return `${task.id}:${task.assistantId ?? 'unassigned'}:${task.taskType ?? 'none'}:${task.status}:v${
+        task.versionCount
+      }`
+    })
+    .join(' ')
+  const more = tasks.length > AUDIT_TASK_LIMIT ? ` +${tasks.length - AUDIT_TASK_LIMIT} more` : ''
+  return `tasks=[${body}${more}]`
+}
+
 @Injectable()
 export class PageCleanupService {
   private readonly logger = new Logger(PageCleanupService.name)
@@ -70,16 +93,17 @@ export class PageCleanupService {
     const tasks = await this.chapterRepository.findTasksByPage(pageId)
     if (tasks.some((task) => task.status === TaskStatus.APPROVED)) throw PageHasApprovedTasksException
     const result = await this.chapterRepository.deletePageCascade(page.chapterId, pageId)
+    const { removedTasks = [], deletedAnnotations = 0, ...response } = result
     await this.auditService.record({
       actorId: userId,
       entityType: AuditEntityType.PAGE,
       entityId: pageId,
       action: 'PAGE_DELETE_CASCADE',
-      reason: `deleted regions: ${result.deletedRegions}, deleted tasks: ${result.deletedTasks}`
+      reason: `${summarizeRemovedTasks(removedTasks)}; regions=${response.deletedRegions}; annotations=${deletedAnnotations}`
     })
     await this.notifyRemovedTasks(tasks)
     await this.deleteObjectsSafe([page.originalFile, page.compositeFile])
-    return { pageId, ...result }
+    return { pageId, ...response }
   }
 
   async deletePagesBulk(userId: string, chapterId: string, body: DeletePagesBulkBodyType) {
@@ -92,15 +116,18 @@ export class PageCleanupService {
     const tasks = await this.chapterRepository.findTasksByPages(body.pageIds)
     if (tasks.some((task) => task.status === TaskStatus.APPROVED)) throw PageHasApprovedTasksException
     const result = await this.chapterRepository.deletePagesCascade(chapterId, body.pageIds)
+    const { removedTasks = [], deletedAnnotations = 0, ...response } = result
     await this.auditService.record({
       actorId: userId,
       entityType: AuditEntityType.CHAPTER,
       entityId: chapterId,
       action: 'PAGE_BULK_DELETE_CASCADE',
-      reason: `deleted pages: ${body.pageIds.join(',')}`
+      reason: `pages=[${body.pageIds.join(',')}]; ${summarizeRemovedTasks(removedTasks)}; regions=${
+        response.deletedRegions
+      }; annotations=${deletedAnnotations}`
     })
     await this.notifyRemovedTasks(tasks)
     await this.deleteObjectsSafe(pages.flatMap((page) => [page.originalFile, page.compositeFile]))
-    return { deletedPages: pages.length, ...result }
+    return { deletedPages: pages.length, ...response }
   }
 }

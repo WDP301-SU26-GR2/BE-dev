@@ -22,6 +22,16 @@ export const TaskTypeNotInStageException = new UnprocessableEntityException([
 ])
 export const StageNotEditableException = new ConflictException([{ message: E.stageNotEditable, path: 'stageId' }])
 export const StageNotDeletableException = new ConflictException([{ message: E.stageNotDeletable, path: 'stageId' }])
+export const StageNotReopenableException = new ConflictException([{ message: E.stageNotReopenable, path: 'stageId' }])
+export const StageReopenNotAllowedException = new ConflictException([
+  { message: E.stageReopenNotAllowed, path: 'chapterId' }
+])
+export const StageNotInsertableException = new ConflictException([
+  { message: E.stageNotInsertable, path: 'afterStageId' }
+])
+export const FinalCheckNotCompletableException = new ConflictException([
+  { message: E.finalCheckNotCompletable, path: 'stageId' }
+])
 export const ProductionNotFinalizedException = new ConflictException([
   { message: E.productionNotFinalized, path: 'chapterId' }
 ])

@@ -132,6 +132,12 @@ export class ChapterCommandRepository {
   }
   async deletePagesCascade(chapterId: string, pageIds: string[]) {
     return this.prisma.$transaction(async (tx) => {
+      const removedTasks = await tx.task.findMany({
+        where: { pageId: { in: pageIds } },
+        select: { id: true, assistantId: true, status: true, taskType: true, versions: true }
+      })
+      const taskIds = removedTasks.map((task) => task.id)
+      const annotations = await tx.annotation.deleteMany({ where: { taskId: { in: taskIds } } })
       await tx.productionStagePage.deleteMany({ where: { pageId: { in: pageIds } } })
       await tx.aiJob.deleteMany({ where: { pageId: { in: pageIds } } })
       const tasks = await tx.task.deleteMany({ where: { pageId: { in: pageIds } } })
@@ -145,7 +151,18 @@ export class ChapterCommandRepository {
       for (const update of computePageRenumber(remaining)) {
         await tx.page.update({ where: { id: update.id }, data: { pageNumber: update.pageNumber } })
       }
-      return { deletedTasks: tasks.count, deletedRegions: regions.count }
+      return {
+        deletedTasks: tasks.count,
+        deletedRegions: regions.count,
+        deletedAnnotations: annotations.count,
+        removedTasks: removedTasks.map((task) => ({
+          id: task.id,
+          assistantId: task.assistantId,
+          status: task.status,
+          taskType: task.taskType,
+          versionCount: task.versions.length
+        }))
+      }
     })
   }
   deletePageCascade(chapterId: string, pageId: string) {
