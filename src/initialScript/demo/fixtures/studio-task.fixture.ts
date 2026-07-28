@@ -2,6 +2,7 @@ import {
   AiJobStatus,
   AiJobType,
   AiSegmentMode,
+  AiSegmentSource,
   RegionType,
   RoleCode,
   Specialization,
@@ -13,194 +14,170 @@ import { DEMO_ACCOUNTS, DEMO_SPECIALIZATIONS, TASK_INSTRUCTIONS } from '../demo-
 import { DAY, pad, requiredAccount, requiredMedia } from './demo-seed.helpers'
 import { DemoContext, SeriesSeed } from './demo-seed.types'
 
-export const seedStudioAndTasks = async (context: DemoContext, hero: SeriesSeed, pageIds: string[]) => {
+export const seedStudioAssignments = async (context: DemoContext, hero: SeriesSeed) => {
   const mangaka = requiredAccount(context.accounts, 'mangaka.akari')
   const assistants = DEMO_ACCOUNTS.filter((account) => account.role === RoleCode.ASSISTANT).map((account) =>
     requiredAccount(context.accounts, account.alias)
   )
+  await Promise.all(
+    assistants.flatMap((assistant, index) => [
+      context.prisma.collaborationInvite.create({
+        data: {
+          mangakaId: mangaka.id,
+          assistantId: assistant.id,
+          seriesId: hero.id,
+          hireStart: new Date(context.now.getTime() - 14 * DAY),
+          hireEnd: new Date(context.now.getTime() + 45 * DAY),
+          taskTypes: [...DEMO_SPECIALIZATIONS[index]],
+          status: 'ACCEPTED'
+        }
+      }),
+      context.prisma.studioAssignment.create({
+        data: {
+          mangakaId: mangaka.id,
+          assistantId: assistant.id,
+          seriesId: hero.id,
+          hireStart: new Date(context.now.getTime() - 14 * DAY),
+          hireEnd: new Date(context.now.getTime() + 45 * DAY),
+          assignedTaskTypes: [...DEMO_SPECIALIZATIONS[index]],
+          status: StudioAssignmentStatus.ACTIVE
+        }
+      })
+    ])
+  )
+}
+
+export const seedTasksForInkingRun = async (
+  context: DemoContext,
+  runIndex: number,
+  stageId: string,
+  pages: readonly { id: string; originalFile: string | null }[]
+) => {
+  const mangaka = requiredAccount(context.accounts, 'mangaka.akari')
+  const yuki = requiredAccount(context.accounts, 'assistant.yuki')
+  const kei = requiredAccount(context.accounts, 'assistant.kei')
   const referenceAssetIds = [
     requiredMedia(context.media, 'hokusai-sketchbook').id,
-    requiredMedia(context.media, 'hokusai-sketchbook').id,
-    requiredMedia(context.media, 'three-production-versions').id
+    requiredMedia(context.media, 'three-production-versions').id,
+    requiredMedia(context.media, 'manga-page-cc0').id
   ]
+  const taskStatuses = [TaskStatus.ASSIGNED, TaskStatus.SUBMITTED, TaskStatus.REVISION_REQUESTED]
 
-  for (const [index, assistant] of assistants.entries()) {
-    await context.prisma.collaborationInvite.create({
+  for (const [pageIndex, page] of pages.entries()) {
+    if (!page.originalFile) throw new Error(`Missing stage input for page ${page.id}`)
+    const assistant = pageIndex === 1 ? kei : yuki
+    const region = await context.prisma.region.create({
       data: {
-        mangakaId: mangaka.id,
-        assistantId: assistant.id,
-        seriesId: hero.id,
-        hireStart: new Date(context.now.getTime() - 14 * DAY),
-        hireEnd: new Date(context.now.getTime() + 45 * DAY),
-        taskTypes: [...DEMO_SPECIALIZATIONS[index]],
-        status: 'ACCEPTED'
-      }
-    })
-    await context.prisma.studioAssignment.create({
-      data: {
-        mangakaId: mangaka.id,
-        assistantId: assistant.id,
-        seriesId: hero.id,
-        hireStart: new Date(context.now.getTime() - 14 * DAY),
-        hireEnd: new Date(context.now.getTime() + 45 * DAY),
-        assignedTaskTypes: [...DEMO_SPECIALIZATIONS[index]],
-        status: StudioAssignmentStatus.ACTIVE
-      }
-    })
-  }
-
-  const specializations = Object.values(Specialization)
-  for (const [index, pageId] of pageIds.entries()) {
-    const primaryType = specializations[index % specializations.length]
-    const secondaryType = specializations[(index + 2) % specializations.length]
-    const assistant = assistants[index % assistants.length]
-    const secondAssistant = assistants[(index + 1) % assistants.length]
-    const manualRegion = await context.prisma.region.create({
-      data: {
-        pageId,
-        coordinates: { x: 52, y: 112, width: 650, height: 590 },
-        regionType: index % 2 === 0 ? RegionType.BACKGROUND : RegionType.PANEL,
+        pageId: page.id,
+        coordinates:
+          pageIndex === 0 ? { x: 54, y: 96, width: 620, height: 690 } : { x: 610, y: 125, width: 390, height: 560 },
+        regionType: pageIndex === 0 ? RegionType.PANEL : RegionType.CHARACTER,
         createdBy: 'MANUAL',
         confirmedByMangaka: true
       }
     })
-    const aiRegion = await context.prisma.region.create({
+    const status = taskStatuses[pageIndex]
+    const versions =
+      status === TaskStatus.ASSIGNED
+        ? []
+        : [
+            {
+              submittedBy: assistant.id,
+              versionNumber: 1,
+              file: requiredMedia(context.media, 'finished-line-art').key,
+              reviewStatus:
+                status === TaskStatus.REVISION_REQUESTED
+                  ? TaskVersionReviewStatus.REVISION_REQUESTED
+                  : TaskVersionReviewStatus.PENDING,
+              reviewerNote:
+                status === TaskStatus.REVISION_REQUESTED
+                  ? 'Nét viền nhân vật cần dày hơn nền, giữ sạch vùng bubble.'
+                  : null,
+              submittedAt: new Date(context.now.getTime() - (5 - pageIndex) * 3_600_000)
+            }
+          ]
+    const task = await context.prisma.task.create({
       data: {
-        pageId,
-        coordinates: { x: 725, y: 140, width: 425, height: 395 },
-        regionType: index % 3 === 0 ? RegionType.SPEECH_BUBBLE : RegionType.CHARACTER,
-        detectedSubtype: index % 3 === 0 ? 'speech-bubble' : 'character',
-        createdBy: 'AI',
-        confirmedByMangaka: index % 2 === 0,
-        confidenceScore: 0.86 + (index % 5) * 0.02,
-        aiModelVersion: 'demo-manga109-yolo-v1'
-      }
-    })
-    await context.prisma.aiJob.create({
-      data: {
-        type: AiJobType.SEGMENT,
-        mode: index % 2 === 0 ? AiSegmentMode.MODEL : AiSegmentMode.HEURISTIC,
-        pageId,
-        requestedBy: mangaka.id,
-        status: AiJobStatus.SUCCEEDED,
-        modelVersion: index % 2 === 0 ? 'demo-manga109-yolo-v1' : 'opencv-heuristic-v1',
-        proposedRegions: [
-          {
-            regionType: 'BACKGROUND',
-            detectedSubtype: 'background',
-            coordinates: { x: 52, y: 112, width: 650, height: 590 },
-            confidenceScore: 0.93
-          },
-          {
-            regionType: 'CHARACTER',
-            detectedSubtype: 'character',
-            coordinates: { x: 725, y: 140, width: 425, height: 395 },
-            confidenceScore: 0.88
-          }
-        ],
-        regionCount: 2,
-        appliedAt: new Date(context.now.getTime() - index * 3_600_000),
-        startedAt: new Date(context.now.getTime() - index * 3_600_000 - 2_200),
-        finishedAt: new Date(context.now.getTime() - index * 3_600_000),
-        durationMs: 2200
+        pageId: page.id,
+        regionIds: [region.id],
+        assistantId: assistant.id,
+        taskType: Specialization.INKING,
+        status,
+        priority: 10 - pageIndex,
+        deadline: new Date(context.now.getTime() + (2 + runIndex) * DAY),
+        assetIds: referenceAssetIds,
+        statusReason: status === TaskStatus.REVISION_REQUESTED ? 'Mangaka đã yêu cầu chỉnh nét lần 1.' : null,
+        groupId: `demo-f3-${pad(runIndex + 1)}`,
+        groupTitle: `[DEMO F3-${pad(runIndex + 1)}] INKING batch`,
+        stageId,
+        startedAt: status === TaskStatus.ASSIGNED ? null : new Date(context.now.getTime() - 8 * 3_600_000),
+        description: `${TASK_INSTRUCTIONS.INKING} Trang ${pageIndex + 1}: chỉ xử lý region đã confirm.`,
+        versions
       }
     })
 
-    await context.prisma.task.create({
-      data: {
-        pageId,
-        regionIds: [manualRegion.id],
-        assistantId: assistant.id,
-        taskType: primaryType,
-        status: TaskStatus.ASSIGNED,
-        priority: 10 - index,
-        deadline: new Date(context.now.getTime() + (2 + index) * DAY),
-        assetIds: referenceAssetIds,
-        statusReason: TASK_INSTRUCTIONS[primaryType],
-        groupId: `demo-assigned-${pad(index + 1)}`,
-        groupTitle: `[DEMO F3-${pad(index + 1)}] Task sẵn sàng bắt đầu`,
-        versions: []
-      }
-    })
-    const submitted = await context.prisma.task.create({
-      data: {
-        pageId,
-        regionIds: [aiRegion.id],
-        assistantId: secondAssistant.id,
-        taskType: secondaryType,
-        status: TaskStatus.SUBMITTED,
-        priority: 5,
-        deadline: new Date(context.now.getTime() + (3 + index) * DAY),
-        assetIds: referenceAssetIds,
-        statusReason: TASK_INSTRUCTIONS[secondaryType],
-        groupId: `demo-review-${pad(index + 1)}`,
-        groupTitle: `[DEMO F3-${pad(index + 1)}] Task chờ Mangaka review`,
-        versions: [
-          {
-            submittedBy: secondAssistant.id,
-            versionNumber: 1,
-            file: requiredMedia(context.media, 'cleaned-lettering-page').key,
-            reviewStatus: TaskVersionReviewStatus.PENDING,
-            submittedAt: new Date(context.now.getTime() - 4 * 3_600_000)
-          }
-        ]
-      }
-    })
-    const revision = await context.prisma.task.create({
-      data: {
-        pageId,
-        regionIds: [manualRegion.id, aiRegion.id],
-        assistantId: assistant.id,
-        taskType: Specialization.LETTERING,
-        status: TaskStatus.REVISION_REQUESTED,
-        priority: 8,
-        deadline: new Date(context.now.getTime() + (1 + index) * DAY),
-        assetIds: referenceAssetIds,
-        statusReason: 'Giảm kích thước font SFX, giữ thứ tự đọc RTL và chừa safe margin.',
-        groupId: `demo-revision-${pad(index + 1)}`,
-        groupTitle: `[DEMO F3-${pad(index + 1)}] Task cần sửa version 2`,
-        versions: [
-          {
-            submittedBy: assistant.id,
-            versionNumber: 1,
-            file: requiredMedia(context.media, 'cleaned-lettering-page').key,
-            reviewStatus: TaskVersionReviewStatus.REVISION_REQUESTED,
-            reviewerNote: 'Bubble cuối che nét mặt nhân vật; dời lên 24 px.',
-            submittedAt: new Date(context.now.getTime() - 2 * DAY)
-          },
-          {
-            submittedBy: assistant.id,
-            versionNumber: 2,
-            file: requiredMedia(context.media, 'scanlated-page').key,
-            reviewStatus: TaskVersionReviewStatus.REVISION_REQUESTED,
-            reviewerNote: 'Đúng vị trí, cần giảm cỡ SFX thêm 10%.',
-            submittedAt: new Date(context.now.getTime() - DAY)
-          }
-        ]
-      }
-    })
-    await context.prisma.annotation.create({
-      data: {
-        taskId: submitted.id,
-        authorId: mangaka.id,
-        targetType: 'TASK',
-        targetId: submitted.id,
-        coordinates: { x: 775, y: 252, width: 300, height: 225 },
-        reviewStage: 'MANGAKA',
-        authorRole: 'MANGAKA',
-        annotationType: 'HIGHLIGHT',
-        content: 'Kiểm tra vùng này: nền cần tối hơn để tách silhouette.'
-      }
-    })
-    await context.prisma.revisionRequest.create({
-      data: {
-        targetType: 'TASK',
-        targetId: revision.id,
-        round: 2,
-        reason: 'Giảm cỡ SFX thêm 10% và giữ safe margin.',
-        requestedBy: mangaka.id,
-        recipientId: assistant.id
-      }
-    })
+    if (status === TaskStatus.REVISION_REQUESTED) {
+      await context.prisma.annotation.create({
+        data: {
+          taskId: task.id,
+          authorId: mangaka.id,
+          targetType: 'PAGE',
+          targetId: page.id,
+          coordinates: { x: 650, y: 252, width: 270, height: 310 },
+          reviewStage: 'MANGAKA',
+          authorRole: 'MANGAKA',
+          annotationType: 'HIGHLIGHT',
+          content: 'Nét silhouette ở vùng này bị đều; tăng line weight phía tiền cảnh.'
+        }
+      })
+      await context.prisma.revisionRequest.create({
+        data: {
+          targetType: 'TASK',
+          targetId: task.id,
+          round: 1,
+          reason: 'Tăng line weight silhouette tiền cảnh và giữ vùng thoại sạch.',
+          requestedBy: mangaka.id,
+          recipientId: assistant.id
+        }
+      })
+    }
   }
+
+  const aiPage = pages[0]
+  if (!aiPage?.originalFile) throw new Error(`Missing AI input for run ${runIndex + 1}`)
+  await context.prisma.aiJob.create({
+    data: {
+      type: AiJobType.SEGMENT,
+      mode: runIndex % 2 === 0 ? AiSegmentMode.MODEL : AiSegmentMode.HEURISTIC,
+      pageId: aiPage.id,
+      requestedBy: mangaka.id,
+      status: AiJobStatus.SUCCEEDED,
+      modelVersion: runIndex % 2 === 0 ? 'manga109-yolov8n-seg-pilot' : 'opencv-heuristic-v1',
+      proposedRegions: [
+        {
+          regionType: 'PANEL',
+          detectedSubtype: 'panel',
+          coordinates: { x: 45, y: 82, width: 642, height: 704 },
+          confidenceScore: 0.93
+        },
+        {
+          regionType: 'CHARACTER',
+          detectedSubtype: 'character',
+          coordinates: { x: 610, y: 125, width: 390, height: 560 },
+          confidenceScore: 0.88
+        }
+      ],
+      regionCount: 2,
+      appliedAt: null,
+      startedAt: new Date(context.now.getTime() - runIndex * 3_600_000 - 2_200),
+      finishedAt: new Date(context.now.getTime() - runIndex * 3_600_000),
+      durationMs: 2200,
+      sourceType: AiSegmentSource.ORIGINAL,
+      sourceFileKey: aiPage.originalFile,
+      sourceRevision: 1,
+      sourceStageId: stageId,
+      sourceWidth: 1080,
+      sourceHeight: 1440
+    }
+  })
 }

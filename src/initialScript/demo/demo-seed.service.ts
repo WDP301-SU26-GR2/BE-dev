@@ -20,17 +20,25 @@ export const seedDemoBusinessData = async (
   media: Map<string, SeededMedia>
 ): Promise<DemoSeedSummary> => {
   const context: DemoContext = { prisma, accounts, media, now: new Date() }
+  logger.log('Phase 1/8: configuration and user profiles')
   await seedConfigs(context)
   await seedProfiles(context)
 
+  logger.log('Phase 2/8: Flow 1 proposal and Name datasets')
   const flowOneSeries = await seedFlowOne(context)
+  logger.log('Phase 3/8: Flow 2-3 chapter, production stage, task and AI datasets')
   const hero = await seedProductionHero(context)
+  logger.log('Phase 4/8: Flow 6 contract negotiation datasets')
   const contractSeries = await seedContractRuns(context)
+  logger.log('Phase 5/8: Flow 4 ranking roster and published history')
   const rankingRoster = await seedRankingRoster(context)
   const rankingSeries = [hero, ...rankingRoster]
 
+  logger.log('Phase 6/8: Flow 4 surveys, online/offline votes and ranking history')
   await seedRankingsAndVoting(context, rankingSeries)
+  logger.log('Phase 7/8: Flow 5 lifecycle Board session, decisions and reports')
   await seedLifecycleBoard(context, rankingRoster)
+  logger.log('Phase 8/8: portfolio metadata and notifications')
   await seedPortfolioMetadata(context, hero, contractSeries)
   await seedNotifications(context, flowOneSeries, hero)
 

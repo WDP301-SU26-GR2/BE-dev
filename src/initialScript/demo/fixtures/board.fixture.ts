@@ -36,7 +36,7 @@ export const seedLifecycleBoard = async (context: DemoContext, targets: SeriesSe
         details: {
           demoRun: index + 1,
           reason: 'Bottom 1/3 liên tục; xem ranking 14 kỳ và kế hoạch cải thiện.',
-          proposedPublicationType: index % 2 === 0 ? null : 'MONTHLY'
+          publicationType: index % 2 === 0 ? null : 'MONTHLY'
         },
         allowedEditorIds: boardIds,
         votes: []
