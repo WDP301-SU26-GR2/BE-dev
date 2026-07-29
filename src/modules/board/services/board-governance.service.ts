@@ -12,10 +12,15 @@ export class BoardGovernanceService {
     if (!isObjectId(dto.boardDecisionId)) throw Errors.DecisionNotFoundException
     const decision = await this.boardRepo.findDecisionById(dto.boardDecisionId)
     if (!decision) throw Errors.DecisionNotFoundException
+    if (!decision.targetSeriesId || decision.targetSeriesId !== dto.seriesId) {
+      throw Errors.ReportDecisionSeriesMismatchException
+    }
     const session = await this.boardRepo.findSessionById(decision.boardSessionId)
     if (!session) throw Errors.SessionNotFoundException
     if (session.status === 'CONCLUDED') throw Errors.SessionClosedReportException
-    if (!session.allowedEditorIds.includes(userId)) throw Errors.EditorNotInvitedException
+    const series = await this.boardRepo.findSeriesEditorById(dto.seriesId)
+    if (!series) throw Errors.SeriesNotFoundException
+    if (series.editorId !== userId) throw Errors.EditorNotAssignedToSeriesException
     return this.boardRepo.createSeriesReport({ ...dto, preparedBy: userId })
   }
 
