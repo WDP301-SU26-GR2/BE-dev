@@ -26,6 +26,7 @@ const main = async () => {
   }
 
   try {
+    logger.log('Connecting to database...')
     await prisma.$connect()
     const existing = await findDemoAccounts(prisma)
     if (existing.length) {
@@ -34,15 +35,20 @@ const main = async () => {
       if (process.env.DEMO_SEED_ALLOW_RESET !== 'YES') {
         throw new Error('Demo reset is locked. Set DEMO_SEED_ALLOW_RESET=YES to delete demo-owned records only.')
       }
+      logger.log(`Resetting ${existing.length} demo-owned accounts and linked records...`)
       await resetDemoData(prisma)
     }
 
+    logger.log('Creating roles and 16 demo accounts...')
     await ensureBaseRoles(prisma)
     const accounts = await createDemoAccounts(prisma)
     const uploader = accounts.get('editor.naomi')
     if (!uploader) throw new Error('Missing editor.naomi after account seed')
+    logger.log(`Preparing licensed media (${skipMediaUpload ? 'DB records only' : 'R2 mirror + DB records'})...`)
     const media = await seedDemoMedia(prisma, uploader.id, !skipMediaUpload)
+    logger.log('Seeding business data for Flow 1-6...')
     const summary = await seedDemoBusinessData(prisma, accounts, media)
+    logger.log('Running database invariants...')
     const verification = await verifyDemoData(prisma)
     if (!skipMediaCheck) {
       const missing = await verifyDemoMediaObjects()

@@ -10,6 +10,7 @@ import { TransferFinalizerService } from './services/transfer-finalizer.service'
 import { TransferOutboxProcessor } from './services/transfer-outbox.processor'
 import { TransferRequestStateService } from './services/transfer-request-state.service'
 import { TransferService } from './services/transfer.service'
+import { TransferContractQueryService } from './services/transfer-contract-query.service'
 import { TransferContractService } from './services/transfer-contract.service'
 import { TransferNegotiationService } from './services/transfer-negotiation.service'
 import { TransferRequestService } from './services/transfer-request.service'
@@ -28,6 +29,7 @@ import { TransferRepo } from './transfer.repo'
     TransferRequestService,
     TransferNegotiationService,
     TransferContractService,
+    TransferContractQueryService,
     TransferSigningService,
     TransferResourceLoader,
     TransferTransactionService,

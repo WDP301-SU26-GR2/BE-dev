@@ -7,6 +7,8 @@ export interface DemoSeedSummary {
   series: number
   chapters: number
   pages: number
+  productionStages: number
+  productionStagePages: number
   tasks: number
   aiJobs: number
   surveyPeriods: number

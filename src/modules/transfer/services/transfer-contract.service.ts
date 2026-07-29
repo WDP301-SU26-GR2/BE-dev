@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
-import { $Enums, AuditEntityType, TransferRequestStatus } from '@prisma/client'
+import { $Enums, AuditEntityType, NotificationType, TransferRequestStatus } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
+import { NotificationService } from 'src/modules/notification/notification.service'
 import { AssignFullBuyoutBodyDto, CreateTransferContractBodyDto } from '../dto/transfer.dto'
 import {
   InvalidTransferStateException,
@@ -23,7 +24,8 @@ export class TransferContractService {
     private readonly auditService: AuditService,
     private readonly accessPolicy: TransferAccessPolicy,
     private readonly resourceLoader: TransferResourceLoader,
-    private readonly transactions: TransferTransactionService
+    private readonly transactions: TransferTransactionService,
+    private readonly notifications: NotificationService
   ) {}
 
   async assignFullBuyout(id: string, actor: ActorContext, dto: AssignFullBuyoutBodyDto) {
@@ -77,7 +79,7 @@ export class TransferContractService {
     if (request.status !== TransferRequestStatus.UNDER_REVIEW) throw InvalidTransferStateException
 
     const dependencies = this.transactions.require()
-    return dependencies.uow.runInTransaction(async (context) => {
+    const created = await dependencies.uow.runInTransaction(async (context) => {
       const contract = await this.repository.createTransferContractInTransaction(context, {
         transferRequestId: request.id,
         seriesId: request.seriesId,
@@ -99,5 +101,29 @@ export class TransferContractService {
         newOwnershipSplit: dto.newOwnershipSplit
       }
     })
+
+    // Side-effect NGOÀI transaction, SAU commit (AGENTS §8). Trước §84 hai bên phải ký mà không hề
+    // được báo là đã có bản hợp đồng — A ký trước (DRAFT→A_SIGNED) nên A là người tới lượt ngay.
+    await this.notifySigners(created.id, [
+      { recipientId: request.originalMangakaId, content: TransferMessages.notification.awaitingYourSignature },
+      { recipientId: request.requestingMangakaId, content: TransferMessages.notification.contractDrafted }
+    ])
+    return created
+  }
+
+  private async notifySigners(
+    transferContractId: string,
+    targets: ReadonlyArray<{ recipientId: string | null | undefined; content: string }>
+  ): Promise<void> {
+    for (const target of targets) {
+      if (!target.recipientId) continue
+      await this.notifications.notifySafe({
+        recipientId: target.recipientId,
+        type: NotificationType.CONTRACT,
+        referenceId: transferContractId,
+        referenceType: 'TRANSFER_CONTRACT_DRAFTED',
+        content: target.content
+      })
+    }
   }
 }

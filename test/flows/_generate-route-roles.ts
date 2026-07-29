@@ -110,7 +110,18 @@ const main = async () => {
       }
     }
   } finally {
-    await app.close()
+    // 🔴 §84: `app.close()` làm BullMQ Worker emit 'error' ("Connection is closed") SAU khi ioredis
+    // đã đóng socket. Đó là EventEmitter async nên try/catch quanh close() KHÔNG bắt được → uncaught
+    // exception giết process TRƯỚC bước ghi file bên dưới ⇒ generator "chạy xong" mà route-roles.ts
+    // vẫn là bản CŨ (im lặng, rất dễ tưởng đã regenerate). Nuốt đúng tiếng ồn shutdown này, không nuốt
+    // lỗi khác. Xem thêm: bài học "curl 200 không chứng minh binary mới" (§72.5) — cùng lớp bẫy.
+    const swallowShutdownNoise = (error: Error) => {
+      if (/Connection is closed|Connection is already closed/i.test(error?.message ?? '')) return
+      throw error
+    }
+    process.on('uncaughtException', swallowShutdownNoise)
+    process.on('unhandledRejection', (reason) => swallowShutdownNoise(reason as Error))
+    await app.close().catch(swallowShutdownNoise)
   }
 
   // Dedup + sort ổn định

@@ -16,6 +16,7 @@ import { TransferContractService } from './transfer-contract.service'
 import { TransferNegotiationService } from './transfer-negotiation.service'
 import { TransferRequestService } from './transfer-request.service'
 import { TransferResourceLoader } from './transfer-resource-loader.service'
+import { TransferContractQueryService } from './transfer-contract-query.service'
 import { TransferSigningService } from './transfer-signing.service'
 import { TransferTransactionService } from './transfer-transaction.service'
 
@@ -115,8 +116,13 @@ function make(
   return new TransferService(
     new TransferRequestService(repo as never, audit as never, policy, loader, transactions),
     new TransferNegotiationService(repo as never, audit as never, policy, loader, transactions),
-    new TransferContractService(repo as never, audit as never, policy, loader, transactions),
-    new TransferSigningService(repo as never, audit as never, policy, loader, transactions)
+    new TransferContractService(repo as never, audit as never, policy, loader, transactions, {
+      notifySafe: jest.fn()
+    } as never),
+    new TransferSigningService(repo as never, audit as never, policy, loader, transactions, {
+      notifySafe: jest.fn()
+    } as never),
+    new TransferContractQueryService(repo as never, policy, loader)
   )
 }
 

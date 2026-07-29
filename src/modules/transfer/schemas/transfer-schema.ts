@@ -131,7 +131,24 @@ export const TransferRequestSchema = extendApi(
     proposedType: z.string().nullable().optional(),
     proposedPercentage: z.number().nullable().optional(),
     planDescription: z.string().nullable().optional(),
-    originalContractId: z.string().nullable().optional(),
+    originalContractId: z
+      .string()
+      .nullable()
+      .optional()
+      .describe(
+        'Contract (hợp đồng XUẤT BẢN) đang có hiệu lực của series — căn cứ chuyển nhượng, KHÔNG phải hợp đồng chuyển nhượng'
+      ),
+    // Spec 27: đảm bảo có mặt (null nếu chưa soạn HĐ) ở 3 đường ĐỌC — `GET /transfers/requests/:id`,
+    // `/mine`, `/pending-board`. Route MUTATION (tạo request, board-approve/reject, start-negotiation,
+    // mangaka-accept/reject) KHÔNG mang field này — đúng quy ước Spec 20 (enrichment chỉ đảm bảo ở read
+    // path), và ở mọi mốc mutation đó thì hợp đồng chuyển nhượng chưa tồn tại nên cũng không mất gì.
+    transferContractId: z
+      .string()
+      .nullable()
+      .optional()
+      .describe(
+        'TransferContract (hợp đồng CHUYỂN NHƯỢNG 3 bên) đã soạn cho yêu cầu này; null khi Editor chưa soạn. Dùng id này gọi GET /transfers/contracts/:id và POST /transfers/contracts/:id/sign. CHỈ có ở 3 route GET request; response của route mutation không mang field này'
+      ),
     status: zEnum($Enums.TransferRequestStatus, 'TransferRequestStatus'),
     boardDecisionId: z.string().nullable().optional(),
     createdAt: zDateField()

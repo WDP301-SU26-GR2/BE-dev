@@ -20,6 +20,23 @@ import { BoardSessionPhase, BoardSessionStatus, DecisionType, RoleCode } from '@
 
 const FLOW = 'cross-ws'
 
+// §84 — vá flake WS1.1 (nợ từ §74.8): trước đây dùng `sleep(1500)` CỐ ĐỊNH rồi mới assert, nên khi
+// chạy cuối full-suite (máy đang tải) server chưa kịp emit `disconnect` trong đúng cửa sổ đó → đỏ giả,
+// chạy riêng lại xanh. Chờ theo ĐIỀU KIỆN thay vì theo đồng hồ: thoát ngay khi đã disconnect, và chỉ
+// báo đỏ khi thực sự hết hạn dài hơn hẳn.
+const waitDisconnected = async (
+  isDisconnected: () => boolean,
+  socket: { connected: boolean },
+  timeoutMs = 10_000
+): Promise<boolean> => {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (isDisconnected() || socket.connected === false) return true
+    await sleep(100)
+  }
+  return isDisconnected() || socket.connected === false
+}
+
 const main = async () => {
   resetCounters()
   console.log(`\n##### ${FLOW} #####`)
@@ -37,10 +54,10 @@ const main = async () => {
     s1.on('disconnect', () => {
       disconnected = true
     })
-    await sleep(1500)
+    const rejected = await waitDisconnected(() => disconnected, s1)
     ok(
       'WS1.1 connect (no-token) → server disconnect',
-      disconnected || r.connected === false,
+      rejected || r.connected === false,
       `connected=${r.connected} disconnected=${disconnected}`
     )
     s1.disconnect()
@@ -55,10 +72,10 @@ const main = async () => {
     s1.on('disconnect', () => {
       disconnected = true
     })
-    await sleep(1500)
+    const rejected = await waitDisconnected(() => disconnected, s1)
     ok(
       'WS2.1 connect (bad-token)',
-      disconnected || r.connected === false,
+      rejected || r.connected === false,
       `connected=${r.connected} disconnected=${disconnected}`
     )
     s1.disconnect()

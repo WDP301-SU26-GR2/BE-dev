@@ -12,6 +12,7 @@ describe('TransferService architecture boundary', () => {
     expect(source).toContain('TransferRequestService')
     expect(source).toContain('TransferNegotiationService')
     expect(source).toContain('TransferContractService')
+    expect(source).toContain('TransferContractQueryService')
     expect(source).toContain('TransferSigningService')
     expect(source).not.toContain('runInTransaction')
     expect(source).not.toContain('transferRepo.')
@@ -21,6 +22,7 @@ describe('TransferService architecture boundary', () => {
     'transfer-request.service.ts',
     'transfer-negotiation.service.ts',
     'transfer-contract.service.ts',
+    'transfer-contract-query.service.ts',
     'transfer-signing.service.ts',
     'transfer-resource-loader.service.ts',
     'transfer-transaction.service.ts'
