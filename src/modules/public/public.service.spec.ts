@@ -20,6 +20,7 @@ const seriesRow = {
   publicationType: 'WEEKLY',
   magazine: 'WTJ',
   proposal: { synopsis: 'syn' },
+  author: { displayName: 'Akira Test' },
   createdAt: new Date()
 }
 
@@ -55,6 +56,7 @@ describe('PublicService', () => {
       expect(result.total).toBe(2)
       expect(result.items[0].publishedChapterCount).toBe(3)
       expect(result.items[0].coverImageUrl).toBe('https://signed/x')
+      expect(result.items[0].author).toEqual({ displayName: 'Akira Test' })
       expect(result.items[1].publishedChapterCount).toBe(0)
       expect(result.items[1].coverImageUrl).toBeNull()
       expect(repo.countPublishedChaptersBySeriesIds).toHaveBeenCalledTimes(1)

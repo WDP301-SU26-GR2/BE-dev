@@ -51,4 +51,27 @@ describe('PublicRepository', () => {
       expect.objectContaining({ where: expect.objectContaining({ status: { in: expect.any(Array) } }) })
     )
   })
+
+  it('batch-loads only active authors and exposes their display names without private user fields', async () => {
+    const series = { id: 's1', mangakaId: 'm1' }
+    const prisma = {
+      series: {
+        findMany: jest.fn().mockResolvedValue([series]),
+        count: jest.fn().mockResolvedValue(1)
+      },
+      user: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'm1', displayName: 'Akira Test' }])
+      }
+    }
+    const repo = new PublicRepository(prisma as never)
+
+    await expect(repo.findPublicSeries({ limit: 20, offset: 0 })).resolves.toEqual({
+      items: [{ ...series, author: { displayName: 'Akira Test' } }],
+      total: 1
+    })
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['m1'] }, status: 'ACTIVE', deletedAt: { isSet: false } },
+      select: { id: true, displayName: true }
+    })
+  })
 })
