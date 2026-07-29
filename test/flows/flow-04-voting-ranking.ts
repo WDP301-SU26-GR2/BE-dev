@@ -195,7 +195,7 @@ const main = async () => {
 
   section('F04.2 OPEN survey period + context')
   const c1 = await req('POST', '/survey-periods', {
-    token: editorTok,
+    token: adminTok,
     body: {
       magazine: 'Jump',
       publicationType: 'WEEKLY',
@@ -506,7 +506,7 @@ const main = async () => {
 
   section('F04.15 Period CLOSED → SurveyPeriodNotOpen')
   const c2 = await req('POST', '/survey-periods', {
-    token: editorTok,
+    token: adminTok,
     body: {
       magazine: 'Jump',
       publicationType: 'WEEKLY',
@@ -623,36 +623,36 @@ const main = async () => {
 
   section('F04.19 Import OPEN → NotAllowed')
   const r19 = await req('POST', '/survey-data/import', {
-    token: editorTok,
+    token: adminTok,
     body: { surveyPeriodId: periodId, entries: [{ seriesId: s1.id, voteCount: 5 }] }
   })
   expectError(r19, 400, 'Error.SurveyDataImportNotAllowed', '04.19a import khi OPEN → NotAllowed')
 
   section('F04.20 Import CLOSED OK')
   const r20 = await req('POST', '/survey-data/import', {
-    token: editorTok,
+    token: adminTok,
     body: { surveyPeriodId: closedPeriodId, entries: [{ seriesId: s1.id, voteCount: 10 }] }
   })
   ok('04.20a import CLOSED 200', r20.status === 200 || r20.status === 201, `got ${r20.status}`)
 
   section('F04.21 Import id rác')
   const r21 = await req('POST', '/survey-data/import', {
-    token: editorTok,
+    token: adminTok,
     body: { surveyPeriodId: 'aaaaaaaaaaaaaaaaaaaaaaaa', entries: [{ seriesId: s1.id, voteCount: 1 }] }
   })
   expectError(r21, 404, 'Error.SurveyPeriodNotFound', '04.21a import id rác → SurveyPeriodNotFound')
 
   section('F04.22 Finalize OPEN → NotAllowed')
-  const r22 = await req('POST', `/survey-periods/${periodId}/finalize`, { token: editorTok })
+  const r22 = await req('POST', `/survey-periods/${periodId}/finalize`, { token: adminTok })
   expectError(r22, 400, 'Error.RankingFinalizeNotAllowed', '04.22a finalize OPEN → RankingFinalizeNotAllowed')
 
   section('F04.23 CLOSE period + finalize → REFLECTED')
   const r23 = await req('PATCH', `/survey-periods/${periodId}/status`, {
-    token: editorTok,
+    token: adminTok,
     body: { status: 'CLOSED' }
   })
   ok('04.23a PATCH status CLOSED', r23.status === 200, `got ${r23.status} ${r23.raw.slice(0, 200)}`)
-  const r24 = await req('POST', `/survey-periods/${periodId}/finalize`, { token: editorTok })
+  const r24 = await req('POST', `/survey-periods/${periodId}/finalize`, { token: adminTok })
   ok('04.23b finalize 200', r24.status === 200, `got ${r24.status} ${r24.raw.slice(0, 200)}`)
   const periodAfter = await prisma.surveyPeriod.findUnique({ where: { id: periodId } })
   ok('04.23c period REFLECTED', periodAfter?.status === SurveyStatus.REFLECTED, `got ${periodAfter?.status}`)
@@ -704,12 +704,12 @@ const main = async () => {
   }
 
   section('F04.32 Finalize 2 lần → AlreadyFinalized')
-  const r32 = await req('POST', `/survey-periods/${periodId}/finalize`, { token: editorTok })
+  const r32 = await req('POST', `/survey-periods/${periodId}/finalize`, { token: adminTok })
   expectError(r32, 400, 'Error.SurveyPeriodAlreadyFinalized', '04.32a finalize 2 lần → AlreadyFinalized')
 
   section('F04.35 Vote results not finalized')
   const c3 = await req('POST', '/survey-periods', {
-    token: editorTok,
+    token: adminTok,
     body: {
       magazine: 'Jump',
       publicationType: 'WEEKLY',
@@ -860,7 +860,7 @@ const main = async () => {
 
   section('F04.extra Create DRAFT + DRAFT → OPEN')
   const rDraft = await req('POST', '/survey-periods', {
-    token: editorTok,
+    token: adminTok,
     body: {
       magazine: 'Jump',
       publicationType: 'WEEKLY',
@@ -874,10 +874,63 @@ const main = async () => {
   ok('04.X1 create DRAFT period 201', rDraft.status === 201, `got ${rDraft.status}`)
   const draftId = idOf(rDraft)
   const rDraftPatch = await req('PATCH', `/survey-periods/${draftId}/status`, {
-    token: editorTok,
+    token: adminTok,
     body: { status: 'OPEN' }
   })
   ok('04.X2 DRAFT → OPEN OK', rDraftPatch.status === 200, `got ${rDraftPatch.status}`)
+
+  // §84: kỳ bình chọn là đơn vị theo KỲ PHÁT HÀNH (toàn tạp chí). Editor/Tantou chỉ phụ trách
+  // series nên KHÔNG được vận hành kỳ — nhưng vẫn phải ĐỌC được để bảo vệ series (Requiment §2.3b).
+  section('F04.RBAC Editor mất quyền vận hành kỳ bình chọn (giữ quyền đọc)')
+  const rbacCreate = await req('POST', '/survey-periods', {
+    token: editorTok,
+    body: {
+      magazine: 'Jump',
+      publicationType: 'WEEKLY',
+      issueNumber: 99,
+      eligibleSeriesIds: [s1.id],
+      startDate: isoOffset(86_400_000),
+      endDate: isoOffset(2 * 86_400_000),
+      status: 'DRAFT'
+    }
+  })
+  ok('04.RBAC1 E POST /survey-periods → 403', rbacCreate.status === 403, `got ${rbacCreate.status}`)
+
+  const rbacStatus = await req('PATCH', `/survey-periods/${draftId}/status`, {
+    token: editorTok,
+    body: { status: 'CLOSED' }
+  })
+  ok('04.RBAC2 E PATCH /survey-periods/:id/status → 403', rbacStatus.status === 403, `got ${rbacStatus.status}`)
+
+  const rbacImport = await req('POST', '/survey-data/import', {
+    token: editorTok,
+    body: {
+      surveyPeriodId: draftId,
+      issueNumber: 99,
+      reflectedIssueNumber: 99,
+      surveyDate: isoOffset(0),
+      entries: [{ seriesId: s1.id, voteCount: 5 }]
+    }
+  })
+  ok('04.RBAC3 E POST /survey-data/import → 403', rbacImport.status === 403, `got ${rbacImport.status}`)
+
+  const rbacFinalize = await req('POST', `/survey-periods/${draftId}/finalize`, { token: editorTok })
+  ok('04.RBAC4 E POST /survey-periods/:id/finalize → 403', rbacFinalize.status === 403, `got ${rbacFinalize.status}`)
+
+  // Chốt ranh giới: siết mutation KHÔNG được làm hỏng đường đọc của Editor.
+  const rbacRead = await req('GET', '/survey-periods', { token: editorTok })
+  ok('04.RBAC5 E GET /survey-periods vẫn 200', rbacRead.status === 200, `got ${rbacRead.status}`)
+  const rbacReadDetail = await req('GET', `/survey-periods/${draftId}`, { token: editorTok })
+  ok('04.RBAC6 E GET /survey-periods/:id vẫn 200', rbacReadDetail.status === 200, `got ${rbacReadDetail.status}`)
+  // `periodId` đã REFLECTED ở F04.23 — route này BẮT BUỘC surveyPeriodId, thiếu thì 404 (không phải 403).
+  const rbacReadRank = await req('GET', `/rankings/board?surveyPeriodId=${periodId}`, { token: editorTok })
+  ok('04.RBAC7 E GET /rankings/board vẫn 200', rbacReadRank.status === 200, `got ${rbacReadRank.status}`)
+  const rbacDraftIntact = await prisma.surveyPeriod.findUnique({ where: { id: draftId } })
+  ok(
+    '04.RBAC8 kỳ vẫn OPEN — 4 request Editor bị chặn không đổi được dữ liệu',
+    rbacDraftIntact?.status === SurveyStatus.OPEN,
+    `got ${rbacDraftIntact?.status}`
+  )
 
   section('F04.PUB1 Public catalog and detail')
   const publicChapters = await prisma.chapter.findMany({

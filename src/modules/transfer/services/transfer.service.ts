@@ -7,6 +7,7 @@ import {
   SignTransferContractBodyDto
 } from '../dto/transfer.dto'
 import type { ActorContext } from '../transfer.types'
+import { TransferContractQueryService } from './transfer-contract-query.service'
 import { TransferContractService } from './transfer-contract.service'
 import { TransferNegotiationService } from './transfer-negotiation.service'
 import { TransferRequestService } from './transfer-request.service'
@@ -18,7 +19,8 @@ export class TransferService {
     private readonly requestService: TransferRequestService,
     private readonly negotiationService: TransferNegotiationService,
     private readonly contractService: TransferContractService,
-    private readonly signingService: TransferSigningService
+    private readonly signingService: TransferSigningService,
+    private readonly contractQueryService: TransferContractQueryService
   ) {}
 
   createTransferRequest(requestingMangakaId: string, dto: CreateTransferRequestBodyDto) {
@@ -70,6 +72,10 @@ export class TransferService {
   }
 
   getSignatures(id: string, actor: ActorContext) {
-    return this.signingService.getSignatures(id, actor)
+    return this.contractQueryService.getSignatures(id, actor)
+  }
+
+  getTransferContractById(id: string, actor: ActorContext) {
+    return this.contractQueryService.getContractById(id, actor)
   }
 }

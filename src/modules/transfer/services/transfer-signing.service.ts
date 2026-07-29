@@ -1,19 +1,19 @@
 import { Injectable } from '@nestjs/common'
 import {
   AuditEntityType,
+  NotificationType,
   TransferContractSignature,
   TransferContractStatus,
   TransferRequestStatus
 } from '@prisma/client'
-import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { isUniqueConstrainError } from 'src/infrastructure/database/prisma-error.helper'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { OtpPurpose } from 'src/modules/auth/auth.constant'
+import { NotificationService } from 'src/modules/notification/notification.service'
 import { SignTransferContractBodyDto } from '../dto/transfer.dto'
 import {
   InvalidTransferStateException,
   TransferAccessDeniedException,
-  TransferContractNotFoundException,
   UserHasAlreadySignedContractException,
   UserOrEmailNotFoundException
 } from '../errors/transfer.error'
@@ -31,11 +31,12 @@ export class TransferSigningService {
     private readonly auditService: AuditService,
     private readonly accessPolicy: TransferAccessPolicy,
     private readonly resourceLoader: TransferResourceLoader,
-    private readonly transactions: TransferTransactionService
+    private readonly transactions: TransferTransactionService,
+    private readonly notifications: NotificationService
   ) {}
 
   async sign(id: string, actor: ActorContext, dto: SignTransferContractBodyDto) {
-    const contract = await this.loadContract(id)
+    const contract = await this.resourceLoader.loadContract(id)
     if (!contract.transferRequestId || !contract.seriesId) throw TransferAccessDeniedException
     const transferRequestId = contract.transferRequestId
     const seriesId = contract.seriesId
@@ -101,40 +102,33 @@ export class TransferSigningService {
       action: 'CONTRACT_SIGNED',
       reason: role
     })
+    // §84: bàn giao lượt ký. Side-effect NGOÀI transaction, SAU commit (AGENTS §8).
+    // Vòng ký BOARD là bước cuối (FULLY_EXECUTED) — settlement effects đã notify, không lặp ở đây.
+    await this.notifyNextSigner(id, role, contract, request)
     return { message: TransferMessages.response.signatureRecorded }
   }
 
-  async getSignatures(id: string, actor: ActorContext) {
-    const contract = await this.loadContract(id)
-    if (!contract.transferRequestId || !contract.seriesId) throw TransferAccessDeniedException
-    const request = await this.resourceLoader.loadRequest(contract.transferRequestId)
-    const series = await this.repository.findSeriesAccessScope(contract.seriesId)
-    if (
-      !this.accessPolicy.canViewContract(actor, {
-        fromMangakaId: contract.fromMangakaId ?? null,
-        toMangakaId: contract.toMangakaId ?? null,
-        editorId: series?.editorId ?? null,
-        boardMemberIds: await this.resourceLoader.boardMemberIds(request.boardDecisionId)
+  private async notifyNextSigner(
+    transferContractId: string,
+    signedRole: 'MANGAKA_A' | 'MANGAKA_B' | 'BOARD',
+    contract: { toMangakaId?: string | null },
+    request: { boardDecisionId?: string | null }
+  ): Promise<void> {
+    const recipients =
+      signedRole === 'MANGAKA_A'
+        ? [contract.toMangakaId].filter((id): id is string => !!id)
+        : signedRole === 'MANGAKA_B'
+          ? await this.resourceLoader.boardMemberIds(request.boardDecisionId ?? undefined)
+          : []
+    for (const recipientId of recipients) {
+      await this.notifications.notifySafe({
+        recipientId,
+        type: NotificationType.CONTRACT,
+        referenceId: transferContractId,
+        referenceType: 'TRANSFER_CONTRACT_AWAITING_SIGNATURE',
+        content: TransferMessages.notification.awaitingYourSignature
       })
-    ) {
-      throw TransferAccessDeniedException
     }
-    return {
-      signatures: (contract.signatures ?? []).map((signature) => ({
-        id: signature.id,
-        transferContractId: signature.transferContractId,
-        userId: signature.userId,
-        role: signature.role,
-        signedAt: signature.signedAt
-      }))
-    }
-  }
-
-  private async loadContract(id: string) {
-    if (!isObjectId(id)) throw TransferContractNotFoundException
-    const contract = await this.repository.findTransferContractById(id)
-    if (!contract) throw TransferContractNotFoundException
-    return contract
   }
 
   private async finalizeBoardSignature(

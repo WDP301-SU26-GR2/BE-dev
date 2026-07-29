@@ -4,7 +4,10 @@
 // (vd THIS_ACTION_ONLY_APPLIES_TO_FULL_BUYOUT_CONTRACTS) — dài, lệch convention, khó map ở FE.
 export const TransferMessages = {
   notification: {
-    settlementCompleted: 'Việc chuyển nhượng tác phẩm đã hoàn tất'
+    settlementCompleted: 'Việc chuyển nhượng tác phẩm đã hoàn tất',
+    // §84: chuỗi ký A → B → Hội đồng trước đây IM LẶNG hoàn toàn — không ai biết đến lượt mình.
+    contractDrafted: 'Hợp đồng chuyển nhượng đã được soạn xong. Vui lòng xem điều khoản và ký khi đến lượt.',
+    awaitingYourSignature: 'Đã đến lượt bạn ký hợp đồng chuyển nhượng tác phẩm.'
   },
   error: {
     noActiveContractFound: 'Error.NoActiveContractForSeries',

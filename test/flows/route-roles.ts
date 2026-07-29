@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-28T07:24:13.876Z — 278 routes.
+// Sinh lúc: 2026-07-29T09:04:09.474Z — 279 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -618,38 +618,28 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'GET', path: '/studio-assignments/:id', access: 'ROLES', allowed: [RoleCode.MANGAKA, RoleCode.ASSISTANT] },
   { method: 'POST', path: '/studio-assignments/:id/terminate', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'GET', path: '/studio/overview', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  { method: 'POST', path: '/survey-data/import', access: 'ROLES', allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN] },
+  { method: 'POST', path: '/survey-data/import', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   {
     method: 'GET',
     path: '/survey-periods',
     access: 'ROLES',
     allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN, RoleCode.BOARD_MEMBER]
   },
-  { method: 'POST', path: '/survey-periods', access: 'ROLES', allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN] },
+  { method: 'POST', path: '/survey-periods', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   {
     method: 'GET',
     path: '/survey-periods/:id',
     access: 'ROLES',
     allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN, RoleCode.BOARD_MEMBER]
   },
-  {
-    method: 'POST',
-    path: '/survey-periods/:id/finalize',
-    access: 'ROLES',
-    allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN]
-  },
+  { method: 'POST', path: '/survey-periods/:id/finalize', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   {
     method: 'GET',
     path: '/survey-periods/:id/rankings',
     access: 'ROLES',
     allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN, RoleCode.BOARD_MEMBER]
   },
-  {
-    method: 'PATCH',
-    path: '/survey-periods/:id/status',
-    access: 'ROLES',
-    allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN]
-  },
+  { method: 'PATCH', path: '/survey-periods/:id/status', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   {
     method: 'GET',
     path: '/survey-periods/:id/survey-data',
@@ -683,6 +673,12 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'POST', path: '/tasks/group', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/tasks/group/:groupId/approve', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/transfers/contracts', access: 'ROLES', allowed: [RoleCode.EDITOR] },
+  {
+    method: 'GET',
+    path: '/transfers/contracts/:id',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
   {
     method: 'POST',
     path: '/transfers/contracts/:id/sign',

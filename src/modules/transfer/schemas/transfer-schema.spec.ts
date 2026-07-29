@@ -9,7 +9,16 @@ describe('TransferRequestListItemSchema (Spec 25)', () => {
 
   it('bỏ planDescription khỏi list', () => {
     expect(listKeys).not.toContain('planDescription')
-    expect(listKeys).toHaveLength(14)
+    expect(listKeys).toHaveLength(15)
+  })
+
+  // 🔴 Spec 27 — transferContractId PHẢI có ở LIST, không được đẩy về detail-only.
+  // Lý do: đây là đường DUY NHẤT để Mangaka A/B và Board khám phá ra id hợp đồng chuyển nhượng
+  // (không có route list/detail TransferContract theo requestId, và không có notification mang id).
+  // Bỏ field này khỏi list = tái tạo đúng lỗ hổng "ký mù" mà Spec 27 vá.
+  it('giữ transferContractId ở list để bên ký khám phá được hợp đồng', () => {
+    expect(listKeys).toContain('transferContractId')
+    expect(detailKeys).toContain('transferContractId')
   })
 
   // 🔴 originalContractType là biến điều khiển Ownership Principle (BR-CONTRACT-03): FULL_BUYOUT =
