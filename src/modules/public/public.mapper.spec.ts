@@ -9,7 +9,8 @@ const seriesRow = {
   status: SeriesStatus.SERIALIZED,
   publicationType: PublicationType.WEEKLY,
   magazine: 'Weekly Test Jump',
-  proposal: { synopsis: 'A synopsis' }
+  proposal: { synopsis: 'A synopsis' },
+  author: { displayName: 'Akira Test' }
 }
 
 describe('public.mapper', () => {
@@ -26,13 +27,14 @@ describe('public.mapper', () => {
       status: SeriesStatus.SERIALIZED,
       publicationType: PublicationType.WEEKLY,
       magazine: 'Weekly Test Jump',
+      author: { displayName: 'Akira Test' },
       publishedChapterCount: 5
     })
   })
 
   it('maps optional public series fields null-safely', () => {
     const item = mapPublicSeriesItem(
-      { ...seriesRow, proposal: null, demographic: null, publicationType: null, magazine: null },
+      { ...seriesRow, proposal: null, demographic: null, publicationType: null, magazine: null, author: null },
       null,
       0
     )
@@ -42,6 +44,7 @@ describe('public.mapper', () => {
     expect(item.demographic).toBeNull()
     expect(item.publicationType).toBeNull()
     expect(item.magazine).toBeNull()
+    expect(item.author).toEqual({ displayName: null })
     expect(item.publishedChapterCount).toBe(0)
   })
 

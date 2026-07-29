@@ -45,6 +45,14 @@ const PublicSeriesItemSchema = z
     status: zEnum(SeriesStatus, 'SeriesStatus'),
     publicationType: zEnum(PublicationType, 'PublicationType').nullable(),
     magazine: z.string().nullable(),
+    author: z
+      .object({
+        displayName: z
+          .string()
+          .nullable()
+          .describe('Mangaka public display name only; null when no public display name is configured')
+      })
+      .strict(),
     publishedChapterCount: z.number().int().describe('Number of PUBLISHED chapters; 0 means coming soon')
   })
   .strict()
