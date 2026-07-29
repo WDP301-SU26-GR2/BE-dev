@@ -159,7 +159,7 @@ describe('ContractService query and document policy', () => {
     await expect(service.exportPdf(CID, 'board', RoleName.BOARD_MEMBER)).resolves.toEqual({
       downloadUrl: 'signed',
       expiresAt: 'later',
-      key: `contracts/${CID}/contract-v2-a3.pdf`
+      key: `contracts/${CID}/contract-v2-a3-t2.pdf`
     })
     expect(pdf.renderContractPdf).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -173,7 +173,7 @@ describe('ContractService query and document policy', () => {
       })
     )
     expect(assets.registerGeneratedAsset).toHaveBeenCalledWith(
-      expect.objectContaining({ uploadedBy: 'board', filePath: `contracts/${CID}/contract-v2-a3.pdf` })
+      expect.objectContaining({ uploadedBy: 'board', filePath: `contracts/${CID}/contract-v2-a3-t2.pdf` })
     )
   })
 
