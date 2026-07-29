@@ -47,7 +47,7 @@ const fullData: ContractPdfData = {
   conditions: [
     {
       conditionType: 'RECURRING_CHAPTER',
-      thresholdConfig: { everyNChapters: 5 },
+      thresholdConfig: { every: 5 },
       payoutAmount: 5_000_000,
       payoutPct: null,
       status: 'PENDING'
@@ -107,6 +107,65 @@ describe('ContractPdfDocument (Spec 24) — nội dung template', () => {
     expect(text).toContain(`${(120_000_000).toLocaleString('vi-VN')} đ`)
     expect(text).toContain(`${(5_000_000).toLocaleString('vi-VN')} đ`)
     expect(text).toContain('Mỗi 5 chương')
+  })
+
+  it('diễn giải đúng các thresholdConfig thật của PaymentCondition, không in JSON nội bộ', () => {
+    const text = renderText({
+      ...fullData,
+      conditions: [
+        {
+          conditionType: 'CHAPTER_MILESTONE',
+          thresholdConfig: { chapter: 12 },
+          payoutAmount: 1,
+          payoutPct: null,
+          status: 'PENDING'
+        },
+        {
+          conditionType: 'RECURRING_CHAPTER',
+          thresholdConfig: { every: 4 },
+          payoutAmount: 1,
+          payoutPct: null,
+          status: 'PENDING'
+        },
+        {
+          conditionType: 'RANKING_MILESTONE',
+          thresholdConfig: { topRank: 3 },
+          payoutAmount: 1,
+          payoutPct: null,
+          status: 'PENDING'
+        },
+        {
+          conditionType: 'TIME_BOUND',
+          thresholdConfig: { deadline: '2026-12-31' },
+          payoutAmount: 1,
+          payoutPct: null,
+          status: 'PENDING'
+        }
+      ]
+    })
+
+    expect(text).toContain('Chương 12')
+    expect(text).toContain('Mỗi 4 chương')
+    expect(text).toContain('Đạt Top 3')
+    expect(text).toContain('Ngày 2026-12-31')
+    expect(text).not.toContain('{"chapter":12}')
+    expect(text).not.toContain('{"every":4}')
+    expect(text).not.toContain('{"topRank":3}')
+  })
+
+  it('diễn giải termination clause JSON cũ thành câu văn, nhưng giữ nguyên clause văn bản mới', () => {
+    const legacyText = renderText({
+      ...fullData,
+      terminationClause: JSON.stringify({
+        compensationPct: 10,
+        policy: 'Các mốc đã đạt vẫn được thanh toán; vi phạm của Mangaka không nhận bồi thường.'
+      })
+    })
+
+    expect(legacyText).toContain('Mức bồi thường: 10% giá trị định giá.')
+    expect(legacyText).toContain('Các mốc đã đạt vẫn được thanh toán; vi phạm của Mangaka không nhận bồi thường.')
+    expect(legacyText).not.toContain('{"compensationPct":10')
+    expect(renderText(fullData)).toContain('Bồi thường 10% giá trị định giá')
   })
 
   it('quy đổi ngày sang giờ VN (UTC+7) tại chỗ render', () => {

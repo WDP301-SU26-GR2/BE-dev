@@ -58,19 +58,54 @@ const fmtDate = (iso: string | null) => {
   }).format(date)
 }
 
+/**
+ * Converts the persisted PaymentCondition threshold JSON into legal-reader text.
+ * Payment validation accepts the short keys (`chapter`, `every`, `topRank`, `deadline`).
+ * The long keys remain supported only to keep previously exported/migrated data readable.
+ */
 const fmtThreshold = (config: unknown) => {
   if (!config) return DASH
   if (typeof config === 'object') {
     const item = config as Record<string, unknown>
+    if (typeof item.every === 'number') return `Mỗi ${item.every} chương`
+    if (typeof item.chapter === 'number') return `Chương ${item.chapter}`
+    if (typeof item.topRank === 'number') return `Đạt Top ${item.topRank}`
+    if (typeof item.deadline === 'string') return `Ngày ${item.deadline}`
+    if (typeof item.description === 'string' && item.description.trim()) return item.description
+
+    // Legacy aliases from the first PDF template; no new API may write these keys.
     if (typeof item.everyNChapters === 'number') return `Mỗi ${item.everyNChapters} chương`
     if (typeof item.chapterNumber === 'number') return `Chương ${item.chapterNumber}`
-    if (typeof item.rank === 'number') return `Hạng ${item.rank}`
-    if (typeof item.date === 'string') return item.date
+    if (typeof item.rank === 'number') return `Đạt Top ${item.rank}`
+    if (typeof item.date === 'string') return `Ngày ${item.date}`
   }
   try {
     return JSON.stringify(config)
   } catch {
     return DASH
+  }
+}
+
+/**
+ * terminationClause is contract text. Older clients accidentally serialized a
+ * structured clause into this string field, so turn the known legacy shape
+ * into readable text while preserving an unknown clause verbatim.
+ */
+const fmtTerminationClause = (clause: string | null) => {
+  if (!clause?.trim()) return DASH
+  try {
+    const parsed: unknown = JSON.parse(clause)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return clause
+
+    const item = parsed as Record<string, unknown>
+    const parts: string[] = []
+    if (typeof item.compensationPct === 'number') {
+      parts.push(`Mức bồi thường: ${item.compensationPct}% giá trị định giá.`)
+    }
+    if (typeof item.policy === 'string' && item.policy.trim()) parts.push(item.policy.trim())
+    return parts.length > 0 ? parts.join(' ') : clause
+  } catch {
+    return clause
   }
 }
 
@@ -162,7 +197,7 @@ export function ContractPdfDocument({ data }: { data: ContractPdfData }) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>5. Điều khoản chấm dứt</Text>
-          <Text>{data.terminationClause ?? DASH}</Text>
+          <Text>{fmtTerminationClause(data.terminationClause)}</Text>
         </View>
 
         <View style={styles.section}>
