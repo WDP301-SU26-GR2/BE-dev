@@ -3,7 +3,10 @@ import type { Chapter, Series } from '@prisma/client'
 type PublicSeriesRow = Pick<
   Series,
   'id' | 'title' | 'genres' | 'demographic' | 'status' | 'publicationType' | 'magazine'
-> & { proposal: { synopsis: string | null } | null }
+> & {
+  proposal: { synopsis: string | null } | null
+  author?: { displayName: string | null } | null
+}
 
 export const mapPublicSeriesItem = (
   series: PublicSeriesRow,
@@ -19,6 +22,8 @@ export const mapPublicSeriesItem = (
   status: series.status,
   publicationType: series.publicationType ?? null,
   magazine: series.magazine ?? null,
+  // User.name may be a legal/private name. Only the opt-in displayName is public.
+  author: { displayName: series.author?.displayName ?? null },
   publishedChapterCount
 })
 
