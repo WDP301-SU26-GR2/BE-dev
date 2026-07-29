@@ -1,12 +1,13 @@
 import { Logger } from '@nestjs/common'
-import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { CopyObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { PrismaClient, RoleCode, UserStatus } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 import { DEMO_ACCOUNTS, DEMO_DEFAULT_PASSWORD, DEMO_EMAIL_DOMAIN, DemoAccount } from './demo-data'
-import { DEMO_MEDIA, DemoMediaSource, demoMediaDownloadUrl, demoMediaKey } from './demo-media'
+import { DEMO_MEDIA, DemoMediaSource, demoMediaDownloadUrl, demoMediaKey, demoMediaLegacyKey } from './demo-media'
 
 const logger = new Logger('DemoSeed')
 const MAX_MEDIA_BYTES = 15 * 1024 * 1024
+const MEDIA_REQUEST_TIMEOUT_MS = 20_000
 
 export interface SeededAccount extends DemoAccount {
   id: string
@@ -71,15 +72,26 @@ export const seedDemoMedia = async (prisma: PrismaClient, uploadedBy: string, up
   const storage = upload ? createStorageClient() : null
   const result = new Map<string, SeededMedia>()
 
-  for (const source of DEMO_MEDIA) {
+  for (const [index, source] of DEMO_MEDIA.entries()) {
     const key = demoMediaKey(source)
+    logger.log(`Media ${index + 1}/${DEMO_MEDIA.length}: checking ${source.slug}`)
     if (storage && !(await objectExists(storage.client, storage.bucket, key))) {
-      const body = await downloadMedia(source)
-      await storage.client.send(
-        new PutObjectCommand({ Bucket: storage.bucket, Key: key, Body: body, ContentType: source.contentType })
-      )
-      logger.log(`Uploaded media ${source.slug} (${body.length} bytes)`)
-      await delay(1_000)
+      const legacyKey = demoMediaLegacyKey(source)
+      if (await objectExists(storage.client, storage.bucket, legacyKey)) {
+        await storage.client.send(
+          new CopyObjectCommand({ Bucket: storage.bucket, Key: key, CopySource: `${storage.bucket}/${legacyKey}` }),
+          { abortSignal: AbortSignal.timeout(MEDIA_REQUEST_TIMEOUT_MS) }
+        )
+        logger.log(`Copied existing R2 media ${source.slug} from v1 to v2`)
+      } else {
+        const body = await downloadMedia(source)
+        await storage.client.send(
+          new PutObjectCommand({ Bucket: storage.bucket, Key: key, Body: body, ContentType: source.contentType }),
+          { abortSignal: AbortSignal.timeout(MEDIA_REQUEST_TIMEOUT_MS) }
+        )
+        logger.log(`Uploaded media ${source.slug} (${body.length} bytes)`)
+        await delay(1_000)
+      }
     }
     const asset = await prisma.asset.create({
       data: {
@@ -114,6 +126,11 @@ export const resetDemoData = async (prisma: PrismaClient) => {
   const chapterIds = chapters.map((row) => row.id)
   const pages = await prisma.page.findMany({ where: { chapterId: { in: chapterIds } }, select: { id: true } })
   const pageIds = pages.map((row) => row.id)
+  const stages = await prisma.productionStage.findMany({
+    where: { chapterId: { in: chapterIds } },
+    select: { id: true }
+  })
+  const stageIds = stages.map((row) => row.id)
   const regions = await prisma.region.findMany({ where: { pageId: { in: pageIds } }, select: { id: true } })
   const regionIds = regions.map((row) => row.id)
   const tasks = await prisma.task.findMany({ where: { pageId: { in: pageIds } }, select: { id: true } })
@@ -165,6 +182,10 @@ export const resetDemoData = async (prisma: PrismaClient) => {
   await prisma.aiJob.deleteMany({ where: { pageId: { in: pageIds } } })
   await prisma.task.deleteMany({ where: { id: { in: taskIds } } })
   await prisma.region.deleteMany({ where: { id: { in: regionIds } } })
+  await prisma.productionStagePage.deleteMany({
+    where: { OR: [{ stageId: { in: stageIds } }, { pageId: { in: pageIds } }] }
+  })
+  await prisma.productionStage.deleteMany({ where: { id: { in: stageIds } } })
   await prisma.page.deleteMany({ where: { id: { in: pageIds } } })
   await prisma.deadlineRequest.deleteMany({ where: { chapterId: { in: chapterIds } } })
   await prisma.schedule.deleteMany({ where: { chapterId: { in: chapterIds } } })
@@ -220,6 +241,7 @@ const createStorageClient = () => {
   const endpoint = requiredEnv('R2_ENDPOINT')
   const bucket = requiredEnv('R2_BUCKET')
   const client = new S3Client({
+    maxAttempts: 1,
     region: requiredEnv('R2_REGION'),
     endpoint,
     forcePathStyle: true,
@@ -235,7 +257,9 @@ const createStorageClient = () => {
 
 const objectExists = async (client: S3Client, bucket: string, key: string) => {
   try {
-    await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }))
+    await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }), {
+      abortSignal: AbortSignal.timeout(MEDIA_REQUEST_TIMEOUT_MS)
+    })
     return true
   } catch (error) {
     const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
@@ -245,10 +269,11 @@ const objectExists = async (client: S3Client, bucket: string, key: string) => {
 }
 
 const downloadMedia = async (source: DemoMediaSource) => {
-  const maxAttempts = 6
+  const maxAttempts = 3
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const response = await fetch(demoMediaDownloadUrl(source), {
       redirect: 'follow',
+      signal: AbortSignal.timeout(MEDIA_REQUEST_TIMEOUT_MS),
       headers: { 'user-agent': 'MangakaDemoSeed/1.0 (educational demo; Wikimedia Commons attribution retained)' }
     })
     if (response.ok) {
@@ -268,8 +293,8 @@ const downloadMedia = async (source: DemoMediaSource) => {
     }
     const retryAfterSeconds = Number(response.headers.get('retry-after'))
     const waitMs = Number.isFinite(retryAfterSeconds)
-      ? Math.min(30_000, Math.max(1_000, retryAfterSeconds * 1_000))
-      : Math.min(30_000, 2 ** attempt * 1_000)
+      ? Math.min(10_000, Math.max(1_000, retryAfterSeconds * 1_000))
+      : Math.min(10_000, 2 ** attempt * 1_000)
     logger.warn(`Media ${source.slug} returned HTTP ${response.status}; retry ${attempt}/${maxAttempts} in ${waitMs}ms`)
     await delay(waitMs)
   }

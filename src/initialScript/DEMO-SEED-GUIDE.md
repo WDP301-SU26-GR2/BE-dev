@@ -1,81 +1,91 @@
-# Production demo seed — runbook cho 6 flow đầu
+# Production demo seed v2 — runbook cho Flow 1–6
 
-Tài liệu này là runbook duy nhất để nạp, kiểm tra và trình diễn bộ dữ liệu demo. Bộ seed chỉ sở hữu user có email `@demo.mangaka.local` và các record liên kết với các user đó; không được đổi domain này nếu chưa cập nhật đồng thời logic reset và verifier.
+Đây là runbook duy nhất để nạp, kiểm tra và demo bộ dữ liệu theo `Docs/Requiment-SRS/Requiment.md` bản mới. Seed v2 bám flow stage-based `INKING → DETAILING → LETTERING → FINAL_CHECK`, SurveyPeriod có cohort, Board roster/decision và Contract có căn cứ serialization.
 
-## 1. Bộ dữ liệu có gì
+## 1. Phạm vi và tính trung thực của dữ liệu
 
-- 16 tài khoản: 3 Mangaka, 6 Assistant, 2 Editor và 5 Board Member.
-- 11 ảnh thật có giấy phép mở, được tải từ Wikimedia Commons/The Met rồi mirror vào private R2 theo prefix `demo-seed/v1/`.
-- 10 hồ sơ Flow 1 có thể chạy từ đầu và 4 hồ sơ showcase ở các checkpoint review.
-- 1 series production `Neon Ronin: Echoes of Edo`: 8 chương đã xuất bản, 10 chapter Name chờ review, 10 trang workshop và 30 task thật.
-- 10 AI job `SUCCEEDED`, vùng AI + vùng chỉnh tay, task version, annotation và revision request.
-- 10 series ranking đã ký hợp đồng, mỗi series có 8 chương đã xuất bản; thêm hero thành 11 series đủ điều kiện bình chọn.
-- 14 kỳ ranking `REFLECTED`, 10 kỳ `CLOSED` có cả phiếu online và số liệu offline, 1 kỳ `OPEN`.
-- 10 Board decision `PENDING`, mỗi decision có defense report và attachment.
-- 10 series Flow 6 có hợp đồng `DRAFT`; hợp đồng đã ký của production series có điều kiện và payment record để demo tiếp.
-
-Mọi bộ “10 lần” dùng hậu tố `01` đến `10`. Khi một run đã bị thao tác qua checkpoint mong muốn, chuyển sang số kế tiếp. Sau 10 lần có thể reset riêng demo seed và bắt đầu lại; 14 kỳ ranking đủ để trình diễn lịch sử liên tục trong hai tuần.
+- 16 tài khoản nội bộ, 35 Series, 111 Chapter, 154 Page, 84 ProductionStage, 206 ProductionStagePage, 30 Task và 10 AI job.
+- 12 file ảnh thật có nguồn/license rõ ràng được mirror vào R2 prefix `demo-seed/v2/`: ảnh mangaka vẽ trực tiếp, rough draft, line art, manga pages, cleaned/lettered output và tài liệu Hokusai.
+- 154 là số **Page record nghiệp vụ**, không phải 154 binary ảnh độc nhất. Các record tái sử dụng có chủ đích 12 file thật để demo ổn định; không có placeholder/base64/URL ảnh giả.
+- `Go Go! Encyclopedia Girls` và `Hokusai Manga` là tác phẩm/nguồn thật. Tên proposal khác, ranking, số tiền và điều khoản là dữ liệu nghiệp vụ mô phỏng hợp lý; không được trình bày như hợp đồng/doanh số có thật.
+- Mỗi Flow 1, 2, 3, 5 và 6 có 10 run độc lập (`01`–`10`). Flow 4 có 14 kỳ lịch sử, 10 kỳ chờ finalize và 1 kỳ đang mở.
 
 ## 2. Tài khoản demo
 
 Mật khẩu chung: `MangaDemo!2026`
 
-| Vai trò   | Email                               | Tên hiển thị   |
-| --------- | ----------------------------------- | -------------- |
-| Mangaka   | `mangaka.akari@demo.mangaka.local`  | Akari Mori     |
-| Mangaka   | `mangaka.ren@demo.mangaka.local`    | Ren Takahashi  |
-| Mangaka   | `mangaka.sora@demo.mangaka.local`   | Sora Nguyen    |
-| Assistant | `assistant.yuki@demo.mangaka.local` | Yuki Sato      |
-| Assistant | `assistant.hana@demo.mangaka.local` | Hana Ito       |
-| Assistant | `assistant.minh@demo.mangaka.local` | Minh Tran      |
-| Assistant | `assistant.emi@demo.mangaka.local`  | Emi Kato       |
-| Assistant | `assistant.kei@demo.mangaka.local`  | Kei Watanabe   |
-| Assistant | `assistant.linh@demo.mangaka.local` | Linh Pham      |
-| Editor    | `editor.naomi@demo.mangaka.local`   | Naomi Fujita   |
-| Editor    | `editor.duc@demo.mangaka.local`     | Duc Le         |
-| Board     | `board.aya@demo.mangaka.local`      | Aya Nakamura   |
-| Board     | `board.kenji@demo.mangaka.local`    | Kenji Hayashi  |
-| Board     | `board.mai@demo.mangaka.local`      | Mai Shimizu    |
-| Board     | `board.taro@demo.mangaka.local`     | Taro Kobayashi |
-| Board     | `board.an@demo.mangaka.local`       | An Hoang       |
+| Vai trò   | Alias            | Email                               |
+| --------- | ---------------- | ----------------------------------- |
+| Mangaka   | `mangaka.akari`  | `mangaka.akari@demo.mangaka.local`  |
+| Mangaka   | `mangaka.ren`    | `mangaka.ren@demo.mangaka.local`    |
+| Mangaka   | `mangaka.sora`   | `mangaka.sora@demo.mangaka.local`   |
+| Assistant | `assistant.yuki` | `assistant.yuki@demo.mangaka.local` |
+| Assistant | `assistant.hana` | `assistant.hana@demo.mangaka.local` |
+| Assistant | `assistant.minh` | `assistant.minh@demo.mangaka.local` |
+| Assistant | `assistant.emi`  | `assistant.emi@demo.mangaka.local`  |
+| Assistant | `assistant.kei`  | `assistant.kei@demo.mangaka.local`  |
+| Assistant | `assistant.linh` | `assistant.linh@demo.mangaka.local` |
+| Editor    | `editor.naomi`   | `editor.naomi@demo.mangaka.local`   |
+| Editor    | `editor.duc`     | `editor.duc@demo.mangaka.local`     |
+| Board     | `board.aya`      | `board.aya@demo.mangaka.local`      |
+| Board     | `board.kenji`    | `board.kenji@demo.mangaka.local`    |
+| Board     | `board.mai`      | `board.mai@demo.mangaka.local`      |
+| Board     | `board.taro`     | `board.taro@demo.mangaka.local`     |
+| Board     | `board.an`       | `board.an@demo.mangaka.local`       |
 
-Các user đều `ACTIVE`, đã verify email và không bị buộc đổi mật khẩu. Đây là tài khoản trình diễn có quyền thật: chỉ bật trong cửa sổ demo, không dùng làm tài khoản vận hành. Sau đợt demo phải xóa hoặc vô hiệu hóa toàn bộ domain demo.
+Tất cả account là `ACTIVE`, đã verify email. Chỉ bật trong cửa sổ demo; sau hai tuần phải khóa hoặc reset/xóa toàn bộ domain demo.
 
-## 3. Nạp lên production
+## 3. Seed local trước khi lên production
 
-### 3.1 Preflight bắt buộc
-
-1. Chụp backup MongoDB ngay trước khi seed, ghi lại tên database và thời điểm backup.
-2. Xác nhận đúng `DATABASE_URL`, Redis và bộ biến R2: `R2_ENDPOINT`, `R2_REGION`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
-3. R2 credential phải có quyền `HeadObject` và `PutObject` trên prefix `demo-seed/v1/`.
-4. Máy chạy seed cần truy cập HTTPS đến `commons.wikimedia.org` để tải file gốc.
-5. Build đúng commit sẽ deploy; không chạy seed từ source khác commit production.
-
-Ví dụ backup bằng MongoDB Database Tools, không in connection string ra log:
+Xác nhận URL DB mà không in credential:
 
 ```powershell
-mongodump --uri="$env:DATABASE_URL" --out ".backup/demo-seed-$(Get-Date -Format yyyyMMdd-HHmmss)"
+$line = Get-Content .env | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
+$uri = [Uri]$line.Substring('DATABASE_URL='.Length).Trim('"')
+"host=$($uri.Host) port=$($uri.Port) database=$($uri.AbsolutePath.Trim('/'))"
 ```
 
-### 3.2 Lần nạp đầu
-
-Các biến production phải được inject bởi secret manager/deployment environment. Không commit `.env` chứa secret.
+Chạy full seed local; nếu đã có seed cũ thì bắt buộc reset:
 
 ```powershell
-pnpm.cmd install --frozen-lockfile
 pnpm.cmd prisma:generate
 pnpm.cmd build
-$env:NODE_ENV = 'production'
-$env:DEMO_SEED_ALLOW_PRODUCTION = 'YES'
-pnpm.cmd seed:demo
+$env:DEMO_SEED_ALLOW_RESET = 'YES'
+pnpm.cmd seed:demo -- --reset
 pnpm.cmd seed:demo:verify
 ```
 
-Seed bị khóa trên production nếu thiếu `DEMO_SEED_ALLOW_PRODUCTION=YES`. Nếu đã tồn tại tài khoản demo, lệnh sẽ dừng thay vì ghi chồng.
+Không dùng `--skip-media-upload` hoặc `--skip-media-check` cho lần nghiệm thu. Hai cờ chỉ dành cho debug DB khi outbound/R2 tạm lỗi.
 
-### 3.3 Reset riêng dữ liệu demo
+Kết quả pass hiện tại phải có tối thiểu:
 
-Chỉ reset sau khi đã backup và xác nhận không có buổi demo đang diễn ra. Reset tìm đúng 16 user theo domain demo, thu thập các ID liên quan rồi xóa child-first; không dùng `deleteMany({})` toàn database.
+- `accounts=16`, `mediaAssets=12`, `series=35`, `chapters=111`, `pages=154`;
+- `productionStages=84`, `productionStagePages=206`, `activeInkingStages=10`;
+- `tasks=30`, chia đều `ASSIGNED/SUBMITTED/REVISION_REQUESTED`, toàn bộ task có stage/type/description hợp lệ;
+- `successfulAiJobs=10`, cả 10 chưa apply và gắn đúng stage input snapshot;
+- `scopedSurveyPeriods=25`, `rankingRecords=154`;
+- `pendingBoardDecisions=10`, `draftContracts=10`, `fullyExecutedContracts=11`;
+- `contractVersions=21`, `linkedContracts=21`, `paymentConditions=22`, `paymentRecords=22`;
+- cuối log: `All demo seed invariants passed` hoặc `Verification complete` mà không có failure.
+
+## 4. Nạp production an toàn
+
+### 4.1 Preflight bắt buộc
+
+1. Checkout đúng commit đang deploy; `pnpm.cmd install --frozen-lockfile`, generate Prisma và build pass.
+2. Xác nhận `DATABASE_URL` thật sự là production, ghi lại database name/host; xác nhận Redis và R2 secrets.
+3. Backup Mongo ngay trước seed. Ví dụ:
+
+```powershell
+mongodump --uri="$env:DATABASE_URL" --out ".backup/demo-v2-$(Get-Date -Format yyyyMMdd-HHmmss)"
+```
+
+4. R2 credential cần `HeadObject`, `PutObject`, `CopyObject` trên `demo-seed/v1/` và `demo-seed/v2/`. Seed tái sử dụng object v1 nếu có để tránh tải lại/HTTP 429.
+5. Không chạy khi đang có người dùng demo hoặc job deploy khác.
+
+### 4.2 Thay bộ seed cũ bằng v2
+
+Production đã có dataset cũ phải dùng `--reset`; reset chỉ tìm user `@demo.mangaka.local`, thu thập ID liên kết và xóa child-first. Không có `deleteMany({})` toàn DB.
 
 ```powershell
 $env:NODE_ENV = 'production'
@@ -85,97 +95,111 @@ pnpm.cmd seed:demo -- --reset
 pnpm.cmd seed:demo:verify
 ```
 
-Object R2 được dùng lại nếu đã tồn tại; database Asset được tạo lại. Không dùng `--skip-media-upload` hoặc `--skip-media-check` trên production. Hai cờ này chỉ dành cho kiểm thử cấu trúc khi môi trường local không có R2.
+Khi chạy, terminal phải tiến qua `Media 1/12...12/12` và `Phase 1/8...8/8`. Nếu không có log mới quá 60 giây, dừng và giữ log; không chờ hàng giờ. Media request có timeout, R2 SDK chỉ thử một lần, Wikimedia tối đa ba lần và báo đúng slug lỗi.
 
-### 3.4 Tiêu chí pass
+Nếu seed fail giữa chừng: sửa nguyên nhân, giữ backup, rồi chạy lại đúng lệnh reset; không chạy seed chồng khi thiếu `--reset`.
 
-`seed:demo:verify` phải kết thúc bằng `All demo seed invariants passed`. Verifier kiểm tra account, asset, task theo từng trạng thái, AI job thành công, survey/ranking, Board decision, hợp đồng, payment và `HeadObject` đủ 11 file trên R2. Nếu seed dừng giữa chừng, không chạy lại chồng; dùng quy trình reset rồi seed lại.
+## 5. OTP ký hợp đồng cho tài khoản demo
 
-## 4. Kịch bản demo chuẩn
+API ký vẫn xác thực OTP thật. Vì email `@demo.mangaka.local` không nhận mail, operator cấp một OTP ngẫu nhiên có hạn 5 phút, hash bằng bcrypt và chỉ cho Mangaka/Board demo:
 
-API local mặc định là `http://localhost:4000`. Đăng nhập qua `POST /auth/login`; dùng access token được trả về làm Bearer token. Trên UI, tìm record theo prefix trong cột tên/title để không chọn nhầm dữ liệu vận hành.
+```powershell
+# local
+pnpm.cmd seed:demo:otp -- mangaka.ren
 
-### Flow 1 — Proposal, Name và pitch Board
+# production — chỉ trong cửa sổ demo đã duyệt
+$env:NODE_ENV = 'production'
+$env:DEMO_SEED_ALLOW_PRODUCTION = 'YES'
+pnpm.cmd seed:demo:otp -- board.aya
+```
 
-1. Login Mangaka Akari/Ren/Sora; chọn `[DEMO F1-01]` (lần sau tăng đến `10`). Hồ sơ có synopsis, rough draft và line art thật.
-2. Cập nhật nếu cần rồi submit qua `POST /series/:id/submit`.
-3. Login Editor Naomi; mở queue qua `GET /series`, claim bằng `POST /series/:id/claim`.
-4. Demo request revision/resubmit/approve proposal và Name qua các route `/series/:id/proposal/*` và `/series/:id/names/:nameId/*`.
-5. Pitch series bằng `POST /series/:id/pitch`; chuyển sang tài khoản Board để trình bày vote.
-6. Muốn bỏ qua thao tác trung gian, dùng bốn record `[DEMO F1-SHOWCASE-*]`: chờ claim, proposal cần sửa, Name cần sửa vòng 3, sẵn sàng pitch.
+CLI in OTP một lần ra terminal. Dùng ngay cho endpoint ký; OTP được service consume như OTP gửi email bình thường. Mỗi chữ ký/lần thử mới phải issue OTP mới. Không chụp/lưu OTP vào tài liệu hay source control.
 
-### Flow 2 — Chapter, Name gate, manuscript review và publish
+## 6. Kịch bản demo chuẩn
 
-1. Login Editor Naomi, mở `[DEMO F2-F3] Neon Ronin: Echoes of Edo`.
-2. Chọn chapter `[DEMO F2-01] Name review run` đến `10`; Name đang `SUBMITTED`, manuscript còn `DRAFT` để chứng minh Name gate.
-3. Review Name qua `/chapters/:id/names/:nameId/request-revision`, `/resubmit`, `/approve`.
-4. Các checkpoint dựng sẵn: chapter 51 chờ Editor, 52 đã trả sửa và có annotation, 53 `READY_FOR_PRINT`.
-5. Demo approve/publish bằng `/chapters/:id/manuscript/approve` và `/chapters/:id/publish`. Tám chapter 1–8 là lịch sử xuất bản hợp lệ.
+API local mặc định `http://localhost:4000`. Login `POST /auth/login`, gửi access token dạng Bearer. Tìm record theo prefix `[DEMO ...]`.
 
-### Flow 3 — AI segmentation, vùng thủ công và phân việc studio
+### Flow 1 — Proposal → queue → claim/release → review Name → pitch
 
-1. Login Mangaka Akari, mở chapter 50 `Workshop — 10 trang phân việc song song`.
-2. Mỗi trang dùng một trang manga thật; xem AI job qua `GET /pages/:id/ai-jobs`, regions qua `GET /pages/:id/regions`.
-3. Bộ seed có cả vùng AI và vùng do người dùng chỉnh tay. Có thể gọi `POST /pages/:id/segment` trên một trang chưa dùng khi AI service sẵn sàng.
-4. Mỗi trang có ba task với hướng dẫn nghề nghiệp cụ thể: `ASSIGNED`, `SUBMITTED`, `REVISION_REQUESTED`. Login đúng Assistant để start/submit; Mangaka dùng approve/request-revision.
-5. Task đã submit/revision có file kết quả thật, version history, reference assets và annotation tọa độ. Chọn trang 01 đến 10 cho mỗi lần demo.
+1. Mangaka chọn `[DEMO F1-01]` đến `10`; mỗi record `DRAFT`, `editorId=null`, có synopsis, character design và Name pages thật.
+2. Submit `POST /series/:id/submit`; Editor Naomi xem queue rồi `POST /series/:id/claim`.
+3. Trước review có thể demo `POST /series/:id/release`; claim lại rồi request revision/approve proposal.
+4. Review Name bằng `/series/:id/names/:nameId/*`; khi proposal và Name cùng approved, series `READY_TO_PITCH`.
+5. `POST /series/:id/pitch`, tạo session/decision serialization và vote theo roster lẻ 5 người.
+6. Dùng `[DEMO F1-SHOWCASE-1..4]` nếu cần nhảy thẳng checkpoint queue, proposal revision, Name revision hoặc ready-to-pitch.
 
-### Flow 4 — Vote online/offline và ranking
+### Flow 2 — Chapter-first, Name gate, stage production, manuscript
 
-1. Không login, mở context public qua `GET /vote/context`; kỳ hiện tại là issue 400 ở trạng thái `OPEN`.
-2. Demo OTP + vote qua `POST /vote/otp` và `POST /vote`. Config cho tối đa 3 series mỗi phiếu.
-3. Login Editor Duc để xem 10 kỳ `CLOSED`, mỗi kỳ có offline SurveyData và online ReaderVote, gồm cả một phiếu bị flag/giảm trọng số.
-4. Xem 14 kỳ đã reflect qua `GET /rankings` hoặc `GET /rankings/board`. Ba series cuối có chuỗi at-risk tăng dần đến `SEVERE`.
-5. Dùng issue 300–309 cho 10 lần demo xử lý kỳ; lịch sử issue 200–213 dành cho biểu đồ hai tuần.
+1. Mở `[DEMO F2-F3] Go Go! Encyclopedia Girls — licensed production study`.
+2. Chapter 101–110 là 10 run Name `SUBMITTED`, Manuscript `DRAFT`, chưa có page/stage; page upload phải bị chặn.
+3. Editor request revision/approve qua `/chapters/:id/names/:nameId/*`. Khi Name chapter approved, backend seed đúng bốn stage; INKING là stage duy nhất ACTIVE.
+4. Mangaka upload pencil pages; backend tạo StagePage input từ `Page.originalFile`.
+5. Checkpoint dựng sẵn: chapter 70 `EDITOR_REVIEW`, 71 `EDITOR_REVISION` có RevisionRequest/annotation, 72 `READY_FOR_PRINT`.
+6. Approve/publish qua `/chapters/:id/manuscript/approve` và `/chapters/:id/publish`. Các chapter 1–8 có lịch sử PUBLISHED và stage đã hoàn tất.
 
-### Flow 5 — Board lifecycle
+### Flow 3 — AI → Region → Task → stage output
 
-1. Login Board Aya; mở session `[DEMO F5] Hội đồng xử lý 10 series nguy cơ`, đang `ACTIVE/VOTING`.
-2. Chọn decision 01–10. Mỗi decision target một `[DEMO RANK-*]`, có ranking 14 kỳ, defense report và attachment thật.
-3. Dùng năm tài khoản Board để vote qua `POST /board/decisions/:id/vote`; config quorum là 3/5 và majority > 50%.
-4. Kết luận session bằng `/board/sessions/:id/conclude`, kiểm tra side effect trạng thái series theo decision.
-5. Không tiêu thụ cả 10 decision trong một buổi nếu cần demo nhiều ngày; dành một decision cho mỗi lượt.
+1. Chọn chapter `[DEMO F3-01]` đến `10`. Mỗi run có 3 trang input thật và bốn stage; chỉ INKING ACTIVE.
+2. `GET /chapters/:id/stages`, `GET /chapters/:id/stages/:stageId/pages` để thấy snapshot input bất biến.
+3. Mỗi run có một AI job `SUCCEEDED` chưa apply, source trùng stage input. Xem `GET /pages/:id/ai-jobs`, apply `POST /ai-jobs/:id/apply`, hoặc khoanh Region thủ công.
+4. Ba task INKING trong run lần lượt `ASSIGNED`, `SUBMITTED`, `REVISION_REQUESTED`. Assistant Yuki/Kei start/submit; Mangaka approve hoặc request revision. Task có description, deadline, version file thật và annotation đúng Page/task.
+5. Khi mọi task non-cancelled đã approved, Mangaka confirm **đủ cả 3 page output** bằng `PUT /chapters/:id/stages/:stageId/outputs` (`fileKey` mới hoặc `reuseInput=true`).
+6. `POST /chapters/:id/stages/:stageId/complete` mở DETAILING. Lặp với task type cho phép; LETTERING xong sẽ mở FINAL_CHECK. Submit manuscript đóng FINAL_CHECK.
 
-### Flow 6 — Soạn, duyệt, ký hợp đồng và payment
+### Flow 4 — Survey scoped, vote online/offline và ranking
 
-1. Login Editor Duc, chọn `[DEMO F6-01]` đến `10`. Mỗi series đã `SERIALIZED` nhưng chưa có chapter xuất bản và có đúng một contract `DRAFT` — không vi phạm publish gate.
-2. Cập nhật/submit/request changes qua `PATCH /contracts/:id`, `PATCH /contracts/:id/status`, `POST /contracts/:id/request-changes`.
-3. Login Board để approve/sign; login Mangaka Ren/Sora để ký phía tác giả. Kiểm tra state qua `GET /contracts/:id/status`.
-4. Sau `FULLY_EXECUTED`, thêm payment condition qua `POST /contracts/:id/payment-conditions` rồi thao tác payment qua `/payments`.
-5. Muốn chỉ trình diễn payment đã có lịch sử, dùng hợp đồng của Neon Ronin: đã có recurring chapter condition, ranking condition, một payment `PAID` và một payment `APPROVED`.
+1. Public `GET /vote/context`: issue 400 OPEN, cohort cố định `Manga Nexus Weekly/WEEKLY` và danh sách eligible series.
+2. Demo OTP/vote bằng `POST /vote/otp`, `POST /vote`; mỗi identity chỉ một phiếu trong kỳ/type, tối đa ba series.
+3. Issue 300–309 là 10 kỳ CLOSED có cả ReaderVote weighted và SurveyData offline; dùng lần lượt để finalize.
+4. Issue 200–213 là 14 kỳ REFLECTED cho chart hai tuần; 154 RankingRecord có normalized score, previous rank/change và ba series đi đến `SEVERE`.
+5. Xem live/public/internal qua `/vote/live`, `/vote/results`, `/rankings`, `/rankings/board`, `/rankings/aggregate`.
 
-## 5. Lịch demo hai tuần
+### Flow 5 — Board lifecycle decision
 
-| Ngày  | Dataset chính         | Dataset dự phòng                           |
-| ----- | --------------------- | ------------------------------------------ |
-| 1–5   | Suffix `01`–`05`      | Showcase/checkpoint dựng sẵn               |
-| 6–10  | Suffix `06`–`10`      | Neon Ronin chapter 51–53                   |
-| 11–14 | Ranking issue 200–213 | Reset demo seed nếu cần chạy lại full flow |
+1. Mở session `[DEMO F5] Hội đồng xử lý 10 series nguy cơ`, ACTIVE/VOTING, roster 5 Board Member.
+2. Decision 01–10 trỏ đến `[DEMO RANK-*]`, có 14 kỳ trend, defense report và attachment thật.
+3. Năm tài khoản Board vote `POST /board/decisions/:id/vote`. Quorum là `ceil(2/3 × 5)=4`; approve cần trên 50% toàn roster, tức tối thiểu 3 approve.
+4. Decision chẵn dùng FORMAT_CHANGE với `details.publicationType=MONTHLY`; decision lẻ dùng CANCELLATION và ending allowance 3. Mỗi buổi chỉ dùng một decision.
 
-Trước mỗi buổi chạy `pnpm.cmd seed:demo:verify`. Sau buổi ghi lại suffix/decision/issue đã dùng. Không tự sửa trực tiếp MongoDB để “đưa trạng thái về”; dùng suffix tiếp theo hoặc reset toàn bộ demo seed.
+### Flow 6 — Contract → negotiation → signatures → payment
 
-## 6. Nguồn ảnh và attribution
+1. Editor Duc chọn `[DEMO F6-01]` đến `10`. Series đã có Board SERIALIZATION decision APPROVED; Contract `DRAFT` liên kết đúng `boardDecisionId` và có ContractVersion 1.
+2. Editor gửi Mangaka qua `PATCH /contracts/:id/status` → `MANGAKA_REVIEW`; Mangaka approve hoặc request changes; Board roster approve/counter theo endpoint `/contracts/:id/*`.
+3. Khi `BOARD_APPROVED`, issue OTP cho Mangaka rồi ký `/contracts/:id/signatures/mangaka`; issue OTP riêng cho từng Board Member và ký `/contracts/:id/signatures/board` tới đủ roster.
+4. Chỉ sau `FULLY_EXECUTED` mới tạo PaymentCondition. Dùng config đúng API: recurring `{ "every": 4 }`, chapter milestone `{ "chapter": 10 }`, ranking `{ "topRank": 3 }`, time-bound `{ "deadline": "YYYY-MM-DD" }`.
+5. Hợp đồng production/ranking dựng sẵn có 11 Contract FULLY_EXECUTED, đủ version/signature, 22 condition và 22 payment record (PAID/APPROVED) để demo lịch sử.
 
-Seed lưu attribution trong manifest code và tên Asset. Khi trình chiếu công khai, giữ credit ở màn hình asset/credits.
+## 7. Lịch demo hai tuần
 
-| Slug                        | Tác phẩm / tác giả                               | License       | Nguồn                                                                                                                                                                                                                                                                                                                  |
-| --------------------------- | ------------------------------------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mangaka-live-drawing`      | Acky Bright live drawing / Yasumanta             | CC0 1.0       | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Meta_Its_your_world_live_drawing_001_s.jpg)                                                                                                                                                                                                                |
-| `rough-drafting`            | Rough drafting / らいみぃ                        | CC BY 3.0     | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Drafting_of_anime_illustrations.webp)                                                                                                                                                                                                                      |
-| `finished-line-art`         | Finished line drawing / らいみぃ                 | CC BY 3.0     | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Line_drawing_of_an_anime_illustration.webp)                                                                                                                                                                                                                |
-| `manga-page-1..4`           | Go Go! Encyclopedia Girls / Kasuga               | CC BY-SA 3.0  | [Page 1](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page1.jpg), [Page 2](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page2.jpg), [Page 3](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page3.jpg), [Page 4](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page4.jpg) |
-| `cleaned-lettering-page`    | Cleaned manga page / Kasuga, Opencooper          | CC BY-SA 3.0  | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page1_-_waifu2x_-_cleaned.png)                                                                                                                                                                                                            |
-| `scanlated-page`            | English-lettered manga page / Kasuga, Opencooper | CC BY-SA 3.0  | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page1_-_waifu2x_-_scanlated_English.png)                                                                                                                                                                                                  |
-| `three-production-versions` | Original/cleaned/translated panel / Okitan       | CC BY-SA 4.0  | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Three_versions.png)                                                                                                                                                                                                                                        |
-| `hokusai-sketchbook`        | Hokusai Manga / Katsushika Hokusai, The Met      | Public Domain | [The Metropolitan Museum of Art](https://www.metmuseum.org/art/collection/search/78791)                                                                                                                                                                                                                                |
+| Ngày  | Run chính                 | Dự phòng                        |
+| ----- | ------------------------- | ------------------------------- |
+| 1–5   | suffix `01`–`05`          | F1 showcase, chapter 70–72      |
+| 6–10  | suffix `06`–`10`          | lịch sử published/payment       |
+| 11–14 | ranking issue `200`–`213` | backup rồi reset toàn seed demo |
 
-Không thay bằng URL hotlink trong record nghiệp vụ. Seed luôn mirror file gốc vào R2 để demo ổn định, còn URL nguồn chỉ dùng cho attribution và audit license.
+Trước mỗi buổi chạy `pnpm.cmd seed:demo:verify`. Ghi lại suffix/decision/issue đã dùng. Không sửa Mongo trực tiếp để quay state.
 
-## 7. Xử lý sự cố
+## 8. Nguồn ảnh và attribution
 
-- `Found ... demo accounts`: dữ liệu đã tồn tại; verify trước, hoặc backup rồi dùng reset có khóa.
-- `Production seed is locked`: thiếu xác nhận `DEMO_SEED_ALLOW_PRODUCTION=YES`.
-- `Missing R2 media objects`: kiểm tra bucket/prefix/quyền và outbound HTTPS; không bỏ qua trên production.
-- Download trả sai MIME/kích thước: seed chủ động dừng. Kiểm tra source page và cập nhật manifest có attribution, không chèn placeholder.
-- Seed lỗi giữa chừng: lưu log, backup nếu cần điều tra, rồi reset demo-owned records và seed lại.
-- Verify DB pass nhưng UI không thấy: kiểm tra access token/role/filter; title luôn bắt đầu bằng `[DEMO ...]`.
+| Slug                        | Tác phẩm/tác giả                              | License           | Nguồn                                                                                                                                                                                                                                                                                                  |
+| --------------------------- | --------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mangaka-live-drawing`      | Acky Bright live drawing / Yasumanta          | CC0 1.0           | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Meta_Its_your_world_live_drawing_001_s.jpg)                                                                                                                                                                                                |
+| `rough-drafting`            | Rough drafting / らいみぃ                     | CC BY 3.0         | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Drafting_of_anime_illustrations.webp)                                                                                                                                                                                                      |
+| `finished-line-art`         | Finished line drawing / らいみぃ              | CC BY 3.0         | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Line_drawing_of_an_anime_illustration.webp)                                                                                                                                                                                                |
+| `manga-page-1..4`           | _Go Go! Encyclopedia Girls_ / Kasuga          | CC BY-SA 3.0      | [P1](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page1.jpg), [P2](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page2.jpg), [P3](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page3.jpg), [P4](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page4.jpg) |
+| `manga-page-cc0`            | Manga page / Public Domain Q                  | CC0 1.0           | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Manga_page_publicdomainq.png)                                                                                                                                                                                                              |
+| `cleaned-lettering-page`    | cleaned page / Kasuga, Opencooper             | CC BY-SA 3.0      | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page1_-_waifu2x_-_cleaned.png)                                                                                                                                                                                            |
+| `scanlated-page`            | English-lettered page / Kasuga, Opencooper    | CC BY-SA 3.0      | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Wikipe-tan_manga_page1_-_waifu2x_-_scanlated_English.png)                                                                                                                                                                                  |
+| `three-production-versions` | original/cleaned/translated panel / Okitan    | CC BY-SA 4.0      | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Three_versions.png)                                                                                                                                                                                                                        |
+| `hokusai-sketchbook`        | _Hokusai Manga_ / Katsushika Hokusai, The Met | Public domain/CC0 | [The Met](https://www.metmuseum.org/art/collection/search/78791)                                                                                                                                                                                                                                       |
+
+Giữ credit khi trình chiếu. DB chỉ lưu object key; không hotlink source. R2 v1 không bị xóa tự động sau upgrade; chỉ cleanup thủ công sau khi v2 đã verify và không còn deployment cũ tham chiếu.
+
+## 9. Xử lý sự cố
+
+- `Found ... demo accounts`: dùng verify nếu muốn giữ dữ liệu; nếu thay bộ cũ, backup và dùng `--reset`.
+- `Production seed is locked`: thiếu `DEMO_SEED_ALLOW_PRODUCTION=YES`.
+- `Missing R2 media objects`: xem đúng slug, kiểm tra Head/Put/Copy permission và prefix v2; không bỏ qua ở production.
+- `HTTP 429`: seed sẽ retry ngắn rồi dừng. Chờ rate limit hoặc copy object v1; không để tiến trình chạy hàng giờ.
+- `Demo verification failed`: không demo. Giữ log, reset đúng phạm vi và seed lại sau khi sửa.
+- UI không thấy record nhưng verifier pass: kiểm tra token/role/scoping; tìm title theo prefix `[DEMO ...]`.

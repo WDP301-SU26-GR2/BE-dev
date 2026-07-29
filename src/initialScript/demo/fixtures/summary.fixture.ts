@@ -23,6 +23,8 @@ export const buildSummary = async ({ prisma }: DemoContext): Promise<DemoSeedSum
     series: series.length,
     chapters: chapters.length,
     pages: pages.length,
+    productionStages: await prisma.productionStage.count({ where: { chapterId: { in: chapterIds } } }),
+    productionStagePages: await prisma.productionStagePage.count({ where: { pageId: { in: pageIds } } }),
     tasks: await prisma.task.count({ where: { pageId: { in: pageIds } } }),
     aiJobs: await prisma.aiJob.count({ where: { pageId: { in: pageIds } } }),
     surveyPeriods: periods.length,

@@ -245,6 +245,22 @@ export class TransferController {
     return this.transferService.signTransferContract(id, this.actor(userId, roleName), body)
   }
 
+  @Get('contracts/:id')
+  @ApiObjectIdParams('id')
+  @ApiOperation({
+    summary: 'Chi tiết hợp đồng chuyển nhượng (điều khoản + chữ ký) — bên ký đọc trước khi ký'
+  })
+  @ApiErrors(TransferContractNotFoundException, TransferAccessDeniedException)
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ZodResponse({ status: 200, type: TransferContractResDto })
+  getTransferContractById(
+    @Param('id', TransferContractIdParamPipe) id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: RoleNameType
+  ) {
+    return this.transferService.getTransferContractById(id, this.actor(userId, roleName))
+  }
+
   @Get('contracts/:id/signatures')
   @ApiObjectIdParams('id')
   @ApiOperation({ summary: 'Danh sách chữ ký của hợp đồng chuyển nhượng' })

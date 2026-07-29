@@ -440,9 +440,6 @@ const main = async () => {
   const finalOldContract = await prisma.contract.findUnique({ where: { id: contractFB.id } })
   const finalReplacement = await prisma.contract.findUnique({ where: { id: replacementContractId } })
   const finalSeries = await prisma.series.findUnique({ where: { id: seriesFB.id } })
-  const finalOutbox = await prisma.outboxEvent.findMany({
-    where: { type: OutboxEventType.TRANSFER_REPLACEMENT_READY, aggregateId: transferId }
-  })
   ok(
     '8.12o old contract TERMINATED only after finalization',
     finalOldContract?.status === 'TERMINATED',
@@ -458,10 +455,24 @@ const main = async () => {
     finalSeries?.mangakaId === mB2.id,
     `got ${finalSeries?.mangakaId}`
   )
+  // 🔴 Flake §83.4 — ĐÃ TRUY RA GỐC: `TransferFinalizerService.finalize` set request=COMPLETED *bên trong*
+  // transaction, nhưng `processedAt` chỉ được ghi ở `effects.acknowledge()` chạy SAU transaction và SAU
+  // `effects.publish()` (audit + notify + emit). `waitFor` ở 8.12n thoát ngay khi COMPLETED commit ⇒ có
+  // cửa sổ vài chục ms mà processedAt còn null. Đọc thẳng như trước là RACE, không phải bug production
+  // (acknowledge-sau-publish là chủ ý để giữ ngữ nghĩa at-least-once). Vì vậy test phải CHỜ, không được đoán.
+  const outboxProcessed = await waitFor(async () => {
+    const rows = await prisma.outboxEvent.findMany({
+      where: { type: OutboxEventType.TRANSFER_REPLACEMENT_READY, aggregateId: transferId }
+    })
+    return rows.length === 1 && rows[0]?.processedAt instanceof Date
+  })
+  const finalOutboxSettled = await prisma.outboxEvent.findMany({
+    where: { type: OutboxEventType.TRANSFER_REPLACEMENT_READY, aggregateId: transferId }
+  })
   ok(
     '8.12r outbox processed exactly once',
-    finalOutbox.length === 1 && finalOutbox[0]?.processedAt instanceof Date,
-    `got ${finalOutbox.length}/${String(finalOutbox[0]?.processedAt)}`
+    outboxProcessed,
+    `got ${finalOutboxSettled.length}/${String(finalOutboxSettled[0]?.processedAt)}`
   )
   await sleep(5500)
   ok(
@@ -627,6 +638,49 @@ const main = async () => {
   ok('8.20a create contract 201', r20.status === 201, `got ${r20.status} ${r20.raw.slice(0, 200)}`)
   ok('8.20b status DRAFT', responseData(r20)?.status === 'DRAFT', `got ${String(responseData(r20)?.status)}`)
   const contractTId = r20.json?.data?.id ?? r20.json?.id
+
+  // ─── Section 8.20bis — Spec 27: bên ký PHẢI khám phá được id + đọc được điều khoản ──
+  // Trước Spec 27, `transferContractId` không lộ ra bất kỳ đường GET nào ⇒ chỉ Editor (người tạo)
+  // biết id, Mangaka/Board không có cách nào ký. Unit test mock Prisma KHÔNG chứng minh được
+  // truy vấn `where: { transferRequestId: { in: [...] } }` chạy đúng trên Mongo — chỉ DB thật mới lộ.
+  section('8.20bis Spec 27 — transferContractId + GET /transfers/contracts/:id')
+
+  const r20cDetail = await req('GET', `/transfers/requests/${acceptId}`, { token: mB2Tok })
+  ok(
+    '8.20bis-a GET request detail trả transferContractId khớp hợp đồng vừa tạo',
+    responseData(r20cDetail)?.transferContractId === contractTId,
+    `got ${String(responseData(r20cDetail)?.transferContractId)} · expected ${String(contractTId)}`
+  )
+
+  const r20cMine = await req('GET', '/transfers/requests/mine', { token: mB2Tok })
+  const mineRows = (responseData(r20cMine)?.data ?? []) as Array<{ id?: string; transferContractId?: string | null }>
+  const mineRow = mineRows.find((row) => row.id === acceptId)
+  ok(
+    '8.20bis-b GET /mine cũng mang transferContractId (list, không chỉ detail)',
+    mineRow?.transferContractId === contractTId,
+    `got ${String(mineRow?.transferContractId)}`
+  )
+
+  // Mangaka A (bên nhượng) đọc điều khoản TRƯỚC khi ký — trước Spec 27 là ký mù.
+  const r20cRead = await req('GET', `/transfers/contracts/${contractTId}`, { token: mB1Tok })
+  const term = responseData(r20cRead)
+  ok('8.20bis-c Mangaka A đọc được hợp đồng (200)', r20cRead.status === 200, `got ${r20cRead.status}`)
+  ok('8.20bis-d trả đúng transferAmount', term?.transferAmount === 5000, `got ${String(term?.transferAmount)}`)
+  ok(
+    '8.20bis-e trả newOwnershipSplit đúng shape Record<string,number>',
+    (term?.newOwnershipSplit as Record<string, number> | undefined)?.mB1 === 60 &&
+      (term?.newOwnershipSplit as Record<string, number> | undefined)?.mB2 === 40,
+    `got ${JSON.stringify(term?.newOwnershipSplit)}`
+  )
+  ok('8.20bis-f trả status để biết tới lượt ai ký', term?.status === 'DRAFT', `got ${String(term?.status)}`)
+
+  // Board trong roster cũng đọc được (Board ký sau cùng nên cần xem điều khoản nhất).
+  const r20cBoard = await req('GET', `/transfers/contracts/${contractTId}`, { token: b1Tok })
+  ok('8.20bis-g Board đọc được hợp đồng (200)', r20cBoard.status === 200, `got ${r20cBoard.status}`)
+
+  // id rác phải 404 sạch, KHÔNG để Prisma ném P2023 → 500.
+  const r20cBad = await req('GET', '/transfers/contracts/notahexid', { token: mB1Tok })
+  expectError(r20cBad, 404, 'Error.TransferContractNotFound', '8.20bis-h id rác → 404 sạch')
 
   // ─── Section 8.21 — Tạo TransferContract với split tổng ≠ 100 → 422 ──
   section('8.21 split tổng ≠ 100 → 422 (validation)')

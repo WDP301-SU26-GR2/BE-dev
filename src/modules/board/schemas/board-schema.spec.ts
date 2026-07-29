@@ -84,6 +84,39 @@ describe('CreateBoardDecisionBodySchema details validation (Spec 16)', () => {
       true
     )
   })
+
+  // Regression §83.1: FORMAT_CHANGE thiếu details.publicationType từng được nhận 2xx rồi
+  // SeriesLifecycleService.changeFormat chỉ logger.warn + return -> series ĐỨNG YÊN, không notify,
+  // không sinh Amendment (silent no-op). Chặn ngay tại Zod để Board không bao giờ chốt được
+  // một quyết định đổi format vô nghĩa.
+  it('rejects FORMAT_CHANGE without a valid details.publicationType', () => {
+    const formatChange = { ...base, decisionType: 'FORMAT_CHANGE' }
+    expect(CreateBoardDecisionBodySchema.safeParse(formatChange).success).toBe(false)
+    expect(CreateBoardDecisionBodySchema.safeParse({ ...formatChange, details: null }).success).toBe(false)
+    expect(CreateBoardDecisionBodySchema.safeParse({ ...formatChange, details: {} }).success).toBe(false)
+    expect(
+      CreateBoardDecisionBodySchema.safeParse({ ...formatChange, details: { publicationType: 'DAILY' } }).success
+    ).toBe(false)
+  })
+
+  it('reports the missing FORMAT_CHANGE publicationType on the details.publicationType path', () => {
+    const parsed = CreateBoardDecisionBodySchema.safeParse({ ...base, decisionType: 'FORMAT_CHANGE', details: {} })
+    expect(parsed.success).toBe(false)
+    if (parsed.success) return
+    expect(parsed.error.issues.map((i) => i.path.join('.'))).toContain('details.publicationType')
+  })
+
+  it('accepts FORMAT_CHANGE for each valid publicationType', () => {
+    for (const publicationType of ['WEEKLY', 'MONTHLY', 'IRREGULAR']) {
+      expect(
+        CreateBoardDecisionBodySchema.safeParse({
+          ...base,
+          decisionType: 'FORMAT_CHANGE',
+          details: { publicationType }
+        }).success
+      ).toBe(true)
+    }
+  })
 })
 
 describe('ListBoardSessionsQuerySchema mine parsing (Spec 16)', () => {

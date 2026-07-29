@@ -6,6 +6,7 @@ import type { TransferDecisionContext } from 'src/modules/board/services/board.s
 import {
   InvalidTransferBoardDecisionException,
   TransferAccessDeniedException,
+  TransferContractNotFoundException,
   TransferRequestNotFoundException
 } from '../errors/transfer.error'
 import { TransferRepo } from '../transfer.repo'
@@ -27,6 +28,14 @@ export class TransferResourceLoader {
     const request = await this.repository.findTransferRequestById(id)
     if (!request) throw TransferRequestNotFoundException
     return request
+  }
+
+  // OBJECT_ID_RE guard trước khi vào Prisma: id rác → 404 sạch thay vì P2023 → 500 (AGENTS §10).
+  async loadContract(id: string) {
+    if (!isObjectId(id)) throw TransferContractNotFoundException
+    const contract = await this.repository.findTransferContractById(id)
+    if (!contract) throw TransferContractNotFoundException
+    return contract
   }
 
   async requestAccessResource(request: { seriesId: string; requestingMangakaId: string; originalMangakaId: string }) {

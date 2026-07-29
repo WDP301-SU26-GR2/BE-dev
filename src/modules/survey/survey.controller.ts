@@ -164,16 +164,22 @@ export class SurveyController {
   }
 
   @Post('survey-periods')
-  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Editor tạo kỳ bình chọn mới → DRAFT/OPEN/CLOSED' })
+  @Roles(RoleName.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Super Admin tạo kỳ bình chọn mới → DRAFT/OPEN/CLOSED. Kỳ bình chọn là đơn vị theo KỲ PHÁT HÀNH (toàn tạp chí) nên thuộc thẩm quyền vận hành toà soạn; Editor/Tantou chỉ phụ trách series nên KHÔNG mở được kỳ (vẫn đọc được mọi route GET).'
+  })
   @ZodResponse({ status: 201, type: SurveyPeriodResDto })
   createSurveyPeriod(@Body() body: CreateSurveyPeriodBodyDto, @ActiveUser('userId') userId: string) {
     return this.surveyService.createSurveyPeriod(body, userId)
   }
 
   @Patch('survey-periods/:id/status')
-  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Editor cập nhật trạng thái kỳ bình chọn → OPEN/CLOSED/REFLECTED' })
+  @Roles(RoleName.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Super Admin cập nhật trạng thái kỳ bình chọn → OPEN/CLOSED/REFLECTED. Đóng/mở kỳ ảnh hưởng toàn bộ series trong kỳ nên là quyết định cấp tạp chí, không phải cấp series.'
+  })
   @ApiErrors(SurveyPeriodNotFoundException)
   @ZodResponse({ status: 200, type: SurveyPeriodResDto })
   updateSurveyPeriodStatus(
@@ -185,8 +191,11 @@ export class SurveyController {
   }
 
   @Post('survey-data/import')
-  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Editor nhập vote offline từ postcard' })
+  @Roles(RoleName.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Super Admin nhập vote offline từ postcard cho cả kỳ. Dữ liệu phiếu giấy gộp nhiều series nên không thuộc phạm vi một Editor.'
+  })
   @ApiErrors(SurveyPeriodNotFoundException, SurveyDataImportNotAllowedException)
   @ZodResponse({ status: 201, type: MessageResDto })
   importSurveyData(@Body() body: ImportSurveyDataBodyDto, @ActiveUser('userId') userId: string) {
@@ -194,8 +203,11 @@ export class SurveyController {
   }
 
   @Post('survey-periods/:id/finalize')
-  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Editor finalize ranking cho kỳ bình chọn' })
+  @Roles(RoleName.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'Super Admin finalize ranking cho kỳ bình chọn. Chốt xếp hạng so sánh TOÀN BỘ series trong kỳ — Editor phụ trách một vài series không thể là người chốt (xung đột lợi ích).'
+  })
   @ApiErrors(SurveyPeriodNotFoundException, SurveyPeriodAlreadyFinalizedException, SurveyDataImportNotAllowedException)
   @ZodResponse({ status: 200, type: MessageResDto })
   finalizeRanking(@Param('id') id: string, @ActiveUser('userId') userId: string) {

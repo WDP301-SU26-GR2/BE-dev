@@ -66,13 +66,9 @@ const main = async () => {
   await setBoardConfig({ boardTotalMembers: 3, quorumMin: 3, approveMajorityRatio: 0.5 })
 
   // Board session + decision qua API THẬT (roster lẻ = 3).
-  const boardDecide = async (
-    decisionType: DecisionType,
-    targetSeriesId: string,
-    details: Record<string, unknown> = {},
-    endingChapterAllowance?: number,
-    voters: string[] = boardToks
-  ) => {
+  // Tách riêng để case âm (F05-011) dựng được phiên họp rồi tự kiểm status của POST /board/decisions
+  // mà không đi qua nhánh throw của boardDecide.
+  const openVotingSession = async () => {
     const rs = await req('POST', '/board/sessions', {
       token: e1Tok,
       body: {
@@ -86,6 +82,17 @@ const main = async () => {
     await prisma.boardSession.update({ where: { id: sessionId }, data: { startTime: new Date(Date.now() - 5_000) } })
     await req('PATCH', `/board/sessions/${sessionId}/start`, { token: e1Tok })
     await req('PATCH', `/board/sessions/${sessionId}/phase`, { token: e1Tok, body: { phase: 'VOTING' } })
+    return sessionId
+  }
+
+  const boardDecide = async (
+    decisionType: DecisionType,
+    targetSeriesId: string,
+    details: Record<string, unknown> = {},
+    endingChapterAllowance?: number,
+    voters: string[] = boardToks
+  ) => {
+    const sessionId = await openVotingSession()
     const rd = await req('POST', '/board/decisions', {
       token: e1Tok,
       body: {
@@ -261,15 +268,44 @@ const main = async () => {
     )
   )
 
+  // §83.1 fix: trước đây thiếu publicationType vẫn tạo được decision, Board vote APPROVED xong
+  // series ĐỨNG YÊN (changeFormat chỉ logger.warn) => silent no-op, không ai biết vì sao.
+  // Nay chặn ngay ở POST /board/decisions => 422, không bao giờ tồn tại decision vô nghĩa.
   const sFmt2 = await makeSeriesAt(SeriesStatus.SERIALIZED, {
     mangakaId: m1.id,
     editorId: e1.id,
     publicationType: PublicationType.WEEKLY
   })
-  await boardDecide(DecisionType.FORMAT_CHANGE, sFmt2.id, {})
+  const sessionFmt2 = await openVotingSession()
+  const rFmtMissing = await req('POST', '/board/decisions', {
+    token: e1Tok,
+    body: {
+      boardSessionId: sessionFmt2,
+      decisionType: DecisionType.FORMAT_CHANGE,
+      targetSeriesId: sFmt2.id,
+      allowedEditorIds: [b1.id, b2.id, b3.id],
+      details: {}
+    }
+  })
   ok(
-    'F05-011 CHANGE_FORMAT thiếu publicationType → skip an toàn (giữ WEEKLY, không crash)',
+    'F05-011 CHANGE_FORMAT thiếu publicationType → 422 ngay lúc tạo decision (hết silent no-op)',
+    rFmtMissing.status === 422,
+    `got ${rFmtMissing.status} ${rFmtMissing.raw.slice(0, 200)}`
+  )
+  ok(
+    'F05-011b lỗi trỏ đúng path details.publicationType',
+    JSON.stringify(rFmtMissing.json ?? {}).includes('publicationType'),
+    rFmtMissing.raw.slice(0, 200)
+  )
+  ok(
+    'F05-011c series giữ nguyên WEEKLY (không có decision nào được tạo)',
     (await prisma.series.findUnique({ where: { id: sFmt2.id } }))?.publicationType === PublicationType.WEEKLY
+  )
+  ok(
+    'F05-011d KHÔNG có BoardDecision FORMAT_CHANGE rác cho series này',
+    (await prisma.boardDecision.count({
+      where: { targetSeriesId: sFmt2.id, decisionType: DecisionType.FORMAT_CHANGE }
+    })) === 0
   )
 
   const sComp = await makeSeriesAt(SeriesStatus.SERIALIZED, { mangakaId: m1.id, editorId: e1.id })

@@ -13,6 +13,7 @@ export const createChapterBundle = async (
     pageStatus?: PageStatus
     pageCount: number
     publishedAt?: Date
+    pageMediaSlugs?: readonly string[]
   }
 ) => {
   const chapter = await context.prisma.chapter.create({
@@ -77,31 +78,42 @@ export const createChapterBundle = async (
       ]
     }
   })
+  const deadline = input.publishedAt
+    ? new Date(input.publishedAt.getTime() - DAY)
+    : new Date(context.now.getTime() + 7 * DAY)
   await context.prisma.schedule.create({
     data: {
       chapterId: chapter.id,
-      originalDeadline: new Date(context.now.getTime() + 7 * DAY),
-      currentDeadline: new Date(context.now.getTime() + 7 * DAY),
+      originalDeadline: deadline,
+      currentDeadline: deadline,
       extended: false,
       extensions: []
     }
   })
-  const pageIds: string[] = []
-  for (let pageNumber = 1; pageNumber <= input.pageCount; pageNumber += 1) {
-    const source = requiredMedia(context.media, `manga-page-${((pageNumber - 1) % 4) + 1}`)
-    const page = await context.prisma.page.create({
-      data: {
-        chapterId: chapter.id,
-        pageNumber,
-        originalFile: source.key,
-        compositeFile:
-          input.pageStatus === PageStatus.COMPLETED || input.pageStatus === PageStatus.REVISING
-            ? requiredMedia(context.media, 'scanlated-page').key
-            : null,
-        status: input.pageStatus ?? PageStatus.DRAFT
-      }
+  const pages = await Promise.all(
+    Array.from({ length: input.pageCount }, async (_, index) => {
+      const pageNumber = index + 1
+      const source = requiredMedia(
+        context.media,
+        input.pageMediaSlugs?.[index % input.pageMediaSlugs.length] ?? `manga-page-${(index % 4) + 1}`
+      )
+      return context.prisma.page.create({
+        data: {
+          chapterId: chapter.id,
+          pageNumber,
+          originalFile: source.key,
+          compositeFile:
+            input.pageStatus === PageStatus.COMPLETED || input.pageStatus === PageStatus.REVISING
+              ? requiredMedia(context.media, 'scanlated-page').key
+              : null,
+          compositeRevision:
+            input.pageStatus === PageStatus.COMPLETED || input.pageStatus === PageStatus.REVISING ? 3 : 0,
+          canvasWidth: 1080,
+          canvasHeight: 1440,
+          status: input.pageStatus ?? PageStatus.DRAFT
+        }
+      })
     })
-    pageIds.push(page.id)
-  }
-  return { chapter, name, pageIds }
+  )
+  return { chapter, name, pages, pageIds: pages.map((page) => page.id) }
 }

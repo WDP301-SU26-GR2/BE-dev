@@ -10,8 +10,8 @@ import {
 } from '@prisma/client'
 import { DEMO_ITERATIONS, FLOW_ONE_TITLES, FLOW_SIX_TITLES } from '../demo-data'
 import { createChapterBundle } from './chapter-builder.fixture'
-import { createExecutedContract } from './contract-builder.fixture'
-import { DAY, pad, requiredAccount } from './demo-seed.helpers'
+import { createExecutedContract, ensureApprovedSerializationDecision } from './contract-builder.fixture'
+import { DAY, mapWithConcurrency, pad, requiredAccount } from './demo-seed.helpers'
 import { DemoContext, SeriesSeed } from './demo-seed.types'
 import { createSeriesWithProposal } from './series-builder.fixture'
 
@@ -21,21 +21,23 @@ export const seedFlowOne = async (context: DemoContext) => {
   const editor = requiredAccount(accounts, 'editor.naomi')
   const result: SeriesSeed[] = []
 
-  for (let index = 0; index < DEMO_ITERATIONS; index += 1) {
-    const mangaka = mangakas[index % mangakas.length]
-    result.push(
-      await createSeriesWithProposal(context, {
+  const runs = await mapWithConcurrency(
+    Array.from({ length: DEMO_ITERATIONS }, (_, index) => index),
+    3,
+    async (index) => {
+      const mangaka = mangakas[index % mangakas.length]
+      return createSeriesWithProposal(context, {
         title: `[DEMO F1-${pad(index + 1)}] ${FLOW_ONE_TITLES[index]}`,
         mangakaId: mangaka.id,
-        editorId: editor.id,
         seriesStatus: SeriesStatus.DRAFT,
         proposalStatus: ProposalStatus.DRAFT,
         nameStatus: NameStatus.DRAFT,
         nameVersion: 1,
         synopsis: `${FLOW_ONE_TITLES[index]} theo chân một nhóm nhân vật trẻ đối mặt với lựa chọn giữa truyền thống và công nghệ. Hồ sơ số ${index + 1} dành cho demo Flow 1 trọn vẹn.`
       })
-    )
-  }
+    }
+  )
+  result.push(...runs)
 
   const showcaseStates: Array<{
     suffix: string
@@ -113,11 +115,13 @@ export const seedContractRuns = async (context: DemoContext) => {
         startIssueNumber: 120 + index
       }
     })
-    await context.prisma.contract.create({
+    const decision = await ensureApprovedSerializationDecision(context, series)
+    const contract = await context.prisma.contract.create({
       data: {
         seriesId: series.id,
         mangakaId: mangaka.id,
         editorId: editor.id,
+        boardDecisionId: decision.id,
         contractType: index % 4 === 0 ? ContractType.FULL_BUYOUT : ContractType.REVENUE_SHARE,
         valuationAmount: 180_000_000 + index * 15_000_000,
         publisherOwnershipPct: index % 4 === 0 ? 100 : 70,
@@ -126,6 +130,19 @@ export const seedContractRuns = async (context: DemoContext) => {
         contractStart: new Date(context.now.getTime() + 7 * DAY),
         contractEnd: new Date(context.now.getTime() + 730 * DAY),
         status: ContractStatus.DRAFT
+      }
+    })
+    await context.prisma.contractVersion.create({
+      data: {
+        contractId: contract.id,
+        versionNumber: 1,
+        valuationAmount: contract.valuationAmount,
+        publisherOwnershipPct: contract.publisherOwnershipPct,
+        mangakaOwnershipPct: contract.mangakaOwnershipPct,
+        terminationClause: contract.terminationClause,
+        editedById: editor.id,
+        note: 'Bản nháp đầu để bắt đầu vòng duyệt Mangaka → Board.',
+        createdAt: context.now
       }
     })
     result.push(series)
@@ -156,8 +173,8 @@ export const seedRankingRoster = async (context: DemoContext) => {
     await context.prisma.series.update({
       where: { id: series.id },
       data: {
-        publicationType: index % 3 === 0 ? PublicationType.MONTHLY : PublicationType.WEEKLY,
-        magazine: index % 3 === 0 ? 'Manga Nexus Monthly' : 'Manga Nexus Weekly',
+        publicationType: PublicationType.WEEKLY,
+        magazine: 'Manga Nexus Weekly',
         startIssueNumber: 80 + index
       }
     })
