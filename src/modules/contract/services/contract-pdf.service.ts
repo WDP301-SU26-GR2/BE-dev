@@ -9,6 +9,10 @@ import { ContractErrors } from '../errors/contract.errors'
 import { ContractAssetRegistryPort } from '../ports/contract-asset-registry.port'
 import { ContractQueryService } from './contract-query.service'
 
+// Increment when a renderer change must produce a new immutable PDF for an
+// already-executed contract. The data-version and template-version are kept separate.
+export const CONTRACT_PDF_TEMPLATE_VERSION = 2
+
 @Injectable()
 export class ContractPdfService {
   constructor(
@@ -29,13 +33,13 @@ export class ContractPdfService {
     const executedAmendments = contract.amendments.filter(
       (amendment) => amendment.status === ContractAmendmentStatus.FULLY_EXECUTED
     )
-    const key = `contracts/${contract.id}/contract-v${contract.versions.length}-a${executedAmendments.length}.pdf`
+    const key = `contracts/${contract.id}/contract-v${contract.versions.length}-a${executedAmendments.length}-t${CONTRACT_PDF_TEMPLATE_VERSION}.pdf`
     if (!(await this.objectStorageService.headObjectExists(key))) {
       const pdf = await this.pdfRenderService.renderContractPdf(this.toContractPdfData(contract, executedAmendments))
       await this.objectStorageService.putObject(key, pdf, 'application/pdf')
       await this.assetRegistry.registerGeneratedAsset({
         uploadedBy: userId,
-        name: `contract-${contract.id}-v${contract.versions.length}.pdf`,
+        name: `contract-${contract.id}-v${contract.versions.length}-t${CONTRACT_PDF_TEMPLATE_VERSION}.pdf`,
         filePath: key,
         assetType: AssetType.DOCUMENT
       })
