@@ -110,6 +110,24 @@ export const CreateBoardDecisionBodySchema = extendApi(
         }
       }
 
+      // §83.1: thiếu publicationType => SeriesLifecycleService.changeFormat chỉ logger.warn rồi return
+      // (series không đổi, không notify, không sinh Amendment) trong khi API vẫn 2xx => silent no-op.
+      // Chặn tại Zod là chỗ rẻ nhất: Board không chốt được quyết định đổi format vô nghĩa.
+      if (value.decisionType === $Enums.DecisionType.FORMAT_CHANGE) {
+        const details = (value.details ?? {}) as Record<string, unknown>
+        if (
+          details.publicationType !== 'WEEKLY' &&
+          details.publicationType !== 'MONTHLY' &&
+          details.publicationType !== 'IRREGULAR'
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['details', 'publicationType'],
+            message: 'publicationType là bắt buộc cho decision FORMAT_CHANGE (WEEKLY | MONTHLY | IRREGULAR)'
+          })
+        }
+      }
+
       if (value.decisionType === $Enums.DecisionType.CANCELLATION) {
         const details = (value.details ?? {}) as Record<string, unknown>
         const allowance = details.endingChapterAllowance

@@ -65,7 +65,7 @@ export class TransferRepo {
       }
     })
     if (!request) return null
-    return (await this.attachTransferRequestPeople([request]))[0]
+    return (await this.enrichTransferRequests([request]))[0]
   }
 
   // Tìm danh sách hồ sơ chuyển nhượng thuộc về một Mangaka cụ thể
@@ -76,7 +76,7 @@ export class TransferRepo {
       },
       orderBy: { createdAt: 'desc' }
     })
-    return this.attachTransferRequestPeople(requests)
+    return this.enrichTransferRequests(requests)
   }
 
   // Tìm danh sách hồ sơ đang chờ Hội đồng (Board) chấm điểm sàng lọc
@@ -85,7 +85,7 @@ export class TransferRepo {
       where: { status: 'SUBMITTED' },
       orderBy: { createdAt: 'asc' }
     })
-    return this.attachTransferRequestPeople(requests)
+    return this.enrichTransferRequests(requests)
   }
 
   // Single-writer primitive: state services call this inside a transaction.
@@ -165,6 +165,39 @@ export class TransferRepo {
     })
     if (!contract) return null
     return (await this.attachTransferContractPeople([contract]))[0]
+  }
+
+  // Spec 27 (Flow 8): TransferContract.transferRequestId là field thường, KHÔNG phải `@relation`
+  // Prisma ⇒ không `include` được, phải truy vấn riêng rồi map thủ công. Một request nghiệp vụ chỉ
+  // có tối đa 1 hợp đồng (create chỉ chạy khi request UNDER_REVIEW rồi chuyển ngay sang
+  // AWAITING_TRANSFER_SIGNATURES), nhưng vẫn sort giảm dần theo createdAt để chọn tất định nếu
+  // dữ liệu cũ có hơn 1 bản.
+  private async enrichTransferRequests<
+    T extends {
+      id?: string | null
+      seriesId?: string | null
+      requestingMangakaId?: string | null
+      originalMangakaId?: string | null
+    }
+  >(rows: T[]) {
+    const withPeople = await this.attachTransferRequestPeople(rows)
+    const requestIds = rows.map((row) => row.id).filter((id): id is string => Boolean(id))
+    if (requestIds.length === 0) return withPeople.map((row) => ({ ...row, transferContractId: null }))
+    const contracts = await this.prisma.transferContract.findMany({
+      where: { transferRequestId: { in: requestIds } },
+      select: { id: true, transferRequestId: true },
+      orderBy: { createdAt: 'desc' }
+    })
+    const contractByRequestId = new Map<string, string>()
+    for (const contract of contracts) {
+      if (contract.transferRequestId && !contractByRequestId.has(contract.transferRequestId)) {
+        contractByRequestId.set(contract.transferRequestId, contract.id)
+      }
+    }
+    return withPeople.map((row) => ({
+      ...row,
+      transferContractId: row.id ? (contractByRequestId.get(row.id) ?? null) : null
+    }))
   }
 
   private async attachTransferRequestPeople<

@@ -19,6 +19,7 @@ import { TransferContractService } from './transfer-contract.service'
 import { TransferNegotiationService } from './transfer-negotiation.service'
 import { TransferRequestService } from './transfer-request.service'
 import { TransferResourceLoader } from './transfer-resource-loader.service'
+import { TransferContractQueryService } from './transfer-contract-query.service'
 import { TransferSigningService } from './transfer-signing.service'
 import { TransferTransactionService } from './transfer-transaction.service'
 import { TransferService } from './transfer.service'
@@ -63,6 +64,7 @@ function setup(options: { transactionDependencies?: boolean } = { transactionDep
     findTerminalTransferDecisionContextsBySession: jest.fn()
   }
   const audit = { record: jest.fn().mockResolvedValue(undefined) }
+  const notifications = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const context = {}
   const uow = { runInTransaction: jest.fn((work: (transaction: object) => unknown) => work(context)) }
   const contracts = { createReplacementDraft: jest.fn().mockResolvedValue({ id: 'replacement-1' }) }
@@ -90,10 +92,24 @@ function setup(options: { transactionDependencies?: boolean } = { transactionDep
   const service = new TransferService(
     new TransferRequestService(repo as never, audit as never, policy, loader, transactions),
     new TransferNegotiationService(repo as never, audit as never, policy, loader, transactions),
-    new TransferContractService(repo as never, audit as never, policy, loader, transactions),
-    new TransferSigningService(repo as never, audit as never, policy, loader, transactions)
+    new TransferContractService(repo as never, audit as never, policy, loader, transactions, notifications as never),
+    new TransferSigningService(repo as never, audit as never, policy, loader, transactions, notifications as never),
+    new TransferContractQueryService(repo as never, policy, loader)
   )
-  return { service, repo, board, audit, uow, contracts, series, signingOtp, requestState, contractState, request }
+  return {
+    service,
+    repo,
+    board,
+    audit,
+    notifications,
+    uow,
+    contracts,
+    series,
+    signingOtp,
+    requestState,
+    contractState,
+    request
+  }
 }
 
 describe('TransferService branch coverage — request and Board lifecycle', () => {
@@ -311,6 +327,42 @@ describe('TransferService branch coverage — request and Board lifecycle', () =
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'board-1' }))
   })
 
+  // §84: Spec 27 đã cho A/B/Board *tra ra* được hợp đồng, nhưng không ai được BÁO là đã có bản
+  // để ký. Hai người phải ký (A = originalMangaka, B = requestingMangaka) cần notification mang
+  // theo transferContractId, nếu không họ phải tự đoán thời điểm vào xem.
+  it('notifies both signing mangakas when the transfer contract is drafted', async () => {
+    const { service, repo, notifications, request } = setup()
+    repo.findTransferRequestById.mockResolvedValue({ ...request, status: 'UNDER_REVIEW' })
+
+    await service.createTransferContract(actor('editor-1', RoleName.EDITOR), {
+      transferRequestId: REQUEST_ID,
+      transferType: 'FULL_TRANSFER',
+      transferAmount: 1000,
+      newOwnershipSplit: { publisher: 70, A: 0, B: 30 },
+      coOwnerApprovalRequired: false
+    } as never)
+
+    const recipients = notifications.notifySafe.mock.calls.map((c) => (c[0] as { recipientId: string }).recipientId)
+    expect(recipients).toEqual(expect.arrayContaining(['mangaka-a', 'mangaka-b']))
+  })
+
+  it('carries the transfer contract id in the drafted notification so signers can open it', async () => {
+    const { service, repo, notifications, request } = setup()
+    repo.findTransferRequestById.mockResolvedValue({ ...request, status: 'UNDER_REVIEW' })
+
+    await service.createTransferContract(actor('editor-1', RoleName.EDITOR), {
+      transferRequestId: REQUEST_ID,
+      transferType: 'FULL_TRANSFER',
+      transferAmount: 1000,
+      newOwnershipSplit: { publisher: 70, A: 0, B: 30 },
+      coOwnerApprovalRequired: false
+    } as never)
+
+    expect(notifications.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceId: CONTRACT_ID, referenceType: 'TRANSFER_CONTRACT_DRAFTED' })
+    )
+  })
+
   it('requires all transaction capabilities before a state-changing transaction', async () => {
     const { service, repo, request } = setup({ transactionDependencies: false })
     repo.findTransferRequestById.mockResolvedValue({ ...request, status: 'UNDER_REVIEW' })
@@ -483,6 +535,38 @@ describe('TransferService branch coverage — signature authorization and final 
 
     expect(contractState.transition).toHaveBeenCalledWith(expect.anything(), CONTRACT_ID, 'DRAFT', 'A_SIGNED')
     expect(requestState.transition).not.toHaveBeenCalled()
+  })
+
+  // §84: chuỗi ký A → B → Hội đồng trước đây không phát notification nào ⇒ ký xong người kế tiếp
+  // không biết đến lượt mình, hợp đồng nằm im vô thời hạn.
+  it('tells Mangaka B it is their turn after Mangaka A signs', async () => {
+    const { service, repo, notifications } = setup()
+    repo.findTransferContractById.mockResolvedValue({ ...contract, signatures: undefined })
+
+    await service.signTransferContract(CONTRACT_ID, actor('mangaka-a', RoleName.MANGAKA), { otpCode: '123456' })
+
+    expect(notifications.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'mangaka-b',
+        referenceId: CONTRACT_ID,
+        referenceType: 'TRANSFER_CONTRACT_AWAITING_SIGNATURE'
+      })
+    )
+  })
+
+  it('tells the Board roster it is their turn after Mangaka B signs', async () => {
+    const { service, repo, notifications } = setup()
+    repo.findTransferContractById.mockResolvedValue({ ...contract, status: 'A_SIGNED', signatures: [] })
+
+    await service.signTransferContract(CONTRACT_ID, actor('mangaka-b', RoleName.MANGAKA), { otpCode: '123456' })
+
+    expect(notifications.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'board-1',
+        referenceId: CONTRACT_ID,
+        referenceType: 'TRANSFER_CONTRACT_AWAITING_SIGNATURE'
+      })
+    )
   })
 
   it.each([

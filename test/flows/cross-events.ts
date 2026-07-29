@@ -69,6 +69,9 @@ const main = async () => {
   const b1 = await makeUser(RoleCode.BOARD_MEMBER)
   const b2 = await makeUser(RoleCode.BOARD_MEMBER)
   const b3 = await makeUser(RoleCode.BOARD_MEMBER)
+  // Kỳ bình chọn là đơn vị cấp tạp chí → mọi mutation survey nay SUPER_ADMIN-only (xem §84).
+  const sa1 = await makeUser(RoleCode.SUPER_ADMIN)
+  const sa1Tok = await login(sa1.email)
   const a1Tok = await login(a1.email)
   const e1Tok = await login(e1.email)
   const boardToks = [await login(b1.email), await login(b2.email), await login(b3.email)]
@@ -476,7 +479,7 @@ const main = async () => {
       entries: [{ seriesId: sSer.id, voteCount: 10 }] as never
     }
   })
-  const rFinalize = await req('POST', `/survey-periods/${period.id}/finalize`, { token: e1Tok, body: {} })
+  const rFinalize = await req('POST', `/survey-periods/${period.id}/finalize`, { token: sa1Tok, body: {} })
   ok(
     'EV-09 finalize → RankingRecord tạo (payload rankings[] không rỗng)',
     (rFinalize.status === 200 || rFinalize.status === 201 || rFinalize.status === 202) &&

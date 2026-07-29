@@ -398,7 +398,10 @@ describe('Transfer durable saga on Mongo replica set', () => {
     const service = new TransferService(
       {} as never,
       {} as never,
-      new TransferContractService(transferRepo, audit as never, policy, loader, transactions),
+      new TransferContractService(transferRepo, audit as never, policy, loader, transactions, {
+        notifySafe: jest.fn()
+      } as never),
+      {} as never,
       {} as never
     )
     const actor = { userId: fixture.boardMember.id, roleName: RoleName.BOARD_MEMBER }
