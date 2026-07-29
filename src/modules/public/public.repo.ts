@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { ChapterStatus, Demographic, Genre, PublicationType, SeriesStatus } from '@prisma/client'
+import { ChapterStatus, Demographic, Genre, PublicationType, SeriesStatus, UserStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { PUBLIC_SERIES_STATUSES } from './public.constant'
 
@@ -32,7 +32,7 @@ export class PublicRepository {
       ...(input.demographic ? { demographic: input.demographic } : {}),
       ...(input.publicationType ? { publicationType: input.publicationType } : {})
     })
-    const [items, total] = await Promise.all([
+    const [series, total] = await Promise.all([
       this.prisma.series.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -42,7 +42,7 @@ export class PublicRepository {
       this.prisma.series.count({ where })
     ])
 
-    return { items, total }
+    return { items: await this.attachPublicAuthors(series), total }
   }
 
   async countPublishedChaptersBySeriesIds(seriesIds: string[]): Promise<Map<string, number>> {
@@ -56,8 +56,10 @@ export class PublicRepository {
     return new Map(rows.map((row) => [row.seriesId, row._count._all]))
   }
 
-  findPublicSeriesById(id: string) {
-    return this.prisma.series.findFirst({ where: this.publicSeriesWhere({ id }) })
+  async findPublicSeriesById(id: string) {
+    const series = await this.prisma.series.findFirst({ where: this.publicSeriesWhere({ id }) })
+    if (!series) return null
+    return (await this.attachPublicAuthors([series]))[0] ?? null
   }
 
   findPublishedChaptersBySeriesId(seriesId: string) {
@@ -93,5 +95,27 @@ export class PublicRepository {
       orderBy: { chapterNumber: direction === 'prev' ? 'desc' : 'asc' },
       select: { id: true }
     })
+  }
+
+  /**
+   * Public catalog exposes an author's opted-in display name only. It never
+   * returns the User model, so private identifiers and contact data stay out
+   * of the public response contract.
+   */
+  private async attachPublicAuthors<T extends { mangakaId: string }>(series: T[]) {
+    if (series.length === 0) return []
+
+    const authorIds = [...new Set(series.map((item) => item.mangakaId))]
+    const authors = await this.prisma.user.findMany({
+      where: {
+        id: { in: authorIds },
+        status: UserStatus.ACTIVE,
+        deletedAt: { isSet: false }
+      },
+      select: { id: true, displayName: true }
+    })
+    const authorById = new Map(authors.map((author) => [author.id, { displayName: author.displayName }]))
+
+    return series.map((item) => ({ ...item, author: authorById.get(item.mangakaId) ?? null }))
   }
 }
