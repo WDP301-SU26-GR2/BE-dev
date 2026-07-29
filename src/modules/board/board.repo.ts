@@ -26,6 +26,10 @@ export class BoardRepository {
     return this.prisma.boardDecision.findUnique({ where: { id } })
   }
 
+  findSeriesEditorById(id: string) {
+    return this.prisma.series.findUnique({ where: { id }, select: { id: true, editorId: true } })
+  }
+
   async findManySessions(filter?: { participantId?: string; status?: $Enums.BoardSessionStatus }) {
     return this.prisma.boardSession.findMany({
       where: {

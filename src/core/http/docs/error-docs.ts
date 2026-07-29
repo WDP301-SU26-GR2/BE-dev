@@ -222,7 +222,8 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.BoardConfigLocked': 'cannot update BoardConfig while a session is ACTIVE/UPCOMING',
   'Error.BoardSessionClosedReport': 'cannot submit a series report for a CONCLUDED session',
   'Error.BoardReportNotFound': 'series report does not exist (or id is not a valid ObjectId)',
-  'Error.EditorNotInvited': 'caller is not in session.allowedEditorIds for report submission',
+  'Error.EditorNotAssignedToSeries': 'only the Editor currently assigned to the report series may submit it',
+  'Error.ReportDecisionSeriesMismatch': 'report seriesId must match the BoardDecision targetSeriesId',
   'Error.InvalidBoardSessionTransition': 'board session status transition is not allowed by BOARD_SESSION_TRANSITIONS',
   'Error.NotSessionCreator': 'only the board session creator or a Super Admin can conclude the session',
   'Error.NotContractMangaka':
