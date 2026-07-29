@@ -28,6 +28,7 @@ function makePrisma() {
       create: jest.fn()
     },
     series: {
+      findUnique: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn()
     },
@@ -54,15 +55,21 @@ describe('BoardRepository Prisma contracts', () => {
     prisma.boardConfig.findUnique.mockResolvedValue({ id: 'config' })
     prisma.boardDecision.findUnique.mockResolvedValue({ id: 'decision' })
     prisma.seriesReport.findUnique.mockResolvedValue({ id: 'report' })
+    prisma.series.findUnique.mockResolvedValue({ id: 'series', editorId: 'editor' })
 
     await expect(repo.findSessionById('session')).resolves.toEqual({ id: 'session' })
     await expect(repo.findConfigById('config')).resolves.toEqual({ id: 'config' })
     await expect(repo.findDecisionById('decision')).resolves.toEqual({ id: 'decision' })
     await expect(repo.findReportById('report')).resolves.toEqual({ id: 'report' })
+    await expect(repo.findSeriesEditorById('series')).resolves.toEqual({ id: 'series', editorId: 'editor' })
     expect(prisma.boardSession.findUnique).toHaveBeenCalledWith({ where: { id: 'session' } })
     expect(prisma.boardConfig.findUnique).toHaveBeenCalledWith({ where: { id: 'config' } })
     expect(prisma.boardDecision.findUnique).toHaveBeenCalledWith({ where: { id: 'decision' } })
     expect(prisma.seriesReport.findUnique).toHaveBeenCalledWith({ where: { id: 'report' } })
+    expect(prisma.series.findUnique).toHaveBeenCalledWith({
+      where: { id: 'series' },
+      select: { id: true, editorId: true }
+    })
   })
 
   it.each([

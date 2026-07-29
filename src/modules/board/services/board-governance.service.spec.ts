@@ -8,6 +8,7 @@ function setup() {
   const repository = {
     findDecisionById: jest.fn(),
     findSessionById: jest.fn(),
+    findSeriesEditorById: jest.fn(),
     createSeriesReport: jest.fn().mockResolvedValue({ id: 'report' }),
     findConfigById: jest.fn(),
     findFirstOpenSession: jest.fn(),
@@ -37,7 +38,7 @@ describe('BoardGovernanceService report authorization and config locking', () =>
 
   it('rejects a decision whose parent session disappeared', async () => {
     const fixture = setup()
-    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session' })
+    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session', targetSeriesId: 'series' })
     fixture.repository.findSessionById.mockResolvedValue(null)
 
     await expect(fixture.service.createSeriesReport('editor', report)).rejects.toBe(Errors.SessionNotFoundException)
@@ -45,25 +46,49 @@ describe('BoardGovernanceService report authorization and config locking', () =>
 
   it('rejects reports after the session is concluded', async () => {
     const fixture = setup()
-    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session' })
+    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session', targetSeriesId: 'series' })
     fixture.repository.findSessionById.mockResolvedValue({ status: 'CONCLUDED', allowedEditorIds: ['editor'] })
 
     await expect(fixture.service.createSeriesReport('editor', report)).rejects.toBe(Errors.SessionClosedReportException)
     expect(fixture.repository.createSeriesReport).not.toHaveBeenCalled()
   })
 
-  it('rejects an editor who was not invited to the session', async () => {
+  it('allows the assigned editor even when they are not a Board roster member', async () => {
     const fixture = setup()
-    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session' })
+    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session', targetSeriesId: 'series' })
     fixture.repository.findSessionById.mockResolvedValue({ status: 'ACTIVE', allowedEditorIds: ['other'] })
+    fixture.repository.findSeriesEditorById.mockResolvedValue({ id: 'series', editorId: 'editor' })
 
-    await expect(fixture.service.createSeriesReport('editor', report)).rejects.toBe(Errors.EditorNotInvitedException)
+    await expect(fixture.service.createSeriesReport('editor', report)).resolves.toEqual({ id: 'report' })
   })
 
-  it('attributes an authorized report to its invited editor', async () => {
+  it('rejects an editor who is not assigned to the report series', async () => {
     const fixture = setup()
-    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session' })
+    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session', targetSeriesId: 'series' })
     fixture.repository.findSessionById.mockResolvedValue({ status: 'ACTIVE', allowedEditorIds: ['editor'] })
+    fixture.repository.findSeriesEditorById.mockResolvedValue({ id: 'series', editorId: 'other' })
+
+    await expect(fixture.service.createSeriesReport('editor', report)).rejects.toBe(
+      Errors.EditorNotAssignedToSeriesException
+    )
+  })
+
+  it('rejects a report whose series differs from its Board decision target', async () => {
+    const fixture = setup()
+    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session', targetSeriesId: 'other-series' })
+
+    await expect(fixture.service.createSeriesReport('editor', report)).rejects.toBe(
+      Errors.ReportDecisionSeriesMismatchException
+    )
+    expect(fixture.repository.findSessionById).not.toHaveBeenCalled()
+    expect(fixture.repository.findSeriesEditorById).not.toHaveBeenCalled()
+  })
+
+  it('attributes an authorized report to the assigned editor', async () => {
+    const fixture = setup()
+    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session', targetSeriesId: 'series' })
+    fixture.repository.findSessionById.mockResolvedValue({ status: 'ACTIVE', allowedEditorIds: [] })
+    fixture.repository.findSeriesEditorById.mockResolvedValue({ id: 'series', editorId: 'editor' })
 
     await expect(fixture.service.createSeriesReport('editor', report)).resolves.toEqual({ id: 'report' })
     expect(fixture.repository.createSeriesReport).toHaveBeenCalledWith({ ...report, preparedBy: 'editor' })
