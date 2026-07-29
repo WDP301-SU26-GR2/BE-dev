@@ -27,7 +27,12 @@ export const SessionClosedReportException = new BadRequestException([
   { message: E.sessionClosedReport, path: 'sessionId' }
 ])
 export const ReportNotFoundException = new NotFoundException([{ message: E.reportNotFound, path: 'reportId' }])
-export const EditorNotInvitedException = new ForbiddenException([{ message: E.editorNotInvited, path: 'userId' }])
+export const EditorNotAssignedToSeriesException = new ForbiddenException([
+  { message: E.editorNotAssignedToSeries, path: 'userId' }
+])
+export const ReportDecisionSeriesMismatchException = new ConflictException([
+  { message: E.reportDecisionSeriesMismatch, path: 'seriesId' }
+])
 export const InvalidBoardSessionTransitionException = new ConflictException([
   { message: E.invalidSessionTransition, path: 'status' }
 ])

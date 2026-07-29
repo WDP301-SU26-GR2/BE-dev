@@ -170,7 +170,10 @@ export const CreateSeriesReportBodySchema = extendApi(
     boardDecisionId: z.string().min(1, { message: 'boardDecisionId liên kết cuộc họp là bắt buộc' }),
     content: z.string().min(1, { message: 'Nội dung phân tích số liệu xu hướng bắt buộc phải nhập' })
   }),
-  { title: 'CreateSeriesReportBody', description: 'Editor tạo báo cáo phân tích series' }
+  {
+    title: 'CreateSeriesReportBody',
+    description: 'Editor phụ trách series tạo báo cáo phân tích cho đúng quyết định Hội đồng của series đó'
+  }
 )
 
 // 4. Schema phục vụ API Admin điều chỉnh tham số cấu hình cuộc họp (PUT /board/config/:id)

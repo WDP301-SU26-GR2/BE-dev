@@ -42,7 +42,8 @@ import {
   ConfigLockedException,
   ReportNotFoundException,
   SessionClosedReportException,
-  EditorNotInvitedException,
+  EditorNotAssignedToSeriesException,
+  ReportDecisionSeriesMismatchException,
   InvalidBoardSessionTransitionException,
   NotSessionCreatorException,
   SeriesNotFoundException,
@@ -232,7 +233,9 @@ export class BoardController {
     DecisionNotFoundException,
     SessionNotFoundException,
     SessionClosedReportException,
-    EditorNotInvitedException
+    SeriesNotFoundException,
+    EditorNotAssignedToSeriesException,
+    ReportDecisionSeriesMismatchException
   )
   @Post('reports')
   @Roles(RoleName.EDITOR)
