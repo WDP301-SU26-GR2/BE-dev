@@ -6,6 +6,7 @@ import { zEnum } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
 import { UserMiniSchema } from 'src/core/models/user-mini.model'
 import { zObjectId } from 'src/core/http/schemas/object-id.schema'
+import { CONTRACT_DECISION_RESOURCE_TYPES } from '../board.types'
 
 export const CreateBoardSessionBodySchema = extendApi(
   z
@@ -124,6 +125,60 @@ export const CreateBoardDecisionBodySchema = extendApi(
             code: 'custom',
             path: ['details', 'publicationType'],
             message: 'publicationType là bắt buộc cho decision FORMAT_CHANGE (WEEKLY | MONTHLY | IRREGULAR)'
+          })
+        }
+      }
+
+      // §v2 point 5: quyết định TRANSFER BẮT BUỘC gắn transferRequestId để không tái dùng cho request khác.
+      if (value.decisionType === $Enums.DecisionType.TRANSFER) {
+        const transferRequestId = (value as { transferRequestId?: unknown }).transferRequestId
+        if (typeof transferRequestId !== 'string' || transferRequestId.trim() === '') {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['transferRequestId'],
+            message: 'transferRequestId là bắt buộc cho decision TRANSFER'
+          })
+        }
+      }
+
+      if (value.decisionType === $Enums.DecisionType.CONTRACT) {
+        const details = (value.details ?? {}) as Record<string, unknown>
+        const resourceType = details.resourceType
+        const requiresVersion = resourceType === 'PUBLICATION_CONTRACT' || resourceType === 'REPLACEMENT_CONTRACT'
+
+        if (!value.targetSeriesId) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['targetSeriesId'],
+            message: 'targetSeriesId là bắt buộc cho decision CONTRACT'
+          })
+        }
+        if (
+          typeof resourceType !== 'string' ||
+          !CONTRACT_DECISION_RESOURCE_TYPES.includes(resourceType as (typeof CONTRACT_DECISION_RESOURCE_TYPES)[number])
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['details', 'resourceType'],
+            message:
+              'resourceType phải là PUBLICATION_CONTRACT | CONTRACT_AMENDMENT | TRANSFER_CONTRACT | REPLACEMENT_CONTRACT'
+          })
+        }
+        if (typeof details.resourceId !== 'string' || !zObjectId().safeParse(details.resourceId).success) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['details', 'resourceId'],
+            message: 'resourceId phải là ObjectId hợp lệ cho decision CONTRACT'
+          })
+        }
+        if (
+          requiresVersion &&
+          (typeof details.versionId !== 'string' || !zObjectId().safeParse(details.versionId).success)
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['details', 'versionId'],
+            message: 'versionId phải là ObjectId hợp lệ cho hợp đồng publication/replacement'
           })
         }
       }
@@ -343,7 +398,10 @@ export const ListBoardDecisionsQuerySchema = extendApi(
   z
     .object({
       boardSessionId: z.string().optional().describe('Lọc decision theo phiên họp'),
-      targetSeriesId: z.string().optional().describe('Lọc decision theo series mục tiêu')
+      targetSeriesId: z.string().optional().describe('Lọc decision theo series mục tiêu'),
+      // §v2 point 10: chỉ quyết định thuộc phiên mà người gọi nằm trong roster (allowedEditorIds).
+      // Dùng enum 'true'/'false' thay z.coerce.boolean (tránh gotcha coerce: 'false' -> true, Spec 16).
+      mine: z.enum(['true', 'false']).optional().describe("'true' = chỉ decision thuộc roster của tôi")
     })
     .strict(),
   { title: 'ListBoardDecisionsQuery', description: 'Filter danh sách quyết định' }

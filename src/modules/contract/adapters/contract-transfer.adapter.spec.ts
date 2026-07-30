@@ -7,19 +7,30 @@ describe('ContractTransferAdapter', () => {
   const context = (client: object) => createTransactionContext(client as never)
 
   it('creates the replacement draft and its pending payment conditions in one transaction context', async () => {
-    const create = jest.fn().mockResolvedValue({ id: 'replacement' })
+    const create = jest.fn().mockResolvedValue({
+      id: 'replacement',
+      valuationAmount: 1_000,
+      publisherOwnershipPct: null,
+      mangakaOwnershipPct: null,
+      terminationClause: null
+    })
+    const createVersion = jest.fn().mockResolvedValue({ id: 'version-1' })
     const adapter = new ContractTransferAdapter({} as never)
 
-    await adapter.createReplacementDraft(context({ contract: { create } }), {
-      seriesId: 'series',
-      mangakaId: 'new-mangaka',
-      editorId: 'editor',
-      boardDecisionId: 'decision',
-      sourceTransferRequestId: 'request',
-      contractType: 'FULL_BUYOUT',
-      valuationAmount: 1_000,
-      conditions: [{ type: 'MILESTONE', value: 500, description: 'On publication' }]
-    } as never)
+    await adapter.createReplacementDraft(
+      context({ contract: { create }, contractVersion: { create: createVersion } }),
+      {
+        seriesId: 'series',
+        mangakaId: 'new-mangaka',
+        editorId: 'editor',
+        editedById: 'board-member',
+        boardDecisionId: 'decision',
+        sourceTransferRequestId: 'request',
+        contractType: 'FULL_BUYOUT',
+        valuationAmount: 1_000,
+        conditions: [{ type: 'MILESTONE', value: 500, description: 'On publication' }]
+      } as never
+    )
 
     expect(create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -35,6 +46,14 @@ describe('ContractTransferAdapter', () => {
             }
           ]
         }
+      })
+    })
+    expect(createVersion).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        contractId: 'replacement',
+        versionNumber: 1,
+        valuationAmount: 1_000,
+        editedById: 'board-member'
       })
     })
   })

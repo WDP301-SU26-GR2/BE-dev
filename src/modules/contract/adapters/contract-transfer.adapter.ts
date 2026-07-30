@@ -12,7 +12,8 @@ export class ContractTransferAdapter implements ContractTransferPort {
     context: Parameters<ContractTransferPort['createReplacementDraft']>[0],
     command: Parameters<ContractTransferPort['createReplacementDraft']>[1]
   ) {
-    return transactionClient(context).contract.create({
+    const client = transactionClient(context)
+    const contract = await client.contract.create({
       data: {
         seriesId: command.seriesId,
         mangakaId: command.mangakaId,
@@ -32,6 +33,19 @@ export class ContractTransferAdapter implements ContractTransferPort {
         }
       }
     })
+    await client.contractVersion.create({
+      data: {
+        contractId: contract.id,
+        versionNumber: 1,
+        valuationAmount: contract.valuationAmount,
+        publisherOwnershipPct: contract.publisherOwnershipPct,
+        mangakaOwnershipPct: contract.mangakaOwnershipPct,
+        terminationClause: contract.terminationClause,
+        editedById: command.editedById,
+        createdAt: new Date()
+      }
+    })
+    return contract
   }
 
   async activateReplacementAndTerminateOriginal(

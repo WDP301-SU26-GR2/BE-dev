@@ -4,6 +4,7 @@ import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { AuthOtpService } from 'src/modules/auth/services/auth-otp.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { BoardService, ContractDecisionContext } from 'src/modules/board/services/board.service'
 import { ContractAmendmentRepo } from '../contract-amendment.repo'
 import { ContractMessages } from '../contract.messages'
 import { ContractRepo } from '../contract.repo'
@@ -16,7 +17,8 @@ export class ContractAmendmentSigningService {
     private readonly contractRepo: ContractRepo,
     private readonly authOtpService: AuthOtpService,
     private readonly notificationService: NotificationService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    private readonly boardService: BoardService
   ) {}
 
   async signMangaka(contractId: string, id: string, userId: string, email: string, otpCode: string) {
@@ -25,21 +27,21 @@ export class ContractAmendmentSigningService {
     if (!contract) throw ContractErrors.NotFound()
     if (contract.contractType === 'FULL_BUYOUT') throw ContractErrors.MangakaSignNotRequired()
     if (contract.mangakaId !== userId) throw ContractErrors.NotContractMangaka()
+    const decision = await this.requireApprovalDecision(contract.seriesId, amendment.id)
     await this.authOtpService.validateOtpCode({ email, code: otpCode, purpose: 'SIGNING_CONTRACT' })
     await this.amendmentRepo.update(id, { mangakaSignedAt: new Date() })
     const boardCount = await this.amendmentRepo.countBoardSignatures(id)
-    const ctx = await this.contractRepo.findWithBoardDecision(contractId)
-    const allowed = ctx?.boardDecision?.boardSession?.allowedEditorIds?.length ?? 0
+    const allowed = decision.allowedEditorIds.length
     await this.maybeExecute(id, contractId, contract.contractType, allowed, boardCount, true, userId)
     return amendment
   }
 
   async signBoard(contractId: string, id: string, userId: string, email: string, otpCode: string) {
     const amendment = await this.loadPending(contractId, id)
-    const ctx = await this.contractRepo.findWithBoardDecision(contractId)
-    if (!ctx) throw ContractErrors.NotFound()
-    if (!ctx.boardDecision) throw ContractErrors.BoardDecisionNotFound()
-    const allowedIds = ctx.boardDecision.boardSession.allowedEditorIds
+    const contract = await this.contractRepo.findById(contractId)
+    if (!contract) throw ContractErrors.NotFound()
+    const decision = await this.requireApprovalDecision(contract.seriesId, amendment.id)
+    const allowedIds = decision.allowedEditorIds
     if (!allowedIds.includes(userId)) throw ContractErrors.NotAuthorizedInBoard()
     if (await this.amendmentRepo.findSignature(id, userId)) throw ContractErrors.BoardMemberAlreadySigned()
     await this.authOtpService.validateOtpCode({ email, code: otpCode, purpose: 'SIGNING_CONTRACT' })
@@ -49,7 +51,7 @@ export class ContractAmendmentSigningService {
     await this.maybeExecute(
       id,
       contractId,
-      ctx.contractType,
+      contract.contractType,
       allowedIds.length,
       boardCount,
       !!amendment.mangakaSignedAt,
@@ -82,6 +84,16 @@ export class ContractAmendmentSigningService {
     if (!amendment || amendment.contractId !== contractId) throw ContractErrors.AmendmentNotFound()
     if (amendment.status !== 'PENDING_SIGNATURES') throw ContractErrors.AmendmentNotPendingSignatures()
     return amendment
+  }
+
+  private async requireApprovalDecision(targetSeriesId: string, amendmentId: string): Promise<ContractDecisionContext> {
+    const decision = await this.boardService.findApprovedContractDecisionContext({
+      targetSeriesId,
+      resourceType: 'CONTRACT_AMENDMENT',
+      resourceId: amendmentId
+    })
+    if (!decision) throw ContractErrors.ContractApprovalDecisionRequired()
+    return decision
   }
 
   private async maybeExecute(

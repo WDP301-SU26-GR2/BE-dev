@@ -12,6 +12,7 @@ export const PaymentMessages = {
     invalidAmount: 'Error.InvalidPaymentAmount',
     paymentConditionNotFound: 'Error.PaymentConditionNotFound',
     paymentConditionNotEditable: 'Error.PaymentConditionNotEditable',
+    paymentConditionContractLocked: 'Error.PaymentConditionContractLocked',
     // Dùng chung mã với module contract (cùng nghĩa, cùng bản dịch) — registry cho phép trùng khi text khớp.
     contractNotFound: 'Error.ContractNotFound',
     unauthorizedConditionEditor: 'Error.NotAssignedPaymentEditor',
@@ -29,6 +30,8 @@ export const PaymentMessages = {
     'Error.InvalidPaymentAmount': 'Số tiền phải lớn hơn 0',
     'Error.PaymentConditionNotFound': 'Không tìm thấy điều kiện thanh toán',
     'Error.PaymentConditionNotEditable': 'Điều kiện thanh toán đã hoàn tất hoặc quá hạn nên không thể chỉnh sửa',
+    'Error.PaymentConditionContractLocked':
+      'Chỉ có thể thay đổi điều kiện thanh toán khi hợp đồng ở bản nháp hoặc đang thương lượng',
     'Error.ContractNotFound': 'Không tìm thấy hợp đồng',
     'Error.NotAssignedPaymentEditor': 'Chỉ Editor phụ trách mới được quản lý điều kiện thanh toán',
     'Error.InvalidThresholdConfig': 'Cấu hình ngưỡng thanh toán không hợp lệ',

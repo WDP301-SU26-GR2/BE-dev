@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common'
-import { $Enums, AuditEntityType, UserStatus } from '@prisma/client'
+import { $Enums, AuditEntityType, NotificationType, UserStatus } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
+import { NotificationService } from 'src/modules/notification/notification.service'
 import { BoardDecisionTransferBodyDto, CreateTransferRequestBodyDto } from '../dto/transfer.dto'
 import {
+  ActiveTransferRequestAlreadyExistsException,
   InvalidStatusForScreeningException,
   InvalidTransferProposalException,
   NoActiveContractFoundException,
@@ -11,6 +13,7 @@ import {
   TransferAccessDeniedException
 } from '../errors/transfer.error'
 import { TRANSFER_REQUEST_STATUS } from '../transfer.constant'
+import { TransferMessages } from '../transfer.messages'
 import { TransferRepo } from '../transfer.repo'
 import type { ActorContext } from '../transfer.types'
 import { TransferAccessPolicy } from './transfer-access.policy'
@@ -24,17 +27,21 @@ export class TransferRequestService {
     private readonly auditService: AuditService,
     private readonly accessPolicy: TransferAccessPolicy,
     private readonly resourceLoader: TransferResourceLoader,
-    private readonly transactions: TransferTransactionService
+    private readonly transactions: TransferTransactionService,
+    private readonly notifications: NotificationService
   ) {}
 
   async create(requestingMangakaId: string, dto: CreateTransferRequestBodyDto) {
-    const [requestingMangaka, activeContract] = await Promise.all([
+    const [requestingMangaka, activeContract, activeRequest] = await Promise.all([
       this.repository.findUserById(requestingMangakaId),
-      this.repository.findActiveContractBySeriesId(dto.seriesId)
+      this.repository.findActiveContractBySeriesId(dto.seriesId),
+      this.repository.findActiveTransferRequestBySeriesId(dto.seriesId)
     ])
     if (requestingMangaka?.status !== UserStatus.ACTIVE) throw RequestingMangakaInactiveException
     if (!activeContract) throw NoActiveContractFoundException
     if (activeContract.mangakaId === requestingMangakaId) throw RequesterAlreadyOwnsSeriesException
+    // §v2 point 6: một series chỉ có tối đa 1 yêu cầu chuyển nhượng đang hoạt động.
+    if (activeRequest) throw ActiveTransferRequestAlreadyExistsException
     this.assertValidProposal(activeContract.contractType, dto)
     return this.repository.createTransferRequest({
       seriesId: dto.seriesId,
@@ -62,6 +69,11 @@ export class TransferRequestService {
 
   async listForMangaka(mangakaId: string) {
     return { data: await this.repository.findTransferRequestsByMangaka(mangakaId) }
+  }
+
+  // §v2 point 3: Editor xem toàn bộ vòng đời request của series mình phụ trách (kèm lọc status tuỳ chọn).
+  async listForEditor(editorId: string, status?: $Enums.TransferRequestStatus) {
+    return { data: await this.repository.findTransferRequestsByEditor(editorId, status) }
   }
 
   async findById(id: string, actor: ActorContext) {
@@ -108,6 +120,29 @@ export class TransferRequestService {
       fromState: request.status,
       toState: target
     })
+    // §v2 point 4: báo kết quả sàng lọc cho các bên (SAU commit, best-effort). referenceId = request.id.
+    await this.notifyScreeningOutcome(request, result === $Enums.BoardDecisionResult.APPROVED)
     return updated
+  }
+
+  private async notifyScreeningOutcome(
+    request: { id: string; seriesId: string; requestingMangakaId: string; originalMangakaId: string },
+    approved: boolean
+  ) {
+    const resource = await this.resourceLoader.requestAccessResource(request)
+    const recipients = new Set<string>()
+    if (resource.editorId) recipients.add(resource.editorId)
+    recipients.add(request.requestingMangakaId)
+    // Chỉ APPROVE mới báo Mangaka gốc — vì lúc này giai đoạn thương lượng (Revenue Share) mới bắt đầu.
+    if (approved) recipients.add(request.originalMangakaId)
+    for (const recipientId of recipients) {
+      await this.notifications.notifySafe({
+        recipientId,
+        type: NotificationType.BOARD,
+        referenceId: request.id,
+        referenceType: approved ? 'TRANSFER_REQUEST_APPROVED' : 'TRANSFER_REQUEST_REJECTED',
+        content: approved ? TransferMessages.notification.boardApproved : TransferMessages.notification.boardRejected
+      })
+    }
   }
 }

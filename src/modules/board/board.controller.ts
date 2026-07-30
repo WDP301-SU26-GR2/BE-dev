@@ -172,8 +172,8 @@ export class BoardController {
   @Get('decisions')
   @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 200, type: [BoardDecisionListItemDto] })
-  getDecisions(@Query() query: ListBoardDecisionsQueryDto) {
-    return this.boardService.getDecisions(query)
+  getDecisions(@Query() query: ListBoardDecisionsQueryDto, @ActiveUser('userId') userId: string) {
+    return this.boardService.getDecisions(query, userId)
   }
 
   @ApiOperation({ summary: 'Chi tiết quyết định Hội đồng' })

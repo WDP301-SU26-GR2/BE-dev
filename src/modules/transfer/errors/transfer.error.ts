@@ -30,8 +30,12 @@ export const TransferAccessDeniedException = new ForbiddenException(E.accessDeni
 export const InvalidTransferBoardDecisionException = new UnprocessableEntityException([
   { message: E.invalidBoardDecision, path: 'boardDecisionId' }
 ])
+export const TransferContractApprovalDecisionRequiredException = new ConflictException([
+  { message: E.transferContractApprovalDecisionRequired, path: 'boardDecisionId' }
+])
 export const RequestingMangakaInactiveException = new ForbiddenException(E.requestingMangakaInactive)
 export const RequesterAlreadyOwnsSeriesException = new ConflictException(E.requesterAlreadyOwnsSeries)
+export const ActiveTransferRequestAlreadyExistsException = new ConflictException(E.activeTransferRequestExists)
 export const InvalidTransferProposalException = new UnprocessableEntityException([
   { message: E.invalidProposal, path: 'proposedPercentage' }
 ])

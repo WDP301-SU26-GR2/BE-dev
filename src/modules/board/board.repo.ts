@@ -42,13 +42,33 @@ export class BoardRepository {
     })
   }
 
-  async findManyDecisions(filter?: { boardSessionId?: string; targetSeriesId?: string }) {
+  async findManyDecisions(filter?: { boardSessionId?: string; targetSeriesId?: string; boardSessionIds?: string[] }) {
     return this.prisma.boardDecision.findMany({
       where: {
         ...(filter?.boardSessionId ? { boardSessionId: filter.boardSessionId } : {}),
+        ...(filter?.boardSessionIds ? { boardSessionId: { in: filter.boardSessionIds } } : {}),
         ...(filter?.targetSeriesId ? { targetSeriesId: filter.targetSeriesId } : {})
       },
       orderBy: { id: 'desc' }
+    })
+  }
+
+  findApprovedContractDecisions(targetSeriesId: string) {
+    return this.prisma.boardDecision.findMany({
+      where: {
+        targetSeriesId,
+        decisionType: $Enums.DecisionType.CONTRACT,
+        result: $Enums.BoardDecisionResult.APPROVED
+      },
+      orderBy: [{ decidedAt: 'desc' }, { id: 'desc' }]
+    })
+  }
+
+  // §v2 point 10: id các phiên mà user nằm trong roster (allowedEditorIds) — lọc decisions ?mine=true.
+  findMemberSessionIds(userId: string) {
+    return this.prisma.boardSession.findMany({
+      where: { allowedEditorIds: { has: userId } },
+      select: { id: true }
     })
   }
 
@@ -128,6 +148,7 @@ export class BoardRepository {
       data: {
         boardSessionId: dto.boardSessionId,
         targetSeriesId: dto.targetSeriesId ?? null,
+        transferRequestId: dto.transferRequestId ?? null,
         decisionType: dto.decisionType,
         details: dto.details ?? null,
         result: 'PENDING',

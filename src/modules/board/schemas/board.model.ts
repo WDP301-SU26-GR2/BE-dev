@@ -34,6 +34,8 @@ export const BoardDecisionSchema = extendApi(
     id: z.string(),
     boardSessionId: z.string(),
     targetSeriesId: z.string().nullable(),
+    // §v2 point 5: gắn quyết định TRANSFER với đúng 1 TransferRequest (bắt buộc khi decisionType=TRANSFER).
+    transferRequestId: z.string().nullable().optional(),
     decisionType: z.nativeEnum($Enums.DecisionType),
     details: z.record(z.string(), z.json()).nullable(),
     result: z.nativeEnum($Enums.BoardDecisionResult),

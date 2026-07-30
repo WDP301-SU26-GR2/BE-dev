@@ -6,6 +6,7 @@ import { AssignFullBuyoutBodyDto, CreateTransferContractBodyDto } from '../dto/t
 import {
   InvalidTransferStateException,
   OnlyAppliesToFullBuyoutException,
+  OnlyAppliesToRevenueShareException,
   OriginalContractIdNotFoundException,
   TransferAccessDeniedException,
   ValuationRequiredException
@@ -46,6 +47,7 @@ export class TransferContractService {
         seriesId: request.seriesId,
         mangakaId: request.requestingMangakaId,
         editorId: request.originalContract?.editorId ?? null,
+        editedById: actor.userId,
         boardDecisionId: decision.id,
         originalContractId: request.originalContractId!,
         sourceTransferRequestId: request.id,
@@ -69,14 +71,43 @@ export class TransferContractService {
       fromState: request.status,
       toState: TransferRequestStatus.AWAITING_REPLACEMENT_SIGNATURES
     })
-    return { message: TransferMessages.response.fullBuyoutProcessed, newContractId: replacement.id }
+    // §v2 point 8: createReplacementDraft tạo Contract THẲNG qua port, KHÔNG đi luồng notify hợp đồng thường.
+    // Báo cho Mangaka mới (chờ ký), Editor, và Board roster (theo dõi tiến độ ký). SAU commit, best-effort.
+    const boardRoster = decision.allowedEditorIds ?? []
+    await this.notifyReplacementDrafted(replacement.id, [
+      request.requestingMangakaId,
+      request.originalContract?.editorId ?? null,
+      ...boardRoster
+    ])
+    // §v2 point 7: trả replacementContractId + requestStatus để FE mở đúng hợp đồng thay thế (message nêu đúng thời điểm).
+    return {
+      message: TransferMessages.response.replacementContractCreated,
+      replacementContractId: replacement.id,
+      requestStatus: TransferRequestStatus.AWAITING_REPLACEMENT_SIGNATURES
+    }
+  }
+
+  private async notifyReplacementDrafted(contractId: string, recipientIds: ReadonlyArray<string | null | undefined>) {
+    const recipients = new Set(recipientIds.filter((id): id is string => Boolean(id)))
+    for (const recipientId of recipients) {
+      await this.notifications.notifySafe({
+        recipientId,
+        type: NotificationType.CONTRACT,
+        referenceId: contractId,
+        referenceType: 'TRANSFER_REPLACEMENT_CONTRACT_DRAFTED',
+        content: TransferMessages.notification.replacementContractDrafted
+      })
+    }
   }
 
   async create(actor: ActorContext, dto: CreateTransferContractBodyDto) {
     const request = await this.resourceLoader.loadRequest(dto.transferRequestId)
     const resource = await this.resourceLoader.requestAccessResource(request)
     if (!this.accessPolicy.canManageNegotiation(actor, resource)) throw TransferAccessDeniedException
-    if (request.status !== TransferRequestStatus.UNDER_REVIEW) throw InvalidTransferStateException
+    // §v2 point 2: chỉ REVENUE_SHARE mới đi đường 3 bên; và BẮT BUỘC Mangaka gốc đã đồng ý (ACCEPTED).
+    // Dù gọi API trực tiếp cũng không thể bỏ qua bước đồng thuận: UNDER_REVIEW không tạo được hợp đồng.
+    if (request.originalContractType !== $Enums.ContractType.REVENUE_SHARE) throw OnlyAppliesToRevenueShareException
+    if (request.status !== TransferRequestStatus.ACCEPTED) throw InvalidTransferStateException
 
     const dependencies = this.transactions.require()
     const created = await dependencies.uow.runInTransaction(async (context) => {
@@ -93,7 +124,7 @@ export class TransferContractService {
       await dependencies.requestState.transition(
         context,
         request.id,
-        TransferRequestStatus.UNDER_REVIEW,
+        TransferRequestStatus.ACCEPTED,
         TransferRequestStatus.AWAITING_TRANSFER_SIGNATURES
       )
       return {

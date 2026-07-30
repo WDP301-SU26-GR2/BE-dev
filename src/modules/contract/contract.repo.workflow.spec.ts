@@ -81,11 +81,18 @@ describe('ContractRepo workflow persistence', () => {
 
   it('creates a draft and delegates simple version, status, decision, signature and progress queries', async () => {
     const contract = {
-      create: jest.fn().mockResolvedValue({ id: 'c1' }),
+      create: jest.fn().mockResolvedValue({
+        id: 'c1',
+        valuationAmount: 100,
+        publisherOwnershipPct: 70,
+        mangakaOwnershipPct: 30,
+        terminationClause: 'clause'
+      }),
       update: jest.fn().mockResolvedValue({ id: 'c1' }),
       findUnique: jest.fn().mockResolvedValue({ id: 'c1' })
     }
     const contractVersion = {
+      create: jest.fn().mockResolvedValue({ id: 'v1' }),
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null)
     }
@@ -93,12 +100,21 @@ describe('ContractRepo workflow persistence', () => {
       findUnique: jest.fn().mockResolvedValue(null),
       count: jest.fn().mockResolvedValue(2)
     }
-    const repo = new ContractRepo({ contract, contractVersion, contractSignature } as never)
+    const prisma = {
+      contract,
+      contractVersion,
+      contractSignature,
+      $transaction: jest.fn((work: (client: unknown) => unknown) =>
+        work({ contract, contractVersion, contractSignature })
+      )
+    }
+    const repo = new ContractRepo(prisma as never)
     const dto = { seriesId: 's1', mangakaId: 'm1', boardDecisionId: 'd1' } as never
 
     await repo.createDraft('e1', dto)
     await repo.findVersionsByContractId('c1')
     await repo.findVersionById('c1', 'v1')
+    await repo.findLatestVersion('c1')
     await repo.updateStatus('c1', ContractStatus.NEGOTIATION)
     await repo.updateStatus('c1', ContractStatus.NEGOTIATION, { mangakaSignedAt: null })
     await repo.findWithBoardDecision('c1')
@@ -108,6 +124,14 @@ describe('ContractRepo workflow persistence', () => {
 
     expect(contract.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ editorId: 'e1', status: ContractStatus.DRAFT })
+    })
+    expect(contractVersion.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        contractId: 'c1',
+        versionNumber: 1,
+        valuationAmount: 100,
+        editedById: 'e1'
+      })
     })
     expect(contract.update).toHaveBeenNthCalledWith(1, {
       where: { id: 'c1' },

@@ -73,12 +73,12 @@ export class ContractService {
     return this.workflowService.mangakaRequestChanges(contractId, userId, reason)
   }
 
-  boardApprove(contractId: string, userId: string) {
-    return this.workflowService.boardApprove(contractId, userId)
+  boardApprove(contractId: string, userId: string, boardDecisionId: string) {
+    return this.workflowService.boardApprove(contractId, userId, boardDecisionId)
   }
 
-  boardRequestChanges(contractId: string, userId: string, reason: string) {
-    return this.workflowService.boardRequestChanges(contractId, userId, reason)
+  boardRequestChanges(contractId: string, userId: string, boardDecisionId: string, reason: string) {
+    return this.workflowService.boardRequestChanges(contractId, userId, boardDecisionId, reason)
   }
 
   signByMangakaWithOtp(contractId: string, userId: string, email: string, otpCode: string) {

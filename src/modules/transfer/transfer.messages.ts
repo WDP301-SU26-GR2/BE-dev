@@ -7,7 +7,12 @@ export const TransferMessages = {
     settlementCompleted: 'Việc chuyển nhượng tác phẩm đã hoàn tất',
     // §84: chuỗi ký A → B → Hội đồng trước đây IM LẶNG hoàn toàn — không ai biết đến lượt mình.
     contractDrafted: 'Hợp đồng chuyển nhượng đã được soạn xong. Vui lòng xem điều khoản và ký khi đến lượt.',
-    awaitingYourSignature: 'Đã đến lượt bạn ký hợp đồng chuyển nhượng tác phẩm.'
+    awaitingYourSignature: 'Đã đến lượt bạn ký hợp đồng chuyển nhượng tác phẩm.',
+    // §v2 point 4: báo kết quả sàng lọc của Hội đồng cho các bên liên quan.
+    boardApproved: 'Yêu cầu chuyển nhượng đã được Hội đồng thông qua.',
+    boardRejected: 'Yêu cầu chuyển nhượng đã bị Hội đồng từ chối.',
+    // §v2 point 8: báo hợp đồng thay thế (Full Buyout) đã được tạo, đang chờ ký.
+    replacementContractDrafted: 'Đã tạo hợp đồng thay thế cho việc mua đứt tác phẩm, đang chờ các bên ký.'
   },
   error: {
     noActiveContractFound: 'Error.NoActiveContractForSeries',
@@ -26,16 +31,20 @@ export const TransferMessages = {
     accessDenied: 'Error.TransferAccessDenied',
     invalidBoardDecision: 'Error.InvalidTransferBoardDecision',
     transferDecisionReferenceRequired: 'Error.TransferDecisionReferenceRequired',
+    transferContractApprovalDecisionRequired: 'Error.TransferContractApprovalDecisionRequired',
     invalidOwnershipSplit: 'Error.InvalidOwnershipSplit',
     requestingMangakaInactive: 'Error.TransferRequestingMangakaInactive',
     requesterAlreadyOwnsSeries: 'Error.TransferRequesterAlreadyOwnsSeries',
+    activeTransferRequestExists: 'Error.ActiveTransferRequestAlreadyExists',
     invalidProposal: 'Error.InvalidTransferProposal',
     // Tên riêng của transfer, KHÔNG trùng `Error.NotCoOwner` của module chapter (khác ngữ cảnh, khác bản dịch).
     notTheCoOwnerForChapter: 'Error.NotChapterCoOwner',
     chapterApprovalIsNotPending: 'Error.ChapterApprovalNotPending'
   },
   response: {
-    fullBuyoutProcessed: 'Đã hoàn tất chuyển nhượng mua đứt',
+    // §v2 point 7: message CŨ ('Đã hoàn tất chuyển nhượng mua đứt') SAI thời điểm — lúc này mới tạo hợp
+    // đồng thay thế, các bên chưa ký. Việc chuyển nhượng chỉ hoàn tất sau khi ký đủ + settlement (§9).
+    replacementContractCreated: 'Đã tạo hợp đồng thay thế và đang chờ các bên ký.',
     signatureRecorded: 'Đã ghi nhận chữ ký',
     chapterApproved: 'Đã duyệt chương',
     chapterRejected: 'Đã từ chối chương',
@@ -59,9 +68,12 @@ export const TransferMessages = {
     'Error.TransferAccessDenied': 'Người dùng không thuộc phạm vi của tài nguyên chuyển nhượng',
     'Error.InvalidTransferBoardDecision': 'Quyết định Hội đồng không hợp lệ cho yêu cầu chuyển nhượng này',
     'Error.TransferDecisionReferenceRequired': 'Cần đúng một boardDecisionId hoặc boardSessionId tương thích',
+    'Error.TransferContractApprovalDecisionRequired':
+      'Hợp đồng chuyển nhượng chưa có quyết định CONTRACT được Hội đồng phê duyệt',
     'Error.InvalidOwnershipSplit': 'Tổng tỷ lệ sở hữu mới phải bằng 100 và mỗi tỷ lệ phải nằm trong khoảng 0 đến 100',
     'Error.TransferRequestingMangakaInactive': 'Mangaka gửi yêu cầu phải đang hoạt động',
     'Error.TransferRequesterAlreadyOwnsSeries': 'Chủ sở hữu hiện tại không thể tự gửi yêu cầu chuyển nhượng',
+    'Error.ActiveTransferRequestAlreadyExists': 'Series này đã có một yêu cầu chuyển nhượng đang được xử lý',
     'Error.InvalidTransferProposal': 'Loại chuyển nhượng và tỷ lệ đề xuất không hợp lệ',
     'Error.NotChapterCoOwner': 'Bạn không phải đồng sở hữu của chương này',
     'Error.ChapterApprovalNotPending': 'Yêu cầu duyệt chương không ở trạng thái chờ xử lý'

@@ -14,7 +14,9 @@ import {
   ContractStatusProgressResDto,
   ReportRevenueBodyDto,
   ContractPdfResDto,
-  ContractChangeReasonBodyDto
+  ContractChangeReasonBodyDto,
+  BoardApproveContractBodyDto,
+  BoardRequestContractChangesBodyDto
 } from './dto/contract.dto'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
 import { ContractErrors } from './errors/contract.errors'
@@ -159,13 +161,18 @@ export class ContractController {
   @Roles(RoleName.BOARD_MEMBER)
   @ApiErrors(
     ContractErrors.NotFound(),
-    ContractErrors.BoardDecisionNotFound(),
+    ContractErrors.ContractDecisionNotFound(),
+    ContractErrors.InvalidContractDecision(),
     ContractErrors.NotAuthorizedInBoard(),
     ContractErrors.InvalidContractTransition()
   )
   @ZodResponse({ status: 201, type: ContractResDto })
-  boardApprove(@Param('id') id: string, @ActiveUser('userId') userId: string) {
-    return this.contractService.boardApprove(id, userId)
+  boardApprove(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @Body() body: BoardApproveContractBodyDto
+  ) {
+    return this.contractService.boardApprove(id, userId, body.boardDecisionId)
   }
 
   @ApiOperation({ summary: 'B-CON-02 (BOARD_REVIEW): Hội đồng yêu cầu chỉnh sửa → NEGOTIATION' })
@@ -173,7 +180,8 @@ export class ContractController {
   @Roles(RoleName.BOARD_MEMBER)
   @ApiErrors(
     ContractErrors.NotFound(),
-    ContractErrors.BoardDecisionNotFound(),
+    ContractErrors.ContractDecisionNotFound(),
+    ContractErrors.InvalidContractDecision(),
     ContractErrors.NotAuthorizedInBoard(),
     ContractErrors.InvalidContractTransition()
   )
@@ -181,9 +189,9 @@ export class ContractController {
   boardRequestChanges(
     @Param('id') id: string,
     @ActiveUser('userId') userId: string,
-    @Body() body: ContractChangeReasonBodyDto
+    @Body() body: BoardRequestContractChangesBodyDto
   ) {
-    return this.contractService.boardRequestChanges(id, userId, body.reason)
+    return this.contractService.boardRequestChanges(id, userId, body.boardDecisionId, body.reason)
   }
 
   @ApiOperation({ summary: 'Mangaka ký hợp đồng bằng OTP' })

@@ -6,6 +6,8 @@ import {
   AssignFullBuyoutSchema,
   SignTransferContractSchema,
   CoOwnerRejectChapterSchema,
+  ListTransferRequestsQuerySchema,
+  AssignFullBuyoutResSchema,
   // Thêm các Response Schemas mới import từ file schema của bạn
   TransferRequestSchema,
   TransferRequestListSchema,
@@ -29,11 +31,15 @@ export class SignTransferContractBodyDto extends createZodDto(SignTransferContra
 
 export class CoOwnerRejectChapterBodyDto extends createZodDto(CoOwnerRejectChapterSchema) {}
 
+export class ListTransferRequestsQueryDto extends createZodDto(ListTransferRequestsQuerySchema) {}
+
 // ==========================================
 // 2. RESPONSE DTOs
 // ==========================================
 
 export class TransferRequestResDto extends createZodDto(TransferRequestSchema) {}
+
+export class AssignFullBuyoutResDto extends createZodDto(AssignFullBuyoutResSchema) {}
 
 export class TransferRequestListResDto extends createZodDto(TransferRequestListSchema) {}
 

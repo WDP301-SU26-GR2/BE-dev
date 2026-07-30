@@ -264,6 +264,7 @@ describe('BoardRepository Prisma contracts', () => {
       data: {
         boardSessionId: 'session',
         targetSeriesId,
+        transferRequestId: null,
         decisionType: dto.decisionType,
         details,
         result: 'PENDING',

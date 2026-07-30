@@ -29,9 +29,15 @@ export class OutboxRepo {
     })
   }
 
-  findPending(type: OutboxEventType, take = 20) {
+  // §v2 point 9: maxAttempts (tuỳ chọn) loại bỏ event đã vượt trần thử (dead-letter) khỏi vòng retry.
+  findPending(type: OutboxEventType, take = 20, maxAttempts?: number) {
     return this.prisma.outboxEvent.findMany({
-      where: { type, processedAt: { isSet: false }, availableAt: { lte: new Date() } },
+      where: {
+        type,
+        processedAt: { isSet: false },
+        availableAt: { lte: new Date() },
+        ...(maxAttempts != null ? { attempts: { lt: maxAttempts } } : {})
+      },
       orderBy: { createdAt: 'asc' },
       take
     })

@@ -44,11 +44,46 @@ describe('TransferRequestStateService', () => {
       service.transition(
         context,
         'request-1',
-        TransferRequestStatus.UNDER_REVIEW,
+        TransferRequestStatus.ACCEPTED,
         TransferRequestStatus.AWAITING_TRANSFER_SIGNATURES
       )
     ).rejects.toBe(InvalidTransferStateException)
     expect(repo.findRequestInTransaction).not.toHaveBeenCalled()
+  })
+
+  // §v2 point 1: NEGOTIATING không còn quay ngược UNDER_REVIEW; mangaka đồng ý phải sang ACCEPTED.
+  it('rejects the removed NEGOTIATING → UNDER_REVIEW loop-back before writing', async () => {
+    await expect(
+      service.transition(context, 'request-1', TransferRequestStatus.NEGOTIATING, TransferRequestStatus.UNDER_REVIEW)
+    ).rejects.toBe(InvalidTransferStateException)
+    expect(repo.compareAndSetRequestStatus).not.toHaveBeenCalled()
+  })
+
+  it('allows NEGOTIATING → ACCEPTED and ACCEPTED → AWAITING_TRANSFER_SIGNATURES', async () => {
+    repo.compareAndSetRequestStatus.mockResolvedValue(true)
+
+    await service.transition(context, 'request-1', TransferRequestStatus.NEGOTIATING, TransferRequestStatus.ACCEPTED)
+    await service.transition(
+      context,
+      'request-1',
+      TransferRequestStatus.ACCEPTED,
+      TransferRequestStatus.AWAITING_TRANSFER_SIGNATURES
+    )
+
+    expect(repo.compareAndSetRequestStatus).toHaveBeenNthCalledWith(
+      1,
+      context,
+      'request-1',
+      TransferRequestStatus.NEGOTIATING,
+      TransferRequestStatus.ACCEPTED
+    )
+    expect(repo.compareAndSetRequestStatus).toHaveBeenNthCalledWith(
+      2,
+      context,
+      'request-1',
+      TransferRequestStatus.ACCEPTED,
+      TransferRequestStatus.AWAITING_TRANSFER_SIGNATURES
+    )
   })
 
   it('persists the authoritative decision id in the same CAS write', async () => {
