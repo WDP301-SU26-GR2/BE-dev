@@ -60,8 +60,8 @@ export class BoardFacade {
     return this.workflowService.createDecision(dto)
   }
 
-  getDecisions(query: ListBoardDecisionsQueryDto) {
-    return this.queryService.getDecisions(query)
+  getDecisions(query: ListBoardDecisionsQueryDto, userId?: string) {
+    return this.queryService.getDecisions(query, userId)
   }
 
   getDecisionDetails(id: string) {

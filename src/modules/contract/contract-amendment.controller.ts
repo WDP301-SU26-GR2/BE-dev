@@ -107,6 +107,7 @@ export class ContractAmendmentController {
   @ApiOperation({ summary: 'Mangaka ký phụ lục bằng OTP (chỉ REVENUE_SHARE)' })
   @ApiErrors(
     ContractErrors.AmendmentNotPendingSignatures(),
+    ContractErrors.ContractApprovalDecisionRequired(),
     ContractErrors.MangakaSignNotRequired(),
     ContractErrors.NotContractMangaka()
   )
@@ -126,6 +127,7 @@ export class ContractAmendmentController {
   @ApiOperation({ summary: 'Board ký phụ lục bằng OTP' })
   @ApiErrors(
     ContractErrors.AmendmentNotPendingSignatures(),
+    ContractErrors.ContractApprovalDecisionRequired(),
     ContractErrors.NotAuthorizedInBoard(),
     ContractErrors.BoardMemberAlreadySigned()
   )

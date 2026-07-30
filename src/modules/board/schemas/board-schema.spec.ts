@@ -85,6 +85,77 @@ describe('CreateBoardDecisionBodySchema details validation (Spec 16)', () => {
     )
   })
 
+  // §v2 point 5: quyết định TRANSFER BẮT BUỘC gắn transferRequestId (chống tái dùng decision cho request khác).
+  it('requires transferRequestId for TRANSFER decisions', () => {
+    const transfer = { ...base, decisionType: 'TRANSFER', details: null }
+    expect(CreateBoardDecisionBodySchema.safeParse(transfer).success).toBe(false)
+    expect(CreateBoardDecisionBodySchema.safeParse({ ...transfer, transferRequestId: '  ' }).success).toBe(false)
+    expect(CreateBoardDecisionBodySchema.safeParse({ ...transfer, transferRequestId: 'c'.repeat(24) }).success).toBe(
+      true
+    )
+  })
+
+  it.each(['PUBLICATION_CONTRACT', 'REPLACEMENT_CONTRACT'])(
+    'accepts CONTRACT %s only with resourceId and versionId',
+    (resourceType) => {
+      const contractDecision = {
+        ...base,
+        decisionType: 'CONTRACT',
+        details: {
+          resourceType,
+          resourceId: 'c'.repeat(24),
+          versionId: 'd'.repeat(24)
+        }
+      }
+      expect(CreateBoardDecisionBodySchema.safeParse(contractDecision).success).toBe(true)
+      expect(
+        CreateBoardDecisionBodySchema.safeParse({
+          ...contractDecision,
+          details: { resourceType, resourceId: 'c'.repeat(24) }
+        }).success
+      ).toBe(false)
+    }
+  )
+
+  it.each(['CONTRACT_AMENDMENT', 'TRANSFER_CONTRACT'])('accepts CONTRACT %s without a versionId', (resourceType) => {
+    expect(
+      CreateBoardDecisionBodySchema.safeParse({
+        ...base,
+        decisionType: 'CONTRACT',
+        details: { resourceType, resourceId: 'c'.repeat(24) }
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects CONTRACT decisions with missing series, unsupported resourceType or malformed resourceId', () => {
+    const details = {
+      resourceType: 'PUBLICATION_CONTRACT',
+      resourceId: 'c'.repeat(24),
+      versionId: 'd'.repeat(24)
+    }
+    expect(
+      CreateBoardDecisionBodySchema.safeParse({
+        boardSessionId: base.boardSessionId,
+        decisionType: 'CONTRACT',
+        details
+      }).success
+    ).toBe(false)
+    expect(
+      CreateBoardDecisionBodySchema.safeParse({
+        ...base,
+        decisionType: 'CONTRACT',
+        details: { ...details, resourceType: 'UNKNOWN' }
+      }).success
+    ).toBe(false)
+    expect(
+      CreateBoardDecisionBodySchema.safeParse({
+        ...base,
+        decisionType: 'CONTRACT',
+        details: { ...details, resourceId: 'bad' }
+      }).success
+    ).toBe(false)
+  })
+
   // Regression §83.1: FORMAT_CHANGE thiếu details.publicationType từng được nhận 2xx rồi
   // SeriesLifecycleService.changeFormat chỉ logger.warn + return -> series ĐỨNG YÊN, không notify,
   // không sinh Amendment (silent no-op). Chặn ngay tại Zod để Board không bao giờ chốt được

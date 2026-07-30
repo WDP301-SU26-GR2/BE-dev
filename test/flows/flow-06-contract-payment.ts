@@ -42,6 +42,7 @@ import {
   PaymentRecordStatus,
   PaymentConditionStatus,
   BoardSessionStatus,
+  BoardDecisionResult,
   DecisionType
 } from '@prisma/client'
 
@@ -102,6 +103,54 @@ const setupSeriesAndDraftContract = async (
   return { series, contractId: rC.json.data.id as string, boardDecisionId: dec.id, sessionId: session.id, mTok, eTok }
 }
 
+type ContractFixture = Awaited<ReturnType<typeof setupSeriesAndDraftContract>>
+
+const makePublicationContractDecision = async (
+  fixture: ContractFixture,
+  boardMemberId: string,
+  result: BoardDecisionResult = BoardDecisionResult.APPROVED
+) => {
+  const currentVersion = await prisma.contractVersion.findFirst({
+    where: { contractId: fixture.contractId },
+    orderBy: { versionNumber: 'desc' }
+  })
+  if (!currentVersion) throw new Error(`Contract ${fixture.contractId} has no current version`)
+  return prisma.boardDecision.create({
+    data: {
+      boardSessionId: fixture.sessionId,
+      targetSeriesId: fixture.series.id,
+      decisionType: DecisionType.CONTRACT,
+      result,
+      allowedEditorIds: [boardMemberId],
+      details: {
+        resourceType: 'PUBLICATION_CONTRACT',
+        resourceId: fixture.contractId,
+        versionId: currentVersion.id
+      },
+      totalVotes: 1,
+      approveCount: result === BoardDecisionResult.APPROVED ? 1 : 0,
+      rejectCount: result === BoardDecisionResult.REJECTED ? 1 : 0,
+      quorumMet: true
+    }
+  })
+}
+
+const makeAmendmentDecision = (fixture: ContractFixture, boardMemberId: string, amendmentId: string) =>
+  prisma.boardDecision.create({
+    data: {
+      boardSessionId: fixture.sessionId,
+      targetSeriesId: fixture.series.id,
+      decisionType: DecisionType.CONTRACT,
+      result: BoardDecisionResult.APPROVED,
+      allowedEditorIds: [boardMemberId],
+      details: { resourceType: 'CONTRACT_AMENDMENT', resourceId: amendmentId },
+      totalVotes: 1,
+      approveCount: 1,
+      rejectCount: 0,
+      quorumMet: true
+    }
+  })
+
 // Body happy cho một payment condition hợp lệ với type tương ứng.
 const paymentConditionBody = (
   conditionType: ConditionType,
@@ -145,6 +194,13 @@ const main = async () => {
   const b1Tok = await login(b1.email)
   const b2Tok = await login(b2.email)
   const saTok = await login(sa.email)
+  const applyApprovedContractDecision = async (fixture: ContractFixture) => {
+    const decision = await makePublicationContractDecision(fixture, b1.id)
+    return req('POST', `/contracts/${fixture.contractId}/board-approve`, {
+      token: b1Tok,
+      body: { boardDecisionId: decision.id }
+    })
+  }
 
   // ═════════════ 06.1 — HAPPY PATH: full lifecycle REVENUE_SHARE ═══════════════════════
   section('06.1 Happy full lifecycle (DRAFT → FULLY_EXECUTED)')
@@ -205,11 +261,16 @@ const main = async () => {
 
   // Mangaka approve
   const rMA = await req('PATCH', `/contracts/${cHappy}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
+  const happyApprovedDecision = await makePublicationContractDecision(happy, b1.id)
+  const happyRejectedDecision = await makePublicationContractDecision(happy, b1.id, BoardDecisionResult.REJECTED)
   ok('06.1i Mangaka approve → MANGAKA_APPROVED', rMA.status === 200, `got ${rMA.status}`)
 
   // Board ngoài roster phiên họp KHÔNG được xem xét điều khoản (mirror guard bước ký) — chạy TRƯỚC
   // happy path để chứng minh nó chặn thật ở đúng trạng thái MANGAKA_APPROVED (không phải chặn nhờ state).
-  const rBAOutsider = await req('POST', `/contracts/${cHappy}/board-approve`, { token: b2Tok })
+  const rBAOutsider = await req('POST', `/contracts/${cHappy}/board-approve`, {
+    token: b2Tok,
+    body: { boardDecisionId: happyApprovedDecision.id }
+  })
   ok(
     '06.1j-neg board-approve bởi BOARD_MEMBER ngoài roster → 403',
     rBAOutsider.status === 403,
@@ -217,7 +278,7 @@ const main = async () => {
   )
   const rBRCOutsider = await req('POST', `/contracts/${cHappy}/board-request-changes`, {
     token: b2Tok,
-    body: { reason: 'Thử vượt quyền' }
+    body: { boardDecisionId: happyRejectedDecision.id, reason: 'Thử vượt quyền' }
   })
   ok(
     '06.1j-neg2 board-request-changes bởi BOARD_MEMBER ngoài roster → 403',
@@ -226,7 +287,10 @@ const main = async () => {
   )
 
   // Board approve
-  const rBA = await req('POST', `/contracts/${cHappy}/board-approve`, { token: b1Tok })
+  const rBA = await req('POST', `/contracts/${cHappy}/board-approve`, {
+    token: b1Tok,
+    body: { boardDecisionId: happyApprovedDecision.id }
+  })
   ok('06.1j board-approve → BOARD_APPROVED', rBA.status === 201, `got ${rBA.status} ${rBA.raw.slice(0, 200)}`)
   ok(
     '06.1k status DB = BOARD_APPROVED',
@@ -286,8 +350,10 @@ const main = async () => {
 
   // ═════════════ 06.2 — PAYMENT CONDITIONS ═══════════════════════════════════════════════
   section('06.2 PaymentConditions CRUD')
+  const conditionSetup = await setupSeriesAndDraftContract(m1, e1, b1, sa, ContractType.REVENUE_SHARE)
+  const cConditions = conditionSetup.contractId
   // RECURRING_CHAPTER
-  const rc1 = await req('POST', `/contracts/${cHappy}/payment-conditions`, {
+  const rc1 = await req('POST', `/contracts/${cConditions}/payment-conditions`, {
     token: e1Tok,
     body: paymentConditionBody(ConditionType.RECURRING_CHAPTER, 100, true, { every: 2 })
   })
@@ -295,7 +361,7 @@ const main = async () => {
   const cRC1 = rc1.json.data.id
 
   // CHAPTER_MILESTONE
-  const rc2 = await req('POST', `/contracts/${cHappy}/payment-conditions`, {
+  const rc2 = await req('POST', `/contracts/${cConditions}/payment-conditions`, {
     token: e1Tok,
     body: paymentConditionBody(ConditionType.CHAPTER_MILESTONE, 500, false, { chapter: 5 })
   })
@@ -303,28 +369,28 @@ const main = async () => {
   const cCM = rc2.json.data.id
 
   // RANKING_MILESTONE
-  const rc3 = await req('POST', `/contracts/${cHappy}/payment-conditions`, {
+  const rc3 = await req('POST', `/contracts/${cConditions}/payment-conditions`, {
     token: e1Tok,
     body: paymentConditionBody(ConditionType.RANKING_MILESTONE, 1000, false, { topRank: 3 })
   })
   ok('06.2c tạo RANKING_MILESTONE', rc3.status === 201, `got ${rc3.status}`)
 
   // TIME_BOUND
-  const rc4 = await req('POST', `/contracts/${cHappy}/payment-conditions`, {
+  const rc4 = await req('POST', `/contracts/${cConditions}/payment-conditions`, {
     token: e1Tok,
     body: paymentConditionBody(ConditionType.TIME_BOUND, 200, false, { deadline: '2030-12-31' })
   })
   ok('06.2d tạo TIME_BOUND', rc4.status === 201, `got ${rc4.status}`)
 
   // Validation: payoutAmount + payoutPct đều thiếu → 422
-  const rNoPayout = await req('POST', `/contracts/${cHappy}/payment-conditions`, {
+  const rNoPayout = await req('POST', `/contracts/${cConditions}/payment-conditions`, {
     token: e1Tok,
     body: { conditionType: ConditionType.CHAPTER_MILESTONE, isRecurring: false, thresholdConfig: { chapter: 1 } }
   })
   ok('06.2e thiếu payoutAmount/payoutPct → 422', rNoPayout.status === 422, `got ${rNoPayout.status}`)
 
   // Validation: thresholdConfig chapter âm → 422
-  const rBadChapter = await req('POST', `/contracts/${cHappy}/payment-conditions`, {
+  const rBadChapter = await req('POST', `/contracts/${cConditions}/payment-conditions`, {
     token: e1Tok,
     body: {
       conditionType: ConditionType.CHAPTER_MILESTONE,
@@ -335,7 +401,7 @@ const main = async () => {
   ok('06.2f CHAPTER_MILESTONE chapter âm → 422', rBadChapter.status === 422, `got ${rBadChapter.status}`)
 
   // Validation: RECURRING_CHAPTER với isRecurring false → 422
-  const rRecNotRecurring = await req('POST', `/contracts/${cHappy}/payment-conditions`, {
+  const rRecNotRecurring = await req('POST', `/contracts/${cConditions}/payment-conditions`, {
     token: e1Tok,
     body: {
       conditionType: ConditionType.RECURRING_CHAPTER,
@@ -351,7 +417,7 @@ const main = async () => {
   )
 
   // Validation: TIME_BOUND sai format
-  const rTBbad = await req('POST', `/contracts/${cHappy}/payment-conditions`, {
+  const rTBbad = await req('POST', `/contracts/${cConditions}/payment-conditions`, {
     token: e1Tok,
     body: {
       conditionType: ConditionType.TIME_BOUND,
@@ -362,7 +428,7 @@ const main = async () => {
   ok('06.2h TIME_BOUND deadline sai format → 422', rTBbad.status === 422, `got ${rTBbad.status}`)
 
   // RANKING_MILESTONE topRank âm → 422
-  const rRMbad = await req('POST', `/contracts/${cHappy}/payment-conditions`, {
+  const rRMbad = await req('POST', `/contracts/${cConditions}/payment-conditions`, {
     token: e1Tok,
     body: {
       conditionType: ConditionType.RANKING_MILESTONE,
@@ -373,7 +439,7 @@ const main = async () => {
   ok('06.2i RANKING_MILESTONE topRank âm → 422', rRMbad.status === 422, `got ${rRMbad.status}`)
 
   // Get list
-  const rList = await req('GET', `/contracts/${cHappy}/payment-conditions`, { token: e1Tok })
+  const rList = await req('GET', `/contracts/${cConditions}/payment-conditions`, { token: e1Tok })
   ok('06.2j list conditions', rList.status === 200, `got ${rList.status}`)
   ok(
     '06.2k list 4 conditions',
@@ -383,14 +449,14 @@ const main = async () => {
   )
 
   // PATCH update threshold
-  const rUpd = await req('PATCH', `/contracts/${cHappy}/payment-conditions/${cRC1}`, {
+  const rUpd = await req('PATCH', `/contracts/${cConditions}/payment-conditions/${cRC1}`, {
     token: e1Tok,
     body: { thresholdConfig: { every: 3 } }
   })
   ok('06.2l PATCH update threshold', rUpd.status === 200, `got ${rUpd.status}`)
 
   // PATCH disable
-  const rDisable = await req('PATCH', `/contracts/${cHappy}/payment-conditions/${cRC1}/disable`, { token: e1Tok })
+  const rDisable = await req('PATCH', `/contracts/${cConditions}/payment-conditions/${cRC1}/disable`, { token: e1Tok })
   ok('06.2m PATCH disable', rDisable.status === 200, `got ${rDisable.status}`)
   ok(
     '06.2n status = DISABLED',
@@ -398,14 +464,14 @@ const main = async () => {
   )
 
   // PATCH condition bởi non-editor (Mangaka) → 403/422
-  const rPatchByMangaka = await req('PATCH', `/contracts/${cHappy}/payment-conditions/${cCM}`, {
+  const rPatchByMangaka = await req('PATCH', `/contracts/${cConditions}/payment-conditions/${cCM}`, {
     token: m1Tok,
     body: { payoutAmount: 999 }
   })
   ok('06.2o PATCH condition bởi Mangaka → 403', rPatchByMangaka.status === 403, `got ${rPatchByMangaka.status}`)
 
   // Tạo condition bởi Mangaka → 403
-  const rCreateByMangaka = await req('POST', `/contracts/${cHappy}/payment-conditions`, {
+  const rCreateByMangaka = await req('POST', `/contracts/${cConditions}/payment-conditions`, {
     token: m1Tok,
     body: paymentConditionBody(ConditionType.CHAPTER_MILESTONE, 100, false, { chapter: 1 })
   })
@@ -572,7 +638,7 @@ const main = async () => {
   // Try board-approve khi đang MANGAKA_REVIEW (chưa MANGAKA_APPROVED) — setup tương tự
   const t2 = await setupSeriesAndDraftContract(m1, e1, b1, sa)
   await req('PATCH', `/contracts/${t2.contractId}/status`, { token: e1Tok, body: { status: 'MANGAKA_REVIEW' } })
-  const rBAonReview = await req('POST', `/contracts/${t2.contractId}/board-approve`, { token: b1Tok })
+  const rBAonReview = await applyApprovedContractDecision(t2)
   expectError(rBAonReview, 409, 'Error.InvalidContractTransition', '06.4a board-approve khi MANGAKA_REVIEW → 409')
 
   // sendToMangaka 2 lần liên tiếp — PATCH status từ MANGAKA_REVIEW → MANGAKA_REVIEW (invalid transition)
@@ -591,7 +657,7 @@ const main = async () => {
   await seedOtp(b1.email, 'SIGNING_CONTRACT')
   await req('PATCH', `/contracts/${cT1}/status`, { token: e1Tok, body: { status: 'MANGAKA_REVIEW' } })
   await req('PATCH', `/contracts/${cT1}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
-  await req('POST', `/contracts/${cT1}/board-approve`, { token: b1Tok })
+  await applyApprovedContractDecision(t1)
   await req('POST', `/contracts/${cT1}/signatures/mangaka`, { token: m1Tok, body: { otpCode: '123456' } })
   await req('POST', `/contracts/${cT1}/signatures/board`, { token: b1Tok, body: { otpCode: '123456' } })
   const rPatchAfterExec = await req('PATCH', `/contracts/${cT1}`, { token: e1Tok, body: { valuationAmount: 9999 } })
@@ -601,7 +667,7 @@ const main = async () => {
   const t3 = await setupSeriesAndDraftContract(m1, e1, b1, sa)
   await req('PATCH', `/contracts/${t3.contractId}/status`, { token: e1Tok, body: { status: 'MANGAKA_REVIEW' } })
   await req('PATCH', `/contracts/${t3.contractId}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
-  await req('POST', `/contracts/${t3.contractId}/board-approve`, { token: b1Tok })
+  await applyApprovedContractDecision(t3)
   await seedOtp(m1.email, 'SIGNING_CONTRACT')
   const rBadOTP = await req('POST', `/contracts/${t3.contractId}/signatures/mangaka`, {
     token: m1Tok,
@@ -664,7 +730,7 @@ const main = async () => {
   // Walk to FULLY_EXECUTED
   await req('PATCH', `/contracts/${cRBAC}/status`, { token: e1Tok, body: { status: 'MANGAKA_REVIEW' } })
   await req('PATCH', `/contracts/${cRBAC}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
-  await req('POST', `/contracts/${cRBAC}/board-approve`, { token: b1Tok })
+  await applyApprovedContractDecision(rbacSetup)
   await seedOtp(m1.email, 'SIGNING_CONTRACT')
   await seedOtp(b1.email, 'SIGNING_CONTRACT')
   await req('POST', `/contracts/${cRBAC}/signatures/mangaka`, { token: m1Tok, body: { otpCode: '123456' } })
@@ -727,7 +793,7 @@ const main = async () => {
   const cAmend = amSetup.contractId
   await req('PATCH', `/contracts/${cAmend}/status`, { token: e1Tok, body: { status: 'MANGAKA_REVIEW' } })
   await req('PATCH', `/contracts/${cAmend}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
-  await req('POST', `/contracts/${cAmend}/board-approve`, { token: b1Tok })
+  await applyApprovedContractDecision(amSetup)
   await seedOtp(m1.email, 'SIGNING_CONTRACT')
   await seedOtp(b1.email, 'SIGNING_CONTRACT')
   await req('POST', `/contracts/${cAmend}/signatures/mangaka`, { token: m1Tok, body: { otpCode: '123456' } })
@@ -744,6 +810,7 @@ const main = async () => {
   const rAmCreate = await req('POST', `/contracts/${cAmend}/amendments`, { token: e1Tok, body: amBody })
   ok('06.6a tạo amendment DRAFT', rAmCreate.status === 201, `got ${rAmCreate.status} ${rAmCreate.raw.slice(0, 200)}`)
   const amId = rAmCreate.json.data.id
+  if (typeof amId !== 'string') throw new Error('Flow06 amendment id missing')
   ok(
     '06.6b amendment status = DRAFT',
     (await prisma.contractAmendment.findUnique({ where: { id: amId } }))?.status === 'DRAFT'
@@ -770,6 +837,17 @@ const main = async () => {
 
   // Mangaka sign amendment
   await seedOtp(m1.email, 'SIGNING_CONTRACT')
+  const rAmSignMissingDecision = await req('POST', `/contracts/${cAmend}/amendments/${amId}/sign/mangaka`, {
+    token: m1Tok,
+    body: { otpCode: '123456' }
+  })
+  expectError(
+    rAmSignMissingDecision,
+    409,
+    'Error.ContractApprovalDecisionRequired',
+    '06.6g first amendment signature requires an approved CONTRACT decision'
+  )
+  await makeAmendmentDecision(amSetup, b1.id, amId)
   const rAmSignM = await req('POST', `/contracts/${cAmend}/amendments/${amId}/sign/mangaka`, {
     token: m1Tok,
     body: { otpCode: '123456' }
@@ -817,7 +895,7 @@ const main = async () => {
   // Walk t5 tới FULLY_EXECUTED
   await req('PATCH', `/contracts/${t5.contractId}/status`, { token: e1Tok, body: { status: 'MANGAKA_REVIEW' } })
   await req('PATCH', `/contracts/${t5.contractId}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
-  await req('POST', `/contracts/${t5.contractId}/board-approve`, { token: b1Tok })
+  await applyApprovedContractDecision(t5)
   await seedOtp(m1.email, 'SIGNING_CONTRACT')
   await seedOtp(b1.email, 'SIGNING_CONTRACT')
   await req('POST', `/contracts/${t5.contractId}/signatures/mangaka`, { token: m1Tok, body: { otpCode: '123456' } })
@@ -834,7 +912,7 @@ const main = async () => {
   const t6 = await setupSeriesAndDraftContract(m1, e1, b1, sa)
   await req('PATCH', `/contracts/${t6.contractId}/status`, { token: e1Tok, body: { status: 'MANGAKA_REVIEW' } })
   await req('PATCH', `/contracts/${t6.contractId}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
-  await req('POST', `/contracts/${t6.contractId}/board-approve`, { token: b1Tok })
+  await applyApprovedContractDecision(t6)
   await seedOtp(m1.email, 'SIGNING_CONTRACT')
   await seedOtp(b1.email, 'SIGNING_CONTRACT')
   await req('POST', `/contracts/${t6.contractId}/signatures/mangaka`, { token: m1Tok, body: { otpCode: '123456' } })
@@ -874,7 +952,7 @@ const main = async () => {
   const cRev = revSetup.contractId
   await req('PATCH', `/contracts/${cRev}/status`, { token: e1Tok, body: { status: 'MANGAKA_REVIEW' } })
   await req('PATCH', `/contracts/${cRev}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
-  await req('POST', `/contracts/${cRev}/board-approve`, { token: b1Tok })
+  await applyApprovedContractDecision(revSetup)
   await seedOtp(m1.email, 'SIGNING_CONTRACT')
   await seedOtp(b1.email, 'SIGNING_CONTRACT')
   await req('POST', `/contracts/${cRev}/signatures/mangaka`, { token: m1Tok, body: { otpCode: '123456' } })
@@ -899,7 +977,7 @@ const main = async () => {
   // Walk to FULLY_EXECUTED
   await req('PATCH', `/contracts/${cFB}/status`, { token: e1Tok, body: { status: 'MANGAKA_REVIEW' } })
   await req('PATCH', `/contracts/${cFB}/status`, { token: m1Tok, body: { status: 'MANGAKA_APPROVED' } })
-  await req('POST', `/contracts/${cFB}/board-approve`, { token: b1Tok })
+  await applyApprovedContractDecision(fbSet)
   await seedOtp(m1.email, 'SIGNING_CONTRACT')
   await seedOtp(b1.email, 'SIGNING_CONTRACT')
   await req('POST', `/contracts/${cFB}/signatures/mangaka`, { token: m1Tok, body: { otpCode: '123456' } })

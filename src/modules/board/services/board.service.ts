@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { $Enums } from '@prisma/client'
 import { BoardGateway } from '../board.gateway'
-import type { TransferDecisionContext } from '../board.types'
+import type { ContractDecisionContext, ContractDecisionResourceType, TransferDecisionContext } from '../board.types'
 import {
   CastVoteBodyDto,
   CreateBoardDecisionBodyDto,
@@ -15,7 +15,7 @@ import { BoardMeetingService } from './board-meeting.service'
 import { BoardQueryService } from './board-query.service'
 import { BoardSessionWorkflowService } from './board-session-workflow.service'
 
-export type { TransferDecisionContext } from '../board.types'
+export type { ContractDecisionContext, ContractDecisionResourceType, TransferDecisionContext } from '../board.types'
 
 @Injectable()
 export class BoardService {
@@ -70,8 +70,8 @@ export class BoardService {
     return this.decisionWorkflow.createDecision(dto)
   }
 
-  getDecisions(query?: { boardSessionId?: string; targetSeriesId?: string }) {
-    return this.queryService.getDecisions(query)
+  getDecisions(query?: { boardSessionId?: string; targetSeriesId?: string; mine?: 'true' | 'false' }, userId?: string) {
+    return this.queryService.getDecisions(query, userId)
   }
 
   getDecisionDetails(decisionId: string) {
@@ -96,6 +96,18 @@ export class BoardService {
 
   getTransferDecisionContext(decisionId: string): Promise<TransferDecisionContext | null> {
     return this.queryService.getTransferDecisionContext(decisionId)
+  }
+
+  getContractDecisionContext(decisionId: string): Promise<ContractDecisionContext | null> {
+    return this.queryService.getContractDecisionContext(decisionId)
+  }
+
+  findApprovedContractDecisionContext(command: {
+    targetSeriesId: string
+    resourceType: ContractDecisionResourceType
+    resourceId: string
+  }): Promise<ContractDecisionContext | null> {
+    return this.queryService.findApprovedContractDecisionContext(command)
   }
 
   findTerminalTransferDecisionContextsBySession(

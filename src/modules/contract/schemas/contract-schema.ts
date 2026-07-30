@@ -3,6 +3,7 @@ import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
+import { zObjectId } from 'src/core/http/schemas/object-id.schema'
 import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
 
 // 1. Schema phục vụ API tạo bản thảo hợp đồng mới (POST /contracts)
@@ -269,3 +270,16 @@ export const ContractChangeReasonBodySchema = z
   .strict()
 
 export type ContractChangeReasonBodyType = z.infer<typeof ContractChangeReasonBodySchema>
+
+export const BoardApproveContractBodySchema = z
+  .object({
+    boardDecisionId: zObjectId('boardDecisionId phải là ObjectId hợp lệ')
+  })
+  .strict()
+
+export const BoardRequestContractChangesBodySchema = ContractChangeReasonBodySchema.extend({
+  boardDecisionId: zObjectId('boardDecisionId phải là ObjectId hợp lệ')
+}).strict()
+
+export type BoardApproveContractBodyType = z.infer<typeof BoardApproveContractBodySchema>
+export type BoardRequestContractChangesBodyType = z.infer<typeof BoardRequestContractChangesBodySchema>

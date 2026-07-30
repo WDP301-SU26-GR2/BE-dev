@@ -22,6 +22,7 @@ type Mocks = {
   pdfRenderService: Record<string, jest.Mock>
   objectStorageService: Record<string, jest.Mock>
   assetRegistry: Record<string, jest.Mock>
+  boardService: Record<string, jest.Mock>
 }
 
 function makeMocks(): Mocks {
@@ -36,6 +37,7 @@ function makeMocks(): Mocks {
       updateAndLogVersion: jest.fn(),
       findVersionsByContractId: jest.fn(),
       findVersionById: jest.fn(),
+      findLatestVersion: jest.fn(),
       findByIdForPdf: jest.fn(),
       getContractSignaturesProgress: jest.fn(),
       findWithBoardDecision: jest.fn()
@@ -52,7 +54,10 @@ function makeMocks(): Mocks {
         .fn()
         .mockResolvedValue({ downloadUrl: 'https://r2/pdf', expiresAt: '2026-07-20T00:00:00.000Z' })
     },
-    assetRegistry: { registerGeneratedAsset: jest.fn().mockResolvedValue({ id: 'asset1' }) }
+    assetRegistry: { registerGeneratedAsset: jest.fn().mockResolvedValue({ id: 'asset1' }) },
+    boardService: {
+      getContractDecisionContext: jest.fn()
+    }
   }
 }
 
@@ -62,7 +67,8 @@ function makeService(m: Mocks) {
   const workflow = new ContractWorkflowService(
     m.contractRepo as never,
     m.notificationService as never,
-    m.auditService as never
+    m.auditService as never,
+    m.boardService as never
   )
   const signing = new ContractSigningService(
     m.contractRepo as never,
@@ -126,70 +132,116 @@ describe('ContractService.mangakaApprove (B-CON-02 auth)', () => {
 
 describe('ContractService — B-CON-02 BOARD_REVIEW + request-changes', () => {
   const CID = '507f1f77bcf86cd799439099'
+  const DID = '507f1f77bcf86cd799439098'
+  const VID = '507f1f77bcf86cd799439097'
   const BOARD_1 = 'board-1'
-  // Roster phiên họp = nguồn sự thật duy nhất cho quyền xem xét điều khoản (mirror bước ký).
-  const withRoster = (contract: Record<string, unknown>, allowedEditorIds: string[] = [BOARD_1, 'board-2']) => ({
-    ...contract,
-    boardDecision: { boardSession: { allowedEditorIds } }
-  })
+  const allowDecision = (
+    m: Mocks,
+    contract: Record<string, unknown>,
+    result: 'APPROVED' | 'REJECTED' = 'APPROVED',
+    allowedEditorIds: string[] = [BOARD_1, 'board-2']
+  ) => {
+    m.contractRepo.findById.mockResolvedValue({
+      seriesId: '507f1f77bcf86cd799439096',
+      sourceTransferRequestId: null,
+      ...contract
+    })
+    m.contractRepo.findLatestVersion.mockResolvedValue({ id: VID })
+    m.boardService.getContractDecisionContext.mockResolvedValue({
+      id: DID,
+      decisionType: 'CONTRACT',
+      result,
+      targetSeriesId: '507f1f77bcf86cd799439096',
+      details: {
+        resourceType: 'PUBLICATION_CONTRACT',
+        resourceId: CID,
+        versionId: VID
+      },
+      allowedEditorIds
+    })
+  }
 
   it('boardApprove: MANGAKA_APPROVED → BOARD_APPROVED', async () => {
     const m = makeMocks()
-    m.contractRepo.findWithBoardDecision.mockResolvedValue(
-      withRoster({ id: CID, mangakaId: 'm1', editorId: 'e1', status: ContractStatus.MANGAKA_APPROVED })
-    )
+    allowDecision(m, { id: CID, mangakaId: 'm1', editorId: 'e1', status: ContractStatus.MANGAKA_APPROVED })
     m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.BOARD_APPROVED })
-    await makeService(m).boardApprove(CID, BOARD_1)
+    await makeService(m).boardApprove(CID, BOARD_1, DID)
     expect(m.contractRepo.updateStatus).toHaveBeenCalledWith(CID, ContractStatus.BOARD_APPROVED)
+  })
+
+  it('boardApprove: accepts REPLACEMENT_CONTRACT for a Full Buyout replacement', async () => {
+    const m = makeMocks()
+    allowDecision(m, {
+      id: CID,
+      mangakaId: 'm1',
+      status: ContractStatus.MANGAKA_APPROVED,
+      sourceTransferRequestId: '507f1f77bcf86cd799439094'
+    })
+    m.boardService.getContractDecisionContext.mockResolvedValue({
+      id: DID,
+      decisionType: 'CONTRACT',
+      result: 'APPROVED',
+      targetSeriesId: '507f1f77bcf86cd799439096',
+      details: { resourceType: 'REPLACEMENT_CONTRACT', resourceId: CID, versionId: VID },
+      allowedEditorIds: [BOARD_1]
+    })
+    m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.BOARD_APPROVED })
+
+    await makeService(m).boardApprove(CID, BOARD_1, DID)
+
+    expect(m.contractRepo.updateStatus).toHaveBeenCalledWith(CID, ContractStatus.BOARD_APPROVED)
+  })
+
+  it('boardApprove: rejects PUBLICATION_CONTRACT for a Full Buyout replacement', async () => {
+    const m = makeMocks()
+    allowDecision(m, {
+      id: CID,
+      mangakaId: 'm1',
+      status: ContractStatus.MANGAKA_APPROVED,
+      sourceTransferRequestId: '507f1f77bcf86cd799439094'
+    })
+
+    await expect(makeService(m).boardApprove(CID, BOARD_1, DID)).rejects.toMatchObject({ status: 422 })
+    expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
   })
 
   it('boardApprove: 409 when contract is still MANGAKA_REVIEW (not yet mangaka-approved)', async () => {
     const m = makeMocks()
-    m.contractRepo.findWithBoardDecision.mockResolvedValue(
-      withRoster({ id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_REVIEW })
-    )
-    await expect(makeService(m).boardApprove(CID, BOARD_1)).rejects.toMatchObject({ status: 409 })
+    allowDecision(m, { id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_REVIEW })
+    await expect(makeService(m).boardApprove(CID, BOARD_1, DID)).rejects.toMatchObject({ status: 409 })
     expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
   })
 
   it('boardApprove: 403 Error.NotAuthorizedInBoard when caller is a BOARD_MEMBER outside the session roster', async () => {
     const m = makeMocks()
-    m.contractRepo.findWithBoardDecision.mockResolvedValue(
-      withRoster({ id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_APPROVED })
-    )
-    await expect(makeService(m).boardApprove(CID, 'outsider-board')).rejects.toMatchObject({ status: 403 })
+    allowDecision(m, { id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_APPROVED })
+    await expect(makeService(m).boardApprove(CID, 'outsider-board', DID)).rejects.toMatchObject({ status: 403 })
     expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
   })
 
   it('boardRequestChanges: 403 when caller is a BOARD_MEMBER outside the session roster', async () => {
     const m = makeMocks()
-    m.contractRepo.findWithBoardDecision.mockResolvedValue(
-      withRoster({ id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_APPROVED })
-    )
-    await expect(makeService(m).boardRequestChanges(CID, 'outsider-board', 'Sửa tỉ lệ ăn chia')).rejects.toMatchObject({
-      status: 403
-    })
+    allowDecision(m, { id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_APPROVED }, 'REJECTED')
+    await expect(
+      makeService(m).boardRequestChanges(CID, 'outsider-board', DID, 'Sửa tỉ lệ ăn chia')
+    ).rejects.toMatchObject({ status: 403 })
     expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
   })
 
   it('boardApprove: authz đứng TRƯỚC transition — người ngoài roster nhận 403 chứ không phải 409 lộ trạng thái', async () => {
     const m = makeMocks()
-    m.contractRepo.findWithBoardDecision.mockResolvedValue(
-      withRoster({ id: CID, mangakaId: 'm1', status: ContractStatus.DRAFT })
-    )
-    await expect(makeService(m).boardApprove(CID, 'outsider-board')).rejects.toMatchObject({ status: 403 })
+    allowDecision(m, { id: CID, mangakaId: 'm1', status: ContractStatus.DRAFT })
+    await expect(makeService(m).boardApprove(CID, 'outsider-board', DID)).rejects.toMatchObject({ status: 403 })
   })
 
   // B-CON-02: reason bắt buộc — phải chảy vào CẢ audit (bản ghi bền) lẫn notification (báo tức thời).
   it('boardRequestChanges: reason đi vào audit.reason và nội dung notification gửi Editor', async () => {
     const m = makeMocks()
     const REASON = 'Tỉ lệ ăn chia 30% quá cao so với mặt bằng tác giả mới'
-    m.contractRepo.findWithBoardDecision.mockResolvedValue(
-      withRoster({ id: CID, mangakaId: 'm1', editorId: 'e1', status: ContractStatus.MANGAKA_APPROVED })
-    )
+    allowDecision(m, { id: CID, mangakaId: 'm1', editorId: 'e1', status: ContractStatus.MANGAKA_APPROVED }, 'REJECTED')
     m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.NEGOTIATION })
 
-    await makeService(m).boardRequestChanges(CID, BOARD_1, REASON)
+    await makeService(m).boardRequestChanges(CID, BOARD_1, DID, REASON)
 
     expect(m.auditService.record).toHaveBeenCalledWith(expect.objectContaining({ reason: REASON }))
     expect(m.notificationService.notifySafe).toHaveBeenCalledWith(
@@ -216,16 +268,42 @@ describe('ContractService — B-CON-02 BOARD_REVIEW + request-changes', () => {
     )
   })
 
-  it('boardApprove: 400 Error.ContractBoardDecisionMissing khi hợp đồng chưa gắn quyết định Hội đồng', async () => {
+  it('boardApprove: 404 khi boardDecisionId không tồn tại', async () => {
     const m = makeMocks()
-    m.contractRepo.findWithBoardDecision.mockResolvedValue({
+    m.contractRepo.findById.mockResolvedValue({
       id: CID,
+      seriesId: '507f1f77bcf86cd799439096',
       mangakaId: 'm1',
-      status: ContractStatus.MANGAKA_APPROVED,
-      boardDecision: null
+      status: ContractStatus.MANGAKA_APPROVED
     })
-    await expect(makeService(m).boardApprove(CID, BOARD_1)).rejects.toMatchObject({ status: 400 })
+    m.contractRepo.findLatestVersion.mockResolvedValue({ id: VID })
+    m.boardService.getContractDecisionContext.mockResolvedValue(null)
+    await expect(makeService(m).boardApprove(CID, BOARD_1, DID)).rejects.toMatchObject({ status: 404 })
     expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['decision type', { decisionType: 'TRANSFER' }],
+    ['rejected result', { result: 'REJECTED' }],
+    ['pending result', { result: 'PENDING' }],
+    ['pending quorum result', { result: 'PENDING_QUORUM' }],
+    ['expired result', { result: 'EXPIRED' }],
+    ['series', { targetSeriesId: '507f1f77bcf86cd799439095' }],
+    ['resource', { details: { resourceType: 'PUBLICATION_CONTRACT', resourceId: 'other', versionId: VID } }],
+    ['version', { details: { resourceType: 'PUBLICATION_CONTRACT', resourceId: CID, versionId: 'other' } }]
+  ])('boardApprove: 422 khi không khớp %s', async (_label, patch) => {
+    const m = makeMocks()
+    allowDecision(m, { id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_APPROVED })
+    m.boardService.getContractDecisionContext.mockResolvedValue({
+      id: DID,
+      decisionType: 'CONTRACT',
+      result: 'APPROVED',
+      targetSeriesId: '507f1f77bcf86cd799439096',
+      details: { resourceType: 'PUBLICATION_CONTRACT', resourceId: CID, versionId: VID },
+      allowedEditorIds: [BOARD_1],
+      ...patch
+    })
+    await expect(makeService(m).boardApprove(CID, BOARD_1, DID)).rejects.toMatchObject({ status: 422 })
   })
 
   it('mangakaRequestChanges: MANGAKA_REVIEW → NEGOTIATION (only the contract mangaka)', async () => {
@@ -243,15 +321,23 @@ describe('ContractService — B-CON-02 BOARD_REVIEW + request-changes', () => {
 
   it('boardRequestChanges: MANGAKA_APPROVED → NEGOTIATION (resets signatures)', async () => {
     const m = makeMocks()
-    m.contractRepo.findWithBoardDecision.mockResolvedValue(
-      withRoster({ id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_APPROVED })
-    )
+    allowDecision(m, { id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_APPROVED }, 'REJECTED')
     m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.NEGOTIATION })
-    await makeService(m).boardRequestChanges(CID, BOARD_1, 'Điều khoản chấm dứt còn mơ hồ')
+    await makeService(m).boardRequestChanges(CID, BOARD_1, DID, 'Điều khoản chấm dứt còn mơ hồ')
     expect(m.contractRepo.updateStatus).toHaveBeenCalledWith(CID, ContractStatus.NEGOTIATION, {
       mangakaSignedAt: null,
       boardSignedAt: null
     })
+  })
+
+  it('boardRequestChanges: rejects an APPROVED decision', async () => {
+    const m = makeMocks()
+    allowDecision(m, { id: CID, mangakaId: 'm1', status: ContractStatus.MANGAKA_APPROVED }, 'APPROVED')
+
+    await expect(
+      makeService(m).boardRequestChanges(CID, BOARD_1, DID, 'Không chấp nhận điều khoản')
+    ).rejects.toMatchObject({ status: 422 })
+    expect(m.contractRepo.updateStatus).not.toHaveBeenCalled()
   })
 
   it('mangakaRequestChanges: 403 when caller is not the contract mangaka', async () => {
@@ -285,15 +371,15 @@ describe('ContractService — B-CON-02 BOARD_REVIEW + request-changes', () => {
   it('OBJECT_ID guard: throws NotFound on invalid ObjectId in boardApprove/boardRequestChanges/request-changes', async () => {
     const m = makeMocks()
     const BAD = 'not-an-objectid'
-    await expect(makeService(m).boardApprove(BAD, BOARD_1)).rejects.toMatchObject({ status: 404 })
-    await expect(makeService(m).boardRequestChanges(BAD, BOARD_1, 'Sửa điều khoản')).rejects.toMatchObject({
+    await expect(makeService(m).boardApprove(BAD, BOARD_1, DID)).rejects.toMatchObject({ status: 404 })
+    await expect(makeService(m).boardRequestChanges(BAD, BOARD_1, DID, 'Sửa điều khoản')).rejects.toMatchObject({
       status: 404
     })
     await expect(makeService(m).mangakaRequestChanges(BAD, 'm1', 'Sửa điều khoản')).rejects.toMatchObject({
       status: 404
     })
     expect(m.contractRepo.findById).not.toHaveBeenCalled()
-    expect(m.contractRepo.findWithBoardDecision).not.toHaveBeenCalled()
+    expect(m.boardService.getContractDecisionContext).not.toHaveBeenCalled()
   })
 })
 
@@ -660,16 +746,27 @@ describe('ContractService — Audit trail (Spec 11)', () => {
   it('boardApprove: ghi AuditLog CONTRACT/TRANSITION với actorId = board member đã bấm', async () => {
     const m = makeMocks()
     const BOARD = '507f1f77bcf86cd799439021'
-    m.contractRepo.findWithBoardDecision.mockResolvedValue({
+    const DECISION = '507f1f77bcf86cd799439022'
+    const VERSION = '507f1f77bcf86cd799439023'
+    m.contractRepo.findById.mockResolvedValue({
       id: CID,
+      seriesId: '507f1f77bcf86cd799439024',
       mangakaId: '507f1f77bcf86cd799439012',
       editorId: '507f1f77bcf86cd799439013',
       status: ContractStatus.MANGAKA_APPROVED,
-      boardDecision: { boardSession: { allowedEditorIds: [BOARD] } }
+      sourceTransferRequestId: null
+    })
+    m.contractRepo.findLatestVersion.mockResolvedValue({ id: VERSION })
+    m.boardService.getContractDecisionContext.mockResolvedValue({
+      decisionType: 'CONTRACT',
+      result: 'APPROVED',
+      targetSeriesId: '507f1f77bcf86cd799439024',
+      details: { resourceType: 'PUBLICATION_CONTRACT', resourceId: CID, versionId: VERSION },
+      allowedEditorIds: [BOARD]
     })
     m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.BOARD_APPROVED })
 
-    await makeService(m).boardApprove(CID, BOARD)
+    await makeService(m).boardApprove(CID, BOARD, DECISION)
 
     expect(m.auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -686,16 +783,27 @@ describe('ContractService — Audit trail (Spec 11)', () => {
   it('boardRequestChanges: ghi AuditLog CONTRACT/TRANSITION với actorId = board member đã bấm', async () => {
     const m = makeMocks()
     const BOARD = '507f1f77bcf86cd799439021'
-    m.contractRepo.findWithBoardDecision.mockResolvedValue({
+    const DECISION = '507f1f77bcf86cd799439022'
+    const VERSION = '507f1f77bcf86cd799439023'
+    m.contractRepo.findById.mockResolvedValue({
       id: CID,
+      seriesId: '507f1f77bcf86cd799439024',
       mangakaId: '507f1f77bcf86cd799439012',
       editorId: '507f1f77bcf86cd799439013',
       status: ContractStatus.MANGAKA_APPROVED,
-      boardDecision: { boardSession: { allowedEditorIds: [BOARD] } }
+      sourceTransferRequestId: null
+    })
+    m.contractRepo.findLatestVersion.mockResolvedValue({ id: VERSION })
+    m.boardService.getContractDecisionContext.mockResolvedValue({
+      decisionType: 'CONTRACT',
+      result: 'REJECTED',
+      targetSeriesId: '507f1f77bcf86cd799439024',
+      details: { resourceType: 'PUBLICATION_CONTRACT', resourceId: CID, versionId: VERSION },
+      allowedEditorIds: [BOARD]
     })
     m.contractRepo.updateStatus.mockResolvedValue({ id: CID, status: ContractStatus.NEGOTIATION })
 
-    await makeService(m).boardRequestChanges(CID, BOARD, 'Xin sửa mốc thanh toán')
+    await makeService(m).boardRequestChanges(CID, BOARD, DECISION, 'Xin sửa mốc thanh toán')
 
     expect(m.auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({

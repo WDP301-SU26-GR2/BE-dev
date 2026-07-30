@@ -5,12 +5,24 @@ describe('BoardService Phase-3 orchestrator boundary', () => {
     const query = {
       getConfig: jest.fn().mockResolvedValue({ id: 'config' }),
       getTransferDecisionContext: jest.fn().mockResolvedValue({ id: 'decision', decisionType: 'TRANSFER' }),
+      getContractDecisionContext: jest.fn().mockResolvedValue({ id: 'contract-decision', decisionType: 'CONTRACT' }),
+      findApprovedContractDecisionContext: jest.fn().mockResolvedValue({ id: 'contract-decision' }),
       findTerminalTransferDecisionContextsBySession: jest.fn().mockResolvedValue([{ id: 'decision' }])
     }
     const service = Reflect.construct(BoardService, [query, {}, {}, {}, {}, {}]) as BoardService
 
     await expect(service.getConfig()).resolves.toEqual({ id: 'config' })
     await expect(service.getTransferDecisionContext('decision')).resolves.toMatchObject({ decisionType: 'TRANSFER' })
+    await expect(service.getContractDecisionContext('contract-decision')).resolves.toMatchObject({
+      decisionType: 'CONTRACT'
+    })
+    await expect(
+      service.findApprovedContractDecisionContext({
+        targetSeriesId: 'series',
+        resourceType: 'TRANSFER_CONTRACT',
+        resourceId: 'contract'
+      })
+    ).resolves.toEqual({ id: 'contract-decision' })
     await expect(service.findTerminalTransferDecisionContextsBySession('session', 'series')).resolves.toEqual([
       { id: 'decision' }
     ])
@@ -32,14 +44,14 @@ describe('BoardService Phase-3 orchestrator boundary', () => {
 
     await service.getSessions({ userId: 'member' }, { mine: true, status: 'ACTIVE' })
     await service.getSessionById('session')
-    await service.getDecisions({ boardSessionId: 'session', targetSeriesId: 'series' })
+    await service.getDecisions({ boardSessionId: 'session', targetSeriesId: 'series' }, 'member')
     await service.getDecisionDetails('decision')
     await service.getDecisionVotes('decision')
     await service.getReports({ seriesId: 'series', boardDecisionId: 'decision' })
     await service.getReportById('report')
 
     expect(query.getSessions).toHaveBeenCalledWith({ userId: 'member' }, { mine: true, status: 'ACTIVE' })
-    expect(query.getDecisions).toHaveBeenCalledWith({ boardSessionId: 'session', targetSeriesId: 'series' })
+    expect(query.getDecisions).toHaveBeenCalledWith({ boardSessionId: 'session', targetSeriesId: 'series' }, 'member')
     expect(query.getReports).toHaveBeenCalledWith({ seriesId: 'series', boardDecisionId: 'decision' })
   })
 

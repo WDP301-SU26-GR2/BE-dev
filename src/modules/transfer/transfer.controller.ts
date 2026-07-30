@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
 import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
@@ -14,12 +14,15 @@ import {
   CreateTransferContractBodyDto,
   SignTransferContractBodyDto,
   AssignFullBuyoutBodyDto,
+  AssignFullBuyoutResDto,
+  ListTransferRequestsQueryDto,
   TransferRequestResDto,
   TransferRequestListResDto,
   TransferContractResDto,
   TransferSignatureListResDto
 } from './dto/transfer.dto'
 import {
+  ActiveTransferRequestAlreadyExistsException,
   NoActiveContractFoundException,
   TransferRequestNotFoundException,
   InvalidStatusForScreeningException,
@@ -35,6 +38,7 @@ import {
   ValuationRequiredException,
   TransferAccessDeniedException,
   InvalidTransferBoardDecisionException,
+  TransferContractApprovalDecisionRequiredException,
   InvalidTransferProposalException,
   RequesterAlreadyOwnsSeriesException,
   RequestingMangakaInactiveException
@@ -63,6 +67,7 @@ export class TransferController {
     NoActiveContractFoundException,
     RequestingMangakaInactiveException,
     RequesterAlreadyOwnsSeriesException,
+    ActiveTransferRequestAlreadyExistsException,
     InvalidTransferProposalException
   )
   @Roles(RoleName.MANGAKA)
@@ -85,6 +90,16 @@ export class TransferController {
   @ZodResponse({ status: 200, type: TransferRequestListResDto })
   getPendingBoardRequests() {
     return this.transferService.getPendingBoardRequests()
+  }
+
+  @Get('requests/assigned-editor')
+  @ApiOperation({
+    summary: 'Danh sách yêu cầu chuyển nhượng của các series Editor phụ trách (kèm lịch sử, lọc ?status=)'
+  })
+  @Roles(RoleName.EDITOR)
+  @ZodResponse({ status: 200, type: TransferRequestListResDto })
+  getAssignedEditorRequests(@ActiveUser('userId') editorId: string, @Query() query: ListTransferRequestsQueryDto) {
+    return this.transferService.getAssignedEditorRequests(editorId, query.status)
   }
 
   @Get('requests/:id')
@@ -156,13 +171,13 @@ export class TransferController {
     InvalidTransferBoardDecisionException
   )
   @Roles(RoleName.BOARD_MEMBER)
-  @ZodResponse({ status: 201, type: MessageResDto })
+  @ZodResponse({ status: 201, type: AssignFullBuyoutResDto })
   boardAssignFullBuyout(
     @Param('id', TransferRequestIdParamPipe) id: string,
     @Body() body: AssignFullBuyoutBodyDto,
     @ActiveUser('userId') userId: string,
     @ActiveUser('roleName') roleName: RoleNameType
-  ): Promise<MessageResDto> {
+  ): Promise<AssignFullBuyoutResDto> {
     return this.transferService.boardAssignFullBuyout(id, this.actor(userId, roleName), body)
   }
 
@@ -232,7 +247,8 @@ export class TransferController {
     UserOrEmailNotFoundException,
     UserHasAlreadySignedContractException,
     TransferContractNotFoundAfterUpdateException,
-    TransferAccessDeniedException
+    TransferAccessDeniedException,
+    TransferContractApprovalDecisionRequiredException
   )
   @Roles(RoleName.MANGAKA, RoleName.BOARD_MEMBER)
   @ZodResponse({ status: 201, type: MessageResDto })

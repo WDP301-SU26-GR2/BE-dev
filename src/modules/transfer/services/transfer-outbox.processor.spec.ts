@@ -1,8 +1,9 @@
 import { OutboxEventType } from '@prisma/client'
+import { MAX_TRANSFER_SETTLEMENT_ATTEMPTS } from '../transfer.constant'
 import { TransferOutboxProcessor } from './transfer-outbox.processor'
 
 describe('TransferOutboxProcessor', () => {
-  const event = (id: string) => ({ id, payload: { transferRequestId: `request-${id}` } })
+  const event = (id: string, attempts = 0) => ({ id, attempts, payload: { transferRequestId: `request-${id}` } })
   const outbox = {
     findPending: jest.fn(),
     markFailed: jest.fn()
@@ -10,24 +11,52 @@ describe('TransferOutboxProcessor', () => {
   const finalizer = {
     finalize: jest.fn()
   }
+  const audit = { record: jest.fn().mockResolvedValue(undefined) }
   let processor: TransferOutboxProcessor
 
   beforeEach(() => {
     jest.clearAllMocks()
-    processor = new TransferOutboxProcessor(outbox as never, finalizer as never)
+    processor = new TransferOutboxProcessor(outbox as never, finalizer as never, audit as never)
   })
 
-  it('loads only replacement-ready events and finalizes every pending event', async () => {
+  it('loads only replacement-ready events under the attempt cap and finalizes every pending event', async () => {
     const pending = [event('one'), event('two')]
     outbox.findPending.mockResolvedValue(pending)
     finalizer.finalize.mockResolvedValue(undefined)
 
     await processor.process()
 
-    expect(outbox.findPending).toHaveBeenCalledWith(OutboxEventType.TRANSFER_REPLACEMENT_READY)
+    // §v2 point 9: bỏ qua event đã vượt trần thử (dead-letter) — findPending nhận maxAttempts.
+    expect(outbox.findPending).toHaveBeenCalledWith(
+      OutboxEventType.TRANSFER_REPLACEMENT_READY,
+      20,
+      MAX_TRANSFER_SETTLEMENT_ATTEMPTS
+    )
     expect(finalizer.finalize).toHaveBeenNthCalledWith(1, pending[0])
     expect(finalizer.finalize).toHaveBeenNthCalledWith(2, pending[1])
     expect(outbox.markFailed).not.toHaveBeenCalled()
+  })
+
+  it('dead-letters (audit) an event whose failure reaches the attempt cap', async () => {
+    outbox.findPending.mockResolvedValue([event('poison', MAX_TRANSFER_SETTLEMENT_ATTEMPTS - 1)])
+    finalizer.finalize.mockRejectedValueOnce(new Error('still failing'))
+
+    await processor.process()
+
+    expect(outbox.markFailed).toHaveBeenCalledWith('poison', 'still failing')
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'SETTLEMENT_DEAD_LETTER', entityId: 'request-poison' })
+    )
+  })
+
+  it('does not dead-letter a failure still under the attempt cap', async () => {
+    outbox.findPending.mockResolvedValue([event('retryable', 0)])
+    finalizer.finalize.mockRejectedValueOnce(new Error('transient'))
+
+    await processor.process()
+
+    expect(outbox.markFailed).toHaveBeenCalledWith('retryable', 'transient')
+    expect(audit.record).not.toHaveBeenCalled()
   })
 
   it('records a failed event and continues with the next event', async () => {

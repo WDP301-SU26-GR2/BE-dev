@@ -36,6 +36,7 @@ describe('BoardService transfer authorization query', () => {
       id: DECISION_ID,
       boardSessionId: SESSION_ID,
       targetSeriesId: SERIES_ID,
+      transferRequestId: null,
       decisionType: 'TRANSFER',
       result: 'APPROVED',
       allowedEditorIds: ['board-decision', 'board-session']

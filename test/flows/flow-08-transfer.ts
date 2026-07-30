@@ -119,6 +119,24 @@ const main = async () => {
     startTime: new Date(Date.now() - 120_000),
     endTime: new Date()
   })
+  const makeApprovedContractDecision = async (o: {
+    seriesId: string
+    resourceType: 'REPLACEMENT_CONTRACT' | 'TRANSFER_CONTRACT'
+    resourceId: string
+    versionId?: string
+  }) =>
+    makeBoardDecision({
+      sessionId: boardSession.id,
+      targetSeriesId: o.seriesId,
+      decisionType: DecisionType.CONTRACT,
+      result: BoardDecisionResult.APPROVED,
+      allowedEditorIds: [b1.id],
+      details: {
+        resourceType: o.resourceType,
+        resourceId: o.resourceId,
+        ...(o.versionId ? { versionId: o.versionId } : {})
+      }
+    })
   const fbApprovedDecision = await makeBoardDecision({
     sessionId: boardSession.id,
     targetSeriesId: seriesFB.id,
@@ -140,6 +158,49 @@ const main = async () => {
     result: BoardDecisionResult.APPROVED,
     allowedEditorIds: [b1.id]
   })
+
+  // §v2 point 6: guard "1 series = 1 yêu cầu chuyển nhượng đang hoạt động". Flow này tạo nhiều request
+  // chồng thời gian, nên các request KHÔNG nối tiếp trên `seriesRS` (rbac 8.13, guard 8.19, otp 8.32)
+  // cần MỖI CÁI một series RS riêng. Helper seed nhanh: series RS + hợp đồng RS FULLY_EXECUTED + decision TRANSFER.
+  const makeRsFixture = async () => {
+    const series = await makeSeriesAt(SeriesStatus.SERIALIZED, { mangakaId: mB1.id, editorId: e2.id })
+    await makeContractAt('FULLY_EXECUTED', {
+      seriesId: series.id,
+      mangakaId: mB1.id,
+      editorId: e2.id,
+      contractType: ContractType.REVENUE_SHARE
+    })
+    const decision = await makeBoardDecision({
+      sessionId: boardSession.id,
+      targetSeriesId: series.id,
+      decisionType: DecisionType.TRANSFER,
+      result: BoardDecisionResult.APPROVED,
+      allowedEditorIds: [b1.id]
+    })
+    return { series, decision }
+  }
+  const rbacRs = await makeRsFixture()
+  const guardRs = await makeRsFixture()
+  const otpRs = await makeRsFixture()
+  // §v2 point 6: rejectId (8.4) cũng chồng transferId (8.1) trên seriesFB → cần FB series riêng + decision REJECTED.
+  const makeFbRejectFixture = async () => {
+    const series = await makeSeriesAt(SeriesStatus.SERIALIZED, { mangakaId: mA.id, editorId: e1.id })
+    await makeContractAt('FULLY_EXECUTED', {
+      seriesId: series.id,
+      mangakaId: mA.id,
+      editorId: e1.id,
+      contractType: ContractType.FULL_BUYOUT
+    })
+    const rejectedDecision = await makeBoardDecision({
+      sessionId: boardSession.id,
+      targetSeriesId: series.id,
+      decisionType: DecisionType.TRANSFER,
+      result: BoardDecisionResult.REJECTED,
+      allowedEditorIds: [b1.id]
+    })
+    return { series, rejectedDecision }
+  }
+  const rejectFb = await makeFbRejectFixture()
 
   // ─── SERIES C: NO contract ──────────────────────────────────────────────────
   const seriesNoContract = await makeSeriesAt(SeriesStatus.SERIALIZED, {
@@ -202,7 +263,7 @@ const main = async () => {
   const r4a = await req('POST', '/transfers/requests', {
     token: mB2Tok,
     body: {
-      seriesId: seriesFB.id,
+      seriesId: rejectFb.series.id,
       planDescription: 'Will be rejected',
       proposedType: TransferType.FULL_TRANSFER
     }
@@ -210,7 +271,7 @@ const main = async () => {
   const rejectId = r4a.json?.data?.id ?? r4a.json?.id
   const r4b = await req('POST', `/transfers/requests/${rejectId}/board-reject`, {
     token: b1Tok,
-    body: { boardDecisionId: fbRejectedDecision.id, details: 'insufficient capability' }
+    body: { boardDecisionId: rejectFb.rejectedDecision.id, details: 'insufficient capability' }
   })
   ok('8.4a board-reject 201', r4b.status === 201, `got ${r4b.status} ${r4b.raw.slice(0, 200)}`)
   ok(
@@ -409,26 +470,46 @@ const main = async () => {
     body: { status: 'MANGAKA_APPROVED' }
   })
   ok('8.12i replacement Mangaka approves', r12Approve.status === 200, `got ${r12Approve.status}`)
-  const r12BoardApprove = await req('POST', `/contracts/${replacementContractId}/board-approve`, { token: b1Tok })
-  ok('8.12j Board approves replacement contract', r12BoardApprove.status === 201, `got ${r12BoardApprove.status}`)
+  const r12MissingDecision = await req('POST', `/contracts/${replacementContractId}/board-approve`, { token: b1Tok })
+  expectError(r12MissingDecision, 422, 'Error.ValidationFailed', '8.12j board-approve requires boardDecisionId')
+  const replacementVersion = await prisma.contractVersion.findFirst({
+    where: { contractId: replacementContractId },
+    orderBy: { versionNumber: 'desc' }
+  })
+  if (!replacementVersion) throw new Error('Flow08 replacement contract version missing')
+  const replacementApprovalDecision = await makeApprovedContractDecision({
+    seriesId: seriesFB.id,
+    resourceType: 'REPLACEMENT_CONTRACT',
+    resourceId: replacementContractId,
+    versionId: replacementVersion.id
+  })
+  const r12BoardApprove = await req('POST', `/contracts/${replacementContractId}/board-approve`, {
+    token: b1Tok,
+    body: { boardDecisionId: replacementApprovalDecision.id }
+  })
+  ok(
+    '8.12k Board applies approved replacement decision',
+    r12BoardApprove.status === 201,
+    `got ${r12BoardApprove.status}`
+  )
   await seedOtp(mB2.email, 'SIGNING_CONTRACT')
   const r12MangakaSign = await req('POST', `/contracts/${replacementContractId}/signatures/mangaka`, {
     token: mB2Tok,
     body: { otpCode: '123456' }
   })
-  ok('8.12k replacement Mangaka signs', r12MangakaSign.status === 201, `got ${r12MangakaSign.status}`)
+  ok('8.12l replacement Mangaka signs', r12MangakaSign.status === 201, `got ${r12MangakaSign.status}`)
   await seedOtp(b1.email, 'SIGNING_CONTRACT')
   const r12BoardSign = await req('POST', `/contracts/${replacementContractId}/signatures/board`, {
     token: b1Tok,
     body: { otpCode: '123456' }
   })
-  ok('8.12l final Board signature accepted', r12BoardSign.status === 201, `got ${r12BoardSign.status}`)
+  ok('8.12m final Board signature accepted', r12BoardSign.status === 201, `got ${r12BoardSign.status}`)
 
   const outboxAfterSignature = await prisma.outboxEvent.findMany({
     where: { type: OutboxEventType.TRANSFER_REPLACEMENT_READY, aggregateId: transferId }
   })
   ok(
-    '8.12m exactly one durable replacement outbox event',
+    '8.12n exactly one durable replacement outbox event',
     outboxAfterSignature.length === 1,
     `got ${outboxAfterSignature.length}`
   )
@@ -436,22 +517,22 @@ const main = async () => {
     const request = await prisma.transferRequest.findUnique({ where: { id: transferId } })
     return request?.status === 'COMPLETED'
   })
-  ok('8.12n outbox finalizer settles request to COMPLETED', settled)
+  ok('8.12o outbox finalizer settles request to COMPLETED', settled)
   const finalOldContract = await prisma.contract.findUnique({ where: { id: contractFB.id } })
   const finalReplacement = await prisma.contract.findUnique({ where: { id: replacementContractId } })
   const finalSeries = await prisma.series.findUnique({ where: { id: seriesFB.id } })
   ok(
-    '8.12o old contract TERMINATED only after finalization',
+    '8.12p old contract TERMINATED only after finalization',
     finalOldContract?.status === 'TERMINATED',
     `got ${finalOldContract?.status}`
   )
   ok(
-    '8.12p replacement FULLY_EXECUTED after finalization',
+    '8.12q replacement FULLY_EXECUTED after finalization',
     finalReplacement?.status === 'FULLY_EXECUTED',
     `got ${finalReplacement?.status}`
   )
   ok(
-    '8.12q owner changes to Mangaka B after finalization',
+    '8.12r owner changes to Mangaka B after finalization',
     finalSeries?.mangakaId === mB2.id,
     `got ${finalSeries?.mangakaId}`
   )
@@ -470,13 +551,13 @@ const main = async () => {
     where: { type: OutboxEventType.TRANSFER_REPLACEMENT_READY, aggregateId: transferId }
   })
   ok(
-    '8.12r outbox processed exactly once',
+    '8.12s outbox processed exactly once',
     outboxProcessed,
     `got ${finalOutboxSettled.length}/${String(finalOutboxSettled[0]?.processedAt)}`
   )
   await sleep(5500)
   ok(
-    '8.12s processor retry is idempotent',
+    '8.12t processor retry is idempotent',
     (await prisma.outboxEvent.count({
       where: { type: OutboxEventType.TRANSFER_REPLACEMENT_READY, aggregateId: transferId }
     })) === 1 &&
@@ -486,11 +567,11 @@ const main = async () => {
 
   // ─── Section 8.13 — RBAC: assign-full-buyout bởi E → 403 ────────────────
   section('8.13 RBAC: E assign-full-buyout → 403')
-  // Tạo transfer mới trên RS series (FB series có DRAFT contract sau 8.12)
+  // §v2 point 6: dùng RS series RIÊNG (rbacRs) để không đụng request đang active trên seriesRS.
   const r13a = await req('POST', '/transfers/requests', {
     token: mB2Tok,
     body: {
-      seriesId: seriesRS.id,
+      seriesId: rbacRs.series.id,
       planDescription: 'rbac test',
       proposedType: TransferType.FULL_TRANSFER
     }
@@ -500,7 +581,7 @@ const main = async () => {
   ok('8.13b rbacFbId extracted', !!rbacFbId, `got ${rbacFbId}`)
   const r13b = await req('POST', `/transfers/requests/${rbacFbId}/board-approve`, {
     token: b1Tok,
-    body: { boardDecisionId: rsApprovedDecision.id }
+    body: { boardDecisionId: rbacRs.decision.id }
   })
   ok('8.13c board-approve 201', r13b.status === 201, `got ${r13b.status} ${r13b.raw.slice(0, 200)}`)
   const r13c = await req('POST', `/transfers/requests/${rbacFbId}/assign-full-buyout`, {
@@ -547,8 +628,8 @@ const main = async () => {
     `got ${String(responseData(r16)?.status)}`
   )
 
-  // ─── Section 8.17 — REVENUE_SHARE: M accept NEGOTIATING → UNDER_REVIEW ───
-  section('8.17 M accept NEGOTIATING → UNDER_REVIEW')
+  // ─── Section 8.17 — REVENUE_SHARE: M accept NEGOTIATING → ACCEPTED (§v2 point 1) ───
+  section('8.17 M accept NEGOTIATING → ACCEPTED')
   const r17a = await req('POST', '/transfers/requests', {
     token: mB2Tok,
     body: {
@@ -572,11 +653,7 @@ const main = async () => {
     token: mB1Tok
   })
   ok('8.17d m accept 201', r17d.status === 201, `got ${r17d.status} ${r17d.raw.slice(0, 200)}`)
-  ok(
-    '8.17e status UNDER_REVIEW',
-    responseData(r17d)?.status === 'UNDER_REVIEW',
-    `got ${String(responseData(r17d)?.status)}`
-  )
+  ok('8.17e status ACCEPTED', responseData(r17d)?.status === 'ACCEPTED', `got ${String(responseData(r17d)?.status)}`)
 
   // ─── Section 8.18 — accept khi không NEGOTIATING → RequestNotInNegotiatingStage ─
   section('8.18 mangaka-accept khi ≠ NEGOTIATING → Error.RequestNotInNegotiatingStage')
@@ -587,16 +664,16 @@ const main = async () => {
     r18,
     400,
     'Error.RequestNotInNegotiatingStage',
-    '8.18a accept khi UNDER_REVIEW → Error.RequestNotInNegotiatingStage'
+    '8.18a accept khi ACCEPTED → Error.RequestNotInNegotiatingStage'
   )
 
-  // ─── Section 8.19 — Tạo TransferContract khi request chưa UNDER_REVIEW ──
-  section('8.19 tạo TransferContract khi request chưa UNDER_REVIEW → InvalidTransferState')
-  // Tạo transfer mới + board-approve (→ UNDER_REVIEW) + start-negotiation (→ NEGOTIATING) — KHÔNG accept
+  // ─── Section 8.19 — Tạo TransferContract khi request chưa ACCEPTED (§v2 point 2) ──
+  section('8.19 tạo TransferContract khi request chưa ACCEPTED (đang NEGOTIATING) → InvalidTransferState')
+  // §v2 point 6: guardRs = RS series riêng. board-approve (→ UNDER_REVIEW) + start-negotiation (→ NEGOTIATING) — KHÔNG accept
   const r19a = await req('POST', '/transfers/requests', {
     token: mB2Tok,
     body: {
-      seriesId: seriesRS.id,
+      seriesId: guardRs.series.id,
       planDescription: 'contract guard test',
       proposedType: TransferType.PARTIAL_TRANSFER,
       proposedPercentage: 40
@@ -605,7 +682,7 @@ const main = async () => {
   const guardId = r19a.json?.data?.id ?? r19a.json?.id
   await req('POST', `/transfers/requests/${guardId}/board-approve`, {
     token: b1Tok,
-    body: { boardDecisionId: rsApprovedDecision.id }
+    body: { boardDecisionId: guardRs.decision.id }
   })
   await req('POST', `/transfers/requests/${guardId}/start-negotiation`, {
     token: e2Tok
@@ -623,8 +700,8 @@ const main = async () => {
   })
   expectError(r19d, 409, 'Error.InvalidTransferState', '8.19a tạo contract khi NEGOTIATING → InvalidTransferState')
 
-  // ─── Section 8.20 — E tạo TransferContract hợp lệ (UNDER_REVIEW) ─────────
-  section('8.20 E tạo TransferContract UNDER_REVIEW → DRAFT')
+  // ─── Section 8.20 — E tạo TransferContract hợp lệ (ACCEPTED — §v2 point 2) ─────────
+  section('8.20 E tạo TransferContract ACCEPTED → DRAFT')
   const r20 = await req('POST', '/transfers/contracts', {
     token: e2Tok,
     body: {
@@ -638,6 +715,7 @@ const main = async () => {
   ok('8.20a create contract 201', r20.status === 201, `got ${r20.status} ${r20.raw.slice(0, 200)}`)
   ok('8.20b status DRAFT', responseData(r20)?.status === 'DRAFT', `got ${String(responseData(r20)?.status)}`)
   const contractTId = r20.json?.data?.id ?? r20.json?.id
+  if (typeof contractTId !== 'string') throw new Error('Flow08 transfer contract id missing')
 
   // ─── Section 8.20bis — Spec 27: bên ký PHẢI khám phá được id + đọc được điều khoản ──
   // Trước Spec 27, `transferContractId` không lộ ra bất kỳ đường GET nào ⇒ chỉ Editor (người tạo)
@@ -703,48 +781,64 @@ const main = async () => {
   await seedOtp(mB2.email, 'SIGNING_CONTRACT')
   await seedOtp(b1.email, 'SIGNING_CONTRACT')
 
+  const r22MissingDecision = await req('POST', `/transfers/contracts/${contractTId}/sign`, {
+    token: mB1Tok,
+    body: { otpCode: '123456' }
+  })
+  expectError(
+    r22MissingDecision,
+    409,
+    'Error.TransferContractApprovalDecisionRequired',
+    '8.22a first signature is blocked before Board approval'
+  )
+  await makeApprovedContractDecision({
+    seriesId: seriesRS.id,
+    resourceType: 'TRANSFER_CONTRACT',
+    resourceId: contractTId
+  })
+
   // Client attempts to spoof MANGAKA_A. The server derives MANGAKA_B from the
   // authenticated actor, rejects the out-of-order signature and does not burn OTP.
   const r22Spoof = await req('POST', `/transfers/contracts/${contractTId}/sign?signerRole=MANGAKA_A`, {
     token: mB2Tok,
     body: { otpCode: '123456' }
   })
-  expectError(r22Spoof, 409, 'Error.InvalidTransferState', '8.22a spoofed signerRole is ignored')
+  expectError(r22Spoof, 409, 'Error.InvalidTransferState', '8.22b spoofed signerRole is ignored')
 
   // A sign
   const r22a = await req('POST', `/transfers/contracts/${contractTId}/sign`, {
     token: mB1Tok,
     body: { otpCode: '123456' }
   })
-  ok('8.22b A sign 201', r22a.status === 201, `got ${r22a.status} ${r22a.raw.slice(0, 200)}`)
+  ok('8.22c A sign 201', r22a.status === 201, `got ${r22a.status} ${r22a.raw.slice(0, 200)}`)
 
   // B sign
   const r22b = await req('POST', `/transfers/contracts/${contractTId}/sign`, {
     token: mB2Tok,
     body: { otpCode: '123456' }
   })
-  ok('8.22c B sign 201', r22b.status === 201, `got ${r22b.status} ${r22b.raw.slice(0, 200)}`)
+  ok('8.22d B sign 201', r22b.status === 201, `got ${r22b.status} ${r22b.raw.slice(0, 200)}`)
 
   // Board sign
   const r22c = await req('POST', `/transfers/contracts/${contractTId}/sign`, {
     token: b1Tok,
     body: { otpCode: '123456' }
   })
-  ok('8.22d Board sign 201', r22c.status === 201, `got ${r22c.status} ${r22c.raw.slice(0, 200)}`)
+  ok('8.22e Board sign 201', r22c.status === 201, `got ${r22c.status} ${r22c.raw.slice(0, 200)}`)
   await sleep(300)
 
   // verify status FULLY_EXECUTED
   const signedContract = await prisma.transferContract.findUnique({ where: { id: contractTId } })
-  ok('8.22e contract FULLY_EXECUTED', signedContract?.status === 'FULLY_EXECUTED', `got ${signedContract?.status}`)
+  ok('8.22f contract FULLY_EXECUTED', signedContract?.status === 'FULLY_EXECUTED', `got ${signedContract?.status}`)
   const completedRevenueShare = await prisma.transferRequest.findUnique({ where: { id: acceptId } })
   ok(
-    '8.22f request COMPLETED atomically with final signature',
+    '8.22g request COMPLETED atomically with final signature',
     completedRevenueShare?.status === 'COMPLETED',
     `got ${completedRevenueShare?.status}`
   )
   // verify 3 signatures
   const sigs = await prisma.transferContractSignature.findMany({ where: { transferContractId: contractTId } })
-  ok('8.22g 3 signatures', sigs.length === 3, `got ${sigs.length}`)
+  ok('8.22h 3 signatures', sigs.length === 3, `got ${sigs.length}`)
 
   // ─── Section 8.23 — Sign lần 2 với cùng role → UserHasAlreadySigned ───
   section('8.23 sign lần 2 cùng role → Error.TransferAlreadySigned')
@@ -866,11 +960,11 @@ const main = async () => {
 
   // ─── Section 8.32 — sign OTP sai → 422 InvalidOTP ────────────────────────
   section('8.32 sign OTP sai → 422 InvalidOTP')
-  // Tạo transfer trên RS series (FB không còn FULLY_EXECUTED contract sau 8.12)
+  // §v2 point 6: dùng RS series RIÊNG (otpRs) để không đụng guard 1-series-1-active-request.
   const r32a = await req('POST', '/transfers/requests', {
     token: mB2Tok,
     body: {
-      seriesId: seriesRS.id,
+      seriesId: otpRs.series.id,
       planDescription: 'OTP test',
       proposedType: TransferType.PARTIAL_TRANSFER,
       proposedPercentage: 25
@@ -879,7 +973,7 @@ const main = async () => {
   const otpReqId = r32a.json?.data?.id ?? r32a.json?.id
   const r32b = await req('POST', `/transfers/requests/${otpReqId}/board-approve`, {
     token: b1Tok,
-    body: { boardDecisionId: rsApprovedDecision.id }
+    body: { boardDecisionId: otpRs.decision.id }
   })
   ok('8.32a board-approve OTP test', r32b.status === 201, `got ${r32b.status}`)
   await req('POST', `/transfers/requests/${otpReqId}/start-negotiation`, {
@@ -888,7 +982,7 @@ const main = async () => {
   const r32d = await req('POST', `/transfers/requests/${otpReqId}/mangaka-accept`, {
     token: mB1Tok
   })
-  ok('8.32d m accept → UNDER_REVIEW', r32d.status === 201, `got ${r32d.status}`)
+  ok('8.32d m accept → ACCEPTED', r32d.status === 201, `got ${r32d.status}`)
   const r32e = await req('POST', '/transfers/contracts', {
     token: e2Tok,
     body: {
@@ -901,6 +995,12 @@ const main = async () => {
   })
   const otpContractId = r32e.json?.data?.id ?? r32e.json?.id
   ok('8.32e contract created', !!otpContractId && r32e.status === 201, `got ${r32e.status}`)
+  if (typeof otpContractId !== 'string') throw new Error('Flow08 OTP transfer contract id missing')
+  await makeApprovedContractDecision({
+    seriesId: otpRs.series.id,
+    resourceType: 'TRANSFER_CONTRACT',
+    resourceId: otpContractId
+  })
 
   // Sign với OTP sai (chưa seedOtp → sẽ fail InvalidOTP)
   const r32f = await req('POST', `/transfers/contracts/${otpContractId}/sign`, {

@@ -89,6 +89,16 @@ export const AssignFullBuyoutSchema = extendApi(
   { title: 'AssignFullBuyoutBody', description: 'Board giao FULL_BUYOUT cho Mangaka B (định giá lại + điều kiện)' }
 )
 
+// §v2 point 3: query lọc list Editor. Một field optional để tránh gotcha "empty strict query" của nestjs-zod.
+export const ListTransferRequestsQuerySchema = extendApi(
+  z
+    .object({
+      status: zEnum($Enums.TransferRequestStatus, 'TransferRequestStatus').optional()
+    })
+    .strict(),
+  { title: 'ListTransferRequestsQuery', description: 'Lọc danh sách yêu cầu chuyển nhượng theo trạng thái' }
+)
+
 export const CreateTransferContractSchema = extendApi(
   z.object({
     transferRequestId: z.string().min(1),
@@ -98,6 +108,16 @@ export const CreateTransferContractSchema = extendApi(
     coOwnerApprovalRequired: z.boolean().default(false)
   }),
   { title: 'CreateTransferContractBody', description: 'Editor tạo hợp đồng chuyển nhượng 3 bên' }
+)
+
+// §v2 point 7: response của assign-full-buyout mang replacementContractId + requestStatus (không chỉ message).
+export const AssignFullBuyoutResSchema = extendApi(
+  z.object({
+    message: z.string(),
+    replacementContractId: z.string().describe('Contract (hợp đồng XUẤT BẢN mới, Full Buyout) vừa tạo cho Mangaka B'),
+    requestStatus: zEnum($Enums.TransferRequestStatus, 'TransferRequestStatus')
+  }),
+  { title: 'AssignFullBuyoutRes', description: 'Kết quả giao Full Buyout: đã tạo hợp đồng thay thế, chờ ký' }
 )
 
 export const SignTransferContractSchema = extendApi(
@@ -148,6 +168,15 @@ export const TransferRequestSchema = extendApi(
       .optional()
       .describe(
         'TransferContract (hợp đồng CHUYỂN NHƯỢNG 3 bên) đã soạn cho yêu cầu này; null khi Editor chưa soạn. Dùng id này gọi GET /transfers/contracts/:id và POST /transfers/contracts/:id/sign. CHỈ có ở 3 route GET request; response của route mutation không mang field này'
+      ),
+    // §v2 point 7: Full Buyout (Mô hình A) tạo Contract mới (không phải TransferContract) → tra theo
+    // Contract.sourceTransferRequestId. Dùng id này để FE mở đúng hợp đồng thay thế thay vì list chung.
+    replacementContractId: z
+      .string()
+      .nullable()
+      .optional()
+      .describe(
+        'Contract thay thế (Full Buyout Mô hình A) sinh từ yêu cầu này; null nếu chưa có / không phải Full Buyout'
       ),
     status: zEnum($Enums.TransferRequestStatus, 'TransferRequestStatus'),
     boardDecisionId: z.string().nullable().optional(),

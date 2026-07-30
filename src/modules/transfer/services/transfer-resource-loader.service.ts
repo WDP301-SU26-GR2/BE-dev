@@ -3,6 +3,7 @@ import { $Enums } from '@prisma/client'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { BoardService } from 'src/modules/board/services/board.service'
 import type { TransferDecisionContext } from 'src/modules/board/services/board.service'
+import type { ContractDecisionResourceType } from 'src/modules/board/services/board.service'
 import {
   InvalidTransferBoardDecisionException,
   TransferAccessDeniedException,
@@ -48,7 +49,7 @@ export class TransferResourceLoader {
   }
 
   async resolveDecision(
-    request: { seriesId: string },
+    request: { id: string; seriesId: string },
     actor: ActorContext,
     reference: { boardDecisionId?: string; boardSessionId?: string },
     expectedResult: $Enums.BoardDecisionResult
@@ -76,6 +77,11 @@ export class TransferResourceLoader {
     ) {
       throw InvalidTransferBoardDecisionException
     }
+    // §v2 point 5: nếu decision đã gắn transferRequestId thì phải khớp CHÍNH request này (chống tái dùng
+    // decision cũ của cùng series cho request chuyển nhượng khác). Decision cũ (chưa gắn) giữ tương thích.
+    if (decision.transferRequestId && decision.transferRequestId !== request.id) {
+      throw InvalidTransferBoardDecisionException
+    }
     return decision
   }
 
@@ -83,5 +89,13 @@ export class TransferResourceLoader {
     if (!boardDecisionId) return []
     const decision = await this.boardService.getTransferDecisionContext(boardDecisionId)
     return decision?.allowedEditorIds ?? []
+  }
+
+  findApprovedContractDecision(command: {
+    targetSeriesId: string
+    resourceType: ContractDecisionResourceType
+    resourceId: string
+  }) {
+    return this.boardService.findApprovedContractDecisionContext(command)
   }
 }

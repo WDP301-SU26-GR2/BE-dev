@@ -9,7 +9,9 @@ describe('TransferRequestListItemSchema (Spec 25)', () => {
 
   it('bỏ planDescription khỏi list', () => {
     expect(listKeys).not.toContain('planDescription')
-    expect(listKeys).toHaveLength(15)
+    // §v2 point 7: +replacementContractId (Full Buyout Mô hình A) → 15 → 16.
+    expect(listKeys).toContain('replacementContractId')
+    expect(listKeys).toHaveLength(16)
   })
 
   // 🔴 Spec 27 — transferContractId PHẢI có ở LIST, không được đẩy về detail-only.

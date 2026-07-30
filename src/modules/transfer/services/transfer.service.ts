@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { $Enums } from '@prisma/client'
 import {
   AssignFullBuyoutBodyDto,
   BoardDecisionTransferBodyDto,
@@ -37,6 +38,10 @@ export class TransferService {
 
   getPendingBoardRequests() {
     return this.requestService.listPendingBoard()
+  }
+
+  getAssignedEditorRequests(editorId: string, status?: $Enums.TransferRequestStatus) {
+    return this.requestService.listForEditor(editorId, status)
   }
 
   boardApproveScreening(id: string, actor: ActorContext, dto: BoardDecisionTransferBodyDto) {

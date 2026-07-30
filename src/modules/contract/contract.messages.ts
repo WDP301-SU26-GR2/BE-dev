@@ -44,6 +44,8 @@ export const ContractMessages = {
     contractAccessDenied: 'Error.ContractAccessDenied',
     boardDecisionNotFound: 'Error.BoardDecisionNotFound',
     invalidSerializationDecision: 'Error.InvalidSerializationDecision',
+    invalidContractDecision: 'Error.InvalidContractDecision',
+    contractApprovalDecisionRequired: 'Error.ContractApprovalDecisionRequired',
     contractMangakaMismatch: 'Error.ContractMangakaMismatch',
     openContractExists: 'Error.OpenContractExists',
     contractNotExecutedForPdf: 'Error.ContractNotExecutedForPdf',
@@ -76,6 +78,8 @@ export const ContractMessages = {
   errorText: {
     'Error.BoardDecisionNotFound': 'Không tìm thấy quyết định Hội đồng',
     'Error.InvalidSerializationDecision': 'Quyết định Hội đồng không hợp lệ để tạo hợp đồng serial hóa',
+    'Error.InvalidContractDecision': 'Quyết định Hội đồng không khớp với hợp đồng hoặc phiên bản hiện hành',
+    'Error.ContractApprovalDecisionRequired': 'Tài nguyên chưa có quyết định CONTRACT được Hội đồng phê duyệt',
     'Error.ContractMangakaMismatch': 'Mangaka trong hợp đồng không phải chủ sở hữu Series',
     'Error.OpenContractExists': 'Series hoặc quyết định này đã có hợp đồng chưa kết thúc',
     'Error.InvalidContractTransition': 'Không thể chuyển hợp đồng sang trạng thái này',

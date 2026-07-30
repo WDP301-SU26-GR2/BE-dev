@@ -10,6 +10,7 @@ import {
   RequesterAlreadyOwnsSeriesException,
   RequestingMangakaInactiveException,
   TransferAccessDeniedException,
+  TransferContractApprovalDecisionRequiredException,
   TransferContractNotFoundException,
   TransferRequestNotFoundException,
   UserOrEmailNotFoundException
@@ -42,6 +43,7 @@ function setup(options: { transactionDependencies?: boolean } = { transactionDep
   }
   const repo = {
     findActiveContractBySeriesId: jest.fn(),
+    findActiveTransferRequestBySeriesId: jest.fn().mockResolvedValue(null),
     createTransferRequest: jest.fn().mockResolvedValue({ id: REQUEST_ID }),
     findTransferRequestsByMangaka: jest.fn().mockResolvedValue([{ id: REQUEST_ID }]),
     findTransferRequestById: jest.fn().mockResolvedValue(request),
@@ -61,7 +63,12 @@ function setup(options: { transactionDependencies?: boolean } = { transactionDep
       result: 'APPROVED',
       allowedEditorIds: ['board-1']
     }),
-    findTerminalTransferDecisionContextsBySession: jest.fn()
+    findTerminalTransferDecisionContextsBySession: jest.fn(),
+    findApprovedContractDecisionContext: jest.fn().mockResolvedValue({
+      id: 'contract-decision-1',
+      decisionType: 'CONTRACT',
+      result: 'APPROVED'
+    })
   }
   const audit = { record: jest.fn().mockResolvedValue(undefined) }
   const notifications = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -90,7 +97,7 @@ function setup(options: { transactionDependencies?: boolean } = { transactionDep
     withTransactions ? (contractState as never) : undefined
   )
   const service = new TransferService(
-    new TransferRequestService(repo as never, audit as never, policy, loader, transactions),
+    new TransferRequestService(repo as never, audit as never, policy, loader, transactions, notifications as never),
     new TransferNegotiationService(repo as never, audit as never, policy, loader, transactions),
     new TransferContractService(repo as never, audit as never, policy, loader, transactions, notifications as never),
     new TransferSigningService(repo as never, audit as never, policy, loader, transactions, notifications as never),
@@ -332,7 +339,7 @@ describe('TransferService branch coverage — request and Board lifecycle', () =
   // theo transferContractId, nếu không họ phải tự đoán thời điểm vào xem.
   it('notifies both signing mangakas when the transfer contract is drafted', async () => {
     const { service, repo, notifications, request } = setup()
-    repo.findTransferRequestById.mockResolvedValue({ ...request, status: 'UNDER_REVIEW' })
+    repo.findTransferRequestById.mockResolvedValue({ ...request, status: 'ACCEPTED' })
 
     await service.createTransferContract(actor('editor-1', RoleName.EDITOR), {
       transferRequestId: REQUEST_ID,
@@ -348,7 +355,7 @@ describe('TransferService branch coverage — request and Board lifecycle', () =
 
   it('carries the transfer contract id in the drafted notification so signers can open it', async () => {
     const { service, repo, notifications, request } = setup()
-    repo.findTransferRequestById.mockResolvedValue({ ...request, status: 'UNDER_REVIEW' })
+    repo.findTransferRequestById.mockResolvedValue({ ...request, status: 'ACCEPTED' })
 
     await service.createTransferContract(actor('editor-1', RoleName.EDITOR), {
       transferRequestId: REQUEST_ID,
@@ -365,7 +372,7 @@ describe('TransferService branch coverage — request and Board lifecycle', () =
 
   it('requires all transaction capabilities before a state-changing transaction', async () => {
     const { service, repo, request } = setup({ transactionDependencies: false })
-    repo.findTransferRequestById.mockResolvedValue({ ...request, status: 'UNDER_REVIEW' })
+    repo.findTransferRequestById.mockResolvedValue({ ...request, status: 'ACCEPTED' })
 
     await expect(
       service.createTransferContract(actor('editor-1', RoleName.EDITOR), {
@@ -458,7 +465,7 @@ describe('TransferService branch coverage — negotiation lifecycle', () => {
       expect.anything(),
       REQUEST_ID,
       'NEGOTIATING',
-      'UNDER_REVIEW'
+      'ACCEPTED'
     )
 
     const rejected = setup()
@@ -535,6 +542,23 @@ describe('TransferService branch coverage — signature authorization and final 
 
     expect(contractState.transition).toHaveBeenCalledWith(expect.anything(), CONTRACT_ID, 'DRAFT', 'A_SIGNED')
     expect(requestState.transition).not.toHaveBeenCalled()
+  })
+
+  it('blocks Mangaka A before OTP when the transfer contract has no approved CONTRACT decision', async () => {
+    const { service, repo, board, signingOtp } = setup()
+    repo.findTransferContractById.mockResolvedValue(contract)
+    board.findApprovedContractDecisionContext.mockResolvedValue(null)
+
+    await expect(
+      service.signTransferContract(CONTRACT_ID, actor('mangaka-a', RoleName.MANGAKA), { otpCode: '123456' })
+    ).rejects.toBe(TransferContractApprovalDecisionRequiredException)
+
+    expect(board.findApprovedContractDecisionContext).toHaveBeenCalledWith({
+      targetSeriesId: 'series-1',
+      resourceType: 'TRANSFER_CONTRACT',
+      resourceId: CONTRACT_ID
+    })
+    expect(signingOtp.consumeSigningOtp).not.toHaveBeenCalled()
   })
 
   // §84: chuỗi ký A → B → Hội đồng trước đây không phát notification nào ⇒ ký xong người kế tiếp

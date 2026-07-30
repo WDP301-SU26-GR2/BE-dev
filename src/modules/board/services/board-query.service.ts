@@ -4,7 +4,7 @@ import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { BoardRepository } from '../board.repo'
 import * as Errors from '../errors/board.errors'
 import { BoardDecisionResDto, BoardSessionResDto, BoardVoteResDto } from '../dto/board.dto'
-import type { TransferDecisionContext } from '../board.types'
+import type { ContractDecisionContext, ContractDecisionResourceType, TransferDecisionContext } from '../board.types'
 
 @Injectable()
 export class BoardQueryService {
@@ -32,10 +32,25 @@ export class BoardQueryService {
     return enriched as unknown as BoardSessionResDto
   }
 
-  async getDecisions(query?: { boardSessionId?: string; targetSeriesId?: string }) {
+  async getDecisions(
+    query?: { boardSessionId?: string; targetSeriesId?: string; mine?: 'true' | 'false' },
+    userId?: string
+  ) {
     if (query?.boardSessionId !== undefined && !isObjectId(query.boardSessionId)) return []
     if (query?.targetSeriesId !== undefined && !isObjectId(query.targetSeriesId)) return []
-    const decisions = await this.repository.findManyDecisions(query)
+    // §v2 point 10: mine=true → chỉ decision thuộc phiên user nằm trong roster (creator KHÔNG mặc nhiên thuộc).
+    let boardSessionIds: string[] | undefined
+    if (query?.mine === 'true') {
+      if (!userId) return []
+      const sessions = await this.repository.findMemberSessionIds(userId)
+      if (sessions.length === 0) return []
+      boardSessionIds = sessions.map((session) => session.id)
+    }
+    const decisions = await this.repository.findManyDecisions({
+      boardSessionId: query?.boardSessionId,
+      targetSeriesId: query?.targetSeriesId,
+      boardSessionIds
+    })
     return (await this.enrichDecisions(decisions)) as unknown as BoardDecisionResDto[]
   }
 
@@ -77,10 +92,48 @@ export class BoardQueryService {
       id: decision.id,
       boardSessionId: decision.boardSessionId,
       targetSeriesId: decision.targetSeriesId ?? null,
+      transferRequestId: decision.transferRequestId ?? null,
       decisionType: decision.decisionType ?? null,
       result: decision.result ?? null,
       allowedEditorIds: Array.from(new Set([...(decision.allowedEditorIds ?? []), ...(session.allowedEditorIds ?? [])]))
     }
+  }
+
+  async getContractDecisionContext(decisionId: string): Promise<ContractDecisionContext | null> {
+    if (!isObjectId(decisionId)) return null
+    const decision = await this.repository.findDecisionById(decisionId)
+    if (!decision) return null
+    const session = await this.repository.findSessionById(decision.boardSessionId)
+    if (!session) return null
+    const details =
+      decision.details && typeof decision.details === 'object' && !Array.isArray(decision.details)
+        ? (decision.details as Record<string, unknown>)
+        : null
+    return {
+      id: decision.id,
+      boardSessionId: decision.boardSessionId,
+      targetSeriesId: decision.targetSeriesId ?? null,
+      decisionType: decision.decisionType ?? null,
+      result: decision.result ?? null,
+      details,
+      decidedAt: decision.decidedAt ?? null,
+      allowedEditorIds: Array.from(new Set([...(decision.allowedEditorIds ?? []), ...(session.allowedEditorIds ?? [])]))
+    }
+  }
+
+  async findApprovedContractDecisionContext(command: {
+    targetSeriesId: string
+    resourceType: ContractDecisionResourceType
+    resourceId: string
+  }): Promise<ContractDecisionContext | null> {
+    if (!isObjectId(command.targetSeriesId) || !isObjectId(command.resourceId)) return null
+    const decisions = await this.repository.findApprovedContractDecisions(command.targetSeriesId)
+    const matching = decisions.find((decision) => {
+      if (!decision.details || typeof decision.details !== 'object' || Array.isArray(decision.details)) return false
+      const details = decision.details as Record<string, unknown>
+      return details.resourceType === command.resourceType && details.resourceId === command.resourceId
+    })
+    return matching ? this.getContractDecisionContext(matching.id) : null
   }
 
   async findTerminalTransferDecisionContextsBySession(

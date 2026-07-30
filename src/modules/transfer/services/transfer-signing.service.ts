@@ -14,6 +14,7 @@ import { SignTransferContractBodyDto } from '../dto/transfer.dto'
 import {
   InvalidTransferStateException,
   TransferAccessDeniedException,
+  TransferContractApprovalDecisionRequiredException,
   UserHasAlreadySignedContractException,
   UserOrEmailNotFoundException
 } from '../errors/transfer.error'
@@ -63,6 +64,14 @@ export class TransferSigningService {
       BOARD: TransferContractStatus.B_SIGNED
     } as const
     if (contract.status !== expectedStatus[role]) throw InvalidTransferStateException
+    if (role === 'MANGAKA_A') {
+      const decision = await this.resourceLoader.findApprovedContractDecision({
+        targetSeriesId: seriesId,
+        resourceType: 'TRANSFER_CONTRACT',
+        resourceId: contract.id
+      })
+      if (!decision) throw TransferContractApprovalDecisionRequiredException
+    }
 
     const dependencies = this.transactions.require()
     try {

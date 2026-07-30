@@ -1631,6 +1631,10 @@ model BoardMessage {
 model BoardDecision {
   id             String       @id @default(auto()) @map("_id") @db.ObjectId
   targetSeriesId String?      @db.ObjectId
+  // §v2 point 5 (Flow 8): quyết định TRANSFER phải trỏ đích danh 1 TransferRequest, tránh 1 decision
+  // của series bị tái dùng cho request chuyển nhượng khác. Scalar (không phải @relation) để không tạo
+  // ràng buộc vòng module; transfer.resolveDecision đối chiếu transferRequestId === request.id.
+  transferRequestId String?   @db.ObjectId
   boardSessionId String       @db.ObjectId
   boardSession   BoardSession @relation(fields: [boardSessionId], references: [id], onDelete: Cascade)
 
@@ -1653,6 +1657,7 @@ model BoardDecision {
   chapterCoOwnerApprovals ChapterCoOwnerApproval[]
 
   @@index([targetSeriesId])
+  @@index([transferRequestId])
 }
 
 type Vote {
