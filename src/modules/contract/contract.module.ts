@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { PdfModule } from 'src/infrastructure/pdf/pdf.module'
 import { AuthModule } from '../auth/auth.module'
+import { BoardModule } from '../board/board.module'
 import { NotificationModule } from '../notification/notification.module'
 import { PaymentModule } from '../payment/payment.module'
 import { StorageModule } from '../storage/storage.module'
@@ -28,7 +29,7 @@ import { ContractWorkflowService } from './services/contract-workflow.service'
 import { ContractAssetRegistryPort } from './ports/contract-asset-registry.port'
 
 @Module({
-  imports: [EventEmitterModule, AuthModule, NotificationModule, PaymentModule, StorageModule, PdfModule],
+  imports: [EventEmitterModule, AuthModule, BoardModule, NotificationModule, PaymentModule, StorageModule, PdfModule],
   controllers: [ContractController, PaymentConditionController, ContractAmendmentController],
   providers: [
     ContractService,

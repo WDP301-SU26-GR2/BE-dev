@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { $Enums, Prisma } from '@prisma/client'
 import { fetchSeriesMiniMap, fetchUserMiniMap } from 'src/core/models/user-mini.model'
+import { ACTIVE_TRANSFER_REQUEST_STATUSES } from './transfer.constant'
 import type { TransactionContext } from 'src/infrastructure/database/transaction-context'
 import { transactionClient } from 'src/infrastructure/database/transaction-context'
 
@@ -33,6 +34,17 @@ export class TransferRepo {
     return this.prisma.series.findUnique({
       where: { id: seriesId },
       select: { editorId: true }
+    })
+  }
+
+  // §v2 point 6: yêu cầu chuyển nhượng đang hoạt động của series (nếu có) — dùng để chặn tạo trùng.
+  findActiveTransferRequestBySeriesId(seriesId: string) {
+    return this.prisma.transferRequest.findFirst({
+      where: {
+        seriesId,
+        status: { in: ACTIVE_TRANSFER_REQUEST_STATUSES as unknown as $Enums.TransferRequestStatus[] }
+      },
+      select: { id: true, status: true }
     })
   }
 
@@ -74,6 +86,19 @@ export class TransferRepo {
       where: {
         OR: [{ requestingMangakaId: mangakaId }, { originalMangakaId: mangakaId }]
       },
+      orderBy: { createdAt: 'desc' }
+    })
+    return this.enrichTransferRequests(requests)
+  }
+
+  // §v2 point 3: danh sách yêu cầu chuyển nhượng theo Editor phụ trách (scope theo series.editorId),
+  // hỗ trợ lọc status (cả lịch sử, không chỉ đang chờ). 2 query: series của editor → requests theo seriesId.
+  async findTransferRequestsByEditor(editorId: string, status?: $Enums.TransferRequestStatus) {
+    const series = await this.prisma.series.findMany({ where: { editorId }, select: { id: true } })
+    const seriesIds = series.map((row) => row.id)
+    if (seriesIds.length === 0) return []
+    const requests = await this.prisma.transferRequest.findMany({
+      where: { seriesId: { in: seriesIds }, ...(status ? { status } : {}) },
       orderBy: { createdAt: 'desc' }
     })
     return this.enrichTransferRequests(requests)
@@ -182,21 +207,40 @@ export class TransferRepo {
   >(rows: T[]) {
     const withPeople = await this.attachTransferRequestPeople(rows)
     const requestIds = rows.map((row) => row.id).filter((id): id is string => Boolean(id))
-    if (requestIds.length === 0) return withPeople.map((row) => ({ ...row, transferContractId: null }))
-    const contracts = await this.prisma.transferContract.findMany({
-      where: { transferRequestId: { in: requestIds } },
-      select: { id: true, transferRequestId: true },
-      orderBy: { createdAt: 'desc' }
-    })
+    if (requestIds.length === 0) {
+      return withPeople.map((row) => ({ ...row, transferContractId: null, replacementContractId: null }))
+    }
+    // §v2 point 7: 2 nguồn hợp đồng khác nhau —
+    //  - TransferContract (đường 3 bên, Revenue Share) tra theo transferRequestId
+    //  - Contract thay thế (Mô hình A, Full Buyout) tra theo sourceTransferRequestId
+    const [contracts, replacements] = await Promise.all([
+      this.prisma.transferContract.findMany({
+        where: { transferRequestId: { in: requestIds } },
+        select: { id: true, transferRequestId: true },
+        orderBy: { createdAt: 'desc' }
+      }),
+      this.prisma.contract.findMany({
+        where: { sourceTransferRequestId: { in: requestIds } },
+        select: { id: true, sourceTransferRequestId: true },
+        orderBy: { createdAt: 'desc' }
+      })
+    ])
     const contractByRequestId = new Map<string, string>()
     for (const contract of contracts) {
       if (contract.transferRequestId && !contractByRequestId.has(contract.transferRequestId)) {
         contractByRequestId.set(contract.transferRequestId, contract.id)
       }
     }
+    const replacementByRequestId = new Map<string, string>()
+    for (const contract of replacements) {
+      if (contract.sourceTransferRequestId && !replacementByRequestId.has(contract.sourceTransferRequestId)) {
+        replacementByRequestId.set(contract.sourceTransferRequestId, contract.id)
+      }
+    }
     return withPeople.map((row) => ({
       ...row,
-      transferContractId: row.id ? (contractByRequestId.get(row.id) ?? null) : null
+      transferContractId: row.id ? (contractByRequestId.get(row.id) ?? null) : null,
+      replacementContractId: row.id ? (replacementByRequestId.get(row.id) ?? null) : null
     }))
   }
 

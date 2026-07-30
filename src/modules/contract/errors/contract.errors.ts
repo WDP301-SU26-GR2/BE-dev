@@ -53,6 +53,15 @@ export const ContractErrors = {
   InvalidSerializationDecision: () =>
     new ConflictException([{ message: E.invalidSerializationDecision, path: 'boardDecisionId' }]),
 
+  ContractDecisionNotFound: () =>
+    new NotFoundException([{ message: E.boardDecisionNotFound, path: 'boardDecisionId' }]),
+
+  InvalidContractDecision: () =>
+    new UnprocessableEntityException([{ message: E.invalidContractDecision, path: 'boardDecisionId' }]),
+
+  ContractApprovalDecisionRequired: () =>
+    new ConflictException([{ message: E.contractApprovalDecisionRequired, path: 'boardDecisionId' }]),
+
   ContractMangakaMismatch: () => new ConflictException([{ message: E.contractMangakaMismatch, path: 'mangakaId' }]),
 
   OpenContractExists: () => new ConflictException([{ message: E.openContractExists, path: 'seriesId' }]),

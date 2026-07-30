@@ -81,7 +81,9 @@ function setup() {
   const loader = new TransferResourceLoader(repo as never, board as never, policy)
   const transactions = new TransferTransactionService(undefined, undefined, undefined, undefined, undefined, undefined)
   const service = new TransferService(
-    new TransferRequestService(repo as never, audit as never, policy, loader, transactions),
+    new TransferRequestService(repo as never, audit as never, policy, loader, transactions, {
+      notifySafe: jest.fn()
+    } as never),
     new TransferNegotiationService(repo as never, audit as never, policy, loader, transactions),
     new TransferContractService(repo as never, audit as never, policy, loader, transactions, {
       notifySafe: jest.fn()

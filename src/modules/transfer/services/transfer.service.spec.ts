@@ -1,7 +1,9 @@
 import { TransferService } from './transfer.service'
 import {
+  ActiveTransferRequestAlreadyExistsException,
   InvalidTransferBoardDecisionException,
   InvalidTransferStateException,
+  OnlyAppliesToRevenueShareException,
   TransferAccessDeniedException,
   UserHasAlreadySignedContractException,
   ValuationRequiredException
@@ -24,6 +26,10 @@ function makeRepo(overrides: Record<string, unknown> = {}) {
   return {
     findTransferRequestById: jest.fn(),
     findSeriesAccessScope: jest.fn().mockResolvedValue({ editorId: 'editor-assigned' }),
+    findActiveContractBySeriesId: jest.fn(),
+    findActiveTransferRequestBySeriesId: jest.fn().mockResolvedValue(null),
+    findTransferRequestsByEditor: jest.fn().mockResolvedValue([]),
+    createTransferRequest: jest.fn(),
     findTransferContractById: jest.fn(),
     findUserById: jest.fn(),
     addTransferContractSignature: jest.fn(),
@@ -66,7 +72,9 @@ function make(
   repo: ReturnType<typeof makeRepo>,
   audit: ReturnType<typeof makeAudit> = makeAudit(),
   board: ReturnType<typeof makeBoard> = makeBoard(),
-  otp: ReturnType<typeof makeOtp> = makeOtp()
+  otp: ReturnType<typeof makeOtp> = makeOtp(),
+  requestNotifications: { notifySafe: jest.Mock } = { notifySafe: jest.fn() },
+  contractNotifications: { notifySafe: jest.Mock } = { notifySafe: jest.fn() }
 ) {
   const context = {}
   repo.createTransferContractInTransaction.mockImplementation((_context: unknown, data: unknown) => {
@@ -114,11 +122,23 @@ function make(
     contractState as never
   )
   return new TransferService(
-    new TransferRequestService(repo as never, audit as never, policy, loader, transactions),
+    new TransferRequestService(
+      repo as never,
+      audit as never,
+      policy,
+      loader,
+      transactions,
+      requestNotifications as never
+    ),
     new TransferNegotiationService(repo as never, audit as never, policy, loader, transactions),
-    new TransferContractService(repo as never, audit as never, policy, loader, transactions, {
-      notifySafe: jest.fn()
-    } as never),
+    new TransferContractService(
+      repo as never,
+      audit as never,
+      policy,
+      loader,
+      transactions,
+      contractNotifications as never
+    ),
     new TransferSigningService(repo as never, audit as never, policy, loader, transactions, {
       notifySafe: jest.fn()
     } as never),
@@ -160,6 +180,65 @@ describe('TransferService — Part 2 hardening', () => {
       )
     })
 
+    // §v2 point 7: response phải mang replacementContractId + requestStatus để FE mở đúng hợp đồng thay thế.
+    it('returns replacementContractId + requestStatus (not just a message)', async () => {
+      const repo = makeRepo({ createNewContractFromTransfer: jest.fn().mockResolvedValue({ id: 'replacement-1' }) })
+      repo.findTransferRequestById.mockResolvedValue({
+        id: '507f1f77bcf86cd799439011',
+        status: 'UNDER_REVIEW',
+        originalContractType: 'FULL_BUYOUT',
+        originalContractId: 'k0',
+        originalContract: { editorId: 'editor-1' },
+        seriesId: 's1',
+        requestingMangakaId: 'B',
+        originalMangakaId: 'A',
+        boardDecisionId: 'decision-1'
+      })
+
+      const result = await make(repo).boardAssignFullBuyout(
+        '507f1f77bcf86cd799439011',
+        actor('board-1', RoleName.BOARD_MEMBER),
+        { valuationAmount: 5000, conditions: [{ description: 'x', type: 'RECURRING_CHAPTER', value: 5 }] }
+      )
+
+      expect(result).toMatchObject({
+        replacementContractId: 'replacement-1',
+        requestStatus: TRANSFER_REQUEST_STATUS.AWAITING_REPLACEMENT_SIGNATURES
+      })
+    })
+
+    // §v2 point 8: createReplacementDraft không đi qua luồng notify hợp đồng thường → phải tự báo.
+    it('notifies new mangaka + editor + board roster with the replacement contract id', async () => {
+      const repo = makeRepo({ createNewContractFromTransfer: jest.fn().mockResolvedValue({ id: 'replacement-1' }) })
+      repo.findTransferRequestById.mockResolvedValue({
+        id: '507f1f77bcf86cd799439011',
+        status: 'UNDER_REVIEW',
+        originalContractType: 'FULL_BUYOUT',
+        originalContractId: 'k0',
+        originalContract: { editorId: 'editor-1' },
+        seriesId: 's1',
+        requestingMangakaId: 'B',
+        originalMangakaId: 'A',
+        boardDecisionId: 'decision-1'
+      })
+      const contractNotify = { notifySafe: jest.fn() }
+      await make(
+        repo,
+        makeAudit(),
+        makeBoard(),
+        makeOtp(),
+        { notifySafe: jest.fn() },
+        contractNotify
+      ).boardAssignFullBuyout('507f1f77bcf86cd799439011', actor('board-1', RoleName.BOARD_MEMBER), {
+        valuationAmount: 5000,
+        conditions: [{ description: 'x', type: 'RECURRING_CHAPTER', value: 5 }]
+      })
+
+      const recipients = contractNotify.notifySafe.mock.calls.map((c) => (c[0] as { recipientId: string }).recipientId)
+      expect(recipients).toEqual(expect.arrayContaining(['B', 'editor-1', 'board-1']))
+      expect(contractNotify.notifySafe).toHaveBeenCalledWith(expect.objectContaining({ referenceId: 'replacement-1' }))
+    })
+
     it('rejects when valuationAmount <= 0 (ValuationRequired)', async () => {
       const repo = makeRepo()
       repo.findTransferRequestById.mockResolvedValue({
@@ -183,11 +262,13 @@ describe('TransferService — Part 2 hardening', () => {
   })
 
   describe('createTransferContract (B-TRF-03)', () => {
-    it('rejects when the request is not UNDER_REVIEW (e.g. still NEGOTIATING)', async () => {
+    // §v2 point 2: chặn tạo hợp đồng khi Mangaka gốc CHƯA đồng ý (request chưa ACCEPTED).
+    it('rejects when the request is still UNDER_REVIEW (original mangaka not yet accepted)', async () => {
       const repo = makeRepo()
       repo.findTransferRequestById.mockResolvedValue({
         id: '507f1f77bcf86cd799439011',
-        status: 'NEGOTIATING',
+        status: 'UNDER_REVIEW',
+        originalContractType: 'REVENUE_SHARE',
         seriesId: 's1'
       })
 
@@ -199,11 +280,29 @@ describe('TransferService — Part 2 hardening', () => {
       expect(repo.createTransferContract).not.toHaveBeenCalled()
     })
 
-    it('allows creating a transfer contract when request is UNDER_REVIEW', async () => {
+    it('rejects when the original contract is not REVENUE_SHARE', async () => {
       const repo = makeRepo()
       repo.findTransferRequestById.mockResolvedValue({
         id: '507f1f77bcf86cd799439011',
-        status: 'UNDER_REVIEW',
+        status: 'ACCEPTED',
+        originalContractType: 'FULL_BUYOUT',
+        seriesId: 's1'
+      })
+
+      await expect(
+        make(repo).createTransferContract(actor('editor-assigned', RoleName.EDITOR), {
+          transferRequestId: '507f1f77bcf86cd799439011'
+        } as never)
+      ).rejects.toBe(OnlyAppliesToRevenueShareException)
+      expect(repo.createTransferContract).not.toHaveBeenCalled()
+    })
+
+    it('allows creating a transfer contract only when request is ACCEPTED (REVENUE_SHARE)', async () => {
+      const repo = makeRepo()
+      repo.findTransferRequestById.mockResolvedValue({
+        id: '507f1f77bcf86cd799439011',
+        status: 'ACCEPTED',
+        originalContractType: 'REVENUE_SHARE',
         seriesId: 's1',
         originalMangakaId: 'A',
         requestingMangakaId: 'B'
@@ -218,7 +317,168 @@ describe('TransferService — Part 2 hardening', () => {
       } as never)
 
       expect(repo.createTransferContract).toHaveBeenCalled()
+      expect(repo.requestStateTransition).toHaveBeenCalledWith(
+        expect.anything(),
+        '507f1f77bcf86cd799439011',
+        TRANSFER_REQUEST_STATUS.ACCEPTED,
+        TRANSFER_REQUEST_STATUS.AWAITING_TRANSFER_SIGNATURES
+      )
     })
+  })
+
+  describe('negotiation review (B-TRF-03) — §v2 point 1', () => {
+    it('mangaka accept transitions NEGOTIATING → ACCEPTED (not back to UNDER_REVIEW)', async () => {
+      const repo = makeRepo()
+      repo.findTransferRequestById.mockResolvedValue({
+        id: '507f1f77bcf86cd799439011',
+        status: 'NEGOTIATING',
+        originalContractType: 'REVENUE_SHARE',
+        originalMangakaId: 'mangaka-a',
+        requestingMangakaId: 'mangaka-b',
+        seriesId: 's1'
+      })
+
+      await make(repo).mangakaAcceptTransfer('507f1f77bcf86cd799439011', actor('mangaka-a', RoleName.MANGAKA))
+
+      expect(repo.requestStateTransition).toHaveBeenCalledWith(
+        expect.anything(),
+        '507f1f77bcf86cd799439011',
+        TRANSFER_REQUEST_STATUS.NEGOTIATING,
+        TRANSFER_REQUEST_STATUS.ACCEPTED
+      )
+    })
+
+    it('mangaka reject transitions NEGOTIATING → REJECTED_BY_ORIGINAL_MANGAKA', async () => {
+      const repo = makeRepo()
+      repo.findTransferRequestById.mockResolvedValue({
+        id: '507f1f77bcf86cd799439011',
+        status: 'NEGOTIATING',
+        originalContractType: 'REVENUE_SHARE',
+        originalMangakaId: 'mangaka-a',
+        requestingMangakaId: 'mangaka-b',
+        seriesId: 's1'
+      })
+
+      await make(repo).mangakaRejectTransfer('507f1f77bcf86cd799439011', actor('mangaka-a', RoleName.MANGAKA))
+
+      expect(repo.requestStateTransition).toHaveBeenCalledWith(
+        expect.anything(),
+        '507f1f77bcf86cd799439011',
+        TRANSFER_REQUEST_STATUS.NEGOTIATING,
+        TRANSFER_REQUEST_STATUS.REJECTED_BY_ORIGINAL_MANGAKA
+      )
+    })
+  })
+})
+
+describe('createTransferRequest — §v2 point 6 active-request guard', () => {
+  const SERIES = '507f191e810c19729de860ea'
+  const baseDto = { seriesId: SERIES, planDescription: 'plan', proposedType: 'FULL_TRANSFER' }
+
+  function reqRepo(overrides: Record<string, unknown> = {}) {
+    return makeRepo({
+      findUserById: jest.fn().mockResolvedValue({ status: 'ACTIVE' }),
+      findActiveContractBySeriesId: jest
+        .fn()
+        .mockResolvedValue({ id: 'k0', mangakaId: 'A', contractType: 'REVENUE_SHARE' }),
+      findActiveTransferRequestBySeriesId: jest.fn().mockResolvedValue(null),
+      createTransferRequest: jest.fn().mockResolvedValue({ id: 'req1' }),
+      ...overrides
+    })
+  }
+
+  it('creates the request when no active transfer request exists for the series', async () => {
+    const repo = reqRepo()
+    await make(repo).createTransferRequest('B', baseDto as never)
+    expect(repo.findActiveTransferRequestBySeriesId).toHaveBeenCalledWith(SERIES)
+    expect(repo.createTransferRequest).toHaveBeenCalled()
+  })
+
+  it('rejects a second active transfer request for the same series (409)', async () => {
+    const repo = reqRepo({ findActiveTransferRequestBySeriesId: jest.fn().mockResolvedValue({ id: 'existing' }) })
+    await expect(make(repo).createTransferRequest('B', baseDto as never)).rejects.toBe(
+      ActiveTransferRequestAlreadyExistsException
+    )
+    expect(repo.createTransferRequest).not.toHaveBeenCalled()
+  })
+})
+
+describe('board screening notifications — §v2 point 4', () => {
+  const REQUEST_ID = '507f1f77bcf86cd799439011'
+  const SERIES_ID = '507f191e810c19729de860ea'
+  const request = {
+    id: REQUEST_ID,
+    seriesId: SERIES_ID,
+    requestingMangakaId: 'mangaka-b',
+    originalMangakaId: 'mangaka-a',
+    status: 'SUBMITTED',
+    originalContractType: 'REVENUE_SHARE'
+  }
+  const boardApproved = makeBoard({
+    getTransferDecisionContext: jest.fn().mockResolvedValue({
+      id: 'd1',
+      decisionType: 'TRANSFER',
+      result: 'APPROVED',
+      targetSeriesId: SERIES_ID,
+      allowedEditorIds: ['board-1']
+    })
+  })
+  const boardRejected = makeBoard({
+    getTransferDecisionContext: jest.fn().mockResolvedValue({
+      id: 'd1',
+      decisionType: 'TRANSFER',
+      result: 'REJECTED',
+      targetSeriesId: SERIES_ID,
+      allowedEditorIds: ['board-1']
+    })
+  })
+
+  it('notifies editor + requesting + original mangaka on APPROVE, with request.id and APPROVED referenceType', async () => {
+    const repo = makeRepo({
+      findTransferRequestById: jest.fn().mockResolvedValue(request),
+      findSeriesAccessScope: jest.fn().mockResolvedValue({ editorId: 'editor-1' })
+    })
+    const notify = { notifySafe: jest.fn() }
+    await make(repo, makeAudit(), boardApproved, makeOtp(), notify).boardApproveScreening(
+      REQUEST_ID,
+      actor('board-1', RoleName.BOARD_MEMBER),
+      { boardDecisionId: 'd1' }
+    )
+    const recipients = notify.notifySafe.mock.calls.map((c) => (c[0] as { recipientId: string }).recipientId)
+    expect(recipients).toEqual(expect.arrayContaining(['editor-1', 'mangaka-b', 'mangaka-a']))
+    expect(notify.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceId: REQUEST_ID, referenceType: 'TRANSFER_REQUEST_APPROVED' })
+    )
+  })
+
+  it('notifies editor + requesting mangaka on REJECT (not original), with REJECTED referenceType', async () => {
+    const repo = makeRepo({
+      findTransferRequestById: jest.fn().mockResolvedValue(request),
+      findSeriesAccessScope: jest.fn().mockResolvedValue({ editorId: 'editor-1' })
+    })
+    const notify = { notifySafe: jest.fn() }
+    await make(repo, makeAudit(), boardRejected, makeOtp(), notify).boardRejectScreening(
+      REQUEST_ID,
+      actor('board-1', RoleName.BOARD_MEMBER),
+      { boardDecisionId: 'd1' }
+    )
+    const recipients = notify.notifySafe.mock.calls.map((c) => (c[0] as { recipientId: string }).recipientId)
+    expect(recipients).toEqual(expect.arrayContaining(['editor-1', 'mangaka-b']))
+    expect(recipients).not.toContain('mangaka-a')
+    expect(notify.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceId: REQUEST_ID, referenceType: 'TRANSFER_REQUEST_REJECTED' })
+    )
+  })
+})
+
+describe('getAssignedEditorRequests — §v2 point 3', () => {
+  it('delegates to the editor-scoped repo lookup with the status filter and wraps in {data}', async () => {
+    const repo = makeRepo({
+      findTransferRequestsByEditor: jest.fn().mockResolvedValue([{ id: 'r1' }])
+    })
+    const result = await make(repo).getAssignedEditorRequests('editor-1', 'ACCEPTED')
+    expect(repo.findTransferRequestsByEditor).toHaveBeenCalledWith('editor-1', 'ACCEPTED')
+    expect(result).toEqual({ data: [{ id: 'r1' }] })
   })
 })
 
@@ -318,6 +578,48 @@ describe('TransferService — object authorization and authoritative BoardDecisi
       { boardDecisionId: DECISION_ID }
     )
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'board-1' }))
+  })
+
+  // §v2 point 5: một decision TRANSFER phải gắn đúng request nó được tạo cho; decision của request khác bị chặn.
+  it('rejects a TRANSFER decision bound to a different transfer request', async () => {
+    const repo = makeRepo({ findTransferRequestById: jest.fn().mockResolvedValue(request) })
+    const board = makeBoard({
+      getTransferDecisionContext: jest.fn().mockResolvedValue({
+        id: DECISION_ID,
+        decisionType: 'TRANSFER',
+        result: 'APPROVED',
+        targetSeriesId: SERIES_ID,
+        transferRequestId: 'a-different-request-id',
+        allowedEditorIds: ['board-1']
+      })
+    })
+
+    await expect(
+      make(repo, makeAudit(), board).boardApproveScreening(REQUEST_ID, actor('board-1', RoleName.BOARD_MEMBER), {
+        boardDecisionId: DECISION_ID
+      })
+    ).rejects.toBe(InvalidTransferBoardDecisionException)
+    expect(repo.requestStateTransition).not.toHaveBeenCalled()
+  })
+
+  it('accepts a TRANSFER decision bound to this request', async () => {
+    const repo = makeRepo({ findTransferRequestById: jest.fn().mockResolvedValue(request) })
+    const board = makeBoard({
+      getTransferDecisionContext: jest.fn().mockResolvedValue({
+        id: DECISION_ID,
+        decisionType: 'TRANSFER',
+        result: 'APPROVED',
+        targetSeriesId: SERIES_ID,
+        transferRequestId: REQUEST_ID,
+        allowedEditorIds: ['board-1']
+      })
+    })
+
+    await make(repo, makeAudit(), board).boardApproveScreening(REQUEST_ID, actor('board-1', RoleName.BOARD_MEMBER), {
+      boardDecisionId: DECISION_ID
+    })
+
+    expect(repo.requestStateTransition).toHaveBeenCalled()
   })
 
   it('rejects a Board actor outside the decision roster', async () => {

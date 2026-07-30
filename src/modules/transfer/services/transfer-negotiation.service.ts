@@ -40,10 +40,11 @@ export class TransferNegotiationService {
     const resource = await this.resourceLoader.requestAccessResource(request)
     if (!this.accessPolicy.canOriginalMangakaReview(actor, resource)) throw TransferAccessDeniedException
     if (request.status !== TRANSFER_REQUEST_STATUS.NEGOTIATING) throw RequestNotInNegotiatingStageException
+    // §v2 point 1: Mangaka gốc đồng ý ⇒ ACCEPTED (chốt đồng thuận), KHÔNG quay lại UNDER_REVIEW.
     return this.transition(
       id,
       request.status,
-      accept ? TRANSFER_REQUEST_STATUS.UNDER_REVIEW : TRANSFER_REQUEST_STATUS.REJECTED_BY_ORIGINAL_MANGAKA,
+      accept ? TRANSFER_REQUEST_STATUS.ACCEPTED : TRANSFER_REQUEST_STATUS.REJECTED_BY_ORIGINAL_MANGAKA,
       actor.userId
     )
   }

@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common'
-import { AuditEntityType, ContractStatus, NotificationType } from '@prisma/client'
+import { AuditEntityType, ContractStatus, NotificationType, type BoardDecisionResult } from '@prisma/client'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { BoardService } from 'src/modules/board/services/board.service'
 import { canTransitionContract } from '../contract.constant'
 import { ContractMessages } from '../contract.messages'
 import { ContractRepo } from '../contract.repo'
@@ -14,7 +15,8 @@ export class ContractWorkflowService {
   constructor(
     private readonly contractRepo: ContractRepo,
     private readonly notificationService: NotificationService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    private readonly boardService: BoardService
   ) {}
 
   updateStatusByWorkflow(contractId: string, userId: string, status: ContractStatus) {
@@ -99,8 +101,8 @@ export class ContractWorkflowService {
     return updated
   }
 
-  async boardApprove(contractId: string, userId: string) {
-    const contract = await this.loadContractForBoardReview(contractId, userId)
+  async boardApprove(contractId: string, userId: string, boardDecisionId: string) {
+    const contract = await this.loadContractForBoardReview(contractId, userId, boardDecisionId, 'APPROVED')
     this.assertTransition(contract.status, ContractStatus.BOARD_APPROVED)
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.BOARD_APPROVED)
     await this.auditTransition(contractId, contract.status, ContractStatus.BOARD_APPROVED, userId)
@@ -123,8 +125,8 @@ export class ContractWorkflowService {
     return updated
   }
 
-  async boardRequestChanges(contractId: string, userId: string, reason: string) {
-    const contract = await this.loadContractForBoardReview(contractId, userId)
+  async boardRequestChanges(contractId: string, userId: string, boardDecisionId: string, reason: string) {
+    const contract = await this.loadContractForBoardReview(contractId, userId, boardDecisionId, 'REJECTED')
     this.assertTransition(contract.status, ContractStatus.NEGOTIATION)
     const updated = await this.contractRepo.updateStatus(contractId, ContractStatus.NEGOTIATION, {
       mangakaSignedAt: null,
@@ -145,14 +147,31 @@ export class ContractWorkflowService {
     if (!canTransitionContract(from, to)) throw ContractErrors.InvalidContractTransition()
   }
 
-  private async loadContractForBoardReview(contractId: string, userId: string) {
+  private async loadContractForBoardReview(
+    contractId: string,
+    userId: string,
+    boardDecisionId: string,
+    expectedResult: BoardDecisionResult
+  ) {
     if (!isObjectId(contractId)) throw ContractErrors.NotFound()
-    const contract = await this.contractRepo.findWithBoardDecision(contractId)
+    const contract = await this.contractRepo.findById(contractId)
     if (!contract) throw ContractErrors.NotFound()
-    if (!contract.boardDecision) throw ContractErrors.BoardDecisionNotFound()
-    if (!contract.boardDecision.boardSession.allowedEditorIds.includes(userId)) {
-      throw ContractErrors.NotAuthorizedInBoard()
-    }
+    const [decision, currentVersion] = await Promise.all([
+      this.boardService.getContractDecisionContext(boardDecisionId),
+      this.contractRepo.findLatestVersion(contractId)
+    ])
+    if (!decision) throw ContractErrors.ContractDecisionNotFound()
+    if (!currentVersion) throw ContractErrors.InvalidContractDecision()
+    const expectedResourceType = contract.sourceTransferRequestId ? 'REPLACEMENT_CONTRACT' : 'PUBLICATION_CONTRACT'
+    const valid =
+      decision.decisionType === 'CONTRACT' &&
+      decision.result === expectedResult &&
+      decision.targetSeriesId === contract.seriesId &&
+      decision.details?.resourceId === contract.id &&
+      decision.details?.resourceType === expectedResourceType &&
+      decision.details?.versionId === currentVersion.id
+    if (!valid) throw ContractErrors.InvalidContractDecision()
+    if (!decision.allowedEditorIds.includes(userId)) throw ContractErrors.NotAuthorizedInBoard()
     return contract
   }
 

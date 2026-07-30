@@ -24,6 +24,7 @@ describe('TransferRepo response enrichment', () => {
     const repo = new TransferRepo({
       transferRequest: { findUnique: transferRequestFindUnique },
       transferContract: { findMany: jest.fn().mockResolvedValue([]) },
+      contract: { findMany: jest.fn().mockResolvedValue([]) },
       user: { findMany: userFindMany },
       series: { findMany: seriesFindMany }
     } as unknown as ConstructorParameters<typeof TransferRepo>[0])
@@ -81,6 +82,7 @@ describe('TransferRepo response enrichment', () => {
         ])
       },
       transferContract: { findMany: jest.fn().mockResolvedValue([]) },
+      contract: { findMany: jest.fn().mockResolvedValue([]) },
       user: { findMany: userFindMany },
       series: { findMany: seriesFindMany }
     } as unknown as ConstructorParameters<typeof TransferRepo>[0])
@@ -113,6 +115,7 @@ describe('TransferRepo response enrichment', () => {
         })
       },
       transferContract: { findMany: transferContractFindMany },
+      contract: { findMany: jest.fn().mockResolvedValue([]) },
       user: { findMany: jest.fn().mockResolvedValue([]) },
       series: { findMany: jest.fn().mockResolvedValue([]) }
     } as unknown as ConstructorParameters<typeof TransferRepo>[0])
@@ -137,6 +140,7 @@ describe('TransferRepo response enrichment', () => {
         })
       },
       transferContract: { findMany: jest.fn().mockResolvedValue([]) },
+      contract: { findMany: jest.fn().mockResolvedValue([]) },
       user: { findMany: jest.fn().mockResolvedValue([]) },
       series: { findMany: jest.fn().mockResolvedValue([]) }
     } as unknown as ConstructorParameters<typeof TransferRepo>[0])
@@ -153,6 +157,7 @@ describe('TransferRepo response enrichment', () => {
         ])
       },
       transferContract: { findMany: jest.fn().mockResolvedValue([{ id: 'tc-for-r2', transferRequestId: 'r2' }]) },
+      contract: { findMany: jest.fn().mockResolvedValue([]) },
       user: { findMany: jest.fn().mockResolvedValue([]) },
       series: { findMany: jest.fn().mockResolvedValue([]) }
     } as unknown as ConstructorParameters<typeof TransferRepo>[0])
@@ -171,6 +176,7 @@ describe('TransferRepo response enrichment', () => {
           .mockResolvedValue([{ id: 'r1', seriesId: 's', originalMangakaId: 'a', requestingMangakaId: 'b' }])
       },
       transferContract: { findMany: jest.fn().mockResolvedValue([{ id: 'tc1', transferRequestId: 'r1' }]) },
+      contract: { findMany: jest.fn().mockResolvedValue([]) },
       user: { findMany: jest.fn().mockResolvedValue([]) },
       series: { findMany: jest.fn().mockResolvedValue([]) }
     } as unknown as ConstructorParameters<typeof TransferRepo>[0])
@@ -191,6 +197,71 @@ describe('TransferRepo response enrichment', () => {
 
     await expect(repo.findPendingBoardRequests()).resolves.toEqual([])
     expect(transferContractFindMany).not.toHaveBeenCalled()
+  })
+
+  // §v2 point 7: request detail mang replacementContractId (Contract theo sourceTransferRequestId — Full Buyout).
+  it('attaches replacementContractId from Contract.sourceTransferRequestId', async () => {
+    const contractFindMany = jest.fn().mockResolvedValue([{ id: 'replacement-1', sourceTransferRequestId: 'tr1' }])
+    const repo = new TransferRepo({
+      transferRequest: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'tr1',
+          seriesId: 's1',
+          requestingMangakaId: 'u1',
+          originalMangakaId: 'u2',
+          boardDecision: null,
+          originalContract: null
+        })
+      },
+      transferContract: { findMany: jest.fn().mockResolvedValue([]) },
+      contract: { findMany: contractFindMany },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+      series: { findMany: jest.fn().mockResolvedValue([]) }
+    } as unknown as ConstructorParameters<typeof TransferRepo>[0])
+
+    await expect(repo.findTransferRequestById('tr1')).resolves.toMatchObject({ replacementContractId: 'replacement-1' })
+    expect(contractFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sourceTransferRequestId: { in: ['tr1'] } } })
+    )
+  })
+
+  // §v2 point 3: Editor chỉ thấy request thuộc series mình phụ trách; hỗ trợ lọc theo status.
+  it('lists editor-assigned requests scoped by editor series and passes the status filter', async () => {
+    const seriesFindMany = jest
+      .fn()
+      .mockResolvedValueOnce([{ id: 's1' }, { id: 's2' }]) // scope query
+      .mockResolvedValue([]) // enrichment series lookup
+    const transferRequestFindMany = jest
+      .fn()
+      .mockResolvedValue([{ id: 'r1', seriesId: 's1', originalMangakaId: 'a', requestingMangakaId: 'b' }])
+    const repo = new TransferRepo({
+      series: { findMany: seriesFindMany },
+      transferRequest: { findMany: transferRequestFindMany },
+      transferContract: { findMany: jest.fn().mockResolvedValue([]) },
+      contract: { findMany: jest.fn().mockResolvedValue([]) },
+      user: { findMany: jest.fn().mockResolvedValue([]) }
+    } as unknown as ConstructorParameters<typeof TransferRepo>[0])
+
+    const rows = await repo.findTransferRequestsByEditor('editor-1', 'NEGOTIATING')
+
+    expect(seriesFindMany).toHaveBeenNthCalledWith(1, { where: { editorId: 'editor-1' }, select: { id: true } })
+    expect(transferRequestFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { seriesId: { in: ['s1', 's2'] }, status: 'NEGOTIATING' } })
+    )
+    expect(rows[0]).toMatchObject({ id: 'r1' })
+  })
+
+  it('returns [] without querying requests when the editor has no series', async () => {
+    const transferRequestFindMany = jest.fn()
+    const repo = new TransferRepo({
+      series: { findMany: jest.fn().mockResolvedValue([]) },
+      transferRequest: { findMany: transferRequestFindMany },
+      transferContract: { findMany: jest.fn() },
+      user: { findMany: jest.fn().mockResolvedValue([]) }
+    } as unknown as ConstructorParameters<typeof TransferRepo>[0])
+
+    await expect(repo.findTransferRequestsByEditor('editor-1')).resolves.toEqual([])
+    expect(transferRequestFindMany).not.toHaveBeenCalled()
   })
 
   it.each([

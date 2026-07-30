@@ -54,12 +54,27 @@ export class ContractRepo {
 
   // 1. Tạo hợp đồng nháp mới
   createDraft(editorId: string, dto: CreateContractBodyType): Promise<Contract> {
-    return this.prisma.contract.create({
-      data: {
-        ...dto,
-        editorId,
-        status: ContractStatus.DRAFT
-      }
+    return this.prisma.$transaction(async (tx) => {
+      const contract = await tx.contract.create({
+        data: {
+          ...dto,
+          editorId,
+          status: ContractStatus.DRAFT
+        }
+      })
+      await tx.contractVersion.create({
+        data: {
+          contractId: contract.id,
+          versionNumber: 1,
+          valuationAmount: contract.valuationAmount,
+          publisherOwnershipPct: contract.publisherOwnershipPct,
+          mangakaOwnershipPct: contract.mangakaOwnershipPct,
+          terminationClause: contract.terminationClause,
+          editedById: editorId,
+          createdAt: new Date()
+        }
+      })
+      return contract
     })
   }
 
@@ -173,6 +188,13 @@ export class ContractRepo {
   findVersionById(contractId: string, versionId: string): Promise<ContractVersion | null> {
     return this.prisma.contractVersion.findFirst({
       where: { id: versionId, contractId }
+    })
+  }
+
+  findLatestVersion(contractId: string): Promise<ContractVersion | null> {
+    return this.prisma.contractVersion.findFirst({
+      where: { contractId },
+      orderBy: { versionNumber: 'desc' }
     })
   }
 

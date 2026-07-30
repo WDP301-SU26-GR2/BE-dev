@@ -17,7 +17,8 @@ function makeRepository() {
     findManyReports: jest.fn().mockResolvedValue([]),
     findReportById: jest.fn(),
     findUsersMiniByIds: jest.fn().mockResolvedValue([]),
-    findSeriesTitlesByIds: jest.fn().mockResolvedValue([])
+    findSeriesTitlesByIds: jest.fn().mockResolvedValue([]),
+    findMemberSessionIds: jest.fn().mockResolvedValue([])
   }
 }
 
@@ -216,6 +217,30 @@ describe('BoardQueryService business query and transfer contexts', () => {
     await expect(service.getTransferDecisionContext(id)).resolves.toBeNull()
   })
 
+  // §v2 point 10: GET /board/decisions?mine=true chỉ trả decision thuộc phiên mà caller trong roster.
+  it('mine=true restricts decisions to sessions where the caller is a roster member', async () => {
+    const repository = makeRepository()
+    repository.findMemberSessionIds.mockResolvedValue([{ id: 'sess-1' }, { id: 'sess-2' }])
+    repository.findManyDecisions.mockResolvedValue([{ id: 'd1', targetSeriesId: null }])
+    const service = new BoardQueryService(repository as never)
+
+    await service.getDecisions({ mine: 'true' }, 'user-1')
+
+    expect(repository.findMemberSessionIds).toHaveBeenCalledWith('user-1')
+    expect(repository.findManyDecisions).toHaveBeenCalledWith(
+      expect.objectContaining({ boardSessionIds: ['sess-1', 'sess-2'] })
+    )
+  })
+
+  it('mine=true returns [] without querying decisions when the caller is in no roster', async () => {
+    const repository = makeRepository()
+    repository.findMemberSessionIds.mockResolvedValue([])
+    const service = new BoardQueryService(repository as never)
+
+    await expect(service.getDecisions({ mine: 'true' }, 'user-1')).resolves.toEqual([])
+    expect(repository.findManyDecisions).not.toHaveBeenCalled()
+  })
+
   it('builds a de-duplicated transfer context from decision and session editors', async () => {
     const repository = makeRepository()
     repository.findDecisionById.mockResolvedValue({
@@ -236,6 +261,7 @@ describe('BoardQueryService business query and transfer contexts', () => {
       id: DECISION_ID,
       boardSessionId: SESSION_ID,
       targetSeriesId: null,
+      transferRequestId: null,
       decisionType: null,
       result: null,
       allowedEditorIds: ['decision-member', 'shared', 'session-member']

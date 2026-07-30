@@ -8,6 +8,7 @@ export abstract class ContractTransferPort {
       seriesId: string
       mangakaId: string
       editorId?: string | null
+      editedById: string
       boardDecisionId: string
       originalContractId: string
       sourceTransferRequestId: string

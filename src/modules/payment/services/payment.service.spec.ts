@@ -618,7 +618,7 @@ describe('PaymentService — payment collection authorization matrix', () => {
 
 describe('PaymentService — PaymentCondition ownership, validation and failure paths', () => {
   const CONDITION = OID(6)
-  const contract = { id: CTR, editorId: OWNER, mangakaId: OID(7) }
+  const contract = { id: CTR, editorId: OWNER, mangakaId: OID(7), status: 'DRAFT' }
   const chapterCondition = {
     id: CONDITION,
     contractId: CTR,

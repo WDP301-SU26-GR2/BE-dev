@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { PaymentMessages } from '../payment.messages'
 
 const E = PaymentMessages.error
@@ -48,6 +48,12 @@ export class PaymentConditionNotFoundException extends NotFoundException {
 export class PaymentConditionNotEditableException extends BadRequestException {
   constructor() {
     super(E.paymentConditionNotEditable)
+  }
+}
+
+export class PaymentConditionContractLockedException extends ConflictException {
+  constructor() {
+    super([{ message: E.paymentConditionContractLocked, path: 'contractId' }])
   }
 }
 

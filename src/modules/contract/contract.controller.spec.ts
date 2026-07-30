@@ -74,8 +74,11 @@ describe('ContractController delegation', () => {
     await controller.updateContract('c1', 'editor', { valuationAmount: 20 })
     await controller.updateStatus('c1', 'editor', ContractStatus.MANGAKA_REVIEW)
     await controller.requestChanges('c1', 'mangaka', { reason: 'revise' })
-    await controller.boardApprove('c1', 'board')
-    await controller.boardRequestChanges('c1', 'board', { reason: 'clarify' })
+    await controller.boardApprove('c1', 'board', { boardDecisionId: 'decision-approve' })
+    await controller.boardRequestChanges('c1', 'board', {
+      boardDecisionId: 'decision-reject',
+      reason: 'clarify'
+    })
 
     expect(contract.createDraft).toHaveBeenCalledWith('editor', draft)
     expect(contract.editorUpdateContract).toHaveBeenNthCalledWith(
@@ -88,8 +91,8 @@ describe('ContractController delegation', () => {
     expect(contract.editorUpdateContract).toHaveBeenNthCalledWith(2, 'c1', 'editor', { valuationAmount: 20 }, undefined)
     expect(contract.updateStatusByWorkflow).toHaveBeenCalledWith('c1', 'editor', ContractStatus.MANGAKA_REVIEW)
     expect(contract.mangakaRequestChanges).toHaveBeenCalledWith('c1', 'mangaka', 'revise')
-    expect(contract.boardApprove).toHaveBeenCalledWith('c1', 'board')
-    expect(contract.boardRequestChanges).toHaveBeenCalledWith('c1', 'board', 'clarify')
+    expect(contract.boardApprove).toHaveBeenCalledWith('c1', 'board', 'decision-approve')
+    expect(contract.boardRequestChanges).toHaveBeenCalledWith('c1', 'board', 'decision-reject', 'clarify')
   })
 
   it('delegates OTP signing, revenue reporting and signing progress', async () => {

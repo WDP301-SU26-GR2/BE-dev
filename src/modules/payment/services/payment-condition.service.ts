@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common'
-import { PaymentConditionStatus, Prisma } from '@prisma/client'
+import { ContractStatus, PaymentConditionStatus, Prisma } from '@prisma/client'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { PaymentConditionRepo } from '../payment-condition.repo'
 import {
   ContractNotFoundForPaymentException,
   PaymentConditionNotEditableException,
+  PaymentConditionContractLockedException,
   PaymentConditionNotFoundException,
   UnauthorizedPaymentConditionEditorException
 } from '../errors/payment.error'
@@ -70,6 +71,9 @@ export class PaymentConditionService {
     const contract = await this.paymentConditionRepo.findContractById(contractId)
     if (!contract) throw new ContractNotFoundForPaymentException()
     if (contract.editorId !== editorId) throw new UnauthorizedPaymentConditionEditorException()
+    if (contract.status !== ContractStatus.DRAFT && contract.status !== ContractStatus.NEGOTIATION) {
+      throw new PaymentConditionContractLockedException()
+    }
     return contract
   }
 

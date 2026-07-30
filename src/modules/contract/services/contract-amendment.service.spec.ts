@@ -10,6 +10,7 @@ import { RoleName } from 'src/core/security/constants/role.constant'
 import { ContractAmendmentDraftService } from './contract-amendment-draft.service'
 import { ContractAmendmentQueryService } from './contract-amendment-query.service'
 import { ContractAmendmentSigningService } from './contract-amendment-signing.service'
+import { BoardService } from 'src/modules/board/services/board.service'
 
 const EDITOR = '64a000000000000000000001'
 const MANGAKA = '64a000000000000000000002'
@@ -18,6 +19,7 @@ const CONTRACT = '64a000000000000000000010'
 const makeContract = (over: Record<string, unknown> = {}): never => {
   return {
     id: CONTRACT,
+    seriesId: '64a000000000000000000011',
     editorId: EDITOR,
     mangakaId: MANGAKA,
     contractType: 'REVENUE_SHARE',
@@ -32,6 +34,7 @@ describe('ContractAmendmentService', () => {
   let service: ContractAmendmentService
   let amendmentRepo: jest.Mocked<ContractAmendmentRepo>
   let contractRepo: jest.Mocked<ContractRepo>
+  let boardService: jest.Mocked<BoardService>
 
   beforeEach(async () => {
     const mod = await Test.createTestingModule({
@@ -58,12 +61,22 @@ describe('ContractAmendmentService', () => {
         { provide: ContractRepo, useValue: { findById: jest.fn(), findWithBoardDecision: jest.fn() } },
         { provide: AuthOtpService, useValue: { validateOtpCode: jest.fn() } },
         { provide: NotificationService, useValue: { notifySafe: jest.fn() } },
-        { provide: AuditService, useValue: { record: jest.fn() } }
+        { provide: AuditService, useValue: { record: jest.fn() } },
+        {
+          provide: BoardService,
+          useValue: {
+            findApprovedContractDecisionContext: jest.fn().mockResolvedValue({
+              id: '64a000000000000000000098',
+              allowedEditorIds: ['b1', 'b2']
+            })
+          }
+        }
       ]
     }).compile()
     service = mod.get(ContractAmendmentService)
     amendmentRepo = mod.get(ContractAmendmentRepo)
     contractRepo = mod.get(ContractRepo)
+    boardService = mod.get(BoardService)
   })
 
   describe('create', () => {
@@ -345,6 +358,10 @@ describe('ContractAmendmentService', () => {
       amendmentRepo.findSignature.mockResolvedValue(null)
       amendmentRepo.countBoardSignatures.mockResolvedValue(1)
       amendmentRepo.executeAndApply.mockResolvedValue({ applied: true })
+      boardService.findApprovedContractDecisionContext.mockResolvedValue({
+        id: '64a000000000000000000098',
+        allowedEditorIds: ['b1']
+      } as never)
       await service.signBoard(CONTRACT, '64a000000000000000000003', 'b1', 'b1@x.com', '123456')
       expect(amendmentRepo.executeAndApply).toHaveBeenCalledWith('64a000000000000000000003', CONTRACT, 'b1')
     })

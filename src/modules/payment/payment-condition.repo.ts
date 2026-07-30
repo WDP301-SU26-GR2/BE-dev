@@ -11,7 +11,7 @@ export class PaymentConditionRepo {
   findContractById(contractId: string) {
     return this.prisma.contract.findUnique({
       where: { id: contractId },
-      select: { id: true, editorId: true, mangakaId: true }
+      select: { id: true, editorId: true, mangakaId: true, status: true }
     })
   }
 
