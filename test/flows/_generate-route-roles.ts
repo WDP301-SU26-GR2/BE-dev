@@ -22,6 +22,7 @@ import { RequestMethod, Type } from '@nestjs/common'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { format, resolveConfig } from 'prettier'
 import './lib/env.js'
 
 const APP_MODULE_PATH = path.resolve(process.cwd(), 'dist/app.module.js')
@@ -173,7 +174,9 @@ export const ROUTE_RULES: RouteRule[] = [
 ${lines.join('\n')}
 ]
 `
-  fs.writeFileSync(OUT_PATH, content, 'utf-8')
+  const prettierConfig = (await resolveConfig(OUT_PATH)) ?? {}
+  const formattedContent = await format(content, { ...prettierConfig, filepath: OUT_PATH })
+  fs.writeFileSync(OUT_PATH, formattedContent, 'utf-8')
   console.log(`[generate-route-roles] wrote ${unique.length} routes → ${OUT_PATH}`)
   const counts = { PUBLIC: 0, AUTH: 0, ROLES: 0 }
   unique.forEach((r) => counts[r.access]++)
