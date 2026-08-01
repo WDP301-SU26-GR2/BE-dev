@@ -9,7 +9,7 @@ function makeRepo() {
     createChapter: jest
       .fn()
       .mockImplementation((d: Record<string, unknown>) =>
-        Promise.resolve({ id: 'ch1', status: 'DRAFT', nameId: null, ...d })
+        Promise.resolve({ id: 'ch1', status: 'DRAFT', storyboardId: null, ...d })
       )
   }
 }
@@ -51,7 +51,7 @@ describe('ChapterCreationService.create (chapter-first)', () => {
     })
   })
 
-  it('valid → creates DRAFT chapter (nameId null)', async () => {
+  it('valid → creates DRAFT chapter (storyboardId null)', async () => {
     const repo = makeRepo()
     repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'u', status: SeriesStatus.SERIALIZED })
     repo.findChapterByNumber.mockResolvedValue(null)

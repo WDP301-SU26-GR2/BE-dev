@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-07-30T05:26:36.181Z — 280 routes.
+// Sinh lúc: 2026-08-01T05:42:56.837Z — 273 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -164,26 +164,6 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'POST', path: '/chapters/:id/manuscript/request-revision', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/chapters/:id/manuscript/resubmit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/chapters/:id/manuscript/submit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  {
-    method: 'GET',
-    path: '/chapters/:id/names',
-    access: 'ROLES',
-    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
-  },
-  { method: 'POST', path: '/chapters/:id/names', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  { method: 'DELETE', path: '/chapters/:id/names/:nameId', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  {
-    method: 'GET',
-    path: '/chapters/:id/names/:nameId',
-    access: 'ROLES',
-    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
-  },
-  { method: 'POST', path: '/chapters/:id/names/:nameId/approve', access: 'ROLES', allowed: [RoleCode.EDITOR] },
-  { method: 'POST', path: '/chapters/:id/names/:nameId/pages', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  { method: 'PUT', path: '/chapters/:id/names/:nameId/pages', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  { method: 'POST', path: '/chapters/:id/names/:nameId/request-revision', access: 'ROLES', allowed: [RoleCode.EDITOR] },
-  { method: 'POST', path: '/chapters/:id/names/:nameId/resubmit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  { method: 'POST', path: '/chapters/:id/names/:nameId/submit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'DELETE', path: '/chapters/:id/pages', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   {
     method: 'GET',
@@ -220,6 +200,56 @@ export const ROUTE_RULES: RouteRule[] = [
     allowed: [RoleCode.MANGAKA, RoleCode.EDITOR]
   },
   { method: 'POST', path: '/chapters/:id/stages/:stageId/reopen', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  {
+    method: 'GET',
+    path: '/chapters/:id/storyboards',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
+  { method: 'POST', path: '/chapters/:id/storyboards', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'DELETE', path: '/chapters/:id/storyboards/:storyboardId', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  {
+    method: 'GET',
+    path: '/chapters/:id/storyboards/:storyboardId',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
+  {
+    method: 'POST',
+    path: '/chapters/:id/storyboards/:storyboardId/approve',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR]
+  },
+  {
+    method: 'POST',
+    path: '/chapters/:id/storyboards/:storyboardId/pages',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA]
+  },
+  {
+    method: 'PUT',
+    path: '/chapters/:id/storyboards/:storyboardId/pages',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA]
+  },
+  {
+    method: 'POST',
+    path: '/chapters/:id/storyboards/:storyboardId/request-revision',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR]
+  },
+  {
+    method: 'POST',
+    path: '/chapters/:id/storyboards/:storyboardId/resubmit',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA]
+  },
+  {
+    method: 'POST',
+    path: '/chapters/:id/storyboards/:storyboardId/submit',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA]
+  },
   { method: 'GET', path: '/collaboration-invites', access: 'ROLES', allowed: [RoleCode.MANGAKA, RoleCode.ASSISTANT] },
   { method: 'POST', path: '/collaboration-invites', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   {
@@ -564,23 +594,6 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'POST', path: '/series/:id/force-cancel', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/series/:id/franchise-consent', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/series/:id/hiatus', access: 'ROLES', allowed: [RoleCode.EDITOR] },
-  {
-    method: 'GET',
-    path: '/series/:id/names',
-    access: 'ROLES',
-    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
-  },
-  {
-    method: 'GET',
-    path: '/series/:id/names/:nameId',
-    access: 'ROLES',
-    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
-  },
-  { method: 'POST', path: '/series/:id/names/:nameId/approve', access: 'ROLES', allowed: [RoleCode.EDITOR] },
-  { method: 'POST', path: '/series/:id/names/:nameId/pages', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  { method: 'PUT', path: '/series/:id/names/:nameId/pages', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  { method: 'POST', path: '/series/:id/names/:nameId/request-revision', access: 'ROLES', allowed: [RoleCode.EDITOR] },
-  { method: 'POST', path: '/series/:id/names/:nameId/resubmit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/series/:id/pitch', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/series/:id/proposal/approve', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/series/:id/proposal/request-revision', access: 'ROLES', allowed: [RoleCode.EDITOR] },

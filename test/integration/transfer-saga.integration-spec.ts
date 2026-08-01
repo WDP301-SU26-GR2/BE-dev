@@ -50,7 +50,8 @@ const contractRepo = new ContractRepo(prisma, outbox)
 const contractWorkflow = new ContractWorkflowService(
   contractRepo,
   { notifySafe: jest.fn() } as never,
-  { record: jest.fn() } as never
+  { record: jest.fn() } as never,
+  {} as never
 )
 const contractAdapter = new ContractTransferAdapter(contractWorkflow)
 const paymentConditionState = new PaymentConditionStateService(new PaymentConditionRepo(prisma), {

@@ -36,9 +36,12 @@ export function toSeriesRes(series: SeriesWithPeople) {
       : null,
     proposal: series.proposal
       ? {
-          nameId: series.proposal.nameId,
           synopsis: series.proposal.synopsis,
           characterDesigns: series.proposal.characterDesigns,
+          storyboardPages: (series.proposal.storyboardPages ?? []).map((p) => ({
+            pageNumber: p.pageNumber,
+            fileUrl: p.fileUrl
+          })),
           estimatedLength: series.proposal.estimatedLength,
           status: series.proposal.status,
           createdAt: series.proposal.createdAt.toISOString()

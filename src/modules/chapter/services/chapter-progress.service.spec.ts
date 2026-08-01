@@ -14,7 +14,7 @@ function makeService() {
     groupTasksByPageForChapter: jest.fn().mockResolvedValue([]),
     groupTasksByPageForChapters: jest.fn().mockResolvedValue([]),
     countTasksByStatusForChapter: jest.fn().mockResolvedValue({}),
-    findNameStatus: jest.fn().mockResolvedValue(null),
+    findStoryboardStatus: jest.fn().mockResolvedValue(null),
     findScheduleByChapterId: jest.fn().mockResolvedValue(null),
     findActiveChaptersForMangaka: jest.fn(),
     findActiveChaptersForEditor: jest.fn(),
@@ -25,7 +25,7 @@ function makeService() {
   return { service, repo }
 }
 
-const baseChapter = { id: CID, seriesId: 's1', nameId: null, hold: null }
+const baseChapter = { id: CID, seriesId: 's1', storyboardId: null, hold: null }
 const baseSeries = { id: 's1', mangakaId: MID, editorId: EID, publicationType: 'WEEKLY' }
 
 describe('ChapterProgressService.getProgress', () => {
@@ -60,7 +60,7 @@ describe('ChapterProgressService.getProgress', () => {
 
   it('aggregates pages/tasks, computes progressPct + RED warning for near-deadline weekly chapter', async () => {
     const { service, repo } = makeService()
-    repo.findChapterById.mockResolvedValue({ ...baseChapter, nameId: 'n1', hold: { reason: 'x' } })
+    repo.findChapterById.mockResolvedValue({ ...baseChapter, storyboardId: 'n1', hold: { reason: 'x' } })
     repo.findSeriesById.mockResolvedValue(baseSeries)
     repo.findPagesByChapterId.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }, { id: 'p4' }])
     repo.groupTasksByPageForChapter.mockResolvedValue([
@@ -70,7 +70,7 @@ describe('ChapterProgressService.getProgress', () => {
     ])
     repo.findManuscriptByChapterId.mockResolvedValue({ status: 'IN_PRODUCTION' })
     repo.countTasksByStatusForChapter.mockResolvedValue({ ASSIGNED: 2, APPROVED: 1, CANCELLED: 3 })
-    repo.findNameStatus.mockResolvedValue('APPROVED')
+    repo.findStoryboardStatus.mockResolvedValue('APPROVED')
     repo.findScheduleByChapterId.mockResolvedValue({ currentDeadline: new Date(Date.now() + 20 * 3600 * 1000) })
 
     const res = await service.getProgress({ userId: EID, roleName: 'EDITOR' }, CID)
@@ -89,7 +89,7 @@ describe('ChapterProgressService.getProgress', () => {
       onHold: 0,
       cancelled: 3
     })
-    expect(res.nameStatus).toBe('APPROVED')
+    expect(res.storyboardStatus).toBe('APPROVED')
     expect(res.warningLevel).toBe('RED') // weekly, còn ~20h, 25% < 90%
     expect(res.remainingHours).toBeGreaterThan(19)
     expect(res.onHold).toBe(true)

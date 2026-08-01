@@ -28,8 +28,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.AssetNotFound': 'asset does not exist',
   'Error.CannotReviewSelf': 'reviewer and target user must be different',
   'Error.CannotModifyAdminUser': 'super admin users cannot be modified by admin moderation routes',
-  'Error.ChapterNotFound':
-    'chapter does not exist (or id is not a valid ObjectId) — used by POST /chapters/:id/names (Spec 10)',
+  'Error.ChapterNotFound': 'chapter does not exist (or id is not a valid ObjectId)',
   'Error.ChapterAccessDenied': 'caller is outside the chapter scope (owner mangaka / assigned editor / board / admin)',
   'Error.ChapterNotHoldable': 'manuscript must be IN_PRODUCTION..READY_FOR_PRINT to hold',
   'Error.ChapterAlreadyOnHold': 'chapter is already on hold',
@@ -67,7 +66,12 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.PagesNotReadyForPublish': 'chapter still has non-COMPLETED (unreviewed) page(s); cannot publish',
   'Error.TaskFileForbidden':
     'caller is not a participant of this task (owner/assignee/editor/board), or the key does not belong to the task',
-  'Error.DuplicateChapterName': 'chapter-Name already exists for this chapter number (kind=CHAPTER)',
+  'Error.StoryboardNotFound': 'storyboard does not exist',
+  'Error.InvalidStoryboardState': 'storyboard state does not allow this action',
+  'Error.DuplicateChapterStoryboard': 'this chapter already has a storyboard assigned',
+  'Error.ChapterStoryboardAlreadyExists': 'this chapter already has a storyboard assigned',
+  'Error.ChapterNotDraftForStoryboard': 'chapter must be in DRAFT status to create a storyboard',
+  'Error.StoryboardNotDeletable': 'only a not-yet-approved storyboard on a DRAFT chapter can be deleted',
   'Error.DuplicateActiveCollaboration': 'an active collaboration or pending invite already exists for this pair',
   'Error.EmailAlreadyExists': 'email is already used',
   'Error.EmailAlreadyVerified': 'email is already verified',
@@ -80,7 +84,6 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.GoogleEmailNotVerified': 'google email is not verified',
   'Error.InvalidGoogleToken': 'google token is invalid',
   'Error.InvalidManuscriptTransition': 'manuscript state transition is not allowed',
-  'Error.InvalidNameState': 'name state does not allow this action',
   'Error.InvalidOTP': 'OTP code is invalid',
   'Error.InvalidPageTransition': 'page state transition is not allowed',
   'Error.InvalidDeadlineRequestTransition': 'deadline request state transition is not allowed',
@@ -90,15 +93,11 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.InvalidPassword': 'password is invalid',
   'Error.InvalidProposalState': 'proposal state does not allow this action',
   'Error.InvalidSeriesTransition': 'series state transition is not allowed',
-  'Error.NameNotApproved': 'name must be approved before this action',
-  'Error.NameNotChapterKind': 'name must be of kind CHAPTER to create a chapter (proposal-Name cannot be used)',
   'Error.InviteNotFound': 'collaboration invite does not exist',
   'Error.InviteNotPending': 'invite is not in PENDING state',
   'Error.NotInviteOwner': 'current user is not the invite owner',
   'Error.NotInvitee': 'current user is not the invitee',
   'Error.NotCounterparty': 'only the counterparty can perform this deadline negotiation action',
-  'Error.NameNotFound': 'name does not exist',
-  'Error.NameNotInSeries': 'name does not belong to this series',
   'Error.NotAssignedEditor': 'current editor is not assigned to this series',
   'Error.NotificationNotFound': 'notification does not exist or does not belong to the current user',
   'Error.NotSeriesEditor': 'current user is not the assigned series editor',
@@ -238,18 +237,14 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.NotSessionParticipant': 'only the session creator, roster members, or a Super Admin can read meeting messages',
   'Error.NotEnoughBoardMembers': 'fewer than 3 active board members exist — cannot form a valid session',
   'Error.RosterSourceRequired': 'provide allowedEditorIds, or seriesId so the roster can be auto-assigned',
-  'Error.ChapterNotDraftForName': 'chapter must be in DRAFT status to create a Name',
-  'Error.ChapterNameAlreadyExists': 'this chapter already has a Name assigned',
   // Spec 10 — Chapter-first flow (Task 2)
   // Spec 10 — Chapter-first flow (Task 3): Page upload gate
-  'Error.ChapterNameNotApproved': 'Name must be APPROVED before uploading pages; create/approve the Name first',
   // Spec 10 — Chapter-first flow (Task 4): Update chapter
   'Error.ChapterNotEditable': 'chapter title cannot be changed after PUBLISHED',
   'Error.ChapterNumberLocked': 'chapterNumber can only be changed while the chapter is in DRAFT status',
   // Spec 10 — Chapter-first flow (Task 5): Delete chapter
   'Error.ChapterNotDeletable': 'chapter can only be deleted while in DRAFT status',
   'Error.ServiceNotReady': 'MongoDB or Redis is temporarily unavailable; retry after dependency recovery',
-  'Error.VoteOtpOwnedBySurvey': 'Guest Vote OTP must be requested through POST /vote/otp',
-  // Spec 12 — chapter-Name delete (Task 14)
-  'Error.NameNotDeletable': 'only a not-yet-approved Name on a DRAFT chapter can be deleted'
+  'Error.VoteOtpOwnedBySurvey': 'Guest Vote OTP must be requested through POST /vote/otp'
+  // Spec 12 — chapter-storyboard delete (Task 14)
 }

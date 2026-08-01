@@ -1,6 +1,11 @@
-import { ManuscriptStatus, NameKind, NameStatus, PageStatus } from '@prisma/client'
+import { ManuscriptStatus, StoryboardStatus, PageStatus } from '@prisma/client'
 import { DAY, requiredMedia } from './demo-seed.helpers'
 import { DemoContext, SeriesSeed } from './demo-seed.types'
+
+export interface StoryboardPage {
+  pageNumber: number
+  fileUrl: string
+}
 
 export const createChapterBundle = async (
   context: DemoContext,
@@ -8,12 +13,13 @@ export const createChapterBundle = async (
   input: {
     chapterNumber: number
     title: string
-    nameStatus: NameStatus
+    storyboardStatus: StoryboardStatus
     manuscriptStatus: ManuscriptStatus
     pageStatus?: PageStatus
     pageCount: number
     publishedAt?: Date
     pageMediaSlugs?: readonly string[]
+    storyboardPages?: readonly StoryboardPage[]
   }
 ) => {
   const chapter = await context.prisma.chapter.create({
@@ -31,22 +37,22 @@ export const createChapterBundle = async (
       publishedAt: input.publishedAt ?? null
     }
   })
-  const name = await context.prisma.name.create({
+  const storyboard = await context.prisma.storyboard.create({
     data: {
       seriesId: series.id,
       chapterId: chapter.id,
-      chapterNumber: input.chapterNumber,
-      status: input.nameStatus,
-      kind: NameKind.CHAPTER,
-      version: input.nameStatus === NameStatus.APPROVED ? 3 : 1,
-      submittedAt: context.now,
-      pages: [
-        { pageNumber: 1, fileUrl: requiredMedia(context.media, 'rough-drafting').key },
-        { pageNumber: 2, fileUrl: requiredMedia(context.media, 'finished-line-art').key }
-      ]
+      status: input.storyboardStatus,
+      version: input.storyboardStatus === StoryboardStatus.APPROVED ? 3 : 1,
+      submittedAt: new Date(),
+      pages: input.storyboardPages
+        ? [...input.storyboardPages]
+        : [
+            { pageNumber: 1, fileUrl: requiredMedia(context.media, 'rough-drafting').key },
+            { pageNumber: 2, fileUrl: requiredMedia(context.media, 'finished-line-art').key }
+          ]
     }
   })
-  await context.prisma.chapter.update({ where: { id: chapter.id }, data: { nameId: name.id } })
+  await context.prisma.chapter.update({ where: { id: chapter.id }, data: { storyboardId: storyboard.id } })
   await context.prisma.manuscript.create({
     data: {
       chapterId: chapter.id,
@@ -108,12 +114,12 @@ export const createChapterBundle = async (
               : null,
           compositeRevision:
             input.pageStatus === PageStatus.COMPLETED || input.pageStatus === PageStatus.REVISING ? 3 : 0,
-          canvasWidth: 1080,
-          canvasHeight: 1440,
+          canvasWidth: source.source.width,
+          canvasHeight: source.source.height,
           status: input.pageStatus ?? PageStatus.DRAFT
         }
       })
     })
   )
-  return { chapter, name, pages, pageIds: pages.map((page) => page.id) }
+  return { chapter, storyboard, pages, pageIds: pages.map((page) => page.id) }
 }

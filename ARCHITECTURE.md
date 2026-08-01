@@ -45,7 +45,7 @@ BE-dev/
 │   │   ├── notification/           # NotificationService (@Global) + đọc thông báo
 │   │   ├── reviews/                # ASSISTANTREVIEW/MANGAKAREVIEW + reputation
 │   │   ├── series/                 # proposal, pitch, lifecycle and ownership
-│   │   ├── name/                   # Series/chapter Name content, review and approval
+│   │   ├── storyboard/             # chapter Storyboard content, review and approval
 │   │   ├── chapter/                # Chapter/Schedule/Manuscript/Page + publish
 │   │   ├── annotation/             # markup review (shared Mangaka↔Assistant, Editor↔Mangaka)
 │   │   ├── storage/                # signed URL (presign PUT/GET) wiring
@@ -339,7 +339,7 @@ Schema (`prisma/schema.prisma`) khai báo **toàn bộ domain Mangaka** (~39 mod
 | Nhóm | Models |
 |------|--------|
 | **Identity & Access** | `User`, `Role`, `RefreshToken`, `OtpRequest` |
-| **Content & Production** | `Series`, `SeriesProposal`, `Name`, `NamePage`, `Chapter`, `Page`, `Region`, `Manuscript`, `Asset`, `TaskAsset` |
+| **Content & Production** | `Series`, `SeriesProposal`, `Storyboard`, `StoryboardPage`, `Chapter`, `Page`, `Region`, `Manuscript`, `Asset`, `TaskAsset` |
 | **Tasks & Review** | `Task`, `TaskVersion`, `Annotation`, `Schedule`, `ScheduleExtension` |
 | **Survey & Ranking** | `SurveyPeriod`, `SurveyData`, `SurveyEntry`, `ReaderVote`, `ReaderVoteSeries`, `RankingRecord` |
 | **Board & Decisions** | `BoardDecision`, `Vote`, `SeriesReport`, `ReportAttachment` |
@@ -349,8 +349,9 @@ Schema (`prisma/schema.prisma`) khai báo **toàn bộ domain Mangaka** (~39 mod
 > **Deprecated:** `PaymentConfig`, `EarningRecord` — hệ thống không quản lý lương Assistant (BR-ASSIST-02); thu nhập Mangaka chuyển sang Contract/PaymentCondition/PaymentRecord (BE-B, Flow 6).
 
 **Enum**: ngoài `UserStatus`/`OtpPurpose` (auth), các state machine đã code đều dùng Prisma enum +
-embedded `statusHistory[]` cho audit, single-writer qua state service: `SeriesStatus`/`ProposalStatus`/`NameStatus` (A2),
-`ManuscriptStatus`/`PageStatus`/`ChapterStatus`/`AnnotationType` (A3). State machine của BE-B (Contract/Board/...) sẽ thêm dần.
+embedded `statusHistory[]` cho audit, single-writer qua state service: `SeriesStatus`/`ProposalStatus` (A2),
+`StoryboardStatus`/`ManuscriptStatus`/`PageStatus`/`ChapterStatus`/`AnnotationType` (A3). State machine của BE-B
+(Contract/Board/...) sẽ thêm dần.
 
 ```prisma
 model User {
@@ -474,9 +475,9 @@ KHÔNG throw — mirror `notifySafe`); gọi SAU commit, NGOÀI transaction. C�
 ### AppConfig — `AppConfigService` (`@Global`, PA-10)
 
 `get()` trả registry 8 tham số nghiệp vụ (cache in-memory TTL 30s + lazy-seed + invalidate-on-PATCH):
-`coOwnerApprovalGraceDays`, `nameMaxReviewRounds`, `reputationRecommendThreshold`, `hiatusTooLongDays`,
+`coOwnerApprovalGraceDays`, `storyboardMaxReviewRounds`, `reputationRecommendThreshold`, `hiatusTooLongDays`,
 `lowVoteReliabilityThreshold`, `rankingAggregateMinCoverageRatio`, `maxUploadBytes`, `assignmentGraceDays`.
-`GET/PATCH /admin/app-config` (SUPER_ADMIN). Wire BE-A: `nameMaxReviewRounds`/`maxUploadBytes`/`reputationRecommendThreshold`; env/constant cũ = **seed default**.
+`GET/PATCH /admin/app-config` (SUPER_ADMIN). Wire BE-A: `storyboardMaxReviewRounds`/`maxUploadBytes`/`reputationRecommendThreshold`; env/constant cũ = **seed default**.
 
 ### State Machine (single-writer)
 Mỗi state machine chỉ ghi bởi 1 `<entity>-state.service.ts`: validate transition theo `*_TRANSITIONS` (sai → 409) +
@@ -632,7 +633,6 @@ graph LR
   Task -->|ProductionStageQueryPort| Chapter
   Task -->|TaskAssetQueryPort| Storage
   AI -->|ProductionStageQueryPort| Chapter
-  Series -->|NameApprovalQueryPort| Name
 ```
 
 Repositories remain private to their feature module. Consumers define the port they need; provider modules bind a

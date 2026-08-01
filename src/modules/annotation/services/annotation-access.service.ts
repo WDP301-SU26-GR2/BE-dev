@@ -48,7 +48,7 @@ export class AnnotationAccessService {
     if (!isObjectId(taskId)) throw AnnotationTaskBindingInvalidException
     const task = await this.annotationRepository.findTaskForAnnotation(taskId)
     if (!task) throw AnnotationTaskBindingInvalidException
-    if (targetType === AnnotationTargetType.MANUSCRIPT || targetType === AnnotationTargetType.NAME) {
+    if (targetType === AnnotationTargetType.MANUSCRIPT || targetType === AnnotationTargetType.STORYBOARD) {
       throw AnnotationTaskBindingInvalidException
     }
 

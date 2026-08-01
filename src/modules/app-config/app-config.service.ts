@@ -10,7 +10,7 @@ const CACHE_TTL_MS = 30_000
 
 const CONFIG_KEYS = [
   'coOwnerApprovalGraceDays',
-  'nameMaxReviewRounds',
+  'storyboardMaxReviewRounds',
   'reputationRecommendThreshold',
   'hiatusTooLongDays',
   'lowVoteReliabilityThreshold',
@@ -68,7 +68,7 @@ export class AppConfigService {
     const row =
       (await this.appConfigRepository.findFirst()) ??
       (await this.appConfigRepository.createDefaults({
-        nameMaxReviewRounds: envConfig.NAME_MAX_REVIEW_ROUNDS,
+        storyboardMaxReviewRounds: envConfig.STORYBOARD_MAX_REVIEW_ROUNDS,
         rankingAggregateMinCoverageRatio: 0.5
       }))
     this.cached = { row, expiresAt: now + CACHE_TTL_MS }

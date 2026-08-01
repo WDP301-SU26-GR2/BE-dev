@@ -1,4 +1,4 @@
-import { Demographic, Genre, NameKind, NameStatus, ProposalStatus, SeriesStatus } from '@prisma/client'
+import { Demographic, Genre, ProposalStatus, SeriesStatus } from '@prisma/client'
 import { requiredAccount, requiredMedia } from './demo-seed.helpers'
 import { DemoContext, SeriesSeed } from './demo-seed.types'
 
@@ -10,8 +10,6 @@ export const createSeriesWithProposal = async (
     editorId?: string
     seriesStatus: SeriesStatus
     proposalStatus: ProposalStatus
-    nameStatus: NameStatus
-    nameVersion: number
     synopsis: string
   }
 ): Promise<SeriesSeed> => {
@@ -38,42 +36,16 @@ export const createSeriesWithProposal = async (
         }
       ],
       proposal: {
-        nameId: null,
         synopsis: input.synopsis,
         characterDesigns: [rough, line],
         estimatedLength: 60,
         status: input.proposalStatus,
+        storyboardPages: [
+          { pageNumber: 1, fileUrl: rough },
+          { pageNumber: 2, fileUrl: line },
+          { pageNumber: 3, fileUrl: requiredMedia(context.media, 'hokusai-sketchbook').key }
+        ],
         createdAt: context.now
-      }
-    }
-  })
-  const name = await context.prisma.name.create({
-    data: {
-      seriesId: series.id,
-      chapterNumber: null,
-      status: input.nameStatus,
-      kind: NameKind.PROPOSAL,
-      version: input.nameVersion,
-      submittedAt: input.nameStatus === NameStatus.DRAFT ? null : context.now,
-      pages: [
-        { pageNumber: 1, fileUrl: rough },
-        { pageNumber: 2, fileUrl: line },
-        { pageNumber: 3, fileUrl: requiredMedia(context.media, 'hokusai-sketchbook').key }
-      ]
-    }
-  })
-  await context.prisma.series.update({
-    where: { id: series.id },
-    data: {
-      proposal: {
-        set: {
-          nameId: name.id,
-          synopsis: input.synopsis,
-          characterDesigns: [rough, line],
-          estimatedLength: 60,
-          status: input.proposalStatus,
-          createdAt: context.now
-        }
       }
     }
   })

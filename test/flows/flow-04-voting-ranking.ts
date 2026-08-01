@@ -194,6 +194,7 @@ const main = async () => {
   ok('04.1b period=null khi chưa mở', r1.status === 422, `got ${JSON.stringify(r1.json)?.slice(0, 200)}`)
 
   section('F04.2 OPEN survey period + context')
+  const rankingPeriodStart = new Date(Date.now() - 86_400_000)
   const c1 = await req('POST', '/survey-periods', {
     token: adminTok,
     body: {
@@ -201,7 +202,7 @@ const main = async () => {
       publicationType: 'WEEKLY',
       issueNumber: 35,
       eligibleSeriesIds: [s1.id, s2.id, s3.id],
-      startDate: isoOffset(-86_400_000),
+      startDate: rankingPeriodStart.toISOString(),
       endDate: isoOffset(7 * 86_400_000),
       status: 'OPEN'
     }
@@ -660,10 +661,9 @@ const main = async () => {
   const ranks = await prisma.rankingRecord.findMany({ where: { surveyPeriodId: periodId } })
   ok('04.23d RankingRecord count >= 2', ranks.length >= 2, `got ${ranks.length}`)
   const r1Rec = ranks.find((r) => r.seriesId === s1.id)
-  const now = new Date()
   const aggregate = await req(
     'GET',
-    `/rankings/aggregate?magazine=Jump&publicationType=WEEKLY&level=MONTH&year=${now.getUTCFullYear()}&month=${now.getUTCMonth() + 1}`
+    `/rankings/aggregate?magazine=Jump&publicationType=WEEKLY&level=MONTH&year=${rankingPeriodStart.getUTCFullYear()}&month=${rankingPeriodStart.getUTCMonth() + 1}`
   )
   const aggregateData = aggregate.json?.data ?? aggregate.json
   const aggregateS1 = aggregateData?.items?.find((item: { seriesId: string }) => item.seriesId === s1.id)

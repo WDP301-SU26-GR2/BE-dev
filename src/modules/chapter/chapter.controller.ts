@@ -27,7 +27,7 @@ import {
 } from './dto/chapter.dto'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
 import {
-  ChapterNameNotApprovedException,
+  ChapterStoryboardNotApprovedException,
   ChapterNotFoundException,
   ChapterNotEditableException,
   ChapterNumberLockedException,
@@ -75,7 +75,7 @@ export class ChapterController {
   @Post('chapters')
   @ApiOperation({
     summary:
-      'Mangaka tạo Chapter (chapter-first): chapterNumber + title → Chapter(DRAFT) + Manuscript(DRAFT) + Schedule. Name tạo sau.'
+      'Mangaka tạo Chapter (chapter-first): chapterNumber + title → Chapter(DRAFT) + Manuscript(DRAFT) + Schedule. Storyboard tạo sau qua POST /chapters/:id/storyboards.'
   })
   @ApiErrors(
     NotSeriesOwnerException,
@@ -106,7 +106,7 @@ export class ChapterController {
   }
 
   @Delete('chapters/:id')
-  @ApiOperation({ summary: 'Mangaka xóa chapter DRAFT (cascade Name/Manuscript/Schedule/Pages) — chapter-first' })
+  @ApiOperation({ summary: 'Mangaka xóa chapter DRAFT (cascade Storyboard/Manuscript/Schedule/Pages) — chapter-first' })
   @ApiErrors(ChapterNotFoundException, NotSeriesOwnerException, ChapterNotDeletableException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: MessageResDto })
@@ -191,7 +191,7 @@ export class ChapterController {
     NotSeriesOwnerException,
     ChapterNotFoundException,
     ChapterOnHoldException,
-    ChapterNameNotApprovedException,
+    ChapterStoryboardNotApprovedException,
     ProductionPageSetLockedException
   )
   @Roles(RoleName.MANGAKA)

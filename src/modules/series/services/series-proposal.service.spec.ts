@@ -27,23 +27,13 @@ const baseSeries = {
   statusHistory: [],
   createdAt: new Date('2026-06-23T00:00:00.000Z'),
   proposal: {
-    nameId: 'n1',
     synopsis: null,
     characterDesigns: [],
     estimatedLength: null,
+    storyboardPages: [],
     status: ProposalStatus.DRAFT,
     createdAt: new Date('2026-06-23T00:00:00.000Z')
   }
-}
-
-const baseName = {
-  id: 'n1',
-  seriesId: 's1',
-  chapterNumber: null,
-  status: 'DRAFT',
-  version: 1,
-  submittedAt: null,
-  pages: []
 }
 
 const SID = '0123456789abcdef01234567'
@@ -52,30 +42,29 @@ function make(seriesOverride: Record<string, unknown> = {}) {
   const series = { ...baseSeries, ...seriesOverride }
   const seriesRepository = {
     findById: jest.fn().mockResolvedValue(series),
-    createProposalSeries: jest.fn().mockResolvedValue({ series, name: baseName }),
+    createProposalSeries: jest.fn().mockResolvedValue(series),
     updateProposalStatus: jest
       .fn()
       .mockImplementation((id, status) => Promise.resolve({ ...series, proposal: { ...series.proposal, status } })),
     updateProposalContent: jest.fn().mockResolvedValue(series),
-    reopenSeriesToDraft: jest
-      .fn()
-      .mockImplementation(() =>
-        Promise.resolve({ ...series, editorId: null, reviewStartedAt: null, status: SeriesStatus.DRAFT })
-      ),
-    deleteSeriesWithNames: jest.fn().mockResolvedValue(undefined),
+    reopenSeriesToDraft: jest.fn().mockImplementation(() =>
+      Promise.resolve({
+        ...series,
+        editorId: null,
+        reviewStartedAt: null,
+        status: SeriesStatus.DRAFT,
+        proposal: series.proposal ? { ...series.proposal, status: ProposalStatus.DRAFT } : null
+      })
+    ),
+    deleteProposalSeries: jest.fn().mockResolvedValue(undefined),
     markReviewStarted: jest.fn().mockResolvedValue(undefined),
     findExecutedContractType: jest.fn().mockResolvedValue(null),
     setFranchiseConsentStatus: jest
       .fn()
       .mockImplementation((id, status) => Promise.resolve({ ...series, franchiseConsentStatus: status }))
   }
-  const nameApprovalService = {
-    submitProposalName: jest.fn().mockResolvedValue({ ...baseName, status: 'SUBMITTED', submittedAt: new Date() }),
-    resetProposalNameToDraft: jest.fn().mockResolvedValue(undefined)
-  }
   const seriesStateService = {
-    transition: jest.fn().mockImplementation((id, toStatus) => Promise.resolve({ ...series, status: toStatus })),
-    tryAdvanceToReadyToPitch: jest.fn().mockResolvedValue({ ...series, status: SeriesStatus.READY_TO_PITCH })
+    transition: jest.fn().mockImplementation((id, toStatus) => Promise.resolve({ ...series, status: toStatus }))
   }
   const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const revisionService = {
@@ -85,35 +74,48 @@ function make(seriesOverride: Record<string, unknown> = {}) {
   const accessService = new SeriesProposalAccessService(seriesRepository as never, notificationService as never)
   const service = new SeriesProposalService(
     seriesRepository as never,
-    nameApprovalService as never,
     seriesStateService as never,
     revisionService as never,
     accessService
   )
-  return { service, seriesRepository, nameApprovalService, seriesStateService, notificationService, revisionService }
+  return {
+    service,
+    seriesRepository,
+    seriesStateService,
+    notificationService,
+    revisionService
+  }
 }
 
 describe('SeriesProposalService', () => {
-  it('createProposal returns mapped series + name', async () => {
+  it('createProposal returns mapped series only', async () => {
     const { service, seriesRepository } = make()
-    const res = await service.createProposal('m1', { title: 'T', genres: [], characterDesigns: [], namePages: [] })
+    const res = await service.createProposal('m1', {
+      title: 'T',
+      genres: [],
+      characterDesigns: [],
+      storyboardPages: []
+    })
     expect(seriesRepository.createProposalSeries).toHaveBeenCalledWith(
       'm1',
       expect.objectContaining({ title: 'T' }),
       undefined
     )
-    expect(res.series.id).toBe('s1')
-    expect(res.name.id).toBe('n1')
+    expect(res.id).toBe('s1')
+    expect((res as Record<string, unknown>).series).toBeUndefined()
   })
 
-  it('submit: proposal->PROPOSAL_REVIEW, name->SUBMITTED, series DRAFT->IN_REVIEW via state service', async () => {
-    const { service, seriesRepository, nameApprovalService, seriesStateService } = make()
+  it('submit: proposal->PROPOSAL_REVIEW, series DRAFT->IN_REVIEW via state service without a second gate', async () => {
+    const { service, seriesRepository, seriesStateService, notificationService, revisionService } = make()
     const res = await service.submit('m1', 's1')
     expect(seriesRepository.updateProposalStatus).toHaveBeenCalledWith('s1', ProposalStatus.PROPOSAL_REVIEW)
-    expect(nameApprovalService.submitProposalName).toHaveBeenCalledWith('n1')
     expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.IN_REVIEW, { changedBy: 'm1' })
-    expect(res.series.status).toBe(SeriesStatus.IN_REVIEW)
-    expect(res.name.status).toBe('SUBMITTED')
+    expect(seriesRepository.updateProposalStatus.mock.invocationCallOrder[0]).toBeLessThan(
+      seriesStateService.transition.mock.invocationCallOrder[0]
+    )
+    expect(notificationService.notifySafe).not.toHaveBeenCalled()
+    expect(revisionService.openSafe).not.toHaveBeenCalled()
+    expect(res.status).toBe(SeriesStatus.IN_REVIEW)
   })
 
   it('submit by non-owner throws', async () => {
@@ -121,12 +123,7 @@ describe('SeriesProposalService', () => {
     await expect(service.submit('other', 's1')).rejects.toBeDefined()
   })
 
-  it('submit throws when proposal missing nameId', async () => {
-    const { service } = make({ proposal: { ...baseSeries.proposal, nameId: null } })
-    await expect(service.submit('m1', 's1')).rejects.toBeDefined()
-  })
-
-  it('approve: proposal->PROPOSAL_APPROVED then tries to advance', async () => {
+  it('approve: proposal->PROPOSAL_APPROVED then directly transitions to READY_TO_PITCH', async () => {
     const { service, seriesRepository, seriesStateService, notificationService } = make({
       editorId: 'editor1',
       status: SeriesStatus.IN_REVIEW,
@@ -135,9 +132,17 @@ describe('SeriesProposalService', () => {
     await service.approve('editor1', 's1')
     expect(seriesRepository.updateProposalStatus).toHaveBeenCalledWith('s1', ProposalStatus.PROPOSAL_APPROVED)
     expect(seriesRepository.markReviewStarted).toHaveBeenCalledWith('s1')
-    expect(seriesStateService.tryAdvanceToReadyToPitch).toHaveBeenCalledWith('s1', 'editor1')
+    expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.READY_TO_PITCH, {
+      changedBy: 'editor1'
+    })
     expect(notificationService.notifySafe).toHaveBeenCalledWith(
       expect.objectContaining({ recipientId: 'm1', referenceType: 'PROPOSAL_APPROVED', content: expect.any(String) })
+    )
+    expect(seriesRepository.updateProposalStatus.mock.invocationCallOrder[0]).toBeLessThan(
+      seriesStateService.transition.mock.invocationCallOrder[0]
+    )
+    expect(seriesStateService.transition.mock.invocationCallOrder[0]).toBeLessThan(
+      notificationService.notifySafe.mock.invocationCallOrder[0]
     )
   })
 
@@ -162,8 +167,8 @@ describe('SeriesProposalService', () => {
     expect(transitionOrder).toBeLessThan(proposalOrder)
   })
 
-  it('reopen: ABANDONED → DRAFT + unset editor + proposal DRAFT + Name DRAFT', async () => {
-    const { service, seriesRepository, nameApprovalService, seriesStateService } = make({
+  it('reopen: ABANDONED → DRAFT + unset editor + proposal DRAFT', async () => {
+    const { service, seriesRepository, seriesStateService } = make({
       status: SeriesStatus.ABANDONED,
       editorId: 'e1',
       proposal: { ...baseSeries.proposal, status: ProposalStatus.REJECTED }
@@ -173,7 +178,6 @@ describe('SeriesProposalService', () => {
 
     expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.DRAFT, { changedBy: 'm1' })
     expect(seriesRepository.reopenSeriesToDraft).toHaveBeenCalledWith('s1')
-    expect(nameApprovalService.resetProposalNameToDraft).toHaveBeenCalledWith('n1')
   })
 
   it('reopen by a non-owner throws before transition', async () => {
@@ -181,6 +185,31 @@ describe('SeriesProposalService', () => {
 
     await expect(service.reopen('other', 's1')).rejects.toBe(NotSeriesOwnerException)
     expect(seriesStateService.transition).not.toHaveBeenCalled()
+  })
+
+  it('reopen đưa series + proposal về DRAFT without a storyboard write (Spec 28)', async () => {
+    const { service, seriesRepository, seriesStateService } = make({
+      status: SeriesStatus.WITHDRAWN,
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_APPROVED }
+    })
+
+    await service.reopen('m1', 's1')
+
+    expect(seriesRepository.updateProposalStatus).not.toHaveBeenCalled()
+    expect(seriesRepository.reopenSeriesToDraft).toHaveBeenCalledTimes(1)
+    expect(seriesStateService.transition).toHaveBeenCalledWith('s1', SeriesStatus.DRAFT, expect.anything())
+  })
+
+  it('reopenForReview đặt proposal về PROPOSAL_REVISION without a storyboard write (Spec 28)', async () => {
+    const { service, seriesRepository } = make({
+      editorId: 'e1',
+      status: SeriesStatus.REJECTED,
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_APPROVED }
+    })
+
+    await service.reopenForReview('e1', 's1', 'làm lại phần mở đầu')
+
+    expect(seriesRepository.updateProposalStatus).toHaveBeenCalledWith('s1', ProposalStatus.PROPOSAL_REVISION)
   })
 
   it('reopenForReview: REJECTED → IN_REVIEW + proposal revision + keeps editor + notifies mangaka', async () => {
@@ -354,7 +383,7 @@ describe('SeriesProposalService', () => {
 
     const res = await service.deleteProposal('m1', SID)
 
-    expect(seriesRepository.deleteSeriesWithNames).toHaveBeenCalledWith(SID)
+    expect(seriesRepository.deleteProposalSeries).toHaveBeenCalledWith(SID)
     expect(res.message).toBeDefined()
   })
 
@@ -385,7 +414,7 @@ describe('franchise gate', () => {
     const { service, seriesRepository, notificationService } = make()
     seriesRepository.findById = jest.fn().mockResolvedValue({ id: 'p1', mangakaId: 'A' })
     seriesRepository.findExecutedContractType = jest.fn().mockResolvedValue('REVENUE_SHARE')
-    await service.createProposal('B', { parentSeriesId: 'p1', title: 't', namePages: [] } as never)
+    await service.createProposal('B', { parentSeriesId: 'p1', title: 't', storyboardPages: [] } as never)
     expect(seriesRepository.createProposalSeries).toHaveBeenCalledWith('B', expect.anything(), 'PENDING')
     expect(notificationService.notifySafe).toHaveBeenCalled()
   })
@@ -394,7 +423,7 @@ describe('franchise gate', () => {
     const { service, seriesRepository } = make()
     seriesRepository.findById = jest.fn().mockResolvedValue({ id: 'p1', mangakaId: 'A' })
     seriesRepository.findExecutedContractType = jest.fn().mockResolvedValue('FULL_BUYOUT')
-    await service.createProposal('B', { parentSeriesId: 'p1', title: 't', namePages: [] } as never)
+    await service.createProposal('B', { parentSeriesId: 'p1', title: 't', storyboardPages: [] } as never)
     expect(seriesRepository.createProposalSeries).toHaveBeenCalledWith('B', expect.anything(), undefined)
   })
 
@@ -408,7 +437,7 @@ describe('franchise gate', () => {
       mangakaId: 'm1',
       status: SeriesStatus.DRAFT,
       franchiseConsentStatus: 'PENDING',
-      proposal: { nameId: 'n1' }
+      proposal: { ...baseSeries.proposal }
     })
     await expect(service.submit('m1', 'd1')).rejects.toBe(FranchiseConsentRequiredException)
   })

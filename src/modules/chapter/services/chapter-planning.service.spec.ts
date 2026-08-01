@@ -3,7 +3,7 @@ import { ChapterPlanningService } from './chapter-planning.service'
 const chapter = {
   id: 'chapter-1',
   seriesId: 'series-1',
-  nameId: null,
+  storyboardId: null,
   chapterNumber: 1,
   title: 'Chapter 1',
   totalPages: 0,

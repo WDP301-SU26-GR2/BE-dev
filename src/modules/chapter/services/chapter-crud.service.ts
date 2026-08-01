@@ -33,9 +33,6 @@ export class ChapterCrudService {
       data.chapterNumber = body.chapterNumber
     }
     await this.chapterRepository.updateChapter(chapterId, data)
-    if (data.chapterNumber != null && chapter.nameId) {
-      await this.chapterRepository.updateNameChapterNumber(chapter.nameId, data.chapterNumber)
-    }
     return this.chapterRepository.findChapterWithRelations(chapterId)
   }
 

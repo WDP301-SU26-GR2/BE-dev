@@ -1,6 +1,7 @@
 import {
   PrismaClient,
   Prisma,
+  ProposalStatus,
   SeriesStatus,
   ContractStatus,
   SurveyStatus,
@@ -18,8 +19,7 @@ import {
   TaskStatus,
   StudioAssignmentStatus,
   Specialization,
-  NameKind,
-  NameStatus,
+  StoryboardStatus,
   PaymentConditionStatus,
   ConditionType,
   DeadlineRequestStatus,
@@ -243,7 +243,7 @@ type MakeSeriesInput = {
   magazine?: string
   publicationType?: PublicationType
   startIssueNumber?: number
-  proposalStatus?: string
+  proposalStatus?: ProposalStatus
   franchiseConsentStatus?: string | null
   proposalSynopsis?: string
   completionProposal?: unknown
@@ -261,13 +261,14 @@ export const makeSeriesAt = async (status: SeriesStatus, o: MakeSeriesInput = { 
     demographic: 'SHONEN',
     statusHistory: [{ fromStatus: 'INITIAL', toStatus: status, changedBy: o.mangakaId, at: new Date() }] as never,
     proposal: {
-      nameId: null,
       synopsis: o.proposalSynopsis ?? 'ft synopsis',
       characterDesigns: [],
       estimatedLength: null,
-      status: o.proposalStatus ?? (status === 'DRAFT' ? 'DRAFT' : 'PROPOSAL_APPROVED'),
+      storyboardPages: [],
+      status:
+        o.proposalStatus ?? (status === SeriesStatus.DRAFT ? ProposalStatus.DRAFT : ProposalStatus.PROPOSAL_APPROVED),
       createdAt: new Date()
-    } as never
+    }
   }
   if (o.editorId) {
     data.editorId = o.editorId
@@ -334,13 +335,13 @@ export const makeContractAt = async (
 
 // ─────────────────────────────────────────────────────────────────────────────
 // makeChapterAt — tạo Chapter + Manuscript + Schedule (bắt buộc, không cascade).
-// chapterNumber unique trong series; nameId optional; publishedAt khi PUBLISHED.
+// chapterNumber unique trong series; storyboardId optional; publishedAt khi PUBLISHED.
 // ─────────────────────────────────────────────────────────────────────────────
 export const makeChapterAt = async (o: {
   seriesId: string
   chapterNumber: number
   title?: string
-  nameId?: string
+  storyboardId?: string
   manuscriptStatus?: ManuscriptStatus
   publishedAt?: Date | null
   holdComposite?: boolean
@@ -352,7 +353,7 @@ export const makeChapterAt = async (o: {
       seriesId: o.seriesId,
       chapterNumber: o.chapterNumber,
       title: o.title ?? `Ch${o.chapterNumber}`,
-      ...(o.nameId ? { nameId: o.nameId } : {}),
+      ...(o.storyboardId ? { storyboardId: o.storyboardId } : {}),
       ...(o.publishedAt ? { publishedAt: o.publishedAt } : {})
     }
   })
@@ -398,29 +399,33 @@ export const makeChapterAt = async (o: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// makeNameAt — Name kind PROPOSAL|CHAPTER. PROPOSAL gắn seriesId; CHAPTER gắn chapterId.
+// makeChapterStoryboardAt — phác thảo LUÔN thuộc một chương (Spec 28).
+// chapterId BẮT BUỘC; seriesId để phục vụ query/lookup, không dùng để liên kết entity.
 // ─────────────────────────────────────────────────────────────────────────────
-export const makeNameAt = async (o: {
+export const makeChapterStoryboardAt = async (o: {
   seriesId: string
-  chapterId?: string
-  chapterNumber?: number
-  kind?: NameKind
-  status?: NameStatus
+  chapterId: string
+  status: StoryboardStatus
   version?: number
 }) => {
-  return prisma.name.create({
+  return prisma.storyboard.create({
     data: {
       seriesId: o.seriesId,
-      chapterId: o.chapterId ?? null,
-      chapterNumber: o.chapterNumber ?? null,
-      kind: o.kind ?? NameKind.PROPOSAL,
-      status: o.status ?? NameStatus.SUBMITTED,
+      chapterId: o.chapterId,
+      status: o.status,
       version: o.version ?? 1,
       submittedAt: new Date(),
       pages: [] as never
     }
   })
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// withProposalStoryboard — helper tạo storyboard pages cho test fixtures.
+// Trả về mảng `{ pageNumber, fileUrl }` mặc định 2 trang (Spec 28 composite proposal).
+// ─────────────────────────────────────────────────────────────────────────────
+export const withProposalStoryboard = (pages = 2) =>
+  Array.from({ length: pages }, (_, i) => ({ pageNumber: i + 1, fileUrl: `flowtest/sb-${i + 1}.png` }))
 
 // ─────────────────────────────────────────────────────────────────────────────
 // makePageAt — tạo Page với status. originalFile là key (R2 chưa cần thật).
@@ -712,7 +717,7 @@ export const seedOtp = (email: string, purpose: OtpPurpose) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const setAppConfig = async (
   patch: Partial<{
-    nameMaxReviewRounds: number
+    storyboardMaxReviewRounds: number
     maxUploadBytes: number
     reputationRecommendThreshold: number
     hiatusTooLongDays: number

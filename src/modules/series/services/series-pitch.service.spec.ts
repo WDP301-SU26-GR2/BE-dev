@@ -8,7 +8,7 @@ function make(status: SeriesStatus) {
     editorId: 'e1',
     status,
     createdAt: new Date(),
-    proposal: { status: 'PROPOSAL_APPROVED', nameId: 'n1', createdAt: new Date() }
+    proposal: { status: 'PROPOSAL_APPROVED', storyboardPages: [], createdAt: new Date() }
   }
   const seriesRepository = {
     findById: jest.fn().mockResolvedValue(series),

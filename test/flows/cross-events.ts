@@ -4,8 +4,8 @@
  * Verify TỪNG cặp emit→listen bằng SIDE-EFFECT DB thật (không mock, không đọc log).
  * Mỗi case isolate: seed đúng tiền đề → kích hoạt qua API/Prisma → assert hệ quả.
  *
- * EV-01 NameApproved(PROPOSAL) → Series READY_TO_PITCH
- * EV-02 NameApproved(CHAPTER)  → Series KHÔNG đổi trạng thái
+ * EV-01 Composite proposal approved → Series READY_TO_PITCH (Spec 28 — single approval)
+ * EV-02 StoryboardApproved has no kind, seeds chapter stages, and leaves Series unchanged
  * EV-03 ContractAmendmentRequested (từ CHANGE_FORMAT) → amendment DRAFT + notify Editor
  * EV-04 assistant.availability.changed → task ON_HOLD
  * EV-05 chapter.published (payload CÓ chapterNumber) → payment engine đếm chương → PaymentRecord
@@ -22,8 +22,7 @@ import {
   ConditionType,
   PaymentConditionStatus,
   ManuscriptStatus,
-  NameKind,
-  NameStatus,
+  StoryboardStatus,
   PageStatus,
   TaskStatus,
   DecisionType,
@@ -39,7 +38,7 @@ import {
   makeSeriesAt,
   makeContractAt,
   makeChapterAt,
-  makeNameAt,
+  makeChapterStoryboardAt,
   makePageAt,
   makeTaskAt,
   makeStudioAssignment,
@@ -72,6 +71,7 @@ const main = async () => {
   // Kỳ bình chọn là đơn vị cấp tạp chí → mọi mutation survey nay SUPER_ADMIN-only (xem §84).
   const sa1 = await makeUser(RoleCode.SUPER_ADMIN)
   const sa1Tok = await login(sa1.email)
+  const m1Tok = await login(m1.email)
   const a1Tok = await login(a1.email)
   const e1Tok = await login(e1.email)
   const boardToks = [await login(b1.email), await login(b2.email), await login(b3.email)]
@@ -115,56 +115,65 @@ const main = async () => {
     return { sessionId, decisionId }
   }
 
-  // ── EV-01 NameApproved(PROPOSAL) → Series READY_TO_PITCH ──
-  section('EV-01/02 NameApproved → series listener')
-  const sProp = await makeSeriesAt(SeriesStatus.IN_REVIEW, {
-    mangakaId: m1.id,
-    editorId: e1.id,
-    proposalStatus: 'PROPOSAL_APPROVED'
+  // ── EV-01 Composite proposal approve → Series READY_TO_PITCH (Spec 28 — single approval) ──
+  section('EV-01/02 series approval + chapter storyboard listener')
+  // Spec 28: composite proposal — tạo qua API rồi submit/claim/approve, status = READY_TO_PITCH.
+  const evPropRes = await req('POST', '/series/proposals', {
+    token: m1Tok,
+    body: {
+      title: 'EV Proposal Composite',
+      genres: ['ACTION'],
+      demographic: 'SHONEN',
+      synopsis: 'ev synopsis',
+      storyboardPages: [{ pageNumber: 1, fileUrl: 'flowtest/sb-1.png' }]
+    }
   })
-  const nProp = await makeNameAt({
-    seriesId: sProp.id,
-    kind: NameKind.PROPOSAL,
-    status: NameStatus.IN_REVIEW
-  })
-  await prisma.series.update({
-    where: { id: sProp.id },
-    data: { proposal: { set: { ...(sProp.proposal as object), nameId: nProp.id } } as never }
-  })
-  const rApproveName = await req('POST', `/series/${sProp.id}/names/${nProp.id}/approve`, { token: e1Tok, body: {} })
+  const sPropFreshId = evPropRes.json?.data?.id as string
+  await req('POST', `/series/${sPropFreshId}/submit`, { token: m1Tok })
+  await req('POST', `/series/${sPropFreshId}/claim`, { token: e1Tok })
+  const rApproveProp = await req('POST', `/series/${sPropFreshId}/proposal/approve`, { token: e1Tok, body: {} })
   ok(
-    'EV-01 NameApproved(kind=PROPOSAL) → Series IN_REVIEW → READY_TO_PITCH',
-    rApproveName.status === 201 &&
+    'EV-01 Composite proposal approved → Series IN_REVIEW → READY_TO_PITCH (single approval, Spec 28)',
+    rApproveProp.status === 201 &&
       (await waitUntil(
         async () =>
-          (await prisma.series.findUnique({ where: { id: sProp.id } }))?.status === SeriesStatus.READY_TO_PITCH,
+          (await prisma.series.findUnique({ where: { id: sPropFreshId } }))?.status === SeriesStatus.READY_TO_PITCH,
         8_000,
         400
       )),
-    `approve=${rApproveName.status} status=${String((await prisma.series.findUnique({ where: { id: sProp.id } }))?.status)}`
+    `approve=${rApproveProp.status} status=${String((await prisma.series.findUnique({ where: { id: sPropFreshId } }))?.status)}`
   )
 
-  // ── EV-02 NameApproved(CHAPTER) → series KHÔNG đổi ──
+  // ── EV-02 StoryboardApproved { seriesId, storyboardId, chapterId } ──
+  // Approval seeds the chapter production stages but must not change Series.status.
   const sSer = await makeSeriesAt(SeriesStatus.SERIALIZED, { mangakaId: m1.id, editorId: e1.id })
-  const chName = await makeChapterAt({ seriesId: sSer.id, chapterNumber: 1 })
-  const nChap = await makeNameAt({
+  const chapter = await makeChapterAt({ seriesId: sSer.id, chapterNumber: 1 })
+  const storyboard = await makeChapterStoryboardAt({
     seriesId: sSer.id,
-    chapterId: chName.id,
-    chapterNumber: 1,
-    kind: NameKind.CHAPTER,
-    status: NameStatus.IN_REVIEW
+    chapterId: chapter.id,
+    status: StoryboardStatus.IN_REVIEW
   })
-  await prisma.chapter.update({ where: { id: chName.id }, data: { nameId: nChap.id } })
-  const rApproveChName = await req('POST', `/chapters/${chName.id}/names/${nChap.id}/approve`, {
+  await prisma.chapter.update({ where: { id: chapter.id }, data: { storyboardId: storyboard.id } })
+  const sBefore = await prisma.series.findUnique({ where: { id: sSer.id } })
+  const approveStoryboard = await req('POST', `/chapters/${chapter.id}/storyboards/${storyboard.id}/approve`, {
     token: e1Tok,
     body: {}
   })
   await sleep(800)
+  const sAfter = await prisma.series.findUnique({ where: { id: sSer.id } })
+  const seededStages = await prisma.productionStage.findMany({
+    where: { chapterId: chapter.id },
+    orderBy: { order: 'asc' }
+  })
   ok(
-    'EV-02 NameApproved(kind=CHAPTER) → series GIỮ SERIALIZED (listener no-op)',
-    rApproveChName.status === 201 &&
-      (await prisma.series.findUnique({ where: { id: sSer.id } }))?.status === SeriesStatus.SERIALIZED,
-    `approve=${rApproveChName.status}`
+    'EV-02 StoryboardApproved seeds 4 stages and keeps Series SERIALIZED',
+    approveStoryboard.status === 201 &&
+      seededStages.length === 4 &&
+      seededStages[0]?.name === 'INKING' &&
+      seededStages[0]?.status === 'ACTIVE' &&
+      sAfter?.status === SeriesStatus.SERIALIZED &&
+      sAfter?.status === sBefore?.status,
+    `approve=${approveStoryboard.status} stages=${seededStages.map((stage) => `${stage.name}:${stage.status}`).join(',')} before=${sBefore?.status} after=${sAfter?.status}`
   )
 
   // ── EV-06 series.serialized → contract createDraft gate ──

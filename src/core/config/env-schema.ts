@@ -38,7 +38,7 @@ const EnvironmentSchema = z
     OTP_RL_COOLDOWN: positiveInt(30, 86_400),
     DEADLINE_WARN_THRESHOLD_HOURS: positiveInt(48, 8760),
     DEADLINE_SLOT_GRACE_HOURS: positiveInt(48, 8760),
-    NAME_MAX_REVIEW_ROUNDS: positiveInt(8, 100),
+    STORYBOARD_MAX_REVIEW_ROUNDS: positiveInt(8, 100),
     ORPHAN_ASSET_TTL_HOURS: positiveInt(24, 8760),
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(20).default(1),
     CORS_ORIGINS: z.string().default(''),

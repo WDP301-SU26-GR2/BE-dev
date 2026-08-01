@@ -9,7 +9,6 @@ import { Roles } from 'src/core/security/decorators/roles.decorator'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import {
   CreateProposalBodyDto,
-  CreateProposalResDto,
   FranchiseConsentBodyDto,
   HiatusBodyDto,
   ListSeriesQueryDto,
@@ -97,17 +96,21 @@ export class SeriesController {
   }
 
   @Post('proposals')
-  @ApiOperation({ summary: 'Mangaka tạo proposal mới (Series DRAFT + SeriesProposal + Name chương mẫu)' })
+  @ApiOperation({
+    summary: 'Mangaka tạo proposal mới (Series DRAFT + SeriesProposal + trang phác thảo nhúng trong proposal)'
+  })
   @ApiErrors(ParentSeriesNotFoundException)
   @Roles(RoleName.MANGAKA)
-  @ZodResponse({ status: 201, type: CreateProposalResDto })
+  @ZodResponse({ status: 201, type: SeriesResDto })
   createProposal(@Body() body: CreateProposalBodyDto, @ActiveUser('userId') userId: string) {
     return this.seriesService.createProposal(userId, body)
   }
 
   @Put('proposals/:id')
   @ApiObjectIdParams('id')
-  @ApiOperation({ summary: 'Mangaka sửa proposal (partial-update; chỉ DRAFT/PROPOSAL_REVISION; KHÔNG nhận namePages)' })
+  @ApiOperation({
+    summary: 'Mangaka sửa proposal (partial-update; chỉ DRAFT/PROPOSAL_REVISION; nhận storyboardPages)'
+  })
   @ApiErrors(NotSeriesOwnerException, SeriesNotFoundException, ProposalNotEditableException)
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: SeriesResDto })
@@ -130,7 +133,9 @@ export class SeriesController {
 
   @Post(':id/submit')
   @ApiObjectIdParams('id')
-  @ApiOperation({ summary: 'Mangaka submit → mở 2 vòng review (proposal+Name), Series DRAFT→IN_REVIEW' })
+  @ApiOperation({
+    summary: 'Mangaka submit → mở 1 vòng review duy nhất (proposal gộp phác thảo), Series DRAFT→IN_REVIEW (Spec 28)'
+  })
   @ApiErrors(
     NotSeriesOwnerException,
     SeriesNotFoundException,
@@ -138,7 +143,7 @@ export class SeriesController {
     FranchiseConsentRequiredException
   )
   @Roles(RoleName.MANGAKA)
-  @ZodResponse({ status: 201, type: CreateProposalResDto })
+  @ZodResponse({ status: 201, type: SeriesResDto })
   submit(@Param('id', SeriesIdParamPipe) id: string, @ActiveUser('userId') userId: string) {
     return this.seriesService.submit(userId, id)
   }
@@ -168,7 +173,7 @@ export class SeriesController {
 
   @Post(':id/proposal/approve')
   @ApiObjectIdParams('id')
-  @ApiOperation({ summary: 'Editor duyệt proposal (→ PROPOSAL_APPROVED; nếu Name cũng APPROVED → READY_TO_PITCH)' })
+  @ApiOperation({ summary: 'Editor duyệt proposal → PROPOSAL_APPROVED và READY_TO_PITCH ngay trong cùng action' })
   @ApiErrors(NotAssignedEditorException, SeriesNotFoundException, InvalidProposalStateException)
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: SeriesResDto })

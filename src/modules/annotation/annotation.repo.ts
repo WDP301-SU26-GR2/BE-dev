@@ -137,12 +137,12 @@ export class AnnotationRepository {
         })
         return manuscript ? { ...manuscript.chapter.series, task: null } : null
       }
-      case AnnotationTargetType.NAME: {
-        const name = await this.prismaService.name.findUnique({
+      case AnnotationTargetType.STORYBOARD: {
+        const storyboard = await this.prismaService.storyboard.findUnique({
           where: { id: targetId },
           select: { series: { select: selectSeries } }
         })
-        return name ? { ...name.series, task: null } : null
+        return storyboard ? { ...storyboard.series, task: null } : null
       }
     }
   }
@@ -177,8 +177,8 @@ export class AnnotationRepository {
         return Boolean(await this.prismaService.task.findUnique({ where: { id: targetId }, select }))
       case AnnotationTargetType.MANUSCRIPT:
         return Boolean(await this.prismaService.manuscript.findUnique({ where: { id: targetId }, select }))
-      case AnnotationTargetType.NAME:
-        return Boolean(await this.prismaService.name.findUnique({ where: { id: targetId }, select }))
+      case AnnotationTargetType.STORYBOARD:
+        return Boolean(await this.prismaService.storyboard.findUnique({ where: { id: targetId }, select }))
     }
   }
 

@@ -11,7 +11,11 @@ export const AppConfigResSchema = extendApi(
     id: z.string(),
     updatedBy: z.string().nullable().describe('Admin user id that last updated app config'),
     coOwnerApprovalGraceDays: z.number().int().nonnegative().describe('Grace days for co-owner approval flows'),
-    nameMaxReviewRounds: z.number().int().positive().describe('Maximum name review rounds before loop warning'),
+    storyboardMaxReviewRounds: z
+      .number()
+      .int()
+      .positive()
+      .describe('Maximum storyboard review rounds before loop warning'),
     reputationRecommendThreshold: z.number().min(1).max(5).describe('Minimum reputation score for recommendations'),
     hiatusTooLongDays: z.number().int().positive().describe('Days before a hiatus is considered too long'),
     lowVoteReliabilityThreshold: z.number().int().nonnegative().describe('Vote count below which reliability is low'),
@@ -31,7 +35,9 @@ export const PatchAppConfigBodySchema = extendApi(
   z
     .object({
       coOwnerApprovalGraceDays: intNonnegative('Grace days for co-owner approval flows').nullable().optional(),
-      nameMaxReviewRounds: intPositive('Maximum name review rounds before loop warning').nullable().optional(),
+      storyboardMaxReviewRounds: intPositive('Maximum storyboard review rounds before loop warning')
+        .nullable()
+        .optional(),
       reputationRecommendThreshold: z
         .number()
         .min(1)

@@ -26,7 +26,7 @@ export function toChapterRes(chapter: ChapterWithRels) {
   return {
     id: chapter.id,
     seriesId: chapter.seriesId,
-    nameId: chapter.nameId,
+    storyboardId: chapter.storyboardId,
     chapterNumber: chapter.chapterNumber,
     title: chapter.title,
     totalPages: chapter.totalPages,

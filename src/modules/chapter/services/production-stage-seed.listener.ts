@@ -7,9 +7,8 @@ import { ProductionStageStateService } from './production-stage-state.service'
 export class ProductionStageSeedListener {
   constructor(private readonly stageStateService: ProductionStageStateService) {}
 
-  @OnEvent(DomainEvent.NameApproved)
-  async handle(payload: DomainEventPayload[typeof DomainEvent.NameApproved]): Promise<void> {
-    if (payload.kind !== 'CHAPTER' || !payload.chapterId) return
+  @OnEvent(DomainEvent.StoryboardApproved)
+  async handle(payload: DomainEventPayload[typeof DomainEvent.StoryboardApproved]): Promise<void> {
     await this.stageStateService.seedForChapter(payload.chapterId)
   }
 }
