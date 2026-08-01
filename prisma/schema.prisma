@@ -196,13 +196,11 @@ enum ContractType {
 
 enum ContractStatus {
   DRAFT
-  MANGAKA_REVIEW
-  MANGAKA_APPROVED
-  BOARD_APPROVED
-  NEGOTIATION
-  MANGAKA_SIGNED
+  BOARD_REVIEW
+  AWAITING_MANGAKA
   ACTIVATION_PENDING
   FULLY_EXECUTED
+  REJECTED_BY_MANGAKA
   FULFILLED
   TERMINATED
   TERMINATED_BY_BREACH
@@ -717,30 +715,30 @@ model Series {
   parentSeries   Series?  @relation("SeriesLineage", fields: [parentSeriesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   childSeries    Series[] @relation("SeriesLineage")
 
-  title                   String
-  coverImage              String?
-  genres                  Genre[]
-  demographic             Demographic?
-  publicationType         PublicationType?
-  status                  SeriesStatus               @default(DRAFT)
-  statusReason            String?
-  relationshipType        RelationshipType?
+  title                    String
+  coverImage               String?
+  genres                   Genre[]
+  demographic              Demographic?
+  publicationType          PublicationType?
+  status                   SeriesStatus               @default(DRAFT)
+  statusReason             String?
+  relationshipType         RelationshipType?
   // Spec 3 / A-SER-06: gate đồng ý franchise. null = không gate; PENDING khi parent REVENUE_SHARE
   // (FULLY_EXECUTED) & khác mangaka; APPROVED/REJECTED do Mangaka gốc quyết.
-  franchiseConsentStatus FranchiseConsentStatus?
-  magazine                String? // Flow 1 slot: tạp chí Board chọn khi serial hoá (null tới khi SERIALIZED — set bởi A1)
-  startIssueNumber        Int? // Flow 1 slot: số kỳ (issue) series bắt đầu đăng (null tới khi SERIALIZED — set bởi A1)
-  coOwnerApprovalRequired Boolean                    @default(false)
-  reviewStartedAt         DateTime?
-  hiatusStartedAt         DateTime? // Spec 2: set when entering HIATUS, null when resumed — used to compute pausedMs
-  endingChapterAllowance  Int? // Spec 2 + Fix-1: N ending chapters Board grants on CANCELLATION — ENFORCED bởi chapter-creation guard
+  franchiseConsentStatus   FranchiseConsentStatus?
+  magazine                 String? // Flow 1 slot: tạp chí Board chọn khi serial hoá (null tới khi SERIALIZED — set bởi A1)
+  startIssueNumber         Int? // Flow 1 slot: số kỳ (issue) series bắt đầu đăng (null tới khi SERIALIZED — set bởi A1)
+  coOwnerApprovalRequired  Boolean                    @default(false)
+  reviewStartedAt          DateTime?
+  hiatusStartedAt          DateTime? // Spec 2: set when entering HIATUS, null when resumed — used to compute pausedMs
+  endingChapterAllowance   Int? // Spec 2 + Fix-1: N ending chapters Board grants on CANCELLATION — ENFORCED bởi chapter-creation guard
   chapterCountAtCancelling Int? // Fix-1 G-1: snapshot số chapter tại thời điểm vào CANCELLING — guard ending allowance
-  completionProposal      CompletionProposal?
-  statusHistory           SeriesStatusHistoryEntry[]
+  completionProposal       CompletionProposal?
+  statusHistory            SeriesStatusHistoryEntry[]
 
   proposal SeriesProposal?
 
-  storyboards Storyboard[]
+  storyboards         Storyboard[]
   publicationVersions PublicationVersion[]
   chapters            Chapter[]
 
@@ -758,14 +756,14 @@ type SeriesProposal {
   characterDesigns String[]
   storyboardPages  StoryboardPage[]
   estimatedLength  Int?
-  status           ProposalStatus @default(DRAFT)
-  createdAt        DateTime       @default(now())
+  status           ProposalStatus   @default(DRAFT)
+  createdAt        DateTime         @default(now())
 }
 
 type CompletionProposal {
   proposedByRole         String
-  proposedById          String   @db.ObjectId
-  reason                String
+  proposedById           String   @db.ObjectId
+  reason                 String
   proposedEndingChapters Int?
   proposedAt             DateTime
 }
@@ -830,12 +828,12 @@ model Chapter {
   hold          ChapterHold?
   holdHistory   ChapterHoldEntry[]
 
-  schedule        Schedule?
-  manuscript      Manuscript?
-  pages           Page[]
+  schedule         Schedule?
+  manuscript       Manuscript?
+  pages            Page[]
   productionStages ProductionStage[]
-  boardDecision   BoardDecision? @relation(fields: [boardDecisionId], references: [id])
-  boardDecisionId String?        @db.ObjectId
+  boardDecision    BoardDecision?    @relation(fields: [boardDecisionId], references: [id])
+  boardDecisionId  String?           @db.ObjectId
 
   storyboards Storyboard[]
 
@@ -949,17 +947,17 @@ model Page {
   chapterId String  @db.ObjectId
   chapter   Chapter @relation(fields: [chapterId], references: [id])
 
-  pageNumber    Int
-  originalFile  String?
-  compositeFile String?
-  compositeRevision Int @default(0)
+  pageNumber        Int
+  originalFile      String?
+  compositeFile     String?
+  compositeRevision Int        @default(0)
   canvasWidth       Int?
   canvasHeight      Int?
-  status        PageStatus @default(DRAFT)
-  createdAt     DateTime   @default(now())
+  status            PageStatus @default(DRAFT)
+  createdAt         DateTime   @default(now())
 
-  regions               Region[]
-  productionStagePages  ProductionStagePage[]
+  regions              Region[]
+  productionStagePages ProductionStagePage[]
 
   @@index([chapterId])
 }
@@ -981,7 +979,7 @@ model Region {
 }
 
 model Task {
-  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
   pageId      String   @db.ObjectId
   regionIds   String[] @default([]) @db.ObjectId
   assistantId String?  @db.ObjectId
@@ -997,8 +995,8 @@ model Task {
   // Task group: giao MỘT lần cho nhiều trang. Task vẫn thuộc ĐÚNG 1 trang (giữ region /
   // pagesReady / cascade / duyệt-từng-trang); groupId chỉ để gom hiển thị + thao tác hàng loạt.
   // ⚠ Optional field: lọc "task chưa có nhóm" phải dùng { groupId: { isSet: false } }, KHÔNG { groupId: null }.
-  groupId    String?
-  groupTitle String?
+  groupId     String?
+  groupTitle  String?
   stageId     String?   @db.ObjectId
   startedAt   DateTime?
   completedAt DateTime?
@@ -1049,7 +1047,7 @@ model ProductionStagePage {
   outputFileKey     String?
   outputRevision    Int?
   outputConfirmedAt DateTime?
-  outputConfirmedBy String?         @db.ObjectId
+  outputConfirmedBy String?          @db.ObjectId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1214,30 +1212,37 @@ model Contract {
 
   sourceTransferRequestId String? @db.ObjectId
 
-  contractType          ContractType
-  valuationAmount       Float?
-  publisherOwnershipPct Float?
-  mangakaOwnershipPct   Float?
-  terminationClause     String?
-  contractStart         DateTime?
-  contractEnd           DateTime?
-  status                ContractStatus @default(DRAFT)
-  mangakaSignedAt       DateTime?
-  boardSignedAt         DateTime?
-  createdAt             DateTime       @default(now())
+  contractType           ContractType
+  valuationAmount        Float?
+  publisherOwnershipPct  Float?
+  mangakaOwnershipPct    Float?
+  terminationClause      String?
+  contractStart          DateTime?
+  contractEnd            DateTime?
+  status                 ContractStatus @default(DRAFT)
+  mangakaSignedAt        DateTime?
+  boardSignedAt          DateTime?
+  representativeId       String?        @db.ObjectId
+  representativeSignedAt DateTime?
+  boardReviewStartedAt   DateTime?
+  supersedesContractId   String?        @db.ObjectId
+  rejectionReason        String?
+  mangakaRejectedAt      DateTime?
+  createdAt              DateTime       @default(now())
 
-  conditions         PaymentCondition[]
-  payments           PaymentRecord[]
-  amendments         ContractAmendment[]
-  versions           ContractVersion[]
-  contractSignatures ContractSignature[]
-  originOfTransfers  TransferRequest[]   @relation("OriginalContractOfTransfer")
+  conditions        PaymentCondition[]
+  payments          PaymentRecord[]
+  amendments        ContractAmendment[]
+  versions          ContractVersion[]
+  originOfTransfers TransferRequest[]   @relation("OriginalContractOfTransfer")
 
   @@index([seriesId])
   @@index([mangakaId])
   @@index([editorId])
   @@index([boardDecisionId])
   @@index([sourceTransferRequestId])
+  @@index([representativeId])
+  @@index([supersedesContractId])
 }
 
 model ContractVersion {
@@ -1262,16 +1267,15 @@ model ContractVersion {
   @@index([editedById])
 }
 
-model ContractSignature {
+model ContractComment {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   contractId String   @db.ObjectId
-  userId     String   @db.ObjectId
-  role       String
-  signedAt   DateTime @default(now())
+  authorId   String   @db.ObjectId
+  content    String
+  createdAt  DateTime @default(now())
 
-  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-
-  @@unique([contractId, userId])
+  @@index([contractId])
+  @@index([authorId])
 }
 
 model PaymentCondition {
@@ -1414,8 +1418,8 @@ type ReprintChapter {
   originalChapterId String?              @db.ObjectId
   manuscriptFile    String?
   status            ReprintChapterStatus @default(PENDING)
-  reviserId        String?              @db.ObjectId
-  reviserType      ReviserType?
+  reviserId         String?              @db.ObjectId
+  reviserType       ReviserType?
 }
 
 model TransferRequest {
@@ -1470,9 +1474,9 @@ model TransferContractSignature {
   transferContractId String           @db.ObjectId
   transferContract   TransferContract @relation(fields: [transferContractId], references: [id], onDelete: Cascade)
 
-  userId   String   @db.ObjectId
+  userId   String             @db.ObjectId
   role     TransferSignerRole
-  signedAt DateTime @default(now())
+  signedAt DateTime           @default(now())
 
   @@unique([transferContractId, userId, role])
   @@index([transferContractId])
@@ -1499,14 +1503,14 @@ model SurveyPeriod {
 
   // Scoped periods freeze the exact issue cohort. Legacy rows omit the scope fields and
   // remain readable, but are intentionally excluded from new ranking aggregates.
-  magazine          String?
-  publicationType   PublicationType?
-  eligibleSeriesIds String[] @db.ObjectId @default([])
+  magazine             String?
+  publicationType      PublicationType?
+  eligibleSeriesIds    String[]         @default([]) @db.ObjectId
   issueNumber          Int?
   reflectedIssueNumber Int?
   startDate            DateTime?
   endDate              DateTime?
-  status               SurveyStatus @default(DRAFT)
+  status               SurveyStatus     @default(DRAFT)
 
   readerVotes    ReaderVote[]
   surveyData     SurveyData[]
@@ -1523,7 +1527,7 @@ model ReaderVote {
 
   seriesIds       String[]          @db.ObjectId
   identityHash    String?
-  publicationType PublicationType?  // Option B: type độc giả vote (null = dữ liệu cũ trước Option B)
+  publicationType PublicationType? // Option B: type độc giả vote (null = dữ liệu cũ trước Option B)
   authMethod      ReaderAuthMethod?
   ipHash          String?
   captchaScore    Float?
@@ -1537,15 +1541,15 @@ model ReaderVote {
 }
 
 model VoteOtp {
-  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  id           String           @id @default(auto()) @map("_id") @db.ObjectId
   identityHash String
   otpCodeHash  String
   ipHash       String
   authMethod   ReaderAuthMethod
-  createdAt    DateTime          @default(now())
+  createdAt    DateTime         @default(now())
   expiresAt    DateTime
-  attempts     Int               @default(0)
-  isUsed       Boolean           @default(false)
+  attempts     Int              @default(0)
+  isUsed       Boolean          @default(false)
 
   @@unique([identityHash, authMethod])
 }
@@ -1622,25 +1626,25 @@ model BoardMessage {
 }
 
 model BoardDecision {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  targetSeriesId String?      @db.ObjectId
+  id                String       @id @default(auto()) @map("_id") @db.ObjectId
+  targetSeriesId    String?      @db.ObjectId
   // §v2 point 5 (Flow 8): quyết định TRANSFER phải trỏ đích danh 1 TransferRequest, tránh 1 decision
   // của series bị tái dùng cho request chuyển nhượng khác. Scalar (không phải @relation) để không tạo
   // ràng buộc vòng module; transfer.resolveDecision đối chiếu transferRequestId === request.id.
-  transferRequestId String?   @db.ObjectId
-  boardSessionId String       @db.ObjectId
-  boardSession   BoardSession @relation(fields: [boardSessionId], references: [id], onDelete: Cascade)
+  transferRequestId String?      @db.ObjectId
+  boardSessionId    String       @db.ObjectId
+  boardSession      BoardSession @relation(fields: [boardSessionId], references: [id], onDelete: Cascade)
 
   decisionType           DecisionType?
   result                 BoardDecisionResult?
-  totalVotes             Int           @default(0)
-  approveCount           Int           @default(0)
-  rejectCount            Int           @default(0)
-  quorumMet              Boolean       @default(false)
+  totalVotes             Int                  @default(0)
+  approveCount           Int                  @default(0)
+  rejectCount            Int                  @default(0)
+  quorumMet              Boolean              @default(false)
   endingChapterAllowance Int?
   details                Json?
   decidedAt              DateTime?
-  allowedEditorIds       String[]      @db.ObjectId
+  allowedEditorIds       String[]             @db.ObjectId
 
   votes                   Vote[]
   report                  SeriesReport?
@@ -1654,10 +1658,10 @@ model BoardDecision {
 }
 
 type Vote {
-  voterId   String?  @db.ObjectId
+  voterId   String?    @db.ObjectId
   voteValue VoteValue?
   note      String?
-  votedAt   DateTime @default(now())
+  votedAt   DateTime   @default(now())
 }
 
 model SeriesReport {
@@ -1680,16 +1684,16 @@ model VotingConfig {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
   updatedBy String? @db.ObjectId
 
-  authMode         VotingAuthMode @default(OTP)
-  maxSeriesPerVote Int            @default(3)
-  otpExpirySeconds Int            @default(300)
-  otpMaxAttempts   Int            @default(3)
-  ipRateLimit      Int            @default(10)
-  phoneRateLimit   Int            @default(3)
-  captchaThreshold Float          @default(0.3)
-  otpCooldownSeconds Int          @default(60) // Fix-2 G-4: cooldown between vote OTP requests
-  ipVotesPerPeriod   Int          @default(10) // Fix-2 G-4: vote submit cap per IP per period
-  updatedAt        DateTime       @updatedAt
+  authMode           VotingAuthMode @default(OTP)
+  maxSeriesPerVote   Int            @default(3)
+  otpExpirySeconds   Int            @default(300)
+  otpMaxAttempts     Int            @default(3)
+  ipRateLimit        Int            @default(10)
+  phoneRateLimit     Int            @default(3)
+  captchaThreshold   Float          @default(0.3)
+  otpCooldownSeconds Int            @default(60) // Fix-2 G-4: cooldown between vote OTP requests
+  ipVotesPerPeriod   Int            @default(10) // Fix-2 G-4: vote submit cap per IP per period
+  updatedAt          DateTime       @updatedAt
 
   @@index([updatedBy])
 }
@@ -1711,14 +1715,15 @@ model AppConfig {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
   updatedBy String? @db.ObjectId
 
-  coOwnerApprovalGraceDays     Int   @default(7)
-  storyboardMaxReviewRounds     Int   @default(8)
-  reputationRecommendThreshold Float @default(4)
-  hiatusTooLongDays            Int   @default(30)
-  lowVoteReliabilityThreshold  Int   @default(10)
+  coOwnerApprovalGraceDays         Int   @default(7)
+  storyboardMaxReviewRounds        Int   @default(8)
+  reputationRecommendThreshold     Float @default(4)
+  hiatusTooLongDays                Int   @default(30)
+  lowVoteReliabilityThreshold      Int   @default(10)
   rankingAggregateMinCoverageRatio Float @default(0.5)
-  maxUploadBytes               Int   @default(15728640)
-  assignmentGraceDays          Int   @default(0)
+  maxUploadBytes                   Int   @default(15728640)
+  assignmentGraceDays              Int   @default(0)
+  boardRepClaimGraceDays           Int   @default(3)
 
   updatedAt DateTime @updatedAt
 

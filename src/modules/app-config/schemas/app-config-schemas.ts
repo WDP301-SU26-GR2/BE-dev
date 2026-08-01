@@ -26,6 +26,11 @@ export const AppConfigResSchema = extendApi(
       .describe('Minimum reflected-issue participation coverage required for a non-provisional aggregate rank'),
     maxUploadBytes: z.number().int().positive().max(MAX_UPLOAD_BYTES_CAP).describe('Maximum upload size in bytes'),
     assignmentGraceDays: z.number().int().nonnegative().describe('Grace days around assignment lifecycle checks'),
+    boardRepClaimGraceDays: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Grace days before unclaimed contract review escalates'),
     updatedAt: z.string()
   }),
   { title: 'AppConfigRes', description: 'Application-wide runtime configuration' }
@@ -62,7 +67,10 @@ export const PatchAppConfigBodySchema = extendApi(
         .describe('Maximum upload size in bytes; hard cap is 50MB')
         .nullable()
         .optional(),
-      assignmentGraceDays: intNonnegative('Grace days around assignment lifecycle checks').nullable().optional()
+      assignmentGraceDays: intNonnegative('Grace days around assignment lifecycle checks').nullable().optional(),
+      boardRepClaimGraceDays: intNonnegative('Grace days before unclaimed contract review escalates')
+        .nullable()
+        .optional()
     })
     .strict(),
   { title: 'PatchAppConfigBody', description: 'Partial app config update; null fields are ignored' }

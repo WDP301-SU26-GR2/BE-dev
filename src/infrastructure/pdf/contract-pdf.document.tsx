@@ -119,6 +119,7 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
 export function ContractPdfDocument({ data }: { data: ContractPdfData }) {
   const publisher = envConfig.NAME_APP
   const latestAmendment = data.latestAmendmentAt ? fmtDate(data.latestAmendmentAt) : DASH
+  const boardSignatures = data.signatures.filter((signature) => signature.role !== 'MANGAKA')
 
   return (
     <Document title={`Hợp đồng ${data.id}`} author={publisher}>
@@ -206,10 +207,10 @@ export function ContractPdfDocument({ data }: { data: ContractPdfData }) {
             {data.mangaka.displayName} · {fmtDate(data.mangakaSignedAt)} · Ký điện tử qua OTP email
           </Field>
           <Text style={styles.label}>Hội đồng</Text>
-          {data.signatures.length === 0 ? (
+          {boardSignatures.length === 0 ? (
             <Text style={styles.signature}>{DASH}</Text>
           ) : (
-            data.signatures.map((signature, index) => (
+            boardSignatures.map((signature, index) => (
               <Text key={index} style={styles.signature}>
                 {signature.displayName} · {fmtDate(signature.signedAt)}
               </Text>

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { ContractType } from '@prisma/client'
 import {
   CreatePaymentInternalDto,
   GetPaymentsQueryDto,
@@ -61,5 +62,16 @@ export class PaymentService {
   }
   disablePaymentCondition(contractId: string, conditionId: string, editorId: string) {
     return this.conditionService.disablePaymentCondition(contractId, conditionId, editorId)
+  }
+
+  assertExistingConditionsWithinNewCap(
+    contractId: string,
+    contract: {
+      contractType: ContractType
+      valuationAmount: number | null
+      publisherOwnershipPct: number | null
+    }
+  ) {
+    return this.conditionService.assertExistingConditionsWithinNewCap(contractId, contract)
   }
 }

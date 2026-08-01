@@ -50,8 +50,7 @@ const contractRepo = new ContractRepo(prisma, outbox)
 const contractWorkflow = new ContractWorkflowService(
   contractRepo,
   { notifySafe: jest.fn() } as never,
-  { record: jest.fn() } as never,
-  {} as never
+  { record: jest.fn() } as never
 )
 const contractAdapter = new ContractTransferAdapter(contractWorkflow)
 const paymentConditionState = new PaymentConditionStateService(new PaymentConditionRepo(prisma), {
@@ -108,7 +107,7 @@ const cleanupData = async () => {
   const amendmentIds = amendments.map(({ id }) => id)
 
   await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: transferRequestIds } } })
-  await prisma.contractSignature.deleteMany({ where: { contractId: { in: contractIds } } })
+  await prisma.contractComment.deleteMany({ where: { contractId: { in: contractIds } } })
   await prisma.amendmentSignature.deleteMany({ where: { amendmentId: { in: amendmentIds } } })
   await prisma.contractAmendment.deleteMany({ where: { contractId: { in: contractIds } } })
   await prisma.contractVersion.deleteMany({ where: { contractId: { in: contractIds } } })
@@ -241,8 +240,12 @@ const createReplacement = (fixture: Fixture, status: ContractStatus = ContractSt
       sourceTransferRequestId: fixture.request.id,
       contractType: 'FULL_BUYOUT',
       valuationAmount: 1_000,
+      publisherOwnershipPct: 100,
+      mangakaOwnershipPct: 0,
       status,
-      mangakaSignedAt: new Date()
+      representativeId: fixture.boardMember.id,
+      representativeSignedAt: new Date(),
+      mangakaSignedAt: status === ContractStatus.AWAITING_MANGAKA ? null : new Date()
     }
   })
 
@@ -439,19 +442,23 @@ describe('Transfer durable saga on Mongo replica set', () => {
       where: { id: fixture.request.id },
       data: { status: TransferRequestStatus.AWAITING_REPLACEMENT_SIGNATURES }
     })
-    const replacement = await createReplacement(fixture, ContractStatus.BOARD_APPROVED)
+    const replacement = await createReplacement(fixture, ContractStatus.AWAITING_MANGAKA)
     const contractRepo = new ContractRepo(prisma, outbox)
 
     const results = await Promise.allSettled([
-      contractRepo.recordBoardSignatureAndSettle(replacement.id, fixture.boardMember.id, 1),
-      contractRepo.recordBoardSignatureAndSettle(replacement.id, fixture.boardMember.id, 1)
+      contractRepo.recordMangakaAcceptAndSettle(replacement.id, ContractStatus.ACTIVATION_PENDING),
+      contractRepo.recordMangakaAcceptAndSettle(replacement.id, ContractStatus.ACTIVATION_PENDING)
     ])
 
-    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    const fulfilled = results.filter(
+      (result): result is PromiseFulfilledResult<Awaited<ReturnType<ContractRepo['recordMangakaAcceptAndSettle']>>> =>
+        result.status === 'fulfilled'
+    )
+    expect(fulfilled.length).toBeGreaterThanOrEqual(1)
+    expect(fulfilled.filter((result) => !('settlementFailure' in result.value) && result.value.signed)).toHaveLength(1)
     expect((await prisma.contract.findUniqueOrThrow({ where: { id: replacement.id } })).status).toBe(
       ContractStatus.ACTIVATION_PENDING
     )
-    expect(await prisma.contractSignature.count({ where: { contractId: replacement.id } })).toBe(1)
     expect(
       await prisma.outboxEvent.count({
         where: { type: OutboxEventType.TRANSFER_REPLACEMENT_READY, aggregateId: fixture.request.id }

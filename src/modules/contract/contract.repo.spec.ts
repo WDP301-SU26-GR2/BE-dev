@@ -76,7 +76,7 @@ describe('contract response enrichment', () => {
             decisionType: true,
             result: true,
             decidedAt: true,
-            boardSession: { select: { id: true, title: true, startTime: true } }
+            boardSession: { select: { id: true, title: true, startTime: true, allowedEditorIds: true } }
           }
         },
         mangaka: { select: { id: true, name: true, displayName: true, avatar: true } },

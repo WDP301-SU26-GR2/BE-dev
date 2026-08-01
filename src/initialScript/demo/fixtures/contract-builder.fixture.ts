@@ -121,6 +121,7 @@ export const createExecutedContract = async (context: DemoContext, series: Serie
   const decision = await ensureApprovedSerializationDecision(context, series)
   const mangakaSignedAt = new Date(context.now.getTime() - 58 * DAY)
   const boardSignedAt = new Date(context.now.getTime() - 57 * DAY)
+  const representativeId = decision.allowedEditorIds[0]
   const contract = await context.prisma.contract.create({
     data: {
       seriesId: series.id,
@@ -139,7 +140,10 @@ export const createExecutedContract = async (context: DemoContext, series: Serie
       contractEnd: new Date(context.now.getTime() + 720 * DAY),
       status: ContractStatus.FULLY_EXECUTED,
       mangakaSignedAt,
-      boardSignedAt
+      boardSignedAt,
+      representativeId,
+      representativeSignedAt: boardSignedAt,
+      boardReviewStartedAt: new Date(context.now.getTime() - 58 * DAY)
     }
   })
   await context.prisma.contractVersion.create({
@@ -154,13 +158,6 @@ export const createExecutedContract = async (context: DemoContext, series: Serie
       note: 'Bản điều khoản cuối đã được hai phía ký.',
       createdAt: new Date(context.now.getTime() - 59 * DAY)
     }
-  })
-  const boardIds = decision.allowedEditorIds
-  await context.prisma.contractSignature.createMany({
-    data: [
-      { contractId: contract.id, userId: series.mangakaId, role: 'MANGAKA', signedAt: mangakaSignedAt },
-      ...boardIds.map((userId) => ({ contractId: contract.id, userId, role: 'BOARD_MEMBER', signedAt: boardSignedAt }))
-    ]
   })
   const recurring = await context.prisma.paymentCondition.create({
     data: {

@@ -18,7 +18,7 @@ describe('EditorDashboardService', () => {
       ]),
       editorPendingContracts: jest
         .fn()
-        .mockResolvedValue([{ id: 'c1', seriesId: 's2', status: $Enums.ContractStatus.MANGAKA_REVIEW }])
+        .mockResolvedValue([{ id: 'c1', seriesId: 's2', status: $Enums.ContractStatus.BOARD_REVIEW }])
     }
     const overviewItems = [
       { chapterId: 'ch1', warningLevel: 'NONE' },
@@ -41,7 +41,7 @@ describe('EditorDashboardService', () => {
     ])
     expect(result.productionAlerts).toEqual([overviewItems[1]])
     expect(result.pendingContracts).toEqual([
-      { contractId: 'c1', seriesId: 's2', status: $Enums.ContractStatus.MANGAKA_REVIEW }
+      { contractId: 'c1', seriesId: 's2', status: $Enums.ContractStatus.BOARD_REVIEW }
     ])
   })
 })

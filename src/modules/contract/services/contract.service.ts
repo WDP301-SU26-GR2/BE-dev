@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common'
-import { ContractStatus } from '@prisma/client'
-import { CreateContractBodyDto, EditorUpdateContractBodyDto, ReportRevenueBodyDto } from '../dto/contract.dto'
+import {
+  AssignRepresentativeBodyDto,
+  CreateContractBodyDto,
+  CreateContractCommentBodyDto,
+  EditorUpdateContractBodyDto,
+  RejectContractBodyDto,
+  ReportRevenueBodyDto
+} from '../dto/contract.dto'
 import { ContractDraftService } from './contract-draft.service'
 import { ContractPdfService } from './contract-pdf.service'
 import { ContractQueryService } from './contract-query.service'
@@ -53,40 +59,48 @@ export class ContractService {
     return this.draftService.createDraft(editorId, dto)
   }
 
-  updateStatusByWorkflow(contractId: string, userId: string, status: ContractStatus) {
-    return this.workflowService.updateStatusByWorkflow(contractId, userId, status)
-  }
-
-  sendToMangaka(contractId: string, editorId: string) {
-    return this.workflowService.sendToMangaka(contractId, editorId)
+  submitForReview(contractId: string, editorId: string) {
+    return this.workflowService.submitForReview(contractId, editorId)
   }
 
   editorUpdateContract(contractId: string, editorId: string, dto: EditorUpdateContractBodyDto, note?: string) {
     return this.draftService.editorUpdateContract(contractId, editorId, dto, note)
   }
 
-  mangakaApprove(contractId: string, userId: string) {
-    return this.workflowService.mangakaApprove(contractId, userId)
+  claimRepresentative(contractId: string, userId: string) {
+    return this.workflowService.claimRepresentative(contractId, userId)
   }
 
-  mangakaRequestChanges(contractId: string, userId: string, reason: string) {
-    return this.workflowService.mangakaRequestChanges(contractId, userId, reason)
+  releaseRepresentative(contractId: string, userId: string) {
+    return this.workflowService.releaseRepresentative(contractId, userId)
   }
 
-  boardApprove(contractId: string, userId: string, boardDecisionId: string) {
-    return this.workflowService.boardApprove(contractId, userId, boardDecisionId)
+  assignRepresentative(contractId: string, adminId: string, dto: AssignRepresentativeBodyDto) {
+    return this.workflowService.assignRepresentative(contractId, adminId, dto)
   }
 
-  boardRequestChanges(contractId: string, userId: string, boardDecisionId: string, reason: string) {
-    return this.workflowService.boardRequestChanges(contractId, userId, boardDecisionId, reason)
+  addComment(contractId: string, userId: string, dto: CreateContractCommentBodyDto) {
+    return this.workflowService.addComment(contractId, userId, dto)
+  }
+
+  listComments(contractId: string, userId: string, roleName: string) {
+    return this.workflowService.listComments(contractId, userId, roleName)
   }
 
   signByMangakaWithOtp(contractId: string, userId: string, email: string, otpCode: string) {
     return this.signingService.signByMangakaWithOtp(contractId, userId, email, otpCode)
   }
 
-  signByBoardWithOtp(contractId: string, userId: string, email: string, otpCode: string) {
-    return this.signingService.signByBoardWithOtp(contractId, userId, email, otpCode)
+  signByRepresentativeWithOtp(contractId: string, userId: string, email: string, otpCode: string) {
+    return this.signingService.signByRepresentativeWithOtp(contractId, userId, email, otpCode)
+  }
+
+  rejectByMangaka(contractId: string, userId: string, dto: RejectContractBodyDto) {
+    return this.signingService.rejectByMangaka(contractId, userId, dto.reason)
+  }
+
+  redraft(contractId: string, editorId: string) {
+    return this.draftService.redraft(contractId, editorId)
   }
 
   checkContractStatus(contractId: string, userId: string, roleName: string) {

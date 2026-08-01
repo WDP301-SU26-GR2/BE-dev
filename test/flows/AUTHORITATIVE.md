@@ -347,14 +347,16 @@ GET    /contracts/:id
 PATCH  /contracts/:id                       Editable state
 POST   /contracts/:id/versions
 GET    /contracts/:id/versions
-POST   /contracts/:id/submit-mangaka-review → MANGAKA_REVIEW
-POST   /contracts/:id/approve-mangaka       → MANGAKA_APPROVED
-POST   /contracts/:id/start-negotiation      → NEGOTIATION
-POST   /contracts/:id/board-approve          → BOARD_APPROVED
-POST   /contracts/:id/board-reject          → loại
-POST   /contracts/:id/sign-mangaka          → MANGAKA_SIGNED
-POST   /contracts/:id/signatures            list signatures
-POST   /contracts/:id/sign                  → FULLY_EXECUTED
+POST   /contracts/:id/submit-review         → BOARD_REVIEW
+POST   /contracts/:id/claim                 Board representative claims slot
+POST   /contracts/:id/release               Board representative releases slot
+POST   /contracts/:id/assign-representative Editor assigns representative
+POST   /contracts/:id/comments              Board review comments
+GET    /contracts/:id/comments
+POST   /contracts/:id/sign-representative   → AWAITING_MANGAKA
+POST   /contracts/:id/sign-mangaka          → FULLY_EXECUTED
+POST   /contracts/:id/reject                → REJECTED_BY_MANGAKA
+POST   /contracts/:id/redraft               → DRAFT
 POST   /contracts/:id/terminate             body: { reason }
 POST   /contracts/:id/amendments
 PATCH  /contracts/amendments/:id
