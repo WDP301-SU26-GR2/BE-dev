@@ -15,6 +15,7 @@ import { ContractAmendmentController } from './contract-amendment.controller'
 import { PaymentConditionController } from './payment-condition.controller'
 import { ContractRepo } from './contract.repo'
 import { ContractAmendmentListener } from './listeners/contract-amendment.listener'
+import { ContractSeriesCancellationListener } from './listeners/contract-series-cancellation.listener'
 import { ContractAmendmentService } from './services/contract-amendment.service'
 import { ContractAmendmentDraftService } from './services/contract-amendment-draft.service'
 import { ContractAmendmentQueryService } from './services/contract-amendment-query.service'
@@ -22,6 +23,8 @@ import { ContractAmendmentSigningService } from './services/contract-amendment-s
 import { ContractDraftService } from './services/contract-draft.service'
 import { ContractPdfService } from './services/contract-pdf.service'
 import { ContractQueryService } from './services/contract-query.service'
+import { ContractRepClaimEscalationCron } from './services/contract-rep-claim-escalation.cron'
+import { ContractRepresentativeService } from './services/contract-representative.service'
 import { ContractRevenueService } from './services/contract-revenue.service'
 import { ContractSigningService } from './services/contract-signing.service'
 import { ContractService } from './services/contract.service'
@@ -37,6 +40,8 @@ import { ContractAssetRegistryPort } from './ports/contract-asset-registry.port'
     ContractDraftService,
     ContractWorkflowService,
     ContractSigningService,
+    ContractRepresentativeService,
+    ContractRepClaimEscalationCron,
     ContractPdfService,
     ContractRevenueService,
     ContractRepo,
@@ -46,6 +51,7 @@ import { ContractAssetRegistryPort } from './ports/contract-asset-registry.port'
     ContractAmendmentSigningService,
     ContractAmendmentRepo,
     ContractAmendmentListener,
+    ContractSeriesCancellationListener,
     { provide: ContractAssetRegistryPort, useExisting: AssetRegistryService },
     { provide: ContractTransferPort, useClass: ContractTransferAdapter }
   ],

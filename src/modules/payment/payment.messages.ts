@@ -19,7 +19,9 @@ export const PaymentMessages = {
     invalidThresholdConfig: 'Error.InvalidThresholdConfig',
     recurringChapterRequiresRecurring: 'Error.RecurringChapterRequiresRecurring',
     // S-01 (audit 2026-07-20): object-level authorization — chặn đọc payment ngoài phạm vi sở hữu.
-    paymentAccessDenied: 'Error.PaymentAccessDenied'
+    paymentAccessDenied: 'Error.PaymentAccessDenied',
+    paymentPayoutExceedsCap: 'Error.PaymentPayoutExceedsCap',
+    paymentConditionsExceedNewCap: 'Error.PaymentConditionsExceedNewCap'
   },
   errorText: {
     'Error.PaymentRecordNotFound': 'Không tìm thấy khoản thanh toán',
@@ -36,6 +38,8 @@ export const PaymentMessages = {
     'Error.NotAssignedPaymentEditor': 'Chỉ Editor phụ trách mới được quản lý điều kiện thanh toán',
     'Error.InvalidThresholdConfig': 'Cấu hình ngưỡng thanh toán không hợp lệ',
     'Error.RecurringChapterRequiresRecurring': 'Điều kiện theo chu kỳ chương phải được đánh dấu là định kỳ',
-    'Error.PaymentAccessDenied': 'Bạn không có quyền truy cập khoản thanh toán này'
+    'Error.PaymentAccessDenied': 'Bạn không có quyền truy cập khoản thanh toán này',
+    'Error.PaymentPayoutExceedsCap': 'Tổng điều kiện thanh toán hữu hạn vượt quá phần giá trị Nhà xuất bản mua',
+    'Error.PaymentConditionsExceedNewCap': 'Các điều kiện thanh toán hiện có vượt quá phần giá trị mới của Nhà xuất bản'
   }
 } as const

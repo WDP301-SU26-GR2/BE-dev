@@ -75,7 +75,7 @@ describe('DashboardRepository role-dashboard read models', () => {
     })
   })
 
-  it('loads Editor series aggregates, ranking identities and six non-terminal contracts', async () => {
+  it('loads Editor series aggregates, ranking identities and active two-phase contract work', async () => {
     const { repo, prisma } = makeRepo()
     prisma.series.groupBy.mockResolvedValue([])
     prisma.series.findMany.mockResolvedValue([])
@@ -98,14 +98,7 @@ describe('DashboardRepository role-dashboard read models', () => {
       where: {
         editorId: 'editor-1',
         status: {
-          in: [
-            $Enums.ContractStatus.DRAFT,
-            $Enums.ContractStatus.MANGAKA_REVIEW,
-            $Enums.ContractStatus.MANGAKA_APPROVED,
-            $Enums.ContractStatus.BOARD_APPROVED,
-            $Enums.ContractStatus.NEGOTIATION,
-            $Enums.ContractStatus.MANGAKA_SIGNED
-          ]
+          in: [$Enums.ContractStatus.BOARD_REVIEW, $Enums.ContractStatus.AWAITING_MANGAKA]
         }
       },
       select: { id: true, seriesId: true, status: true },

@@ -44,9 +44,21 @@ export const ERROR_HINTS: Record<string, string> = {
     'boardDecisionId must be an APPROVED SERIALIZATION decision for the same series',
   'Error.ContractMangakaMismatch': 'mangakaId must be the current owner of the series',
   'Error.OpenContractExists': 'the series or Board Decision already has a contract that is still active',
-  'Error.ContractNotSignableYet': 'contract must reach BOARD_APPROVED before it can be signed (B-CON-02)',
+  'Error.ContractNotSignableYet': 'contract must be in the current signer phase before it can be signed',
   'Error.ContractNotExecutedForPdf':
     'PDF can only be exported once the contract is FULLY_EXECUTED or terminal (Spec 24)',
+  'Error.ContractRepresentativeAlreadyClaimed': 'contract already has a Board representative',
+  'Error.NotInContractBoardRoster': 'caller/assigned representative is not in the source Board session roster',
+  'Error.NotContractRepresentative': 'only the claimed/assigned Board representative can perform this action',
+  'Error.ContractNoRepresentative': 'contract has no Board representative yet',
+  'Error.ContractNotInBoardReview': 'contract must be in BOARD_REVIEW',
+  'Error.ContractNotAwaitingMangaka': 'contract must be in AWAITING_MANGAKA',
+  'Error.ContractRedraftNotAllowed': 'only a REJECTED_BY_MANGAKA contract can be redrafted',
+  'Error.InvalidContractMoney': 'contract valuation, ownership split, or date invariant is invalid',
+  'Error.PaymentPayoutExceedsCap':
+    'finite payment conditions cannot exceed the publisher-owned share of contract valuation',
+  'Error.PaymentConditionsExceedNewCap':
+    'existing finite payment conditions exceed the proposed valuation/ownership cap',
   'Error.NotCoOwner': 'only the series co-owner (PARTIAL_TRANSFER) can approve/reject this chapter',
   'Error.CoOwnerApprovalNotPending': 'co-owner approval is not PENDING; already decided or escalated',
   'Error.CoOwnerApprovalNotFound': 'no co-owner approval record exists for this chapter',
@@ -225,8 +237,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.ReportDecisionSeriesMismatch': 'report seriesId must match the BoardDecision targetSeriesId',
   'Error.InvalidBoardSessionTransition': 'board session status transition is not allowed by BOARD_SESSION_TRANSITIONS',
   'Error.NotSessionCreator': 'only the board session creator or a Super Admin can conclude the session',
-  'Error.NotContractMangaka':
-    'caller is not the mangaka of this contract (approve / request-changes / sign / signing progress)',
+  'Error.NotContractMangaka': 'caller is not the mangaka of this contract (accept / reject / sign / signing progress)',
   'Error.ContractAccessDenied':
     'contract is outside the caller view scope (mangaka: own, editor: assigned, board: all)',
   'Error.PaymentAccessDenied':

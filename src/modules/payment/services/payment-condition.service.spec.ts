@@ -1,4 +1,4 @@
-import { ConditionType, ContractStatus } from '@prisma/client'
+import { ConditionType, ContractStatus, ContractType } from '@prisma/client'
 import { PaymentConditionService } from './payment-condition.service'
 
 describe('PaymentConditionService contract version invariant', () => {
@@ -15,15 +15,19 @@ describe('PaymentConditionService contract version invariant', () => {
         id: 'contract-1',
         editorId: 'editor-1',
         mangakaId: 'mangaka-1',
-        status
+        status,
+        contractType: ContractType.REVENUE_SHARE,
+        valuationAmount: 10_000,
+        publisherOwnershipPct: 70
       }),
-      create: jest.fn().mockResolvedValue({ id: 'condition-1' })
+      create: jest.fn().mockResolvedValue({ id: 'condition-1' }),
+      findActiveConditionsByContract: jest.fn().mockResolvedValue([])
     }
     const service = new PaymentConditionService(repo as never, {} as never)
     return { service, repo }
   }
 
-  it.each([ContractStatus.DRAFT, ContractStatus.NEGOTIATION])(
+  it.each([ContractStatus.DRAFT, ContractStatus.BOARD_REVIEW])(
     'allows condition changes while the contract is %s',
     async (status) => {
       const { service, repo } = setup(status)
@@ -34,19 +38,17 @@ describe('PaymentConditionService contract version invariant', () => {
     }
   )
 
-  it.each([
-    ContractStatus.MANGAKA_REVIEW,
-    ContractStatus.MANGAKA_APPROVED,
-    ContractStatus.BOARD_APPROVED,
-    ContractStatus.FULLY_EXECUTED
-  ])('locks condition changes while the contract is %s', async (status) => {
-    const { service, repo } = setup(status)
-    await expect(service.createPaymentCondition('contract-1', 'editor-1', dto)).rejects.toMatchObject({
-      status: 409,
-      response: {
-        message: [{ message: 'Error.PaymentConditionContractLocked', path: 'contractId' }]
-      }
-    })
-    expect(repo.create).not.toHaveBeenCalled()
-  })
+  it.each([ContractStatus.AWAITING_MANGAKA, ContractStatus.ACTIVATION_PENDING, ContractStatus.FULLY_EXECUTED])(
+    'locks condition changes while the contract is %s',
+    async (status) => {
+      const { service, repo } = setup(status)
+      await expect(service.createPaymentCondition('contract-1', 'editor-1', dto)).rejects.toMatchObject({
+        status: 409,
+        response: {
+          message: [{ message: 'Error.PaymentConditionContractLocked', path: 'contractId' }]
+        }
+      })
+      expect(repo.create).not.toHaveBeenCalled()
+    }
+  )
 })

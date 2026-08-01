@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException
+} from '@nestjs/common'
 import { PaymentMessages } from '../payment.messages'
 
 const E = PaymentMessages.error
@@ -73,5 +79,17 @@ export class UnauthorizedPaymentConditionEditorException extends ForbiddenExcept
 export class PaymentAccessDeniedException extends ForbiddenException {
   constructor() {
     super(E.paymentAccessDenied)
+  }
+}
+
+export class PaymentPayoutExceedsCapException extends UnprocessableEntityException {
+  constructor() {
+    super([{ message: E.paymentPayoutExceedsCap, path: 'payoutAmount' }])
+  }
+}
+
+export class PaymentConditionsExceedNewCapException extends UnprocessableEntityException {
+  constructor() {
+    super([{ message: E.paymentConditionsExceedNewCap, path: 'valuationAmount' }])
   }
 }

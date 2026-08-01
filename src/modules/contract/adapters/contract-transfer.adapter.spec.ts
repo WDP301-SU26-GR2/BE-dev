@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common'
-import { ContractStatus, PaymentConditionStatus } from '@prisma/client'
+import { ConditionType, ContractStatus, PaymentConditionStatus } from '@prisma/client'
 import { createTransactionContext } from 'src/infrastructure/database/transaction-context'
 import { ContractTransferAdapter } from './contract-transfer.adapter'
 
@@ -10,8 +10,8 @@ describe('ContractTransferAdapter', () => {
     const create = jest.fn().mockResolvedValue({
       id: 'replacement',
       valuationAmount: 1_000,
-      publisherOwnershipPct: null,
-      mangakaOwnershipPct: null,
+      publisherOwnershipPct: 100,
+      mangakaOwnershipPct: 0,
       terminationClause: null
     })
     const createVersion = jest.fn().mockResolvedValue({ id: 'version-1' })
@@ -28,7 +28,9 @@ describe('ContractTransferAdapter', () => {
         sourceTransferRequestId: 'request',
         contractType: 'FULL_BUYOUT',
         valuationAmount: 1_000,
-        conditions: [{ type: 'MILESTONE', value: 500, description: 'On publication' }]
+        publisherOwnershipPct: 100,
+        mangakaOwnershipPct: 0,
+        conditions: [{ type: ConditionType.CHAPTER_MILESTONE, value: 500, description: 'On publication' }]
       } as never
     )
 
@@ -36,10 +38,12 @@ describe('ContractTransferAdapter', () => {
       data: expect.objectContaining({
         sourceTransferRequestId: 'request',
         status: ContractStatus.DRAFT,
+        publisherOwnershipPct: 100,
+        mangakaOwnershipPct: 0,
         conditions: {
           create: [
             {
-              conditionType: 'MILESTONE',
+              conditionType: ConditionType.CHAPTER_MILESTONE,
               payoutAmount: 500,
               thresholdConfig: { description: 'On publication' },
               status: PaymentConditionStatus.PENDING

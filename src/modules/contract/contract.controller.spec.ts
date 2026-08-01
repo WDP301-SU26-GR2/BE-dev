@@ -1,4 +1,3 @@
-import { ContractStatus } from '@prisma/client'
 import { ContractController } from './contract.controller'
 import { ContractAmendmentController } from './contract-amendment.controller'
 import { PaymentConditionController } from './payment-condition.controller'
@@ -19,12 +18,16 @@ describe('ContractController delegation', () => {
     'getContractVersionById',
     'createDraft',
     'editorUpdateContract',
-    'updateStatusByWorkflow',
-    'mangakaRequestChanges',
-    'boardApprove',
-    'boardRequestChanges',
+    'submitForReview',
+    'claimRepresentative',
+    'releaseRepresentative',
+    'assignRepresentative',
+    'addComment',
+    'listComments',
+    'signByRepresentativeWithOtp',
     'signByMangakaWithOtp',
-    'signByBoardWithOtp',
+    'rejectByMangaka',
+    'redraft',
     'reportRevenue',
     'checkContractStatus'
   ])
@@ -67,42 +70,39 @@ describe('ContractController delegation', () => {
     expect(contract.getContractVersionById).toHaveBeenCalledWith('c1', 'v1', 'u1', 'EDITOR')
   })
 
-  it('delegates negotiation and review commands without leaking HTTP concerns into services', async () => {
+  it('delegates draft editing and two-phase contract commands', async () => {
     const draft = { seriesId: 's1' }
     await controller.createDraft('editor', draft as never)
     await controller.updateContract('c1', 'editor', { valuationAmount: 10, note: 'revision' })
-    await controller.updateContract('c1', 'editor', { valuationAmount: 20 })
-    await controller.updateStatus('c1', 'editor', ContractStatus.MANGAKA_REVIEW)
-    await controller.requestChanges('c1', 'mangaka', { reason: 'revise' })
-    await controller.boardApprove('c1', 'board', { boardDecisionId: 'decision-approve' })
-    await controller.boardRequestChanges('c1', 'board', {
-      boardDecisionId: 'decision-reject',
-      reason: 'clarify'
-    })
+    await controller.submitReview('c1', 'editor')
+    await controller.claim('c1', 'board')
+    await controller.release('c1', 'board')
+    await controller.assignRepresentative('c1', 'admin', { representativeId: 'board' })
+    await controller.addComment('c1', 'board', { content: 'LGTM' })
+    await controller.listComments('c1', 'editor', 'EDITOR')
+    await controller.signRepresentative('c1', 'b1', 'b@example.com', { otpCode: '654321' })
+    await controller.signMangaka('c1', 'm1', 'm@example.com', { otpCode: '123456' })
+    await controller.reject('c1', 'm1', { reason: 'revise price' })
+    await controller.redraft('c1', 'editor')
 
     expect(contract.createDraft).toHaveBeenCalledWith('editor', draft)
-    expect(contract.editorUpdateContract).toHaveBeenNthCalledWith(
-      1,
-      'c1',
-      'editor',
-      { valuationAmount: 10 },
-      'revision'
-    )
-    expect(contract.editorUpdateContract).toHaveBeenNthCalledWith(2, 'c1', 'editor', { valuationAmount: 20 }, undefined)
-    expect(contract.updateStatusByWorkflow).toHaveBeenCalledWith('c1', 'editor', ContractStatus.MANGAKA_REVIEW)
-    expect(contract.mangakaRequestChanges).toHaveBeenCalledWith('c1', 'mangaka', 'revise')
-    expect(contract.boardApprove).toHaveBeenCalledWith('c1', 'board', 'decision-approve')
-    expect(contract.boardRequestChanges).toHaveBeenCalledWith('c1', 'board', 'decision-reject', 'clarify')
+    expect(contract.editorUpdateContract).toHaveBeenCalledWith('c1', 'editor', { valuationAmount: 10 }, 'revision')
+    expect(contract.submitForReview).toHaveBeenCalledWith('c1', 'editor')
+    expect(contract.claimRepresentative).toHaveBeenCalledWith('c1', 'board')
+    expect(contract.releaseRepresentative).toHaveBeenCalledWith('c1', 'board')
+    expect(contract.assignRepresentative).toHaveBeenCalledWith('c1', 'admin', { representativeId: 'board' })
+    expect(contract.addComment).toHaveBeenCalledWith('c1', 'board', { content: 'LGTM' })
+    expect(contract.listComments).toHaveBeenCalledWith('c1', 'editor', 'EDITOR')
+    expect(contract.signByRepresentativeWithOtp).toHaveBeenCalledWith('c1', 'b1', 'b@example.com', '654321')
+    expect(contract.signByMangakaWithOtp).toHaveBeenCalledWith('c1', 'm1', 'm@example.com', '123456')
+    expect(contract.rejectByMangaka).toHaveBeenCalledWith('c1', 'm1', { reason: 'revise price' })
+    expect(contract.redraft).toHaveBeenCalledWith('c1', 'editor')
   })
 
-  it('delegates OTP signing, revenue reporting and signing progress', async () => {
-    await controller.signMangaka('c1', 'm1', 'm@example.com', { otpCode: '123456' })
-    await controller.signBoard('c1', 'b1', 'b@example.com', { otpCode: '654321' })
+  it('delegates revenue reporting and signing progress', async () => {
     await controller.reportRevenue('c1', 'e1', 'EDITOR', { revenue: 100, period: '2026-Q1' })
     await controller.checkStatus('c1', 'm1', 'MANGAKA')
 
-    expect(contract.signByMangakaWithOtp).toHaveBeenCalledWith('c1', 'm1', 'm@example.com', '123456')
-    expect(contract.signByBoardWithOtp).toHaveBeenCalledWith('c1', 'b1', 'b@example.com', '654321')
     expect(contract.reportRevenue).toHaveBeenCalledWith('c1', 'e1', 'EDITOR', {
       revenue: 100,
       period: '2026-Q1'
@@ -111,12 +111,12 @@ describe('ContractController delegation', () => {
   })
 
   it('delegates payment-condition commands to the payment capability', async () => {
-    await paymentController.createPaymentCondition('c1', 'e1', { conditionType: 'MILESTONE' } as never)
+    await paymentController.createPaymentCondition('c1', 'e1', { conditionType: 'CHAPTER_MILESTONE' } as never)
     await paymentController.getPaymentConditions('c1', 'u1', 'EDITOR')
     await paymentController.updatePaymentCondition('c1', 'p1', 'e1', { payoutAmount: 100 })
     await paymentController.disablePaymentCondition('c1', 'p1', 'e1')
 
-    expect(payment.createPaymentCondition).toHaveBeenCalledWith('c1', 'e1', { conditionType: 'MILESTONE' })
+    expect(payment.createPaymentCondition).toHaveBeenCalledWith('c1', 'e1', { conditionType: 'CHAPTER_MILESTONE' })
     expect(payment.getPaymentConditionsByContract).toHaveBeenCalledWith('c1', 'u1', 'EDITOR')
     expect(payment.updatePaymentCondition).toHaveBeenCalledWith('c1', 'p1', 'e1', { payoutAmount: 100 })
     expect(payment.disablePaymentCondition).toHaveBeenCalledWith('c1', 'p1', 'e1')

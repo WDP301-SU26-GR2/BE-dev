@@ -13,6 +13,7 @@ export function toAppConfigRes(row: AppConfig): AppConfigResType {
     rankingAggregateMinCoverageRatio: row.rankingAggregateMinCoverageRatio,
     maxUploadBytes: row.maxUploadBytes,
     assignmentGraceDays: row.assignmentGraceDays,
+    boardRepClaimGraceDays: row.boardRepClaimGraceDays,
     updatedAt: row.updatedAt.toISOString()
   }
 }

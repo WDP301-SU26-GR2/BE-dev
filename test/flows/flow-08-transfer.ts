@@ -460,50 +460,40 @@ const main = async () => {
   )
 
   if (typeof replacementContractId !== 'string') throw new Error('Flow08 replacement contract id missing')
-  const r12Review = await req('PATCH', `/contracts/${replacementContractId}/status`, {
-    token: e1Tok,
-    body: { status: 'MANGAKA_REVIEW' }
-  })
-  ok('8.12h editor sends replacement to Mangaka review', r12Review.status === 200, `got ${r12Review.status}`)
-  const r12Approve = await req('PATCH', `/contracts/${replacementContractId}/status`, {
-    token: mB2Tok,
-    body: { status: 'MANGAKA_APPROVED' }
-  })
-  ok('8.12i replacement Mangaka approves', r12Approve.status === 200, `got ${r12Approve.status}`)
-  const r12MissingDecision = await req('POST', `/contracts/${replacementContractId}/board-approve`, { token: b1Tok })
-  expectError(r12MissingDecision, 422, 'Error.ValidationFailed', '8.12j board-approve requires boardDecisionId')
-  const replacementVersion = await prisma.contractVersion.findFirst({
-    where: { contractId: replacementContractId },
-    orderBy: { versionNumber: 'desc' }
-  })
-  if (!replacementVersion) throw new Error('Flow08 replacement contract version missing')
-  const replacementApprovalDecision = await makeApprovedContractDecision({
-    seriesId: seriesFB.id,
-    resourceType: 'REPLACEMENT_CONTRACT',
-    resourceId: replacementContractId,
-    versionId: replacementVersion.id
-  })
-  const r12BoardApprove = await req('POST', `/contracts/${replacementContractId}/board-approve`, {
+  const r12SubmitReview = await req('POST', `/contracts/${replacementContractId}/submit-review`, { token: e1Tok })
+  ok(
+    '8.12h editor submits replacement for Board representative review',
+    r12SubmitReview.status === 201,
+    `got ${r12SubmitReview.status} ${r12SubmitReview.raw.slice(0, 200)}`
+  )
+  const r12OutsideClaim = await req('POST', `/contracts/${replacementContractId}/claim`, { token: bOutsideTok })
+  expectError(r12OutsideClaim, 403, 'Error.NotInContractBoardRoster', '8.12i outside Board member cannot claim')
+  const r12Claim = await req('POST', `/contracts/${replacementContractId}/claim`, { token: b1Tok })
+  ok(
+    '8.12j roster Board member claims replacement representative slot',
+    r12Claim.status === 201,
+    `got ${r12Claim.status} ${r12Claim.raw.slice(0, 200)}`
+  )
+  await seedOtp(b1.email, 'SIGNING_CONTRACT')
+  const r12RepresentativeSign = await req('POST', `/contracts/${replacementContractId}/sign-representative`, {
     token: b1Tok,
-    body: { boardDecisionId: replacementApprovalDecision.id }
+    body: { otpCode: '123456' }
   })
   ok(
-    '8.12k Board applies approved replacement decision',
-    r12BoardApprove.status === 201,
-    `got ${r12BoardApprove.status}`
+    '8.12k representative signs replacement and sends it to Mangaka',
+    r12RepresentativeSign.status === 201,
+    `got ${r12RepresentativeSign.status} ${r12RepresentativeSign.raw.slice(0, 200)}`
   )
   await seedOtp(mB2.email, 'SIGNING_CONTRACT')
-  const r12MangakaSign = await req('POST', `/contracts/${replacementContractId}/signatures/mangaka`, {
+  const r12MangakaSign = await req('POST', `/contracts/${replacementContractId}/sign-mangaka`, {
     token: mB2Tok,
     body: { otpCode: '123456' }
   })
-  ok('8.12l replacement Mangaka signs', r12MangakaSign.status === 201, `got ${r12MangakaSign.status}`)
-  await seedOtp(b1.email, 'SIGNING_CONTRACT')
-  const r12BoardSign = await req('POST', `/contracts/${replacementContractId}/signatures/board`, {
-    token: b1Tok,
-    body: { otpCode: '123456' }
-  })
-  ok('8.12m final Board signature accepted', r12BoardSign.status === 201, `got ${r12BoardSign.status}`)
+  ok(
+    '8.12l replacement Mangaka signs and stages activation',
+    r12MangakaSign.status === 201,
+    `got ${r12MangakaSign.status} ${r12MangakaSign.raw.slice(0, 200)}`
+  )
 
   const outboxAfterSignature = await prisma.outboxEvent.findMany({
     where: { type: OutboxEventType.TRANSFER_REPLACEMENT_READY, aggregateId: transferId }

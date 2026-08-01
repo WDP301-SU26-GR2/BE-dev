@@ -1,30 +1,30 @@
-import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common'
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { ZodResponse } from 'nestjs-zod'
+import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
+import { MessageResDto } from 'src/core/http/dto/response.dto'
+import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
+import { Roles } from 'src/core/security/decorators/roles.decorator'
+import { RoleName } from 'src/core/security/constants/role.constant'
+import { ContractErrors } from './errors/contract.errors'
 import { ContractService } from './services/contract.service'
 import {
-  CreateContractBodyDto,
-  EditorUpdateContractBodyDto,
-  SignContractWithOtpBodyDto,
-  ContractListItemDto,
-  ContractResDto,
-  ContractVersionResDto,
+  AssignRepresentativeBodyDto,
+  ContractCommentListResDto,
+  ContractCommentResDto,
   ContractHealthResDto,
-  ContractSignResDto,
-  ContractStatusProgressResDto,
-  ReportRevenueBodyDto,
+  ContractListItemDto,
   ContractPdfResDto,
-  ContractChangeReasonBodyDto,
-  BoardApproveContractBodyDto,
-  BoardRequestContractChangesBodyDto
+  ContractResDto,
+  ContractStatusProgressResDto,
+  ContractVersionResDto,
+  CreateContractBodyDto,
+  CreateContractCommentBodyDto,
+  EditorUpdateContractBodyDto,
+  RejectContractBodyDto,
+  ReportRevenueBodyDto,
+  SignContractWithOtpBodyDto
 } from './dto/contract.dto'
-import { MessageResDto } from 'src/core/http/dto/response.dto'
-import { ContractErrors } from './errors/contract.errors'
-import { ApiErrors } from 'src/core/http/decorators/api-errors.decorator'
-import { ContractStatus } from '@prisma/client'
-import { RoleName } from 'src/core/security/constants/role.constant'
-import { Roles } from 'src/core/security/decorators/roles.decorator'
-import { ActiveUser } from 'src/core/security/decorators/active-user.decorator'
 
 @ApiTags('contracts')
 @ApiBearerAuth()
@@ -101,6 +101,8 @@ export class ContractController {
   }
 
   @ApiOperation({ summary: 'Editor tạo hợp đồng nháp cho series đã SERIALIZED → DRAFT (B-CON-01)' })
+  @Post()
+  @Roles(RoleName.EDITOR)
   @ApiErrors(
     ContractErrors.SeriesNotSerialized(),
     ContractErrors.NotFound(),
@@ -109,16 +111,20 @@ export class ContractController {
     ContractErrors.ContractMangakaMismatch(),
     ContractErrors.OpenContractExists()
   )
-  @Post()
-  @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: ContractResDto })
   createDraft(@ActiveUser('userId') userId: string, @Body() dto: CreateContractBodyDto) {
     return this.contractService.createDraft(userId, dto)
   }
 
-  @ApiOperation({ summary: 'Editor cập nhật điều khoản hợp đồng nháp' })
+  @ApiOperation({ summary: 'Editor cập nhật điều khoản hợp đồng khi DRAFT hoặc BOARD_REVIEW' })
   @Patch(':id')
   @Roles(RoleName.EDITOR)
+  @ApiErrors(
+    ContractErrors.NotFound(),
+    ContractErrors.UnauthorizedEditor(),
+    ContractErrors.InvalidContractTransition(),
+    ContractErrors.InvalidContractMoney()
+  )
   @ZodResponse({ status: 200, type: ContractResDto })
   updateContract(
     @Param('id') id: string,
@@ -129,78 +135,114 @@ export class ContractController {
     return this.contractService.editorUpdateContract(id, userId, updateData, note)
   }
 
-  @ApiOperation({ summary: 'Editor/Mangaka cập nhật trạng thái hợp đồng theo workflow' })
-  @Patch(':id/status')
-  @Roles(RoleName.EDITOR, RoleName.MANGAKA)
-  @ApiErrors(
-    ContractErrors.NotFound(),
-    ContractErrors.UnauthorizedEditor(),
-    ContractErrors.NotContractMangaka(),
-    ContractErrors.InvalidContractTransition()
-  )
-  @ZodResponse({ status: 200, type: ContractResDto })
-  updateStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body('status') status: ContractStatus) {
-    return this.contractService.updateStatusByWorkflow(id, userId, status)
-  }
-
-  @ApiOperation({ summary: 'B-CON-02: Mangaka yêu cầu chỉnh sửa điều khoản → NEGOTIATION' })
-  @Post(':id/request-changes')
-  @Roles(RoleName.MANGAKA)
-  @ApiErrors(ContractErrors.NotFound(), ContractErrors.NotContractMangaka(), ContractErrors.InvalidContractTransition())
+  @ApiOperation({ summary: 'Editor gửi hợp đồng DRAFT sang Board review nội bộ → BOARD_REVIEW' })
+  @Post(':id/submit-review')
+  @Roles(RoleName.EDITOR)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.UnauthorizedEditor(), ContractErrors.InvalidContractTransition())
   @ZodResponse({ status: 201, type: ContractResDto })
-  requestChanges(
-    @Param('id') id: string,
-    @ActiveUser('userId') userId: string,
-    @Body() body: ContractChangeReasonBodyDto
-  ) {
-    return this.contractService.mangakaRequestChanges(id, userId, body.reason)
+  submitReview(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.contractService.submitForReview(id, userId)
   }
 
-  @ApiOperation({ summary: 'B-CON-02 (BOARD_REVIEW): Hội đồng duyệt điều khoản → BOARD_APPROVED' })
-  @Post(':id/board-approve')
+  @ApiOperation({ summary: 'Board member trong roster nhận làm đại diện ký hợp đồng' })
+  @Post(':id/claim')
   @Roles(RoleName.BOARD_MEMBER)
   @ApiErrors(
     ContractErrors.NotFound(),
-    ContractErrors.ContractDecisionNotFound(),
-    ContractErrors.InvalidContractDecision(),
-    ContractErrors.NotAuthorizedInBoard(),
-    ContractErrors.InvalidContractTransition()
+    ContractErrors.ContractNotInBoardReview(),
+    ContractErrors.NotInContractBoardRoster(),
+    ContractErrors.ContractRepresentativeAlreadyClaimed()
   )
   @ZodResponse({ status: 201, type: ContractResDto })
-  boardApprove(
-    @Param('id') id: string,
-    @ActiveUser('userId') userId: string,
-    @Body() body: BoardApproveContractBodyDto
-  ) {
-    return this.contractService.boardApprove(id, userId, body.boardDecisionId)
+  claim(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.contractService.claimRepresentative(id, userId)
   }
 
-  @ApiOperation({ summary: 'B-CON-02 (BOARD_REVIEW): Hội đồng yêu cầu chỉnh sửa → NEGOTIATION' })
-  @Post(':id/board-request-changes')
+  @ApiOperation({ summary: 'Đại diện Hội đồng nhả claim trước khi ký' })
+  @Post(':id/release')
   @Roles(RoleName.BOARD_MEMBER)
   @ApiErrors(
     ContractErrors.NotFound(),
-    ContractErrors.ContractDecisionNotFound(),
-    ContractErrors.InvalidContractDecision(),
-    ContractErrors.NotAuthorizedInBoard(),
-    ContractErrors.InvalidContractTransition()
+    ContractErrors.ContractNotInBoardReview(),
+    ContractErrors.NotContractRepresentative()
   )
-  @ZodResponse({ status: 201, type: ContractResDto })
-  boardRequestChanges(
-    @Param('id') id: string,
-    @ActiveUser('userId') userId: string,
-    @Body() body: BoardRequestContractChangesBodyDto
-  ) {
-    return this.contractService.boardRequestChanges(id, userId, body.boardDecisionId, body.reason)
+  @ZodResponse({ status: 201, type: MessageResDto })
+  release(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.contractService.releaseRepresentative(id, userId)
   }
 
-  @ApiOperation({ summary: 'Mangaka ký hợp đồng bằng OTP' })
-  @Post(':id/signatures/mangaka')
+  @ApiOperation({ summary: 'Super Admin gán đại diện Hội đồng cho hợp đồng quá hạn claim' })
+  @Post(':id/assign-representative')
+  @Roles(RoleName.SUPER_ADMIN)
+  @ApiErrors(
+    ContractErrors.NotFound(),
+    ContractErrors.ContractNotInBoardReview(),
+    ContractErrors.NotInContractBoardRosterForAssignment()
+  )
+  @ZodResponse({ status: 201, type: ContractResDto })
+  assignRepresentative(
+    @Param('id') id: string,
+    @ActiveUser('userId') adminId: string,
+    @Body() body: AssignRepresentativeBodyDto
+  ) {
+    return this.contractService.assignRepresentative(id, adminId, body)
+  }
+
+  @ApiOperation({ summary: 'Board member trong roster thêm góp ý tư vấn cho hợp đồng BOARD_REVIEW' })
+  @Post(':id/comments')
+  @Roles(RoleName.BOARD_MEMBER)
+  @ApiErrors(
+    ContractErrors.NotFound(),
+    ContractErrors.ContractNotInBoardReview(),
+    ContractErrors.NotInContractBoardRoster()
+  )
+  @ZodResponse({ status: 201, type: ContractCommentResDto })
+  addComment(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @Body() body: CreateContractCommentBodyDto
+  ) {
+    return this.contractService.addComment(id, userId, body)
+  }
+
+  @ApiOperation({ summary: 'Danh sách góp ý tư vấn hợp đồng' })
+  @Get(':id/comments')
+  @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.ContractAccessDenied())
+  @ZodResponse({ status: 200, type: ContractCommentListResDto })
+  listComments(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.contractService.listComments(id, userId, roleName)
+  }
+
+  @ApiOperation({ summary: 'Đại diện Hội đồng ký hợp đồng bằng OTP → AWAITING_MANGAKA' })
+  @Post(':id/sign-representative')
+  @Roles(RoleName.BOARD_MEMBER)
+  @ApiErrors(
+    ContractErrors.NotFound(),
+    ContractErrors.ContractNotInBoardReview(),
+    ContractErrors.ContractNoRepresentative(),
+    ContractErrors.NotContractRepresentative()
+  )
+  @ZodResponse({ status: 201, type: ContractResDto })
+  signRepresentative(
+    @Param('id') id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('email') userEmail: string,
+    @Body() body: SignContractWithOtpBodyDto
+  ) {
+    return this.contractService.signByRepresentativeWithOtp(id, userId, userEmail, body.otpCode)
+  }
+
+  @ApiOperation({ summary: 'Mangaka ký/accept hợp đồng bằng OTP → FULLY_EXECUTED hoặc ACTIVATION_PENDING' })
+  @Post(':id/sign-mangaka')
   @Roles(RoleName.MANGAKA)
   @ApiErrors(
     ContractErrors.NotFound(),
-    ContractErrors.AlreadySigned(),
-    ContractErrors.NotSignableYet(),
+    ContractErrors.ContractNotAwaitingMangaka(),
     ContractErrors.NotContractMangaka()
   )
   @ZodResponse({ status: 201, type: ContractResDto })
@@ -213,33 +255,43 @@ export class ContractController {
     return this.contractService.signByMangakaWithOtp(id, userId, userEmail, body.otpCode)
   }
 
-  @ApiOperation({ summary: 'Board ký hợp đồng bằng OTP' })
-  @Post(':id/signatures/board')
-  @Roles(RoleName.BOARD_MEMBER)
+  @ApiOperation({ summary: 'Mangaka từ chối hợp đồng cuối flow → REJECTED_BY_MANGAKA' })
+  @Post(':id/reject')
+  @Roles(RoleName.MANGAKA)
   @ApiErrors(
     ContractErrors.NotFound(),
-    ContractErrors.AlreadySigned(),
-    ContractErrors.NotSignableYet(),
-    ContractErrors.BoardDecisionNotFound(),
-    ContractErrors.NotAuthorizedInBoard(),
-    ContractErrors.BoardMemberAlreadySigned()
+    ContractErrors.ContractNotAwaitingMangaka(),
+    ContractErrors.NotContractMangaka()
   )
-  @ZodResponse({ status: 201, type: ContractSignResDto })
-  signBoard(
-    @Param('id') id: string,
-    @ActiveUser('userId') userId: string,
-    @ActiveUser('email') userEmail: string,
-    @Body() body: SignContractWithOtpBodyDto
-  ) {
-    return this.contractService.signByBoardWithOtp(id, userId, userEmail, body.otpCode)
+  @ZodResponse({ status: 201, type: ContractResDto })
+  reject(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body() body: RejectContractBodyDto) {
+    return this.contractService.rejectByMangaka(id, userId, body)
+  }
+
+  @ApiOperation({ summary: 'Editor tạo bản nháp mới từ hợp đồng bị Mangaka từ chối' })
+  @Post(':id/redraft')
+  @Roles(RoleName.EDITOR)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.UnauthorizedEditor(), ContractErrors.ContractRedraftNotAllowed())
+  @ZodResponse({ status: 201, type: ContractResDto })
+  redraft(@Param('id') id: string, @ActiveUser('userId') userId: string) {
+    return this.contractService.redraft(id, userId)
+  }
+
+  @ApiOperation({ summary: 'Xem trạng thái hợp đồng và tiến độ ký' })
+  @Get(':id/status')
+  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.NotContractMangaka())
+  @ZodResponse({ status: 200, type: ContractStatusProgressResDto })
+  checkStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') role: string) {
+    return this.contractService.checkContractStatus(id, userId, role)
   }
 
   @ApiOperation({
     summary: 'Board/Editor nhập doanh thu kỳ cho HĐ REVENUE_SHARE → chia theo ownership split (B-CON-07)'
   })
-  @ApiErrors(ContractErrors.NotFound(), ContractErrors.RevenueNotApplicable(), ContractErrors.UnauthorizedEditor())
   @Post(':id/revenue')
   @Roles(RoleName.BOARD_MEMBER, RoleName.EDITOR)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.RevenueNotApplicable(), ContractErrors.UnauthorizedEditor())
   @ZodResponse({ status: 201, type: MessageResDto })
   reportRevenue(
     @Param('id') id: string,
@@ -248,14 +300,5 @@ export class ContractController {
     @Body() body: ReportRevenueBodyDto
   ) {
     return this.contractService.reportRevenue(id, userId, roleName, body)
-  }
-
-  @ApiOperation({ summary: 'Xem trạng thái hợp đồng và tiến độ ký' })
-  @ApiErrors(ContractErrors.NotFound(), ContractErrors.NotContractMangaka())
-  @Get(':id/status')
-  @Roles(RoleName.EDITOR, RoleName.MANGAKA, RoleName.BOARD_MEMBER)
-  @ZodResponse({ status: 200, type: ContractStatusProgressResDto })
-  checkStatus(@Param('id') id: string, @ActiveUser('userId') userId: string, @ActiveUser('roleName') role: string) {
-    return this.contractService.checkContractStatus(id, userId, role)
   }
 }

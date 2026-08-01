@@ -169,6 +169,8 @@ describe('TransferService — Part 2 hardening', () => {
 
       const arg = repo.createNewContractFromTransfer.mock.calls[0][0]
       expect(arg.valuationAmount).toBe(5000)
+      expect(arg.publisherOwnershipPct).toBe(100)
+      expect(arg.mangakaOwnershipPct).toBe(0)
       expect(arg.conditions).toEqual([{ description: 'B adds 5 chapters', type: 'RECURRING_CHAPTER', value: 5 }])
       expect(repo.terminateOldContract).not.toHaveBeenCalled()
       expect(repo.updateSeriesOwnership).not.toHaveBeenCalled()

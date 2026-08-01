@@ -162,14 +162,14 @@ API local mặc định `http://localhost:4000`. Login `POST /auth/login`, gửi
 3. Năm tài khoản Board vote `POST /board/decisions/:id/vote`. Quorum là `ceil(2/3 × 5)=4`; approve cần trên 50% toàn roster, tức tối thiểu 3 approve.
 4. Decision chẵn dùng FORMAT_CHANGE với `details.publicationType=MONTHLY`; decision lẻ dùng CANCELLATION và ending allowance 3. Mỗi buổi chỉ dùng một decision.
 
-### Flow 6 — Contract → negotiation → signatures → payment
+### Flow 6 — Contract → Board representative → Mangaka accept/reject → payment
 
-1. Editor Duc chọn `[DEMO F6-01]` đến `10`. Series đã có Board SERIALIZATION decision APPROVED; Contract `DRAFT` liên kết đúng `boardDecisionId`, có ContractVersion 1 và một decision `CONTRACT/PENDING` trong session `[DEMO F6] Contract terms approval`.
-2. Khi Contract còn `DRAFT|NEGOTIATION`, Editor tạo/sửa PaymentCondition. Dùng config đúng API: recurring `{ "every": 4 }`, chapter milestone `{ "chapter": 10 }`, ranking `{ "topRank": 3 }`, time-bound `{ "deadline": "YYYY-MM-DD" }`.
-3. Editor gửi Mangaka qua `PATCH /contracts/:id/status` → `MANGAKA_REVIEW`; Mangaka approve hoặc request changes. Nếu Editor sửa điều khoản và sinh ContractVersion mới, decision cũ không còn hợp lệ: phải tạo decision `CONTRACT` mới với `details.versionId` hiện hành.
-4. Sau khi Mangaka approve, Board vote decision đang pending. Khi terminal, một thành viên đúng roster áp dụng kết quả bằng `POST /contracts/:id/board-approve` với `{ "boardDecisionId": "..." }` nếu `APPROVED`, hoặc `POST /contracts/:id/board-request-changes` với `{ "boardDecisionId": "...", "reason": "..." }` nếu `REJECTED`.
-5. Khi `BOARD_APPROVED`, issue OTP cho Mangaka rồi ký `/contracts/:id/signatures/mangaka`; issue OTP riêng cho từng Board Member và ký `/contracts/:id/signatures/board` tới đủ roster.
-6. Hợp đồng production/ranking dựng sẵn có 11 Contract FULLY_EXECUTED, đủ version/signature, 22 condition và 22 payment record (PAID/APPROVED) để demo lịch sử.
+1. Editor Duc chọn `[DEMO F6-01]` đến `10`. Series đã có Board SERIALIZATION decision APPROVED; Contract `DRAFT` liên kết đúng `boardDecisionId`, có ContractVersion 1.
+2. Khi Contract còn `DRAFT|BOARD_REVIEW`, Editor tạo/sửa PaymentCondition. Dùng config đúng API: recurring `{ "every": 4 }`, chapter milestone `{ "chapter": 10 }`, ranking `{ "topRank": 3 }`, time-bound `{ "deadline": "YYYY-MM-DD" }`.
+3. Editor gửi review nội bộ qua `POST /contracts/:id/submit-review` → `BOARD_REVIEW`; Board trong roster comment bằng `POST /contracts/:id/comments`; Editor sửa điều khoản vẫn giữ `BOARD_REVIEW` và sinh ContractVersion mới.
+4. Một Board member đúng roster `POST /contracts/:id/claim` để thành `representativeId`; đại diện issue OTP và `POST /contracts/:id/sign-representative` → `AWAITING_MANGAKA`.
+5. Mangaka issue OTP và `POST /contracts/:id/sign-mangaka` để accept → `FULLY_EXECUTED`, hoặc `POST /contracts/:id/reject` kèm lý do → `REJECTED_BY_MANGAKA`; Editor có thể `POST /contracts/:id/redraft`.
+6. Hợp đồng production/ranking dựng sẵn có Contract FULLY_EXECUTED, đủ version/representative signature, condition và payment record để demo lịch sử.
 
 ## 7. Lịch demo hai tuần
 

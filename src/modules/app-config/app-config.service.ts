@@ -16,7 +16,8 @@ const CONFIG_KEYS = [
   'lowVoteReliabilityThreshold',
   'rankingAggregateMinCoverageRatio',
   'maxUploadBytes',
-  'assignmentGraceDays'
+  'assignmentGraceDays',
+  'boardRepClaimGraceDays'
 ] as const
 
 type ConfigKey = (typeof CONFIG_KEYS)[number]

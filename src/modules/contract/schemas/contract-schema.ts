@@ -10,21 +10,15 @@ import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.mode
 export const CreateContractBodySchema = extendApi(
   z
     .object({
-      seriesId: z
-        .string({ error: 'seriesId phải là một chuỗi ký tự' })
-        .min(1, { message: 'seriesId là bắt buộc không được để trống' }),
-      mangakaId: z
-        .string({ error: 'mangakaId phải là một chuỗi ký tự' })
-        .min(1, { message: 'mangakaId là bắt buộc không được để trống' }),
-      boardDecisionId: z
-        .string({ error: 'boardDecisionId phải là một chuỗi ký tự' })
-        .min(1, { message: 'boardDecisionId liên kết quyết định hội đồng là bắt buộc' }),
+      seriesId: zObjectId('seriesId phải là ObjectId hợp lệ'),
+      mangakaId: zObjectId('mangakaId phải là ObjectId hợp lệ'),
+      boardDecisionId: zObjectId('boardDecisionId phải là ObjectId hợp lệ'),
 
       contractType: zEnum($Enums.ContractType, 'ContractType'),
 
       valuationAmount: z
         .number({ error: 'valuationAmount phải là một số' })
-        .min(0, { message: 'valuationAmount không được nhỏ hơn 0' }),
+        .positive({ message: 'valuationAmount phải lớn hơn 0' }),
       publisherOwnershipPct: z.number({ error: 'publisherOwnershipPct phải là một số' }).min(0).max(100),
       mangakaOwnershipPct: z.number({ error: 'mangakaOwnershipPct phải là một số' }).min(0).max(100),
       terminationClause: z
@@ -42,14 +36,43 @@ export const CreateContractBodySchema = extendApi(
         .transform((val) => new Date(val))
     })
     .strict()
-    .superRefine(({ contractType, publisherOwnershipPct, mangakaOwnershipPct }, ctx) => {
-      if (contractType === 'FULL_BUYOUT') return
-
-      if (publisherOwnershipPct + mangakaOwnershipPct !== 100) {
+    .superRefine(({ contractType, publisherOwnershipPct, mangakaOwnershipPct, contractStart, contractEnd }, ctx) => {
+      if (contractType === 'FULL_BUYOUT') {
+        if (publisherOwnershipPct !== 100 || mangakaOwnershipPct !== 0) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'FULL_BUYOUT bắt buộc Nhà xuất bản 100% và Tác giả 0%',
+            path: ['publisherOwnershipPct']
+          })
+        }
+      } else {
+        if (!(publisherOwnershipPct > 0 && publisherOwnershipPct < 100)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'REVENUE_SHARE: tỷ lệ sở hữu của Nhà xuất bản phải trong khoảng (0,100)',
+            path: ['publisherOwnershipPct']
+          })
+        }
+        if (!(mangakaOwnershipPct > 0 && mangakaOwnershipPct < 100)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'REVENUE_SHARE: tỷ lệ sở hữu của Tác giả phải trong khoảng (0,100)',
+            path: ['mangakaOwnershipPct']
+          })
+        }
+        if (publisherOwnershipPct + mangakaOwnershipPct !== 100) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Tổng phần trăm sở hữu của Nhà xuất bản và Tác giả bắt buộc phải bằng 100%',
+            path: ['mangakaOwnershipPct']
+          })
+        }
+      }
+      if (contractEnd.getTime() <= contractStart.getTime()) {
         ctx.addIssue({
           code: 'custom',
-          message: 'Tổng phần trăm sở hữu của Nhà xuất bản và Tác giả bắt buộc phải bằng 100%',
-          path: ['mangakaOwnershipPct']
+          message: 'contractEnd phải sau contractStart',
+          path: ['contractEnd']
         })
       }
     }),
@@ -61,7 +84,7 @@ export const EditorUpdateContractBodySchema = extendApi(
   z
     .object({
       contractType: zEnum($Enums.ContractType, 'ContractType').optional(),
-      valuationAmount: z.number().min(0).optional(),
+      valuationAmount: z.number().positive().optional(),
       publisherOwnershipPct: z.number().min(0).max(100).optional(),
       mangakaOwnershipPct: z.number().min(0).max(100).optional(),
       terminationClause: z.string().optional(),
@@ -77,30 +100,7 @@ export const EditorUpdateContractBodySchema = extendApi(
         .optional(),
       note: z.string().max(500, { message: 'Nội dung ghi chú lịch sử phiên bản không được quá 500 ký tự' }).optional()
     })
-    .strict()
-    .superRefine(({ contractType, publisherOwnershipPct, mangakaOwnershipPct }, ctx) => {
-      if (contractType === 'FULL_BUYOUT') return
-
-      const hasPub = publisherOwnershipPct !== undefined
-      const hasMan = mangakaOwnershipPct !== undefined
-
-      if (hasPub && hasMan) {
-        if (publisherOwnershipPct + mangakaOwnershipPct !== 100) {
-          ctx.addIssue({
-            code: 'custom',
-            message: 'Tổng phần trăm sở hữu sau khi thay đổi cấu trúc phải đạt chính xác 100%',
-            path: ['mangakaOwnershipPct']
-          })
-        }
-      } else if (hasPub || hasMan) {
-        ctx.addIssue({
-          code: 'custom',
-          message:
-            'Khi thay đổi tỷ lệ phần trăm sở hữu, bạn bắt buộc phải cung cấp đồng thời cả publisherOwnershipPct và mangakaOwnershipPct',
-          path: [hasPub ? 'mangakaOwnershipPct' : 'publisherOwnershipPct']
-        })
-      }
-    }),
+    .strict(),
   { title: 'EditorUpdateContractBody', description: 'Editor cập nhật điều khoản hợp đồng nháp' }
 )
 
@@ -149,7 +149,14 @@ export const ContractResSchema = extendApi(
     contractEnd: zDateField().nullable(),
     status: zEnum($Enums.ContractStatus, 'ContractStatus'),
     mangakaSignedAt: zDateField().nullable(),
-    boardSignedAt: zDateField().nullable(),
+    representativeId: z.string().nullable().optional(),
+    representative: UserMiniSchema.nullable()
+      .optional()
+      .describe('Đại diện Hội đồng đã claim/gán; absent ở mutation path'),
+    representativeSignedAt: zDateField().nullable().optional(),
+    supersedesContractId: z.string().nullable().optional(),
+    rejectionReason: z.string().nullable().optional(),
+    mangakaRejectedAt: zDateField().nullable().optional(),
     createdAt: zDateField()
   }),
   { title: 'ContractRes', description: 'Chi tiết hợp đồng' }
@@ -161,7 +168,9 @@ export const ContractListItemSchema = extendApi(
     terminationClause: true,
     sourceTransferRequestId: true,
     mangakaSignedAt: true,
-    boardSignedAt: true
+    representativeSignedAt: true,
+    mangakaRejectedAt: true,
+    rejectionReason: true
   }),
   {
     title: 'ContractListItemRes',
@@ -211,24 +220,51 @@ export const ContractStatusProgressResSchema = extendApi(
       isSigned: z.boolean(),
       signedAt: zDateField().nullable()
     }),
-    boardProgress: z.object({
-      totalRequired: z.number(),
-      totalSigned: z.number(),
-      signedEditors: z.array(
-        z.object({
-          id: z.string(),
-          actionAt: zDateField()
-        })
-      ),
-      pendingEditors: z.array(
-        z.object({
-          id: z.string(),
-          actionAt: zDateField().nullable()
-        })
-      )
+    representative: z.object({
+      id: z.string().nullable().describe('null = chưa ai claim'),
+      claimed: z.boolean(),
+      signed: z.boolean(),
+      signedAt: zDateField().nullable()
     })
   }),
   { title: 'ContractStatusProgressRes', description: 'Trạng thái hợp đồng và tiến độ ký' }
+)
+
+export const RejectContractBodySchema = z
+  .object({
+    reason: z.string().min(1, { message: 'reason là bắt buộc' }).max(1000)
+  })
+  .strict()
+
+export const AssignRepresentativeBodySchema = z
+  .object({
+    representativeId: zObjectId('representativeId phải là ObjectId hợp lệ')
+  })
+  .strict()
+
+export const CreateContractCommentBodySchema = z
+  .object({
+    content: z.string().trim().min(1).max(2000)
+  })
+  .strict()
+
+export const ContractCommentResSchema = extendApi(
+  z.object({
+    id: z.string(),
+    contractId: z.string(),
+    authorId: z.string(),
+    author: UserMiniSchema.nullable().optional(),
+    content: z.string(),
+    createdAt: zDateField()
+  }),
+  { title: 'ContractCommentRes', description: 'Góp ý tư vấn của Board cho hợp đồng' }
+)
+
+export const ContractCommentListResSchema = extendApi(
+  z.object({
+    data: z.array(ContractCommentResSchema)
+  }),
+  { title: 'ContractCommentListRes', description: 'Danh sách góp ý hợp đồng' }
 )
 
 export const ContractPdfResSchema = extendApi(
@@ -244,6 +280,9 @@ export const ContractPdfResSchema = extendApi(
 export type CreateContractBodyType = z.infer<typeof CreateContractBodySchema>
 export type EditorUpdateContractBodyType = z.infer<typeof EditorUpdateContractBodySchema>
 export type SignContractWithOtpBodyType = z.infer<typeof SignContractWithOtpBodySchema>
+export type RejectContractBodyType = z.infer<typeof RejectContractBodySchema>
+export type AssignRepresentativeBodyType = z.infer<typeof AssignRepresentativeBodySchema>
+export type CreateContractCommentBodyType = z.infer<typeof CreateContractCommentBodySchema>
 
 // 4. Schema phục vụ API nhập doanh thu kỳ cho hợp đồng REVENUE_SHARE (B-CON-07, POST /contracts/:id/revenue)
 export const ReportRevenueBodySchema = z
@@ -256,30 +295,3 @@ export const ReportRevenueBodySchema = z
   .strict()
 
 export type ReportRevenueBodyType = z.infer<typeof ReportRevenueBodySchema>
-
-// 5. B-CON-02: lý do BẮT BUỘC khi yêu cầu chỉnh sửa điều khoản (cả phía Mangaka lẫn Hội đồng).
-// Không có lý do thì Editor không biết sửa gì → vòng thương lượng BR-CONTRACT-02 gãy.
-// Cùng shape với RevisionReasonBodySchema của manuscript (chapter) để FE dùng nhất quán.
-export const ContractChangeReasonBodySchema = z
-  .object({
-    reason: z
-      .string({ error: 'reason phải là một chuỗi ký tự' })
-      .min(1, { message: 'reason là bắt buộc không được để trống' })
-      .max(1000, { message: 'reason tối đa 1000 ký tự' })
-  })
-  .strict()
-
-export type ContractChangeReasonBodyType = z.infer<typeof ContractChangeReasonBodySchema>
-
-export const BoardApproveContractBodySchema = z
-  .object({
-    boardDecisionId: zObjectId('boardDecisionId phải là ObjectId hợp lệ')
-  })
-  .strict()
-
-export const BoardRequestContractChangesBodySchema = ContractChangeReasonBodySchema.extend({
-  boardDecisionId: zObjectId('boardDecisionId phải là ObjectId hợp lệ')
-}).strict()
-
-export type BoardApproveContractBodyType = z.infer<typeof BoardApproveContractBodySchema>
-export type BoardRequestContractChangesBodyType = z.infer<typeof BoardRequestContractChangesBodySchema>

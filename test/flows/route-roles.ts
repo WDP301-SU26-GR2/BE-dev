@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-08-01T05:42:56.837Z — 273 routes.
+// Sinh lúc: 2026-08-01T18:17:37.841Z — 277 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -328,30 +328,39 @@ export const ROUTE_RULES: RouteRule[] = [
     allowed: [RoleCode.EDITOR, RoleCode.MANGAKA, RoleCode.BOARD_MEMBER]
   },
   { method: 'PATCH', path: '/contracts/:id', access: 'ROLES', allowed: [RoleCode.EDITOR] },
-  { method: 'POST', path: '/contracts/:id/board-approve', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER] },
-  { method: 'POST', path: '/contracts/:id/board-request-changes', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER] },
+  { method: 'POST', path: '/contracts/:id/assign-representative', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
+  { method: 'POST', path: '/contracts/:id/claim', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER] },
+  {
+    method: 'GET',
+    path: '/contracts/:id/comments',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
+  { method: 'POST', path: '/contracts/:id/comments', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER] },
   {
     method: 'GET',
     path: '/contracts/:id/pdf',
     access: 'ROLES',
     allowed: [RoleCode.EDITOR, RoleCode.MANGAKA, RoleCode.BOARD_MEMBER]
   },
-  { method: 'POST', path: '/contracts/:id/request-changes', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'POST', path: '/contracts/:id/redraft', access: 'ROLES', allowed: [RoleCode.EDITOR] },
+  { method: 'POST', path: '/contracts/:id/reject', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'POST', path: '/contracts/:id/release', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER] },
   {
     method: 'POST',
     path: '/contracts/:id/revenue',
     access: 'ROLES',
     allowed: [RoleCode.BOARD_MEMBER, RoleCode.EDITOR]
   },
-  { method: 'POST', path: '/contracts/:id/signatures/board', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER] },
-  { method: 'POST', path: '/contracts/:id/signatures/mangaka', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'POST', path: '/contracts/:id/sign-mangaka', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'POST', path: '/contracts/:id/sign-representative', access: 'ROLES', allowed: [RoleCode.BOARD_MEMBER] },
   {
     method: 'GET',
     path: '/contracts/:id/status',
     access: 'ROLES',
     allowed: [RoleCode.EDITOR, RoleCode.MANGAKA, RoleCode.BOARD_MEMBER]
   },
-  { method: 'PATCH', path: '/contracts/:id/status', access: 'ROLES', allowed: [RoleCode.EDITOR, RoleCode.MANGAKA] },
+  { method: 'POST', path: '/contracts/:id/submit-review', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   {
     method: 'GET',
     path: '/contracts/:id/versions',

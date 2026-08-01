@@ -14,6 +14,8 @@ export abstract class ContractTransferPort {
       sourceTransferRequestId: string
       contractType: ContractType
       valuationAmount: number
+      publisherOwnershipPct: number
+      mangakaOwnershipPct: number
       conditions: { description: string; type: string; value: number }[]
     }
   ): Promise<Contract>

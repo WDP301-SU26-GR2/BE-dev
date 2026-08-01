@@ -1,7 +1,7 @@
 import { PaymentService } from './payment.service'
 import { PaymentRecordNotFoundException } from '../errors/payment.error'
 import { PaymentRecordModelSchema } from '../schemas/payment.model'
-import { ConditionType, PaymentConditionStatus } from '@prisma/client'
+import { ConditionType, ContractType, PaymentConditionStatus } from '@prisma/client'
 import { PaymentConditionService } from './payment-condition.service'
 import { PaymentQueryService } from './payment-query.service'
 import { PaymentStateService } from './payment-state.service'
@@ -52,6 +52,7 @@ type Mocks = {
     findContractById: jest.Mock
     create: jest.Mock
     findManyByContractId: jest.Mock
+    findActiveConditionsByContract: jest.Mock
     findByIdAndContractId: jest.Mock
     update: jest.Mock
   }
@@ -75,6 +76,7 @@ function makeMocks(): Mocks {
       findContractById: jest.fn(),
       create: jest.fn(),
       findManyByContractId: jest.fn().mockResolvedValue([]),
+      findActiveConditionsByContract: jest.fn().mockResolvedValue([]),
       findByIdAndContractId: jest.fn(),
       update: jest.fn()
     },
@@ -618,7 +620,15 @@ describe('PaymentService — payment collection authorization matrix', () => {
 
 describe('PaymentService — PaymentCondition ownership, validation and failure paths', () => {
   const CONDITION = OID(6)
-  const contract = { id: CTR, editorId: OWNER, mangakaId: OID(7), status: 'DRAFT' }
+  const contract = {
+    id: CTR,
+    editorId: OWNER,
+    mangakaId: OID(7),
+    status: 'DRAFT',
+    contractType: ContractType.REVENUE_SHARE,
+    valuationAmount: 10_000,
+    publisherOwnershipPct: 70
+  }
   const chapterCondition = {
     id: CONDITION,
     contractId: CTR,
