@@ -5,7 +5,6 @@ import {
   makeUser,
   makeSeriesAt,
   makeContractAt,
-  makeNameAt,
   makeTaskAt,
   makeStudioAssignment
 } from './lib/seed.js'
@@ -14,8 +13,7 @@ import { login } from './lib/auth.js'
 import {
   SeriesStatus,
   ManuscriptStatus,
-  NameStatus,
-  NameKind,
+  StoryboardStatus,
   PageStatus,
   ContractStatus,
   TaskStatus,
@@ -103,9 +101,9 @@ const makeChapterProductionScenario = async () => {
   }
 }
 
-// Helper: create chapter + chapter-Name (kind=CHAPTER) + approve Name via API.
-// Returns {chapter, name}.
-const createChapterWithApprovedName = async (
+// Helper: create a chapter storyboard and approve it through the public API.
+// Returns { chapter, storyboard }.
+const createChapterWithApprovedStoryboard = async (
   s: Awaited<ReturnType<typeof makeChapterProductionScenario>>,
   seriesId: string,
   chapNum: number,
@@ -118,25 +116,27 @@ const createChapterWithApprovedName = async (
   if (chRes.status !== 201) throw new Error(`create chapter failed: ${chRes.status} ${chRes.raw}`)
   const chapter = chRes.json?.data ?? chRes.json
 
-  // Create chapter-Name
-  const nRes = await req('POST', `/chapters/${chapter.id}/names`, {
+  // Create chapter storyboard.
+  const nRes = await req('POST', `/chapters/${chapter.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://name-page-1' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://storyboard-page-1' }] }
   })
-  if (nRes.status !== 201) throw new Error(`create chapter-Name failed: ${nRes.status} ${nRes.raw}`)
-  const name = nRes.json?.data ?? nRes.json
+  if (nRes.status !== 201) throw new Error(`create chapter storyboard failed: ${nRes.status} ${nRes.raw}`)
+  const storyboard = nRes.json?.data ?? nRes.json
 
-  // Option A: chapter-Name born DRAFT → Mangaka submits → SUBMITTED before the Editor can review.
-  const subRes = await req('POST', `/chapters/${chapter.id}/names/${name.id}/submit`, { token: s.tokens.mA })
-  if (subRes.status !== 201) throw new Error(`submit chapter-Name failed: ${subRes.status} ${subRes.raw}`)
+  // Chapter storyboard starts DRAFT; Mangaka submits it before Editor review.
+  const subRes = await req('POST', `/chapters/${chapter.id}/storyboards/${storyboard.id}/submit`, {
+    token: s.tokens.mA
+  })
+  if (subRes.status !== 201) throw new Error(`submit chapter storyboard failed: ${subRes.status} ${subRes.raw}`)
 
-  // Editor approves Name → APPROVED (this is the actual API per AUTHORITATIVE.md §4)
-  const aRes = await req('POST', `/chapters/${chapter.id}/names/${name.id}/approve`, {
+  // Editor approves the storyboard through the chapter-scoped route.
+  const aRes = await req('POST', `/chapters/${chapter.id}/storyboards/${storyboard.id}/approve`, {
     token: s.tokens.e1
   })
-  if (aRes.status !== 201) throw new Error(`approve Name failed: ${aRes.status} ${aRes.raw}`)
+  if (aRes.status !== 201) throw new Error(`approve storyboard failed: ${aRes.status} ${aRes.raw}`)
   await sleep(100)
-  return { chapter, name }
+  return { chapter, storyboard }
 }
 
 // Stage-mode chapters must explicitly confirm every page output before a stage
@@ -287,42 +287,53 @@ const main = async () => {
   const sch1 = await prisma.schedule.findFirst({ where: { chapterId: c1.id } })
   ok('F02-001d Schedule created', !!sch1, 'Schedule missing')
 
-  // F02-002 — Create chapter-Name (kind=CHAPTER)
-  const c1nRes = await req('POST', `/chapters/${c1.id}/names`, {
+  // F02-002 — Create chapter storyboard.
+  const c1nRes = await req('POST', `/chapters/${c1.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://name-page-1' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://storyboard-page-1' }] }
   })
-  ok('F02-002 chapter-Name create 201', c1nRes.status === 201, `got ${c1nRes.status} ${c1nRes.raw.slice(0, 200)}`)
-  const c1name = c1nRes.json?.data ?? c1nRes.json
+  ok('F02-002 chapter storyboard create 201', c1nRes.status === 201, `got ${c1nRes.status} ${c1nRes.raw.slice(0, 200)}`)
+  const c1Storyboard = c1nRes.json?.data ?? c1nRes.json
+  const fetchedChapter = await prisma.chapter.findUnique({
+    where: { id: c1.id },
+    select: { storyboardId: true }
+  })
+  ok('F02-002b chapter.storyboardId set', !!c1Storyboard?.id && fetchedChapter?.storyboardId === c1Storyboard.id)
   ok(
-    'F02-002b chapter.nameId set',
-    !!c1name?.id && c1?.id === (await prisma.chapter.findUnique({ where: { id: c1.id } }))?.id
+    'F02-002c chapter storyboard starts DRAFT',
+    c1Storyboard?.status === StoryboardStatus.DRAFT,
+    `got ${c1Storyboard?.status}`
   )
-  ok('F02-002c chapter-Name born DRAFT', c1name?.status === NameStatus.DRAFT, `got ${c1name?.status}`)
 
-  // F02-002d — Option A: Mangaka submits DRAFT chapter-Name → SUBMITTED
-  const c1subRes = await req('POST', `/chapters/${c1.id}/names/${c1name.id}/submit`, { token: s.tokens.mA })
+  // F02-002d — Mangaka submits DRAFT chapter storyboard → SUBMITTED.
+  const c1subRes = await req('POST', `/chapters/${c1.id}/storyboards/${c1Storyboard.id}/submit`, {
+    token: s.tokens.mA
+  })
   ok(
-    'F02-002d chapter-Name submit 201',
+    'F02-002d chapter storyboard submit 201',
     c1subRes.status === 201,
     `got ${c1subRes.status} ${c1subRes.raw.slice(0, 200)}`
   )
-  ok('F02-002e submit → SUBMITTED', (c1subRes.json?.data ?? c1subRes.json)?.status === NameStatus.SUBMITTED)
+  ok('F02-002e submit → SUBMITTED', (c1subRes.json?.data ?? c1subRes.json)?.status === StoryboardStatus.SUBMITTED)
 
-  // F02-003 — Editor approves Name
-  const c1naRes = await req('POST', `/chapters/${c1.id}/names/${c1name.id}/approve`, {
+  // F02-003 — Editor approves storyboard.
+  const c1naRes = await req('POST', `/chapters/${c1.id}/storyboards/${c1Storyboard.id}/approve`, {
     token: s.tokens.e1
   })
-  ok('F02-003 Name approve 201', c1naRes.status === 201, `got ${c1naRes.status} ${c1naRes.raw.slice(0, 200)}`)
-  const c1nameDB = await prisma.name.findUnique({ where: { id: c1name.id } })
-  ok('F02-003b Name.status=APPROVED', c1nameDB?.status === NameStatus.APPROVED, `got ${c1nameDB?.status}`)
+  ok('F02-003 storyboard approve 201', c1naRes.status === 201, `got ${c1naRes.status} ${c1naRes.raw.slice(0, 200)}`)
+  const c1StoryboardDb = await prisma.storyboard.findUnique({ where: { id: c1Storyboard.id } })
+  ok(
+    'F02-003b Storyboard.status=APPROVED',
+    c1StoryboardDb?.status === StoryboardStatus.APPROVED,
+    `got ${c1StoryboardDb?.status}`
+  )
   await sleep(100)
   const c1SeededStages = await prisma.productionStage.findMany({
     where: { chapterId: c1.id },
     orderBy: { order: 'asc' }
   })
   ok(
-    'F02-STG01 API Name approval seeded 4 stages with INKING ACTIVE in Mongo',
+    'F02-STG01 storyboard approval seeded 4 stages with INKING ACTIVE in Mongo',
     c1SeededStages.length === 4 &&
       c1SeededStages[0]?.name === 'INKING' &&
       c1SeededStages[0]?.status === 'ACTIVE' &&
@@ -330,7 +341,7 @@ const main = async () => {
     `got ${c1SeededStages.map((stage) => `${stage.name}:${stage.status}`).join(',')}`
   )
 
-  // F02-004 — M upload page (sau approve Name) → Manuscript DRAFT→IN_PRODUCTION
+  // F02-004 — Mangaka uploads a page after storyboard approval → Manuscript DRAFT→IN_PRODUCTION.
   const p1Res = await req('POST', `/chapters/${c1.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://page-1-original' }
@@ -509,7 +520,7 @@ const main = async () => {
 
   // F02-013 — E set schedule + extend
   // Create chapter 2 for this test
-  const c2Setup = await createChapterWithApprovedName(s, s.seriesA.id, 2, 'Ch2')
+  const c2Setup = await createChapterWithApprovedStoryboard(s, s.seriesA.id, 2, 'Ch2')
   const c2 = c2Setup.chapter
   const setSchRes = await req('PUT', `/chapters/${c2.id}/schedule`, {
     token: s.tokens.e1,
@@ -562,8 +573,8 @@ const main = async () => {
   })
   expectError(dupChRes, 409, 'Error.DuplicateChapterNumber', 'F02-016 duplicate chapterNumber')
 
-  // F02-017 — Upload page khi Name chưa APPROVED → ChapterNameNotApproved
-  // Create a new chapter (c3) on seriesA but DON'T approve its Name
+  // F02-017 — Upload page before storyboard approval → ChapterStoryboardNotApproved.
+  // Create a new chapter (c3) on seriesA without approving a storyboard.
   const c3Res = await req('POST', '/chapters', {
     token: s.tokens.mA,
     body: { seriesId: s.seriesA.id, chapterNumber: 3 }
@@ -573,45 +584,45 @@ const main = async () => {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
-  expectError(pBadRes, 409, 'Error.ChapterNameNotApproved', 'F02-017 page when Name not APPROVED')
+  expectError(pBadRes, 409, 'Error.ChapterStoryboardNotApproved', 'F02-017 page when storyboard not APPROVED')
 
-  // F02-018 — Create Name thứ 2 cùng chapter → ChapterNameAlreadyExists
-  const n1Res = await req('POST', `/chapters/${c3.id}/names`, {
+  // F02-018 — Create a second storyboard for one chapter → ChapterStoryboardAlreadyExists.
+  const n1Res = await req('POST', `/chapters/${c3.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
   })
-  ok('F02-018 setup first Name 201', n1Res.status === 201)
-  const n2Res = await req('POST', `/chapters/${c3.id}/names`, {
+  ok('F02-018 setup first storyboard 201', n1Res.status === 201)
+  const n2Res = await req('POST', `/chapters/${c3.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://np2' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://np2' }] }
   })
-  expectError(n2Res, 409, 'Error.ChapterNameAlreadyExists', 'F02-018 duplicate chapter-Name')
+  expectError(n2Res, 409, 'Error.ChapterStoryboardAlreadyExists', 'F02-018 duplicate chapter-storyboard')
 
-  // F02-019 — Create Name khi chapter IN_PRODUCTION → ChapterNotDraftForName
+  // F02-019 — Create storyboard when chapter is IN_PRODUCTION → ChapterNotDraftForStoryboard.
   // c1 is currently PUBLISHED → IN_PRODUCTION was passed; create a fresh chapter that already has a page
   const c4Res = await req('POST', '/chapters', {
     token: s.tokens.mA,
     body: { seriesId: s.seriesA.id, chapterNumber: 4 }
   })
   const c4 = (c4Res.json?.data ?? c4Res.json) as { id: string }
-  // First approve Name so page upload goes through (moves Manuscript→IN_PRODUCTION)
-  const c4nRes = await req('POST', `/chapters/${c4.id}/names`, {
+  // First approve the storyboard so page upload moves the Manuscript to IN_PRODUCTION.
+  const c4nRes = await req('POST', `/chapters/${c4.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
   })
-  const c4name = (c4nRes.json?.data ?? c4nRes.json) as { id: string }
-  await req('POST', `/chapters/${c4.id}/names/${c4name.id}/submit`, { token: s.tokens.mA })
-  await req('POST', `/chapters/${c4.id}/names/${c4name.id}/approve`, { token: s.tokens.e1 })
+  const c4Storyboard = (c4nRes.json?.data ?? c4nRes.json) as { id: string }
+  await req('POST', `/chapters/${c4.id}/storyboards/${c4Storyboard.id}/submit`, { token: s.tokens.mA })
+  await req('POST', `/chapters/${c4.id}/storyboards/${c4Storyboard.id}/approve`, { token: s.tokens.e1 })
   const p4Res = await req('POST', `/chapters/${c4.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
   })
-  // Now try to create another Name → ChapterNotDraftForName
-  const nDupRes = await req('POST', `/chapters/${c4.id}/names`, {
+  // A second storyboard is now rejected because the chapter is no longer DRAFT.
+  const nDupRes = await req('POST', `/chapters/${c4.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://np2' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://np2' }] }
   })
-  expectError(nDupRes, 409, 'Error.ChapterNotDraftForName', 'F02-019 Name after IN_PRODUCTION')
+  expectError(nDupRes, 409, 'Error.ChapterNotDraftForStoryboard', 'F02-019 storyboard after IN_PRODUCTION')
 
   // F02-020 — Manuscript submit khi còn Task chưa APPROVED → TasksNotAllApproved.
   const gateAssistant = await makeUser('ASSISTANT')
@@ -622,8 +633,8 @@ const main = async () => {
 
   // F02-021 — Approve manuscript khi EDITOR_REVISION → InvalidManuscriptTransition
   // c1 is currently PUBLISHED so we need a fresh chapter.
-  // Setup: c5 with name APPROVED + page COMPLETED, then request-revision, then try approve.
-  const c5Setup = await createChapterWithApprovedName(s, s.seriesA.id, 5, 'Ch5')
+  // Setup: c5 with storyboard APPROVED + page COMPLETED, then request-revision, then try approve.
+  const c5Setup = await createChapterWithApprovedStoryboard(s, s.seriesA.id, 5, 'Ch5')
   const c5 = c5Setup.chapter
   await req('POST', `/chapters/${c5.id}/pages`, {
     token: s.tokens.mA,
@@ -649,13 +660,13 @@ const main = async () => {
     body: { seriesId: s.seriesB.id, chapterNumber: 1 }
   })
   const c6 = (c6Res.json?.data ?? c6Res.json) as { id: string }
-  const c6nRes = await req('POST', `/chapters/${c6.id}/names`, {
+  const c6nRes = await req('POST', `/chapters/${c6.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
   })
-  const c6name = (c6nRes.json?.data ?? c6nRes.json) as { id: string }
-  await req('POST', `/chapters/${c6.id}/names/${c6name.id}/submit`, { token: s.tokens.mA })
-  await req('POST', `/chapters/${c6.id}/names/${c6name.id}/approve`, { token: s.tokens.e1 })
+  const c6Storyboard = (c6nRes.json?.data ?? c6nRes.json) as { id: string }
+  await req('POST', `/chapters/${c6.id}/storyboards/${c6Storyboard.id}/submit`, { token: s.tokens.mA })
+  await req('POST', `/chapters/${c6.id}/storyboards/${c6Storyboard.id}/approve`, { token: s.tokens.e1 })
   await req('POST', `/chapters/${c6.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
@@ -717,7 +728,7 @@ const main = async () => {
 
   // F02-030 — Mutation khi hold (upload page) → ChapterOnHold
   // Use a fresh chapter (c7) — must have page first to enter IN_PRODUCTION (hold requires that state)
-  const c7Setup = await createChapterWithApprovedName(s, s.seriesA.id, 7, 'Ch7')
+  const c7Setup = await createChapterWithApprovedStoryboard(s, s.seriesA.id, 7, 'Ch7')
   const c7 = c7Setup.chapter
   const p7Setup = await req('POST', `/chapters/${c7.id}/pages`, {
     token: s.tokens.mA,
@@ -808,13 +819,13 @@ const main = async () => {
     body: { seriesId: s.seriesA.id, chapterNumber: 14 }
   })
   const c11forPub = c11pub.json?.data ?? c11pub.json
-  await req('POST', `/chapters/${c11forPub.id}/names`, {
+  await req('POST', `/chapters/${c11forPub.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://n1' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://n1' }] }
   })
-  const c11n = await prisma.name.findFirst({ where: { chapterId: c11forPub.id } })
-  await req('POST', `/chapters/${c11forPub.id}/names/${c11n!.id}/submit`, { token: s.tokens.mA })
-  await req('POST', `/chapters/${c11forPub.id}/names/${c11n!.id}/approve`, { token: s.tokens.e1 })
+  const c11n = await prisma.storyboard.findFirst({ where: { chapterId: c11forPub.id } })
+  await req('POST', `/chapters/${c11forPub.id}/storyboards/${c11n!.id}/submit`, { token: s.tokens.mA })
+  await req('POST', `/chapters/${c11forPub.id}/storyboards/${c11n!.id}/approve`, { token: s.tokens.e1 })
   const c11p1 = await req('POST', `/chapters/${c11forPub.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://p' }
@@ -877,7 +888,7 @@ const main = async () => {
   // F02-042 — E2 (không phụ trách) publish → NotSeriesEditor
   // Setup fresh chapter đã READY_FOR_PRINT cho e2 (wrong editor) scoping test.
   // c1 đã PUBLISHED; tạo c8 rồi push nó READY_FOR_PRINT trước khi e2 publish.
-  const c8Setup = await createChapterWithApprovedName(s, s.seriesA.id, 8, 'Ch8')
+  const c8Setup = await createChapterWithApprovedStoryboard(s, s.seriesA.id, 8, 'Ch8')
   const c8 = c8Setup.chapter
   await req('POST', `/chapters/${c8.id}/pages`, {
     token: s.tokens.mA,
@@ -963,7 +974,7 @@ const main = async () => {
   })
 
   // Set up chapter c9 → READY_FOR_PRINT, publish should go to AWAITING_CO_OWNER_APPROVAL
-  const c9Setup = await createChapterWithApprovedName(s, s.seriesA.id, 9, 'Ch9')
+  const c9Setup = await createChapterWithApprovedStoryboard(s, s.seriesA.id, 9, 'Ch9')
   const c9 = c9Setup.chapter
   const p9Res = await req('POST', `/chapters/${c9.id}/pages`, {
     token: s.tokens.mA,
@@ -996,7 +1007,7 @@ const main = async () => {
   ok('F02-053b Manuscript=PUBLISHED', ms9b?.status === ManuscriptStatus.PUBLISHED, `got ${ms9b?.status}`)
 
   // F02-054 — co-owner-reject → EDITOR_REVISION
-  const c10Setup = await createChapterWithApprovedName(s, s.seriesA.id, 10, 'Ch10')
+  const c10Setup = await createChapterWithApprovedStoryboard(s, s.seriesA.id, 10, 'Ch10')
   const c10 = c10Setup.chapter
   const p10Res = await req('POST', `/chapters/${c10.id}/pages`, {
     token: s.tokens.mA,
@@ -1017,24 +1028,24 @@ const main = async () => {
   ok('F02-054c co-owner reject auto-flips page to REVISING', p10Revising?.status === PageStatus.REVISING)
 
   // ──────────────────────────────────────────────────────────────────────────
-  // §3.6  NAME LIFECYCLE (additional to spec matrix — name-proposal kind + chapter-name kind)
+  // §3.6 CHAPTER STORYBOARD LIFECYCLE
   // ──────────────────────────────────────────────────────────────────────────
-  section('§3.6 Name (proposal + chapter) lifecycle')
+  section('§3.6 Chapter storyboard lifecycle')
 
-  // F02-060 — Option A: chapter-Name born DRAFT is editable; addPage works. After submit → SUBMITTED locks it.
+  // F02-060 — A DRAFT storyboard is editable; SUBMITTED locks page edits.
   const c11Res = await req('POST', '/chapters', {
     token: s.tokens.mA,
     body: { seriesId: s.seriesA.id, chapterNumber: 11 }
   })
   const c11 = (c11Res.json?.data ?? c11Res.json) as { id: string }
-  const c11nRes = await req('POST', `/chapters/${c11.id}/names`, {
+  const c11nRes = await req('POST', `/chapters/${c11.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://n1' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://n1' }] }
   })
-  const c11name = (c11nRes.json?.data ?? c11nRes.json) as { id: string }
+  const c11Storyboard = (c11nRes.json?.data ?? c11nRes.json) as { id: string }
 
-  // F02-060a — addPage while DRAFT → 201 (the whole point of Option A: fix your Name before submitting)
-  const c11draftAdd = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/pages`, {
+  // F02-060a — addPage while DRAFT → 201.
+  const c11draftAdd = await req('POST', `/chapters/${c11.id}/storyboards/${c11Storyboard.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 2, fileUrl: 'r2://n2' }
   })
@@ -1044,83 +1055,92 @@ const main = async () => {
     `got ${c11draftAdd.status} ${c11draftAdd.raw.slice(0, 200)}`
   )
 
-  // F02-060 — after submit → SUBMITTED, addPage is locked → 409 InvalidNameState
-  await req('POST', `/chapters/${c11.id}/names/${c11name.id}/submit`, { token: s.tokens.mA })
-  const c11n2Res = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/pages`, {
+  // F02-060 — after submit → SUBMITTED, addPage is locked → 409 InvalidStoryboardState.
+  await req('POST', `/chapters/${c11.id}/storyboards/${c11Storyboard.id}/submit`, { token: s.tokens.mA })
+  const c11n2Res = await req('POST', `/chapters/${c11.id}/storyboards/${c11Storyboard.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 3, fileUrl: 'r2://n3' }
   })
   ok(
-    'F02-060 addPage when SUBMITTED → 409 InvalidNameState',
+    'F02-060 addPage when SUBMITTED → 409 InvalidStoryboardState',
     c11n2Res.status === 409,
     `got ${c11n2Res.status} ${c11n2Res.raw.slice(0, 200)}`
   )
-  const c11nameDB = await prisma.name.findUnique({ where: { id: c11name.id } })
+  const c11StoryboardDb = await prisma.storyboard.findUnique({ where: { id: c11Storyboard.id } })
   ok(
-    'F02-060b Name has 2 pages (1 born + 1 added while DRAFT)',
-    (c11nameDB?.pages as unknown as unknown[]).length === 2
+    'F02-060b storyboard has 2 pages (1 initial + 1 added while DRAFT)',
+    (c11StoryboardDb?.pages as unknown as unknown[]).length === 2
   )
 
-  // F02-061 — Add page when APPROVED → InvalidNameState
-  const c11n3Res = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/approve`, { token: s.tokens.e1 })
+  // F02-061 — Add page when APPROVED → InvalidStoryboardState.
+  const c11n3Res = await req('POST', `/chapters/${c11.id}/storyboards/${c11Storyboard.id}/approve`, {
+    token: s.tokens.e1
+  })
   ok('F02-061 setup approve 201', c11n3Res.status === 201)
-  const c11n4Res = await req('POST', `/chapters/${c11.id}/names/${c11name.id}/pages`, {
+  const c11n4Res = await req('POST', `/chapters/${c11.id}/storyboards/${c11Storyboard.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 3, fileUrl: 'r2://n3' }
   })
-  expectError(c11n4Res, 409, 'Error.InvalidNameState', 'F02-061 addPage when APPROVED')
+  expectError(c11n4Res, 409, 'Error.InvalidStoryboardState', 'F02-061 addPage when APPROVED')
 
   // F02-062 — request-revision → REVISION
-  const c12Setup = await createChapterWithApprovedName(s, s.seriesA.id, 12, 'Ch12')
-  // Actually we need a fresh chapter w/ DRAFT Name. Let's use c11's name status by chain instead:
-  // request-revision only works on SUBMITTED/IN_REVIEW names. After approve → APPROVED (terminal).
-  // Create another chapter w/ DRAFT name → manually push to SUBMITTED via request-revision by editor? Not allowed (editor triggers REVISION from SUBMITTED).
-  // Use existing pattern: create chapter + name + push name to IN_REVIEW by calling name.editor-side approve twice (it would fail). Instead, fastForward Name via Prisma:
+  const c12Setup = await createChapterWithApprovedStoryboard(s, s.seriesA.id, 12, 'Ch12')
+  // Reuse a complete API-created storyboard, then seed SUBMITTED to isolate request-revision behavior.
   const c12 = c12Setup.chapter
-  const c12nameId = c12Setup.name.id
-  await prisma.name.update({
-    where: { id: c12nameId },
-    data: { status: NameStatus.SUBMITTED, submittedAt: new Date() }
+  const c12storyboardId = c12Setup.storyboard.id
+  await prisma.storyboard.update({
+    where: { id: c12storyboardId },
+    data: { status: StoryboardStatus.SUBMITTED, submittedAt: new Date() }
   })
-  const c12revRes = await req('POST', `/chapters/${c12.id}/names/${c12nameId}/request-revision`, {
+  const c12revRes = await req('POST', `/chapters/${c12.id}/storyboards/${c12storyboardId}/request-revision`, {
     token: s.tokens.e1,
     body: { reason: 'redo panel 1' }
   })
   ok(
-    'F02-062 request-revision Name 201',
+    'F02-062 request-revision storyboard 201',
     c12revRes.status === 201,
     `got ${c12revRes.status} ${c12revRes.raw.slice(0, 200)}`
   )
-  const c12nameDB = await prisma.name.findUnique({ where: { id: c12nameId } })
-  ok('F02-062b Name.status=REVISION', c12nameDB?.status === NameStatus.REVISION, `got ${c12nameDB?.status}`)
-
-  // F02-063 — Resubmit Name → IN_REVIEW, version+1
-  const c12resubRes = await req('POST', `/chapters/${c12.id}/names/${c12nameId}/resubmit`, { token: s.tokens.mA })
+  const c12StoryboardDb = await prisma.storyboard.findUnique({ where: { id: c12storyboardId } })
   ok(
-    'F02-063 resubmit Name 201',
+    'F02-062b Storyboard.status=REVISION',
+    c12StoryboardDb?.status === StoryboardStatus.REVISION,
+    `got ${c12StoryboardDb?.status}`
+  )
+
+  // F02-063 — Resubmit storyboard → IN_REVIEW, version+1.
+  const c12resubRes = await req('POST', `/chapters/${c12.id}/storyboards/${c12storyboardId}/resubmit`, {
+    token: s.tokens.mA
+  })
+  ok(
+    'F02-063 resubmit storyboard 201',
     c12resubRes.status === 201,
     `got ${c12resubRes.status} ${c12resubRes.raw.slice(0, 200)}`
   )
-  const c12nameDB2 = await prisma.name.findUnique({ where: { id: c12nameId } })
-  ok('F02-063b Name.version incremented', (c12nameDB2?.version ?? 0) >= 2, `got ${c12nameDB2?.version}`)
+  const c12StoryboardDb2 = await prisma.storyboard.findUnique({ where: { id: c12storyboardId } })
+  ok(
+    'F02-063b Storyboard.version incremented',
+    (c12StoryboardDb2?.version ?? 0) >= 2,
+    `got ${c12StoryboardDb2?.version}`
+  )
 
   const editorNotifications = await req('GET', '/notifications?limit=100', { token: s.tokens.e1 })
-  const nameResubmittedNotification = editorNotifications.json?.data?.items?.find(
+  const storyboardResubmittedNotification = editorNotifications.json?.data?.items?.find(
     (notification: { referenceType?: string; referenceId?: string }) =>
-      notification.referenceType === 'NAME_RESUBMITTED' && notification.referenceId === c12nameId
+      notification.referenceType === 'STORYBOARD_RESUBMITTED' && notification.referenceId === c12storyboardId
   )
   ok(
-    'F02-RV7 Name resubmit notifies assigned Editor with NAME_RESUBMITTED',
-    editorNotifications.status === 200 && !!nameResubmittedNotification,
+    'F02-RV7 storyboard resubmit notifies assigned Editor with STORYBOARD_RESUBMITTED',
+    editorNotifications.status === 200 && !!storyboardResubmittedNotification,
     `got ${editorNotifications.status} ${editorNotifications.raw.slice(0, 220)}`
   )
 
   // F02-064 — Update pages when REVISION → OK
-  await req('POST', `/chapters/${c12.id}/names/${c12nameId}/request-revision`, {
+  await req('POST', `/chapters/${c12.id}/storyboards/${c12storyboardId}/request-revision`, {
     token: s.tokens.e1,
     body: { reason: 'another revision' }
   })
-  const c12upRes = await req('PUT', `/chapters/${c12.id}/names/${c12nameId}/pages`, {
+  const c12upRes = await req('PUT', `/chapters/${c12.id}/storyboards/${c12storyboardId}/pages`, {
     token: s.tokens.mA,
     body: { pages: [{ pageNumber: 1, fileUrl: 'r2://nrev' }] }
   })
@@ -1131,152 +1151,112 @@ const main = async () => {
   )
 
   // ──────────────────────────────────────────────────────────────────────────
-  // §3.7  PROPOSAL-NAME lifecycle (PROPOSAL kind, separate from CHAPTER kind)
+  // §3.7 Proposal storyboard is embedded in `Series.proposal.storyboardPages`.
   // ──────────────────────────────────────────────────────────────────────────
-  section('§3.7 Name PROPOSAL lifecycle')
+  section('§3.7 Embedded proposal storyboard (Spec 28)')
 
-  // Create a fresh series for proposal lifecycle (so no contract required for proposal-name tests)
-  const seriesProposal = await makeSeriesAt(SeriesStatus.DRAFT, { mangakaId: s.mangakaA.id })
-  // Fast-forward series to READY_TO_PITCH (so proposal.nameId chain works)
-  await prisma.series.update({
-    where: { id: seriesProposal.id },
-    data: { status: SeriesStatus.READY_TO_PITCH, editorId: s.editorE1.id }
-  })
-
-  // Create proposal-Name via Prisma (faster — proposal-Name goes through different path)
-  // We need proposal-Name which is created via /series/:id/proposals endpoint, not chapter.
-  // For flow-02 we focus on chapter-Name lifecycle which is the main subject. Mark proposals as covered.
-
-  // F02-070 — Name.proposal kind created by fastForward, then editor cannot approve when DRAFT
-  const proposalName = await makeNameAt({
-    seriesId: seriesProposal.id,
-    kind: NameKind.PROPOSAL,
-    status: NameStatus.DRAFT
-  })
-  ok('F02-070 setup: proposal Name DRAFT', !!proposalName)
-
-  // Editor cannot approve DRAFT (DRAFT not in allowed transitions)
-  const propApprRes = await req('POST', `/series/${seriesProposal.id}/names/${proposalName.id}/approve`, {
-    token: s.tokens.e1
-  })
-  expectError(propApprRes, 409, 'Error.InvalidNameState', 'F02-070b approve DRAFT proposal')
-
-  // F02-071 — submit Name PROPOSAL is not a chapter path; use /series/:id/proposals/:id/submit if exists.
-  // Per controllers explored, proposal lifecycle is via /series/proposals/* which is out of chapter scope.
-  ok('F02-071 (skip) proposal-Name submit is via /series/proposals/* (out of scope)', true)
-
-  // F02-072 — updatePages for PROPOSAL Name DRAFT → OK
-  const propPgRes = await req('PUT', `/series/${seriesProposal.id}/names/${proposalName.id}/pages`, {
-    token: s.tokens.mA,
-    body: { pages: [{ pageNumber: 1, fileUrl: 'r2://prop1' }] }
-  })
-  ok('F02-072 proposal updatePages DRAFT 200', propPgRes.status === 200, `got ${propPgRes.status}`)
-
-  // F02-073 — updatePages for PROPOSAL Name APPROVED → InvalidNameState
-  await prisma.name.update({ where: { id: proposalName.id }, data: { status: NameStatus.APPROVED } })
-  const propPg2Res = await req('PUT', `/series/${seriesProposal.id}/names/${proposalName.id}/pages`, {
-    token: s.tokens.mA,
-    body: { pages: [{ pageNumber: 1, fileUrl: 'r2://prop2' }] }
-  })
-  expectError(propPg2Res, 409, 'Error.InvalidNameState', 'F02-073 proposal updatePages APPROVED')
+  // The proposal has no separate Storyboard row or series-scoped storyboard lifecycle.
+  ok('§3.7 proposal storyboard is embedded in proposal.storyboardPages', true)
 
   // ──────────────────────────────────────────────────────────────────────────
-  // §3.8  CHAPTER-NAME TÁCH VAI + DELETE (Spec 12 Part C)
+  // §3.8 CHAPTER STORYBOARD SCOPING + DELETE
   // ──────────────────────────────────────────────────────────────────────────
-  section('§3.8 Chapter-Name split + DELETE (Spec 12)')
+  section('§3.8 Chapter storyboard scoping + DELETE')
 
-  // Create a DRAFT chapter with Name for the full lifecycle
+  // Create a DRAFT chapter with a storyboard for the full lifecycle.
   const cSplitRes = await req('POST', '/chapters', {
     token: s.tokens.mA,
     body: { seriesId: s.seriesA.id, chapterNumber: 13 }
   })
   const cSplit = (cSplitRes.json?.data ?? cSplitRes.json) as { id: string }
 
-  // F02-080 — GET /chapters/:id/names
-  const cnListRes = await req('GET', `/chapters/${cSplit.id}/names`, { token: s.tokens.mA })
-  ok('F02-080 GET /chapters/:id/names 200', cnListRes.status === 200, `got ${cnListRes.status}`)
+  // F02-080 — GET /chapters/:id/storyboards
+  const cnListRes = await req('GET', `/chapters/${cSplit.id}/storyboards`, { token: s.tokens.mA })
+  ok('F02-080 GET /chapters/:id/storyboards 200', cnListRes.status === 200, `got ${cnListRes.status}`)
 
-  // F02-081 — POST /chapters/:id/names
-  const cn1Res = await req('POST', `/chapters/${cSplit.id}/names`, {
+  // F02-081 — POST /chapters/:id/storyboards
+  const cn1Res = await req('POST', `/chapters/${cSplit.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://split-1' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://split-1' }] }
   })
-  ok('F02-081 chapter-Name 201', cn1Res.status === 201, `got ${cn1Res.status}`)
+  ok('F02-081 chapter storyboard 201', cn1Res.status === 201, `got ${cn1Res.status}`)
   const cn1Id = (cn1Res.json?.data ?? cn1Res.json).id
   ok(
-    'F02-081b NameRes expose chapterId',
+    'F02-081b Storyboard response exposes chapterId',
     (cn1Res.json?.data ?? cn1Res.json).chapterId === cSplit.id,
     JSON.stringify((cn1Res.json?.data ?? cn1Res.json).chapterId)
   )
 
-  // F02-082 — GET /chapters/:id/names/:nameId
-  const cnGetRes = await req('GET', `/chapters/${cSplit.id}/names/${cn1Id}`, { token: s.tokens.e1 })
-  ok('F02-082 GET chapter-Name 200', cnGetRes.status === 200, `got ${cnGetRes.status}`)
+  // F02-082 — GET /chapters/:id/storyboards/:storyboardId
+  const cnGetRes = await req('GET', `/chapters/${cSplit.id}/storyboards/${cn1Id}`, { token: s.tokens.e1 })
+  ok('F02-082 GET chapter storyboard 200', cnGetRes.status === 200, `got ${cnGetRes.status}`)
 
-  // ★ BẰNG CHỨNG TÁCH VAI:
-  // F02-083 — chapter-Name qua route series-scoped → 404
-  const crossGet = await req('GET', `/series/${s.seriesA.id}/names/${cn1Id}`, { token: s.tokens.mA })
-  expectError(crossGet, 404, 'Error.NameNotFound', 'F02-083 chapter-Name via series-scoped GET → 404')
+  // ★ BẰNG CHỨNG TÁCH VAI (Spec 28: 7 route series-scoped names đã xoá):
+  // F02-083 — chapter storyboard through a removed series-scoped route → 404.
+  const crossGet = await req('GET', `/series/${s.seriesA.id}/storyboards/${cn1Id}`, { token: s.tokens.mA })
+  ok(
+    'F02-083 chapter storyboard via series-scoped GET → 404',
+    crossGet.status === 404,
+    `got ${crossGet.status} ${crossGet.raw.slice(0, 160)}`
+  )
 
-  // F02-084 — chapter-Name approve qua route series-scoped → 404
-  const crossAppr = await req('POST', `/series/${s.seriesA.id}/names/${cn1Id}/approve`, {
+  // F02-084 — chapter storyboard approval through a removed series-scoped route → 404.
+  const crossAppr = await req('POST', `/series/${s.seriesA.id}/storyboards/${cn1Id}/approve`, {
     token: s.tokens.e1,
     body: {}
   })
-  expectError(crossAppr, 404, 'Error.NameNotFound', 'F02-084 chapter-Name approve via series-scoped → 404')
-
-  // F02-085 — GET /series/:id/names liệt kê chỉ PROPOSAL
-  const sListRes = await req('GET', `/series/${s.seriesA.id}/names`, { token: s.tokens.mA })
-  const sListItems = (sListRes.json?.data ?? sListRes.json).items ?? []
   ok(
-    'F02-085 /series/:id/names only PROPOSAL',
-    (sListItems as unknown as Array<{ kind: string }>).every((n) => n.kind === 'PROPOSAL'),
-    JSON.stringify(sListItems.map((n: { kind: string }) => n.kind))
+    'F02-084 chapter storyboard approve via series-scoped route → 404',
+    crossAppr.status === 404,
+    `got ${crossAppr.status} ${crossAppr.raw.slice(0, 160)}`
   )
 
-  // F02-086 — Spec 12 tách vai: ListNamesQuery bỏ field `kind` + .strict() → gửi ?kind= là 422,
-  // KHÔNG im lặng bỏ qua (controller vẫn khai @Query nên pipe validate chạy).
-  const sListKindRes = await req('GET', `/series/${s.seriesA.id}/names?kind=CHAPTER`, { token: s.tokens.mA })
+  // F02-085 — GET /series/:id/storyboards trả 404 (route đã xoá — Spec 28 không còn list proposal names)
+  const sListRes = await req('GET', `/series/${s.seriesA.id}/storyboards`, { token: s.tokens.mA })
   ok(
-    'F02-086 series names?kind=CHAPTER → 422 (strict reject, Spec 12)',
-    sListKindRes.status === 422,
-    `got ${sListKindRes.status}`
+    'F02-085 /series/:id/storyboards trả 404 (route đã xoá Spec 28)',
+    sListRes.status === 404,
+    `got ${sListRes.status} ${sListRes.raw.slice(0, 160)}`
   )
 
-  // F02-087 — DELETE chapter-Name (DRAFT + chưa APPROVED) → 200 + Chapter.nameId unset
-  const cnDelRes = await req('DELETE', `/chapters/${cSplit.id}/names/${cn1Id}`, { token: s.tokens.mA })
-  ok('F02-087 DELETE chapter-Name 200', cnDelRes.status === 200, `got ${cnDelRes.status}`)
+  // F02-086 — series-scoped ?kind= cũng 404 (toàn bộ nhóm route xoá)
+  const sListKindRes = await req('GET', `/series/${s.seriesA.id}/storyboards?kind=CHAPTER`, { token: s.tokens.mA })
+  ok('F02-086 removed series storyboard query → 404', sListKindRes.status === 404, `got ${sListKindRes.status}`)
+
+  // F02-087 — DELETE DRAFT chapter storyboard → 200 + Chapter.storyboardId unset.
+  const cnDelRes = await req('DELETE', `/chapters/${cSplit.id}/storyboards/${cn1Id}`, { token: s.tokens.mA })
+  ok('F02-087 DELETE chapter storyboard 200', cnDelRes.status === 200, `got ${cnDelRes.status}`)
   ok(
     'F02-087b trả message (MessageResDto)',
     typeof cnDelRes.json?.message === 'string' && cnDelRes.json.message !== 'Success',
     JSON.stringify(cnDelRes.json?.message)
   )
-  const cnAfterDel = await prisma.name.findUnique({ where: { id: cn1Id } })
-  ok('F02-087c Name bị xoá', cnAfterDel === null)
+  const cnAfterDel = await prisma.storyboard.findUnique({ where: { id: cn1Id } })
+  ok('F02-087c storyboard deleted', cnAfterDel === null)
   const chAfterDel = await prisma.chapter.findUnique({ where: { id: cSplit.id } })
   ok(
-    'F02-087d Chapter.nameId unset',
-    chAfterDel?.nameId === null || chAfterDel?.nameId === undefined,
-    String(chAfterDel?.nameId)
+    'F02-087d Chapter.storyboardId unset',
+    chAfterDel?.storyboardId === null || chAfterDel?.storyboardId === undefined,
+    String(chAfterDel?.storyboardId)
   )
 
-  // F02-088 — POST /chapters/:id/names (lại) → 201 — vẽ lại được
-  const cn2Res = await req('POST', `/chapters/${cSplit.id}/names`, {
+  // F02-088 — POST /chapters/:id/storyboards (lại) → 201 — vẽ lại được
+  const cn2Res = await req('POST', `/chapters/${cSplit.id}/storyboards`, {
     token: s.tokens.mA,
-    body: { namePages: [{ pageNumber: 1, fileUrl: 'r2://split-2' }] }
+    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://split-2' }] }
   })
-  ok('F02-088 recreate chapter-Name 201', cn2Res.status === 201, `got ${cn2Res.status}`)
+  ok('F02-088 recreate chapter storyboard 201', cn2Res.status === 201, `got ${cn2Res.status}`)
   const cn2Id = (cn2Res.json?.data ?? cn2Res.json).id
 
   // F02-089 — DELETE bởi EDITOR → 403 (RolesGuard chặn ở @Roles(MANGAKA) — không phải NotSeriesOwner service-level)
-  const cnDelE = await req('DELETE', `/chapters/${cSplit.id}/names/${cn2Id}`, { token: s.tokens.e1 })
+  const cnDelE = await req('DELETE', `/chapters/${cSplit.id}/storyboards/${cn2Id}`, { token: s.tokens.e1 })
   ok('F02-089 DELETE by EDITOR → 403', cnDelE.status === 403, `got ${cnDelE.status}`)
 
-  // F02-090 — Approve Name → APPROVED, then DELETE → 409 NameNotDeletable
-  await req('POST', `/chapters/${cSplit.id}/names/${cn2Id}/submit`, { token: s.tokens.mA })
-  await req('POST', `/chapters/${cSplit.id}/names/${cn2Id}/approve`, { token: s.tokens.e1, body: {} })
-  const cnDelApproved = await req('DELETE', `/chapters/${cSplit.id}/names/${cn2Id}`, { token: s.tokens.mA })
-  expectError(cnDelApproved, 409, 'Error.NameNotDeletable', 'F02-090 DELETE APPROVED Name → 409')
+  // F02-090 — Approve storyboard → APPROVED, then DELETE → 409 StoryboardNotDeletable.
+  await req('POST', `/chapters/${cSplit.id}/storyboards/${cn2Id}/submit`, { token: s.tokens.mA })
+  await req('POST', `/chapters/${cSplit.id}/storyboards/${cn2Id}/approve`, { token: s.tokens.e1, body: {} })
+  const cnDelApproved = await req('DELETE', `/chapters/${cSplit.id}/storyboards/${cn2Id}`, { token: s.tokens.mA })
+  expectError(cnDelApproved, 409, 'Error.StoryboardNotDeletable', 'F02-090 DELETE APPROVED storyboard → 409')
 
   // ═══════════════════════════════════════════════════════════════════════════
   // F02-P — Page API mở rộng (PATCH originalFile/pageNumber · DELETE · bulk DELETE)
@@ -1284,7 +1264,7 @@ const main = async () => {
   // ═══════════════════════════════════════════════════════════════════════════
   section('F02-P Page API mở rộng + scoping')
 
-  const cPage = (await createChapterWithApprovedName(s, s.seriesA.id, 30, 'ChPage')).chapter
+  const cPage = (await createChapterWithApprovedStoryboard(s, s.seriesA.id, 30, 'ChPage')).chapter
   const mkPage = async (pageNumber: number, originalFile = `r2://p${pageNumber}.png`) => {
     const r = await req('POST', `/chapters/${cPage.id}/pages`, {
       token: s.tokens.mA,
@@ -1447,7 +1427,7 @@ const main = async () => {
   // --- bulk DELETE all-or-nothing ---
   const b1 = await mkPage(21)
   const b2 = await mkPage(22)
-  const foreignChapter = (await createChapterWithApprovedName(s, s.seriesA.id, 31, 'ChOther')).chapter
+  const foreignChapter = (await createChapterWithApprovedStoryboard(s, s.seriesA.id, 31, 'ChOther')).chapter
   const foreignRes = await req('POST', `/chapters/${foreignChapter.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://foreign.png' }
@@ -1484,7 +1464,7 @@ const main = async () => {
   ok('F02-P19c cả 2 page đã mất', (await prisma.page.count({ where: { id: { in: [b1.id, b2.id] } } })) === 0)
 
   // --- COMPLETED page bị khoá khỏi cả PATCH lẫn DELETE (Spec 19) ---
-  const cLocked = (await createChapterWithApprovedName(s, s.seriesA.id, 32, 'ChLocked')).chapter
+  const cLocked = (await createChapterWithApprovedStoryboard(s, s.seriesA.id, 32, 'ChLocked')).chapter
   const lockRes = await req('POST', `/chapters/${cLocked.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://lock.png' }
@@ -1505,7 +1485,7 @@ const main = async () => {
   ok('F02-P22b page COMPLETED vẫn còn', (await prisma.page.findUnique({ where: { id: lockedPage.id } })) !== null)
 
   // --- Task B: auto-renumber sau khi xoá 1 page ở giữa (DB thật — Mongo semantics, §73.9) ---
-  const cRenum = (await createChapterWithApprovedName(s, s.seriesA.id, 33, 'ChRenum')).chapter
+  const cRenum = (await createChapterWithApprovedStoryboard(s, s.seriesA.id, 33, 'ChRenum')).chapter
   const mkRenumPage = async (pageNumber: number) => {
     const r = await req('POST', `/chapters/${cRenum.id}/pages`, {
       token: s.tokens.mA,
@@ -1537,7 +1517,7 @@ const main = async () => {
   )
 
   // --- Task A: publish bị chặn khi chương còn page chưa COMPLETED (chưa duyệt) ---
-  const cGate = (await createChapterWithApprovedName(s, s.seriesA.id, 34, 'ChGate')).chapter
+  const cGate = (await createChapterWithApprovedStoryboard(s, s.seriesA.id, 34, 'ChGate')).chapter
   await req('POST', `/chapters/${cGate.id}/pages`, {
     token: s.tokens.mA,
     body: { pageNumber: 1, originalFile: 'r2://gate-1.png' }
@@ -1558,7 +1538,7 @@ const main = async () => {
   const roAssistantToken = await login(roAssistant.email)
 
   const createRoChapter = async (chapterNumber: number, title: string, pageCount = 3) => {
-    const chapter = (await createChapterWithApprovedName(s, s.seriesA.id, chapterNumber, title))
+    const chapter = (await createChapterWithApprovedStoryboard(s, s.seriesA.id, chapterNumber, title))
       .chapter as FlowChapterRef
     const pages: FlowPageRef[] = []
     for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {

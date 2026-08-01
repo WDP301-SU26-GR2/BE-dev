@@ -24,7 +24,7 @@ export const seedDemoBusinessData = async (
   await seedConfigs(context)
   await seedProfiles(context)
 
-  logger.log('Phase 2/8: Flow 1 proposal and Name datasets')
+  logger.log('Phase 2/8: Flow 1 proposal and chapter Storyboard datasets')
   const flowOneSeries = await seedFlowOne(context)
   logger.log('Phase 3/8: Flow 2-3 chapter, production stage, task and AI datasets')
   const hero = await seedProductionHero(context)

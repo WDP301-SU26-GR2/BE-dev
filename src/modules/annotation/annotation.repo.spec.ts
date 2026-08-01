@@ -53,13 +53,13 @@ describe('AnnotationRepository response enrichment', () => {
     [AnnotationTargetType.PAGE, 'page', { chapter: { series: { mangakaId: 'm1', editorId: 'e1' } } }],
     [AnnotationTargetType.REGION, 'region', { page: { chapter: { series: { mangakaId: 'm1', editorId: 'e1' } } } }],
     [AnnotationTargetType.MANUSCRIPT, 'manuscript', { chapter: { series: { mangakaId: 'm1', editorId: 'e1' } } }],
-    [AnnotationTargetType.NAME, 'name', { series: { mangakaId: 'm1', editorId: 'e1' } }]
+    [AnnotationTargetType.STORYBOARD, 'storyboard', { series: { mangakaId: 'm1', editorId: 'e1' } }]
   ] as const)('loads %s target ownership context', async (targetType, model, row) => {
     const prisma = {
       page: { findUnique: jest.fn() },
       region: { findUnique: jest.fn() },
       manuscript: { findUnique: jest.fn() },
-      name: { findUnique: jest.fn() }
+      storyboard: { findUnique: jest.fn() }
     }
     prisma[model].findUnique.mockResolvedValue(row)
 
@@ -109,7 +109,9 @@ describe('AnnotationRepository response enrichment', () => {
       't1',
       't2'
     ])
-    await expect(repository.findAssignedTaskIdsForTarget('a1', AnnotationTargetType.NAME, 'n1')).resolves.toEqual([])
+    await expect(
+      repository.findAssignedTaskIdsForTarget('a1', AnnotationTargetType.STORYBOARD, 'sb1')
+    ).resolves.toEqual([])
     expect(prisma.task.findMany).toHaveBeenCalledTimes(2)
   })
 })

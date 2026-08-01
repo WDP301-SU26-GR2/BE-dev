@@ -51,7 +51,7 @@ export const seedTasksForInkingRun = async (
   context: DemoContext,
   runIndex: number,
   stageId: string,
-  pages: readonly { id: string; originalFile: string | null }[]
+  pages: readonly { id: string; originalFile: string | null; canvasWidth: number | null; canvasHeight: number | null }[]
 ) => {
   const mangaka = requiredAccount(context.accounts, 'mangaka.akari')
   const yuki = requiredAccount(context.accounts, 'assistant.yuki')
@@ -145,6 +145,8 @@ export const seedTasksForInkingRun = async (
 
   const aiPage = pages[0]
   if (!aiPage?.originalFile) throw new Error(`Missing AI input for run ${runIndex + 1}`)
+  if (!aiPage.canvasWidth || !aiPage.canvasHeight)
+    throw new Error(`Missing canvas metadata for AI demo run ${runIndex + 1}`)
   await context.prisma.aiJob.create({
     data: {
       type: AiJobType.SEGMENT,
@@ -176,8 +178,8 @@ export const seedTasksForInkingRun = async (
       sourceFileKey: aiPage.originalFile,
       sourceRevision: 1,
       sourceStageId: stageId,
-      sourceWidth: 1080,
-      sourceHeight: 1440
+      sourceWidth: aiPage.canvasWidth,
+      sourceHeight: aiPage.canvasHeight
     }
   })
 }

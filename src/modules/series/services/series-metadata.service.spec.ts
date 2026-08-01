@@ -29,7 +29,7 @@ const baseSeries = {
   completionProposal: null,
   createdAt: new Date('2026-01-01T00:00:00Z'),
   proposal: {
-    nameId: '507f1f77bcf86cd799439015',
+    storyboardPages: [],
     synopsis: 'old synopsis',
     characterDesigns: ['k1'],
     estimatedLength: 20,

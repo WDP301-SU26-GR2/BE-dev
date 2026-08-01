@@ -16,7 +16,7 @@ import { NotificationModule } from './modules/notification/notification.module'
 import { AnnotationModule } from './modules/annotation/annotation.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { SeriesModule } from './modules/series/series.module'
-import { NameModule } from './modules/name/name.module'
+import { StoryboardModule } from './modules/storyboard/storyboard.module'
 import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 import { BoardModule } from './modules/board/board.module'
@@ -51,7 +51,7 @@ import { RuntimeMetricsInterceptor } from './core/http/interceptors/runtime-metr
     NotificationModule,
     ReviewsModule,
     SeriesModule,
-    NameModule,
+    StoryboardModule,
     StorageModule,
     ChapterModule,
     AnnotationModule,

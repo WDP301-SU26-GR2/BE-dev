@@ -45,7 +45,7 @@ export const SeriesMessages = {
     hiatusTooLong: 'Series đang HIATUS quá lâu — cần Hội đồng bàn hướng xử lý.'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/series.errors.ts.
-  // Name-related error codes moved to name module (errors/name.errors.ts).
+  // Chapter-storyboard error codes live in the storyboard module.
   error: {
     seriesNotFound: 'Error.SeriesNotFound',
     seriesNotEditable: 'Error.SeriesNotEditable',

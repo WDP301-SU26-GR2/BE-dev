@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { FranchiseConsentStatus, ProposalStatus, RevisionTargetType, SeriesStatus } from '@prisma/client'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
-import { NameApprovalService } from 'src/modules/name/services/name-approval.service'
 import { RevisionService } from 'src/modules/revision/revision.service'
 import {
   FranchiseConsentRequiredException,
@@ -22,7 +21,6 @@ import { SeriesProposalAccessService } from './series-proposal-access.service'
 export class SeriesProposalService {
   constructor(
     private readonly seriesRepository: SeriesRepository,
-    private readonly nameApprovalService: NameApprovalService,
     private readonly seriesStateService: SeriesStateService,
     private readonly revisionService: RevisionService,
     private readonly accessService: SeriesProposalAccessService
@@ -42,8 +40,6 @@ export class SeriesProposalService {
   async submit(mangakaId: string, seriesId: string) {
     const series = await this.accessService.requireOwner(seriesId, mangakaId)
     if (series.status !== SeriesStatus.DRAFT) throw InvalidProposalStateException
-    const nameId = series.proposal?.nameId
-    if (!nameId) throw InvalidProposalStateException
     if (
       series.franchiseConsentStatus === FranchiseConsentStatus.PENDING ||
       series.franchiseConsentStatus === FranchiseConsentStatus.REJECTED
@@ -52,11 +48,9 @@ export class SeriesProposalService {
     }
 
     // Single-writer: Series.status chỉ đổi qua SeriesStateService.
-    // Cập nhật proposal + Name trước, transition (ghi audit) sau cùng.
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVIEW)
-    const name = await this.nameApprovalService.submitProposalName(nameId)
     const updated = await this.seriesStateService.transition(seriesId, SeriesStatus.IN_REVIEW, { changedBy: mangakaId })
-    return { series: toSeriesRes(updated), name }
+    return toSeriesRes(updated)
   }
   async requestRevision(editorId: string, seriesId: string, reason: string) {
     const series = await this.accessService.requireSeries(seriesId)
@@ -109,7 +103,10 @@ export class SeriesProposalService {
     requireAssignedEditor(series, editorId)
     if (!series.reviewStartedAt) await this.seriesRepository.markReviewStarted(seriesId)
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_APPROVED)
-    const advanced = await this.seriesStateService.tryAdvanceToReadyToPitch(seriesId, editorId)
+    // Spec 28: vòng duyệt gộp — duyệt proposal duy nhất → READY_TO_PITCH ngay, không có gate thứ hai.
+    const advanced = await this.seriesStateService.transition(seriesId, SeriesStatus.READY_TO_PITCH, {
+      changedBy: editorId
+    })
     await this.accessService.notify(
       series.mangakaId,
       seriesId,
@@ -163,11 +160,10 @@ export class SeriesProposalService {
   }
 
   async reopen(mangakaId: string, seriesId: string) {
-    const series = await this.accessService.requireOwner(seriesId, mangakaId)
+    await this.accessService.requireOwner(seriesId, mangakaId)
     await this.seriesStateService.transition(seriesId, SeriesStatus.DRAFT, { changedBy: mangakaId })
+    // Reset editor/review metadata and proposal exactly once; no Storyboard row participates.
     const updated = await this.seriesRepository.reopenSeriesToDraft(seriesId)
-    const nameId = series.proposal?.nameId
-    if (nameId) await this.nameApprovalService.resetProposalNameToDraft(nameId)
     return toSeriesRes(updated)
   }
 
@@ -189,7 +185,7 @@ export class SeriesProposalService {
     if (!isObjectId(seriesId)) throw SeriesNotFoundException
     const series = await this.accessService.requireOwner(seriesId, mangakaId)
     if (series.status !== SeriesStatus.DRAFT) throw ProposalNotDeletableException
-    await this.seriesRepository.deleteSeriesWithNames(seriesId)
+    await this.seriesRepository.deleteProposalSeries(seriesId)
     return { message: SeriesMessages.response.proposalDeleted }
   }
 

@@ -1,4 +1,4 @@
-import { wipeDb, seedRolesAndAdmin, prisma, makeUser, makeSeriesAt } from './lib/seed.js'
+import { wipeDb, seedRolesAndAdmin, prisma, makeUser, makeSeriesAt, withProposalStoryboard } from './lib/seed.js'
 import { req, ok, section, summary, resetCounters } from './lib/http.js'
 import { login } from './lib/auth.js'
 import { SeriesStatus, ReadingDirection, RelationshipType } from '@prisma/client'
@@ -107,9 +107,9 @@ const main = async () => {
       parentSeriesId: parent.id,
       relationshipType: RelationshipType.SEQUEL,
       proposal: {
-        nameId: null,
         synopsis: 'sequel',
         characterDesigns: [],
+        storyboardPages: withProposalStoryboard(),
         estimatedLength: null,
         status: 'DRAFT',
         createdAt: new Date()
@@ -139,9 +139,9 @@ const main = async () => {
       relationshipType: RelationshipType.SPINOFF,
       franchiseConsentStatus: 'PENDING',
       proposal: {
-        nameId: null,
         synopsis: 'spinoff',
         characterDesigns: [],
+        storyboardPages: withProposalStoryboard(),
         estimatedLength: null,
         status: 'DRAFT',
         createdAt: new Date()
@@ -163,9 +163,9 @@ const main = async () => {
       relationshipType: RelationshipType.SEQUEL,
       franchiseConsentStatus: 'APPROVED',
       proposal: {
-        nameId: null,
         synopsis: 'same',
         characterDesigns: [],
+        storyboardPages: withProposalStoryboard(),
         estimatedLength: null,
         status: 'DRAFT',
         createdAt: new Date()

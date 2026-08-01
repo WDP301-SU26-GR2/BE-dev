@@ -1,4 +1,11 @@
-import { ManuscriptStatus, NameStatus, PageStatus, ProposalStatus, PublicationType, SeriesStatus } from '@prisma/client'
+import {
+  ManuscriptStatus,
+  StoryboardStatus,
+  PageStatus,
+  ProposalStatus,
+  PublicationType,
+  SeriesStatus
+} from '@prisma/client'
 import { DEMO_ITERATIONS } from '../demo-data'
 import { createChapterBundle } from './chapter-builder.fixture'
 import { createExecutedContract } from './contract-builder.fixture'
@@ -17,10 +24,8 @@ export const seedProductionHero = async (context: DemoContext): Promise<SeriesSe
     editorId: editor.id,
     seriesStatus: SeriesStatus.SERIALIZED,
     proposalStatus: ProposalStatus.APPROVED,
-    nameStatus: NameStatus.APPROVED,
-    nameVersion: 5,
     synopsis:
-      'Production study dùng các trang thật của Go Go! Encyclopedia Girls (Kasuga, CC BY-SA 3.0) để demo Name → Stage → Page → Region → Task → Manuscript.'
+      'Production study dùng các trang thật của Go Go! Encyclopedia Girls (Kasuga, CC BY-SA 3.0) để demo Storyboard → Stage → Page → Region → Task → Manuscript.'
   })
   await context.prisma.series.update({
     where: { id: hero.id },
@@ -32,7 +37,7 @@ export const seedProductionHero = async (context: DemoContext): Promise<SeriesSe
     const published = await createChapterBundle(context, hero, {
       chapterNumber,
       title: `Arc mở đầu — Chương ${chapterNumber}`,
-      nameStatus: NameStatus.APPROVED,
+      storyboardStatus: StoryboardStatus.APPROVED,
       manuscriptStatus: ManuscriptStatus.PUBLISHED,
       pageStatus: PageStatus.COMPLETED,
       pageCount: 4,
@@ -44,8 +49,8 @@ export const seedProductionHero = async (context: DemoContext): Promise<SeriesSe
   for (let index = 0; index < DEMO_ITERATIONS; index += 1) {
     await createChapterBundle(context, hero, {
       chapterNumber: 101 + index,
-      title: `[DEMO F2-${pad(index + 1)}] Name review run`,
-      nameStatus: NameStatus.SUBMITTED,
+      title: `[DEMO F2-${pad(index + 1)}] Storyboard review run`,
+      storyboardStatus: StoryboardStatus.SUBMITTED,
       manuscriptStatus: ManuscriptStatus.DRAFT,
       pageCount: 0
     })
@@ -57,7 +62,7 @@ export const seedProductionHero = async (context: DemoContext): Promise<SeriesSe
     const workshop = await createChapterBundle(context, hero, {
       chapterNumber: 50 + index,
       title: `[DEMO F3-${pad(index + 1)}] INKING production run độc lập`,
-      nameStatus: NameStatus.APPROVED,
+      storyboardStatus: StoryboardStatus.APPROVED,
       manuscriptStatus: ManuscriptStatus.IN_PRODUCTION,
       pageStatus: PageStatus.DRAFT,
       pageCount: 3,
@@ -77,7 +82,7 @@ export const seedProductionHero = async (context: DemoContext): Promise<SeriesSe
   const editorReview = await createChapterBundle(context, hero, {
     chapterNumber: 70,
     title: '[DEMO F2] Bản thảo đang chờ Editor',
-    nameStatus: NameStatus.APPROVED,
+    storyboardStatus: StoryboardStatus.APPROVED,
     manuscriptStatus: ManuscriptStatus.EDITOR_REVIEW,
     pageStatus: PageStatus.COMPLETED,
     pageCount: 4
@@ -86,7 +91,7 @@ export const seedProductionHero = async (context: DemoContext): Promise<SeriesSe
   const revision = await createChapterBundle(context, hero, {
     chapterNumber: 71,
     title: '[DEMO F2] Editor trả sửa bản thảo',
-    nameStatus: NameStatus.APPROVED,
+    storyboardStatus: StoryboardStatus.APPROVED,
     manuscriptStatus: ManuscriptStatus.EDITOR_REVISION,
     pageStatus: PageStatus.REVISING,
     pageCount: 4
@@ -118,7 +123,7 @@ export const seedProductionHero = async (context: DemoContext): Promise<SeriesSe
   const ready = await createChapterBundle(context, hero, {
     chapterNumber: 72,
     title: '[DEMO F2] Sẵn sàng xuất bản',
-    nameStatus: NameStatus.APPROVED,
+    storyboardStatus: StoryboardStatus.APPROVED,
     manuscriptStatus: ManuscriptStatus.READY_FOR_PRINT,
     pageStatus: PageStatus.COMPLETED,
     pageCount: 4

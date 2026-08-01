@@ -43,7 +43,7 @@ function setup() {
   const assets = { registerGeneratedAsset: jest.fn() }
   const query = new ContractQueryService(repo as never)
   const draft = new ContractDraftService(repo as never, notification as never)
-  const workflow = new ContractWorkflowService(repo as never, notification as never, audit as never)
+  const workflow = new ContractWorkflowService(repo as never, notification as never, audit as never, {} as never)
   const signing = new ContractSigningService(
     repo as never,
     otp as never,

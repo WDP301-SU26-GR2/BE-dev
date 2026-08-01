@@ -1,9 +1,9 @@
 import { Injectable, Optional } from '@nestjs/common'
-import { ManuscriptStatus, NameStatus } from '@prisma/client'
+import { ManuscriptStatus, StoryboardStatus } from '@prisma/client'
 import { PAGE_EDITABLE_STATUSES } from '../chapter.constant'
 import { ChapterRepository } from '../chapter.repo'
 import {
-  ChapterNameNotApprovedException,
+  ChapterStoryboardNotApprovedException,
   DuplicatePageNumberException,
   PageNotEditableException,
   PageNotFoundException
@@ -27,9 +27,9 @@ export class PageService {
 
   async createPage(userId: string, chapterId: string, body: CreatePageBodyType) {
     const chapter = await this.accessService.requireOwner(userId, chapterId)
-    if (!chapter.nameId) throw ChapterNameNotApprovedException
-    const nameStatus = await this.chapterRepository.findNameStatus(chapter.nameId)
-    if (nameStatus !== NameStatus.APPROVED) throw ChapterNameNotApprovedException
+    if (!chapter.storyboardId) throw ChapterStoryboardNotApprovedException
+    const storyboardStatus = await this.chapterRepository.findStoryboardStatus(chapter.storyboardId)
+    if (storyboardStatus !== StoryboardStatus.APPROVED) throw ChapterStoryboardNotApprovedException
     const stages = this.productionStageRepository ? await this.productionStageRepository.findByChapter(chapterId) : []
     const firstStage = stages[0]
     if (firstStage && firstStage.status !== 'ACTIVE') throw ProductionPageSetLockedException

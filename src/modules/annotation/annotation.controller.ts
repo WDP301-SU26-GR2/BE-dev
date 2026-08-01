@@ -32,7 +32,7 @@ export class AnnotationController {
   @Post()
   @ApiOperation({
     summary:
-      'Tạo annotation/markup (TEXT/HIGHLIGHT/DRAWING + coordinates) trên target (Page/Region/Task/Manuscript/Name)'
+      'Tạo annotation/markup (TEXT/HIGHLIGHT/DRAWING + coordinates) trên target (Page/Region/Task/Manuscript/Storyboard)'
   })
   @ApiResponse({ status: 422, description: 'Validation fail (targetType/targetId/annotationType/...)' })
   @ApiErrors(AnnotationForbiddenException, AnnotationTargetNotFoundException, AnnotationTaskBindingInvalidException)

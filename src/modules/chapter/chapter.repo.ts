@@ -23,8 +23,8 @@ export class ChapterRepository {
   get findSeriesById(): typeof this.queries.findSeriesById {
     return this.queries.findSeriesById.bind(this.queries) as typeof this.queries.findSeriesById
   }
-  get findNameById(): typeof this.queries.findNameById {
-    return this.queries.findNameById.bind(this.queries) as typeof this.queries.findNameById
+  get findStoryboardById(): typeof this.queries.findStoryboardById {
+    return this.queries.findStoryboardById.bind(this.queries) as typeof this.queries.findStoryboardById
   }
   get countChaptersBySeriesId(): typeof this.queries.countChaptersBySeriesId {
     return this.queries.countChaptersBySeriesId.bind(this.queries) as typeof this.queries.countChaptersBySeriesId
@@ -48,9 +48,6 @@ export class ChapterRepository {
   }
   get updateChapter(): typeof this.commands.updateChapter {
     return this.commands.updateChapter.bind(this.commands) as typeof this.commands.updateChapter
-  }
-  get updateNameChapterNumber(): typeof this.commands.updateNameChapterNumber {
-    return this.commands.updateNameChapterNumber.bind(this.commands) as typeof this.commands.updateNameChapterNumber
   }
   get findChaptersBySeriesId(): typeof this.queries.findChaptersBySeriesId {
     return this.queries.findChaptersBySeriesId.bind(this.queries) as typeof this.queries.findChaptersBySeriesId
@@ -85,8 +82,8 @@ export class ChapterRepository {
       this.progressQueries
     ) as typeof this.progressQueries.countTasksByStatusForChapter
   }
-  get findNameStatus(): typeof this.queries.findNameStatus {
-    return this.queries.findNameStatus.bind(this.queries) as typeof this.queries.findNameStatus
+  get findStoryboardStatus(): typeof this.queries.findStoryboardStatus {
+    return this.queries.findStoryboardStatus.bind(this.queries) as typeof this.queries.findStoryboardStatus
   }
   get findActiveChaptersForMangaka(): typeof this.progressQueries.findActiveChaptersForMangaka {
     return this.progressQueries.findActiveChaptersForMangaka.bind(

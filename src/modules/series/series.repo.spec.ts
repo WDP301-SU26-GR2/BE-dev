@@ -84,10 +84,10 @@ describe('SeriesRepository.reopenSeriesToDraft', () => {
     const original = {
       id: 's1',
       proposal: {
-        nameId: 'n1',
         synopsis: 'original',
         characterDesigns: ['d1'],
         estimatedLength: 10,
+        storyboardPages: [{ pageNumber: 1, fileUrl: 'a' }],
         status: ProposalStatus.REJECTED,
         createdAt: new Date('2026-07-18T00:00:00.000Z')
       }
@@ -128,32 +128,24 @@ describe('SeriesRepository.reopenSeriesToDraft', () => {
 })
 
 describe('SeriesRepository.createProposalSeries', () => {
-  it('links the initial proposal Name without comparing hydrated null to Mongo missing', async () => {
+  it('creates the proposal directly without an extra Name row', async () => {
     const createdSeries = {
       id: 's-new',
       mangakaId: 'm1',
       title: 'New series',
       proposal: {
-        nameId: null,
         synopsis: 'Synopsis',
         characterDesigns: [],
         estimatedLength: null,
+        storyboardPages: [],
         status: 'DRAFT',
         createdAt: new Date('2026-07-15T00:00:00Z')
       }
     }
-    const createdName = { id: 'n-new' }
-    const linkedSeries = {
-      ...createdSeries,
-      proposal: { ...createdSeries.proposal, nameId: createdName.id }
-    }
     const prismaService = {
       series: {
-        create: jest.fn().mockResolvedValue(createdSeries),
-        findUnique: jest.fn().mockResolvedValueOnce(createdSeries).mockResolvedValueOnce(linkedSeries),
-        updateMany: jest.fn().mockResolvedValue({ count: 1 })
-      },
-      name: { create: jest.fn().mockResolvedValue(createdName) }
+        create: jest.fn().mockResolvedValue(createdSeries)
+      }
     }
     const repo = new SeriesRepository(prismaService as never)
 
@@ -162,18 +154,19 @@ describe('SeriesRepository.createProposalSeries', () => {
       genres: [],
       synopsis: 'Synopsis',
       characterDesigns: [],
-      namePages: []
+      storyboardPages: []
     })
 
-    expect(result).toEqual({ series: linkedSeries, name: createdName })
-    expect(prismaService.series.updateMany).toHaveBeenCalledWith({
-      where: { id: 's-new' },
-      data: {
-        proposal: {
-          set: { ...createdSeries.proposal, nameId: 'n-new' }
-        }
-      }
-    })
+    expect(result).toEqual(createdSeries)
+    expect(prismaService.series.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          proposal: expect.objectContaining({
+            storyboardPages: []
+          })
+        })
+      })
+    )
   })
 })
 
@@ -189,10 +182,10 @@ describe('SeriesRepository.updateSeriesMetadata (composite-safe read-modify-writ
     demographic: null,
     publicationType: null,
     proposal: {
-      nameId: 'n1',
       synopsis: 'old',
       characterDesigns: ['k1'],
       estimatedLength: 20,
+      storyboardPages: [{ pageNumber: 1, fileUrl: 'a' }],
       status: 'PROPOSAL_APPROVED',
       createdAt: new Date('2026-01-01T00:00:00Z')
     }
@@ -227,10 +220,10 @@ describe('SeriesRepository.updateSeriesMetadata (composite-safe read-modify-writ
       data: {
         proposal: {
           set: {
-            nameId: 'n1',
             synopsis: 'new',
             characterDesigns: ['k1'],
             estimatedLength: 20,
+            storyboardPages: [{ pageNumber: 1, fileUrl: 'a' }],
             status: 'PROPOSAL_APPROVED',
             createdAt: current.proposal.createdAt
           }

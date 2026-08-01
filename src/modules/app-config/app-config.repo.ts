@@ -10,7 +10,7 @@ export class AppConfigRepository {
     return this.prismaService.appConfig.findFirst()
   }
 
-  createDefaults(data: { nameMaxReviewRounds: number; rankingAggregateMinCoverageRatio: number }) {
+  createDefaults(data: { storyboardMaxReviewRounds: number; rankingAggregateMinCoverageRatio: number }) {
     return this.prismaService.appConfig.create({ data })
   }
 

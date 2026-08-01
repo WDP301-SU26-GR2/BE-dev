@@ -1,17 +1,15 @@
 import { Injectable } from '@nestjs/common'
-import { AuditEntityType, ProposalStatus, SeriesStatus } from '@prisma/client'
+import { AuditEntityType, SeriesStatus } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { SERIES_TRANSITIONS } from '../series.constant'
 import { InvalidSeriesTransitionException, SeriesNotFoundException } from '../errors/series.errors'
 import { SeriesRepository } from '../series.repo'
 import { CacheService } from 'src/infrastructure/redis/cache.service'
-import { NameApprovalQueryPort } from '../ports/name-approval-query.port'
 
 @Injectable()
 export class SeriesStateService {
   constructor(
     private readonly seriesRepository: SeriesRepository,
-    private readonly nameApprovalQuery: NameApprovalQueryPort,
     private readonly auditService: AuditService,
     private readonly cacheService: CacheService
   ) {}
@@ -40,17 +38,5 @@ export class SeriesStateService {
     await this.cacheService.bumpVersion('pubseries')
     await this.cacheService.bumpVersion('votectx')
     return updated
-  }
-
-  async tryAdvanceToReadyToPitch(seriesId: string, changedBy: string) {
-    const series = await this.seriesRepository.findById(seriesId)
-    if (!series) throw SeriesNotFoundException
-    if (series.status !== SeriesStatus.IN_REVIEW) return series
-    if (series.proposal?.status !== ProposalStatus.PROPOSAL_APPROVED) return series
-    const nameId = series.proposal?.nameId
-    if (!nameId) return series
-    const name = await this.nameApprovalQuery.findApprovalById(nameId)
-    if (!name || name.status !== 'APPROVED') return series
-    return await this.transition(seriesId, SeriesStatus.READY_TO_PITCH, { changedBy })
   }
 }

@@ -13,7 +13,7 @@ export const ListRevisionRequestsQuerySchema = extendApi(
   z
     .object({
       targetType: zEnum(RevisionTargetType, 'RevisionTargetType').optional(),
-      targetId: z.string().optional().describe('seriesId | nameId | chapterId | taskId theo targetType'),
+      targetId: z.string().optional().describe('seriesId | storyboardId | chapterId | taskId theo targetType'),
       isResolved: IsResolvedQuerySchema.describe('omit = tất cả; true = đã xử lý; false = còn tồn'),
       limit: z.coerce.number().int().positive().max(100).default(20),
       offset: z.coerce.number().int().nonnegative().default(0)

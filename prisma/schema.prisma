@@ -306,17 +306,12 @@ enum ReadingDirection {
 // ===== Inferred enums (NOT in §3) — REVIEW values against flows =====
 
 // REVIEW: inferred
-enum NameStatus {
+enum StoryboardStatus {
   DRAFT
   SUBMITTED
   IN_REVIEW
   REVISION
   APPROVED
-}
-
-enum NameKind {
-  PROPOSAL
-  CHAPTER
 }
 
 // REVIEW: inferred
@@ -412,7 +407,7 @@ enum AnnotationTargetType {
   REGION
   TASK
   MANUSCRIPT
-  NAME
+  STORYBOARD
 }
 
 // REVIEW: inferred
@@ -745,7 +740,7 @@ model Series {
 
   proposal SeriesProposal?
 
-  names               Name[]
+  storyboards Storyboard[]
   publicationVersions PublicationVersion[]
   chapters            Chapter[]
 
@@ -759,9 +754,9 @@ model Series {
 }
 
 type SeriesProposal {
-  nameId           String?        @db.ObjectId
   synopsis         String?
   characterDesigns String[]
+  storyboardPages  StoryboardPage[]
   estimatedLength  Int?
   status           ProposalStatus @default(DRAFT)
   createdAt        DateTime       @default(now())
@@ -783,27 +778,25 @@ type SeriesStatusHistoryEntry {
   at         DateTime
 }
 
-model Name {
+model Storyboard {
   id       String @id @default(auto()) @map("_id") @db.ObjectId
   seriesId String @db.ObjectId
   series   Series @relation(fields: [seriesId], references: [id])
 
-  chapterId String?  @db.ObjectId
-  chapter   Chapter? @relation(fields: [chapterId], references: [id])
+  chapterId String  @db.ObjectId
+  chapter   Chapter @relation(fields: [chapterId], references: [id])
 
-  chapterNumber Int?
-  status        NameStatus @default(DRAFT)
-  kind          NameKind   @default(PROPOSAL)
-  version       Int        @default(1)
-  submittedAt   DateTime?
+  status      StoryboardStatus @default(DRAFT)
+  version     Int              @default(1)
+  submittedAt DateTime?
 
-  pages NamePage[]
+  pages StoryboardPage[]
 
   @@index([seriesId])
   @@index([chapterId])
 }
 
-type NamePage {
+type StoryboardPage {
   pageNumber Int
   fileUrl    String
 }
@@ -827,7 +820,7 @@ model Chapter {
   seriesId String @db.ObjectId
   series   Series @relation(fields: [seriesId], references: [id])
 
-  nameId String? @db.ObjectId
+  storyboardId String? @db.ObjectId
 
   chapterNumber Int
   title         String?
@@ -844,10 +837,10 @@ model Chapter {
   boardDecision   BoardDecision? @relation(fields: [boardDecisionId], references: [id])
   boardDecisionId String?        @db.ObjectId
 
-  names Name[]
+  storyboards Storyboard[]
 
   @@index([seriesId])
-  @@index([nameId])
+  @@index([storyboardId])
 }
 
 model ChapterCoOwnerApproval {
@@ -1719,7 +1712,7 @@ model AppConfig {
   updatedBy String? @db.ObjectId
 
   coOwnerApprovalGraceDays     Int   @default(7)
-  nameMaxReviewRounds          Int   @default(8)
+  storyboardMaxReviewRounds     Int   @default(8)
   reputationRecommendThreshold Float @default(4)
   hiatusTooLongDays            Int   @default(30)
   lowVoteReliabilityThreshold  Int   @default(10)
@@ -1750,18 +1743,18 @@ model AuditLog {
 
 enum RevisionTargetType {
   PROPOSAL
-  NAME
+  STORYBOARD
   MANUSCRIPT
   TASK
 }
 
 /// Spec 14 §1 — một vòng "yêu cầu sửa". Sinh ra từ 4 call-site request-revision
-/// (proposal / Name / manuscript / task). Người PHẢI SỬA (recipientId) tự đánh dấu resolve.
+/// (proposal / Storyboard / manuscript / task). Người PHẢI SỬA (recipientId) tự đánh dấu resolve.
 model RevisionRequest {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
   targetType RevisionTargetType
-  targetId   String             @db.ObjectId // seriesId | nameId | chapterId | taskId
+  targetId   String             @db.ObjectId // seriesId | storyboardId | chapterId | taskId
   seriesId   String?            @db.ObjectId // null cho TASK (task-review không load Series)
 
   round       Int

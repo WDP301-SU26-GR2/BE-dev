@@ -74,3 +74,27 @@ describe('toSeriesRes', () => {
     expect('editor' in plain).toBe(false)
   })
 })
+
+describe('toSeriesRes — proposal.storyboardPages (Spec 28)', () => {
+  it('trả storyboardPages và KHÔNG còn nameId', () => {
+    const res = toSeriesRes({
+      ...baseSeries,
+      proposal: {
+        synopsis: 'x',
+        characterDesigns: [],
+        storyboardPages: [{ pageNumber: 1, fileUrl: 'k1' }],
+        estimatedLength: null,
+        status: 'DRAFT',
+        createdAt: new Date('2026-01-01T00:00:00.000Z')
+      }
+    } as unknown as Series)
+    expect(res.proposal).not.toBeNull()
+    expect((res.proposal as any).storyboardPages).toEqual([{ pageNumber: 1, fileUrl: 'k1' }])
+    expect(res.proposal).not.toHaveProperty('nameId')
+  })
+
+  it('proposal null thì res.proposal null', () => {
+    const res = toSeriesRes(baseSeries)
+    expect(res.proposal).toBeNull()
+  })
+})

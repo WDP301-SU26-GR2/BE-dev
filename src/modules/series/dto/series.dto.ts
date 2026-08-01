@@ -1,11 +1,9 @@
 import { createZodDto } from 'nestjs-zod'
 import {
   CreateProposalBodySchema,
-  CreateProposalResSchema,
   FranchiseConsentBodySchema,
   HiatusBodySchema,
   ListSeriesQuerySchema,
-  NameResSchema,
   ProposeCompletionBodySchema,
   ReasonBodySchema,
   SeriesListResSchema,
@@ -19,8 +17,6 @@ export class UpdateProposalBodyDto extends createZodDto(UpdateProposalBodySchema
 export class UpdateSeriesMetadataBodyDto extends createZodDto(UpdateSeriesMetadataBodySchema) {}
 export class SeriesReasonBodyDto extends createZodDto(ReasonBodySchema) {}
 export class SeriesResDto extends createZodDto(SeriesResSchema) {}
-export class NameResDto extends createZodDto(NameResSchema) {}
-export class CreateProposalResDto extends createZodDto(CreateProposalResSchema) {}
 export class ListSeriesQueryDto extends createZodDto(ListSeriesQuerySchema) {}
 export class SeriesListResDto extends createZodDto(SeriesListResSchema) {}
 export class HiatusBodyDto extends createZodDto(HiatusBodySchema) {}

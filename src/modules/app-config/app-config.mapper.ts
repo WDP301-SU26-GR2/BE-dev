@@ -6,7 +6,7 @@ export function toAppConfigRes(row: AppConfig): AppConfigResType {
     id: row.id,
     updatedBy: row.updatedBy,
     coOwnerApprovalGraceDays: row.coOwnerApprovalGraceDays,
-    nameMaxReviewRounds: row.nameMaxReviewRounds,
+    storyboardMaxReviewRounds: row.storyboardMaxReviewRounds,
     reputationRecommendThreshold: row.reputationRecommendThreshold,
     hiatusTooLongDays: row.hiatusTooLongDays,
     lowVoteReliabilityThreshold: row.lowVoteReliabilityThreshold,

@@ -5,7 +5,7 @@ const row = {
   id: '507f1f77bcf86cd799439011',
   updatedBy: null,
   coOwnerApprovalGraceDays: 7,
-  nameMaxReviewRounds: 8,
+  storyboardMaxReviewRounds: 8,
   reputationRecommendThreshold: 4,
   hiatusTooLongDays: 30,
   lowVoteReliabilityThreshold: 10,
@@ -19,7 +19,7 @@ function make() {
   const repo = {
     findFirst: jest.fn().mockResolvedValue(row),
     createDefaults: jest.fn().mockResolvedValue(row),
-    update: jest.fn().mockResolvedValue({ ...row, nameMaxReviewRounds: 10 })
+    update: jest.fn().mockResolvedValue({ ...row, storyboardMaxReviewRounds: 10 })
   }
   const auditService = { record: jest.fn().mockResolvedValue(undefined) }
   const service = new AppConfigService(repo as never, auditService as never)
@@ -42,7 +42,10 @@ describe('AppConfigService', () => {
 
     const res = await service.get()
 
-    expect(repo.createDefaults).toHaveBeenCalledWith({ nameMaxReviewRounds: 8, rankingAggregateMinCoverageRatio: 0.5 })
+    expect(repo.createDefaults).toHaveBeenCalledWith({
+      storyboardMaxReviewRounds: 8,
+      rankingAggregateMinCoverageRatio: 0.5
+    })
     expect(res.id).toBe(row.id)
   })
 
@@ -60,19 +63,19 @@ describe('AppConfigService', () => {
   it('updates changed fields, invalidates cache, and audits changed keys', async () => {
     const { service, repo, auditService } = make()
 
-    const res = await service.update('admin1', { nameMaxReviewRounds: 10, maxUploadBytes: null })
+    const res = await service.update('admin1', { storyboardMaxReviewRounds: 10, maxUploadBytes: null })
 
-    expect(repo.update).toHaveBeenCalledWith(row.id, { nameMaxReviewRounds: 10, updatedBy: 'admin1' })
-    expect(res.nameMaxReviewRounds).toBe(10)
+    expect(repo.update).toHaveBeenCalledWith(row.id, { storyboardMaxReviewRounds: 10, updatedBy: 'admin1' })
+    expect(res.storyboardMaxReviewRounds).toBe(10)
     expect(auditService.record).toHaveBeenCalledWith({
       actorId: 'admin1',
       entityType: AuditEntityType.APP_CONFIG,
       entityId: row.id,
       action: 'CONFIG_UPDATE',
-      reason: 'nameMaxReviewRounds: 8 -> 10'
+      reason: 'storyboardMaxReviewRounds: 8 -> 10'
     })
 
-    repo.findFirst.mockResolvedValueOnce({ ...row, nameMaxReviewRounds: 10 })
+    repo.findFirst.mockResolvedValueOnce({ ...row, storyboardMaxReviewRounds: 10 })
     await service.get()
     expect(repo.findFirst).toHaveBeenCalledTimes(2)
   })
@@ -80,9 +83,9 @@ describe('AppConfigService', () => {
   it('does not write or audit when patch is a no-op', async () => {
     const { service, repo, auditService } = make()
 
-    const res = await service.update('admin1', { nameMaxReviewRounds: 8, maxUploadBytes: null })
+    const res = await service.update('admin1', { storyboardMaxReviewRounds: 8, maxUploadBytes: null })
 
-    expect(res.nameMaxReviewRounds).toBe(8)
+    expect(res.storyboardMaxReviewRounds).toBe(8)
     expect(repo.update).not.toHaveBeenCalled()
     expect(auditService.record).not.toHaveBeenCalled()
   })

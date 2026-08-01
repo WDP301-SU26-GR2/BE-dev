@@ -7,9 +7,11 @@ describe('extractCode', () => {
   })
 
   it('extracts code and path from a field-level 422 exception', () => {
-    const exception = new UnprocessableEntityException([{ message: 'Error.NameNotApproved', path: 'nameId' }])
+    const exception = new UnprocessableEntityException([
+      { message: 'Error.InvalidStoryboardState', path: 'storyboardId' }
+    ])
 
-    expect(extractCode(exception)).toBe('Error.NameNotApproved (nameId)')
+    expect(extractCode(exception)).toBe('Error.InvalidStoryboardState (storyboardId)')
   })
 
   it('joins multiple issues in one 422 exception', () => {
@@ -38,9 +40,7 @@ describe('buildApiErrorSpecs', () => {
   it('appends hint from ERROR_HINTS when present', () => {
     const specs = buildApiErrorSpecs([new NotFoundException('Error.ChapterNotFound')])
 
-    expect(specs[0].description).toBe(
-      'Error.ChapterNotFound - chapter does not exist (or id is not a valid ObjectId) — used by POST /chapters/:id/names (Spec 10)'
-    )
+    expect(specs[0].description).toBe('Error.ChapterNotFound - chapter does not exist (or id is not a valid ObjectId)')
   })
 
   it('adds the stable code and Vietnamese message to the Swagger example', () => {

@@ -22,11 +22,11 @@ export const ENUM_DOCS = {
   StudioAssignmentStatus: 'Trạng thái hợp tác studio: ACTIVE, COMPLETED, TERMINATED',
   SeriesStatus: 'Series state machine status',
   ProposalStatus: 'Series proposal review status',
-  NameStatus: 'Name/chapter-name review status',
-  NameKind: 'Name storyboard kind: PROPOSAL (proposal chapter-sample) or CHAPTER (per-chapter storyboard)',
+  StoryboardStatus:
+    'Trạng thái bản phác thảo của chương: DRAFT (đang soạn) → SUBMITTED (đã nộp) → IN_REVIEW (Editor đang xem) ⇄ REVISION (cần sửa) → APPROVED (đã duyệt)',
   ChapterStatus: 'Chapter production status',
   ManuscriptStatus: {
-    DRAFT: 'Chapter mới tạo, chưa có trang (đang ở khâu Name).',
+    DRAFT: 'Chapter mới tạo, chưa có trang; chờ duyệt Storyboard trước khi sản xuất.',
     IN_PRODUCTION: 'Đang sản xuất trang.',
     EDITOR_REVIEW: 'Đã nộp, Editor đang duyệt.',
     EDITOR_REVISION: 'Editor yêu cầu sửa.',
@@ -39,13 +39,13 @@ export const ENUM_DOCS = {
     COMPLETED: 'Đã nộp, đang ở tay Editor. KHÔNG sửa được.',
     REVISING: 'Editor (hoặc co-owner) yêu cầu sửa — mở khoá sửa lại.'
   },
-  AnnotationTargetType: 'Annotation target: PAGE, REGION, TASK, MANUSCRIPT, NAME',
+  AnnotationTargetType: 'Đối tượng chú thích: PAGE, REGION, TASK, MANUSCRIPT, STORYBOARD',
   AnnotationType: 'Annotation type: TEXT, HIGHLIGHT, DRAWING',
   ReviewStage: 'Review stage: ASSISTANT, MANGAKA, EDITOR',
   AssetType:
     'Uploaded asset type: REFERENCE, BACKGROUND, SCREENTONE, BRUSH, OTHER, DOCUMENT (system-generated documents)',
   NotificationType: 'Notification type: SYSTEM, CONTRACT, TASK, DEADLINE, SURVEY, BOARD, REVIEW',
-  RevisionTargetType: 'Đối tượng của vòng yêu cầu sửa: PROPOSAL, NAME, MANUSCRIPT, TASK',
+  RevisionTargetType: 'Đối tượng của vòng yêu cầu sửa: PROPOSAL, STORYBOARD, MANUSCRIPT, TASK',
   AiJobType: 'AI job type: SEGMENT; COLOR/NUMBER are reserved for Spec 3',
   AiJobStatus: 'AI job lifecycle: QUEUED -> RUNNING -> SUCCEEDED | FAILED',
   AiSegmentMode: 'Segmentation mode: MODEL (YOLO deep learning) or HEURISTIC (OpenCV baseline)',

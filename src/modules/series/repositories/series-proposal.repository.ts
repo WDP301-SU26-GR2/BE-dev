@@ -1,4 +1,4 @@
-import { FranchiseConsentStatus, NameKind, NameStatus, Prisma, ProposalStatus } from '@prisma/client'
+import { FranchiseConsentStatus, Prisma, ProposalStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { SeriesNotFoundException } from '../errors/series.errors'
 import { CreateProposalBodyType, UpdateProposalBodyType, UpdateSeriesMetadataBodyType } from '../schemas/series-schemas'
@@ -32,31 +32,13 @@ export class SeriesProposalRepository {
         proposal: {
           synopsis: body.synopsis ?? null,
           characterDesigns: body.characterDesigns,
+          storyboardPages: body.storyboardPages ?? [],
           estimatedLength: body.estimatedLength ?? null,
           status: ProposalStatus.DRAFT
         }
       }
     })
-    const name = await this.prismaService.name.create({
-      data: {
-        seriesId: series.id,
-        chapterNumber: null,
-        kind: NameKind.PROPOSAL,
-        status: NameStatus.DRAFT,
-        version: 1,
-        pages: body.namePages.map((page) => ({ pageNumber: page.pageNumber, fileUrl: page.fileUrl }))
-      }
-    })
-    const linked = await this.cas.update(series.id, (current) => {
-      if (!current.proposal) return { outcome: 'PROPOSAL_MISSING' }
-      if (current.proposal.nameId === name.id) return { outcome: 'UNCHANGED' }
-      return {
-        outcome: 'WRITE',
-        data: { proposal: { set: { ...current.proposal, nameId: name.id } } },
-        guardProposal: false
-      }
-    })
-    return { series: this.cas.requireWrite(linked, series.id), name }
+    return series
   }
 
   async updateProposalContent(seriesId: string, body: UpdateProposalBodyType) {
@@ -74,14 +56,17 @@ export class SeriesProposalRepository {
         (body.synopsis != null && body.synopsis !== series.proposal.synopsis) ||
         (body.characterDesigns != null &&
           !this.sameStringArray(body.characterDesigns, series.proposal.characterDesigns)) ||
-        (body.estimatedLength != null && body.estimatedLength !== series.proposal.estimatedLength)
+        (body.estimatedLength != null && body.estimatedLength !== series.proposal.estimatedLength) ||
+        (body.storyboardPages != null &&
+          !this.sameStoryboardPages(body.storyboardPages, series.proposal.storyboardPages))
       if (proposalChanged) {
         data.proposal = {
           set: {
             ...series.proposal,
             ...(body.synopsis != null ? { synopsis: body.synopsis } : {}),
             ...(body.characterDesigns != null ? { characterDesigns: body.characterDesigns } : {}),
-            ...(body.estimatedLength != null ? { estimatedLength: body.estimatedLength } : {})
+            ...(body.estimatedLength != null ? { estimatedLength: body.estimatedLength } : {}),
+            ...(body.storyboardPages != null ? { storyboardPages: body.storyboardPages } : {})
           }
         }
       }
@@ -148,11 +133,10 @@ export class SeriesProposalRepository {
     return result
   }
 
-  async deleteSeriesWithNames(seriesId: string): Promise<void> {
-    await this.prismaService.$transaction([
-      this.prismaService.name.deleteMany({ where: { seriesId } }),
-      this.prismaService.series.delete({ where: { id: seriesId } })
-    ])
+  async deleteProposalSeries(seriesId: string): Promise<void> {
+    // Spec 28: deleting a DRAFT proposal deletes only its owning Series row.
+    // Chapter storyboards are outside this lifecycle and are not cascaded here.
+    await this.prismaService.series.delete({ where: { id: seriesId } })
   }
 
   async updateProposalStatus(seriesId: string, status: ProposalStatus) {
@@ -170,5 +154,19 @@ export class SeriesProposalRepository {
 
   private sameStringArray(left: readonly string[], right: readonly string[]): boolean {
     return left.length === right.length && left.every((value, index) => value === right[index])
+  }
+
+  private sameStoryboardPages(
+    left: readonly { pageNumber: number; fileUrl: string }[],
+    right: readonly { pageNumber: number; fileUrl: string }[] | null | undefined
+  ): boolean {
+    const normalizedRight = right ?? []
+    return (
+      left.length === normalizedRight.length &&
+      left.every((page, index) => {
+        const rightPage = normalizedRight[index]
+        return rightPage !== undefined && page.pageNumber === rightPage.pageNumber && page.fileUrl === rightPage.fileUrl
+      })
+    )
   }
 }

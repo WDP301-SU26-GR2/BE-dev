@@ -7,7 +7,6 @@ function makeRepo() {
     findChapterWithSeries: jest.fn(),
     findChapterByNumber: jest.fn(),
     updateChapter: jest.fn().mockImplementation((_i, d) => Promise.resolve({ id: CH, ...d })),
-    updateNameChapterNumber: jest.fn().mockResolvedValue(undefined),
     findChapterWithRelations: jest.fn().mockResolvedValue({ id: CH }),
     deleteChapterCascade: jest.fn().mockResolvedValue(undefined)
   }
@@ -36,7 +35,7 @@ describe('ChapterCrudService.updateChapter', () => {
       seriesId: 's',
       chapterNumber: 5,
       status: 'IN_PRODUCTION',
-      nameId: null,
+      storyboardId: null,
       series: { mangakaId: 'u' }
     })
     await expect(make(repo).updateChapter('u', CH, { chapterNumber: 6 })).rejects.toMatchObject({ status: 409 })
@@ -48,26 +47,25 @@ describe('ChapterCrudService.updateChapter', () => {
       seriesId: 's',
       chapterNumber: 5,
       status: 'DRAFT',
-      nameId: null,
+      storyboardId: null,
       series: { mangakaId: 'u' }
     })
     repo.findChapterByNumber.mockResolvedValue({ id: 'dup' })
     await expect(make(repo).updateChapter('u', CH, { chapterNumber: 6 })).rejects.toMatchObject({ status: 409 })
   })
-  it('chapterNumber change DRAFT ok + syncs Name.chapterNumber', async () => {
+  it('chapterNumber change DRAFT ok', async () => {
     const repo = makeRepo()
     repo.findChapterWithSeries.mockResolvedValue({
       id: CH,
       seriesId: 's',
       chapterNumber: 5,
       status: 'DRAFT',
-      nameId: 'n1',
+      storyboardId: 'sb1',
       series: { mangakaId: 'u' }
     })
     repo.findChapterByNumber.mockResolvedValue(null)
     await make(repo).updateChapter('u', CH, { chapterNumber: 6 })
     expect(repo.updateChapter).toHaveBeenCalledWith(CH, { chapterNumber: 6 })
-    expect(repo.updateNameChapterNumber).toHaveBeenCalledWith('n1', 6)
   })
   it('title-only ok', async () => {
     const repo = makeRepo()
@@ -76,7 +74,7 @@ describe('ChapterCrudService.updateChapter', () => {
       seriesId: 's',
       chapterNumber: 5,
       status: 'IN_PRODUCTION',
-      nameId: null,
+      storyboardId: null,
       series: { mangakaId: 'u' }
     })
     await make(repo).updateChapter('u', CH, { title: 'New' })
