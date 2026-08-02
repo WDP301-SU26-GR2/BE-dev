@@ -1,4 +1,4 @@
-import { CoOwnerApprovalStatus, NameStatus, PageStatus } from '@prisma/client'
+import { CoOwnerApprovalStatus, StoryboardStatus, PageStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 
 export class ChapterQueryRepository {
@@ -7,8 +7,8 @@ export class ChapterQueryRepository {
   findSeriesById(seriesId: string) {
     return this.prisma.series.findUnique({ where: { id: seriesId } })
   }
-  findNameById(nameId: string) {
-    return this.prisma.name.findUnique({ where: { id: nameId } })
+  findStoryboardById(storyboardId: string) {
+    return this.prisma.storyboard.findUnique({ where: { id: storyboardId } })
   }
   countChaptersBySeriesId(seriesId: string) {
     return this.prisma.chapter.count({ where: { seriesId } })
@@ -36,7 +36,7 @@ export class ChapterQueryRepository {
         seriesId: true,
         chapterNumber: true,
         status: true,
-        nameId: true,
+        storyboardId: true,
         series: { select: { mangakaId: true } }
       }
     })
@@ -61,9 +61,9 @@ export class ChapterQueryRepository {
     })
     return series ? { mangakaId: series.mangakaId, editorId: series.editorId ?? null } : null
   }
-  async findNameStatus(nameId: string): Promise<NameStatus | null> {
-    const name = await this.prisma.name.findUnique({ where: { id: nameId }, select: { status: true } })
-    return name?.status ?? null
+  async findStoryboardStatus(storyboardId: string): Promise<StoryboardStatus | null> {
+    const sb = await this.prisma.storyboard.findUnique({ where: { id: storyboardId }, select: { status: true } })
+    return sb?.status ?? null
   }
   findScheduleByChapterId(chapterId: string) {
     return this.prisma.schedule.findUnique({ where: { chapterId } })

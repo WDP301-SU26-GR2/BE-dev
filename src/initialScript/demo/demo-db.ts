@@ -191,8 +191,8 @@ export const resetDemoData = async (prisma: PrismaClient) => {
   await prisma.schedule.deleteMany({ where: { chapterId: { in: chapterIds } } })
   await prisma.manuscript.deleteMany({ where: { chapterId: { in: chapterIds } } })
   await prisma.chapterCoOwnerApproval.deleteMany({ where: { chapterId: { in: chapterIds } } })
+  await prisma.storyboard.deleteMany({ where: { seriesId: { in: seriesIds } } })
   await prisma.chapter.deleteMany({ where: { id: { in: chapterIds } } })
-  await prisma.name.deleteMany({ where: { seriesId: { in: seriesIds } } })
   await prisma.readerVote.deleteMany({ where: { surveyPeriodId: { in: periodIds } } })
   await prisma.surveyData.deleteMany({ where: { surveyPeriodId: { in: periodIds } } })
   await prisma.rankingRecord.deleteMany({ where: { surveyPeriodId: { in: periodIds } } })
@@ -204,7 +204,7 @@ export const resetDemoData = async (prisma: PrismaClient) => {
   await prisma.paymentCondition.deleteMany({ where: { id: { in: conditionIds } } })
   await prisma.amendmentSignature.deleteMany({ where: { amendmentId: { in: amendmentIds } } })
   await prisma.contractAmendment.deleteMany({ where: { id: { in: amendmentIds } } })
-  await prisma.contractSignature.deleteMany({ where: { contractId: { in: contractIds } } })
+  await prisma.contractComment.deleteMany({ where: { contractId: { in: contractIds } } })
   await prisma.contractVersion.deleteMany({ where: { contractId: { in: contractIds } } })
   await prisma.contract.deleteMany({ where: { id: { in: contractIds } } })
   await prisma.seriesReport.deleteMany({

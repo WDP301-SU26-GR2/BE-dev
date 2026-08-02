@@ -64,7 +64,7 @@ Kết quả pass hiện tại phải có tối thiểu:
 - `tasks=30`, chia đều `ASSIGNED/SUBMITTED/REVISION_REQUESTED`, toàn bộ task có stage/type/description hợp lệ;
 - `successfulAiJobs=10`, cả 10 chưa apply và gắn đúng stage input snapshot;
 - `scopedSurveyPeriods=25`, `rankingRecords=154`;
-- `pendingBoardDecisions=10`, `draftContracts=10`, `fullyExecutedContracts=11`;
+- `pendingBoardDecisions=20`, trong đó `validPendingContractDecisions=10`, `draftContracts=10`, `fullyExecutedContracts=11`;
 - `contractVersions=21`, `linkedContracts=21`, `paymentConditions=22`, `paymentRecords=22`;
 - cuối log: `All demo seed invariants passed` hoặc `Verification complete` mà không có failure.
 
@@ -119,20 +119,21 @@ CLI in OTP một lần ra terminal. Dùng ngay cho endpoint ký; OTP được se
 
 API local mặc định `http://localhost:4000`. Login `POST /auth/login`, gửi access token dạng Bearer. Tìm record theo prefix `[DEMO ...]`.
 
-### Flow 1 — Proposal → queue → claim/release → review Name → pitch
+### Flow 1 — Proposal → queue → claim/release → consolidated review → pitch
 
-1. Mangaka chọn `[DEMO F1-01]` đến `10`; mỗi record `DRAFT`, `editorId=null`, có synopsis, character design và Name pages thật.
+1. Mangaka chọn `[DEMO F1-01]` đến `10`; mỗi record `DRAFT`, `editorId=null`, có synopsis, character design và các trang phác thảo nhúng trong proposal.
 2. Submit `POST /series/:id/submit`; Editor Naomi xem queue rồi `POST /series/:id/claim`.
 3. Trước review có thể demo `POST /series/:id/release`; claim lại rồi request revision/approve proposal.
-4. Review Name bằng `/series/:id/names/:nameId/*`; khi proposal và Name cùng approved, series `READY_TO_PITCH`.
+4. Editor approve proposal bằng `POST /series/:id/proposal/approve`; proposal thành `PROPOSAL_APPROVED` và series thành `READY_TO_PITCH` ngay trong cùng action.
 5. `POST /series/:id/pitch`, tạo session/decision serialization và vote theo roster lẻ 5 người.
-6. Dùng `[DEMO F1-SHOWCASE-1..4]` nếu cần nhảy thẳng checkpoint queue, proposal revision, Name revision hoặc ready-to-pitch.
+6. Dùng `[DEMO F1-SHOWCASE-1..3]` để nhảy thẳng tới `PROPOSAL_REVIEW`, `PROPOSAL_REVISION` hoặc
+   `READY_TO_PITCH`; cả ba proposal đều có `storyboardPages` từ object key media thật.
 
-### Flow 2 — Chapter-first, Name gate, stage production, manuscript
+### Flow 2 — Chapter-first, Storyboard gate, stage production, manuscript
 
 1. Mở `[DEMO F2-F3] Go Go! Encyclopedia Girls — licensed production study`.
-2. Chapter 101–110 là 10 run Name `SUBMITTED`, Manuscript `DRAFT`, chưa có page/stage; page upload phải bị chặn.
-3. Editor request revision/approve qua `/chapters/:id/names/:nameId/*`. Khi Name chapter approved, backend seed đúng bốn stage; INKING là stage duy nhất ACTIVE.
+2. Chapter 101–110 là 10 run Storyboard `SUBMITTED`, Manuscript `DRAFT`, chưa có page/stage; page upload phải bị chặn.
+3. Editor request revision/approve qua `/chapters/:id/storyboards/:storyboardId/*`. Khi Storyboard được duyệt, backend seed đúng bốn stage; INKING là stage duy nhất ACTIVE.
 4. Mangaka upload pencil pages; backend tạo StagePage input từ `Page.originalFile`.
 5. Checkpoint dựng sẵn: chapter 70 `EDITOR_REVIEW`, 71 `EDITOR_REVISION` có RevisionRequest/annotation, 72 `READY_FOR_PRINT`.
 6. Approve/publish qua `/chapters/:id/manuscript/approve` và `/chapters/:id/publish`. Các chapter 1–8 có lịch sử PUBLISHED và stage đã hoàn tất.
@@ -161,13 +162,14 @@ API local mặc định `http://localhost:4000`. Login `POST /auth/login`, gửi
 3. Năm tài khoản Board vote `POST /board/decisions/:id/vote`. Quorum là `ceil(2/3 × 5)=4`; approve cần trên 50% toàn roster, tức tối thiểu 3 approve.
 4. Decision chẵn dùng FORMAT_CHANGE với `details.publicationType=MONTHLY`; decision lẻ dùng CANCELLATION và ending allowance 3. Mỗi buổi chỉ dùng một decision.
 
-### Flow 6 — Contract → negotiation → signatures → payment
+### Flow 6 — Contract → Board representative → Mangaka accept/reject → payment
 
-1. Editor Duc chọn `[DEMO F6-01]` đến `10`. Series đã có Board SERIALIZATION decision APPROVED; Contract `DRAFT` liên kết đúng `boardDecisionId` và có ContractVersion 1.
-2. Editor gửi Mangaka qua `PATCH /contracts/:id/status` → `MANGAKA_REVIEW`; Mangaka approve hoặc request changes; Board roster approve/counter theo endpoint `/contracts/:id/*`.
-3. Khi `BOARD_APPROVED`, issue OTP cho Mangaka rồi ký `/contracts/:id/signatures/mangaka`; issue OTP riêng cho từng Board Member và ký `/contracts/:id/signatures/board` tới đủ roster.
-4. Chỉ sau `FULLY_EXECUTED` mới tạo PaymentCondition. Dùng config đúng API: recurring `{ "every": 4 }`, chapter milestone `{ "chapter": 10 }`, ranking `{ "topRank": 3 }`, time-bound `{ "deadline": "YYYY-MM-DD" }`.
-5. Hợp đồng production/ranking dựng sẵn có 11 Contract FULLY_EXECUTED, đủ version/signature, 22 condition và 22 payment record (PAID/APPROVED) để demo lịch sử.
+1. Editor Duc chọn `[DEMO F6-01]` đến `10`. Series đã có Board SERIALIZATION decision APPROVED; Contract `DRAFT` liên kết đúng `boardDecisionId`, có ContractVersion 1.
+2. Khi Contract còn `DRAFT|BOARD_REVIEW`, Editor tạo/sửa PaymentCondition. Dùng config đúng API: recurring `{ "every": 4 }`, chapter milestone `{ "chapter": 10 }`, ranking `{ "topRank": 3 }`, time-bound `{ "deadline": "YYYY-MM-DD" }`.
+3. Editor gửi review nội bộ qua `POST /contracts/:id/submit-review` → `BOARD_REVIEW`; Board trong roster comment bằng `POST /contracts/:id/comments`; Editor sửa điều khoản vẫn giữ `BOARD_REVIEW` và sinh ContractVersion mới.
+4. Một Board member đúng roster `POST /contracts/:id/claim` để thành `representativeId`; đại diện issue OTP và `POST /contracts/:id/sign-representative` → `AWAITING_MANGAKA`.
+5. Mangaka issue OTP và `POST /contracts/:id/sign-mangaka` để accept → `FULLY_EXECUTED`, hoặc `POST /contracts/:id/reject` kèm lý do → `REJECTED_BY_MANGAKA`; Editor có thể `POST /contracts/:id/redraft`.
+6. Hợp đồng production/ranking dựng sẵn có Contract FULLY_EXECUTED, đủ version/representative signature, condition và payment record để demo lịch sử.
 
 ## 7. Lịch demo hai tuần
 

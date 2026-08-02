@@ -108,6 +108,23 @@ function validateTrivyReport(path, acceptancePath = registryPath) {
   }
 }
 
+function validatePnpmAudit(path) {
+  const report = readJson(path)
+  const vulnerabilities = report?.metadata?.vulnerabilities
+  const severities = ['info', 'low', 'moderate', 'high', 'critical']
+  if (
+    !vulnerabilities ||
+    severities.some((severity) => !Number.isInteger(vulnerabilities[severity]) || vulnerabilities[severity] < 0)
+  ) {
+    fail('pnpm audit report must contain non-negative integer counts for every severity')
+  }
+
+  const blocking = vulnerabilities.high + vulnerabilities.critical
+  if (blocking > 0) {
+    fail(`pnpm audit report contains ${vulnerabilities.high} high and ${vulnerabilities.critical} critical findings`)
+  }
+}
+
 function expectRejected(command, path) {
   const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), command, path], {
     cwd: root,
@@ -124,8 +141,10 @@ function selfTest() {
     resolve(fixtures, 'trivy-accepted-unfixed.json'),
     resolve(root, 'ops/security/risk-acceptances.example.json')
   )
+  validatePnpmAudit(resolve(fixtures, 'pnpm-audit-clean.json'))
   expectRejected('validate-risk', resolve(fixtures, 'expired-risk-acceptances.json'))
   expectRejected('validate-trivy', resolve(fixtures, 'trivy-high.json'))
+  expectRejected('validate-pnpm-audit', resolve(fixtures, 'pnpm-audit-high.json'))
 }
 
 const [command, path, acceptancePath] = process.argv.slice(2)
@@ -133,8 +152,10 @@ try {
   if (command === 'validate-risk') validateRiskRegistry(resolve(path ?? registryPath))
   else if (command === 'validate-trivy') {
     validateTrivyReport(resolve(path ?? ''), resolve(acceptancePath ?? registryPath))
+  } else if (command === 'validate-pnpm-audit') {
+    validatePnpmAudit(resolve(path ?? ''))
   } else if (command === 'self-test') selfTest()
-  else fail('usage: validate-risk [path] | validate-trivy <report> | self-test')
+  else fail('usage: validate-risk [path] | validate-trivy <report> | validate-pnpm-audit <report> | self-test')
   console.log(`[security-policy] ${command} passed`)
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))

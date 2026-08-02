@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common'
-import { $Enums, ManuscriptStatus, NameStatus, TaskStatus } from '@prisma/client'
+import { $Enums, ManuscriptStatus, StoryboardStatus, TaskStatus } from '@prisma/client'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { ChapterRepository } from '../chapter.repo'
@@ -81,14 +81,14 @@ export class ChapterProgressService {
       user.roleName === RoleName.SUPER_ADMIN
     if (!allowed) throw ChapterAccessDeniedException
 
-    const [pages, pageTaskRows, manuscript, taskCounts, nameStatus, schedule, activeStage] = await Promise.all([
+    const [pages, pageTaskRows, manuscript, taskCounts, storyboardStatus, schedule, activeStage] = await Promise.all([
       this.chapterRepository.findPagesByChapterId(chapterId),
       this.chapterRepository.groupTasksByPageForChapter(chapterId),
       this.chapterRepository.findManuscriptByChapterId(chapterId),
       this.chapterRepository.countTasksByStatusForChapter(chapterId),
-      chapter.nameId
-        ? this.chapterRepository.findNameStatus(chapter.nameId)
-        : Promise.resolve(null as NameStatus | null),
+      chapter.storyboardId
+        ? this.chapterRepository.findStoryboardStatus(chapter.storyboardId)
+        : Promise.resolve(null as StoryboardStatus | null),
       this.chapterRepository.findScheduleByChapterId(chapterId),
       this.stageRepo ? this.stageRepo.findActiveByChapter(chapterId) : Promise.resolve(null)
     ])
@@ -102,7 +102,7 @@ export class ChapterProgressService {
     const now = new Date()
     return {
       chapterId,
-      nameStatus,
+      storyboardStatus,
       totalPages,
       pagesReady,
       pagesPending: totalPages - pagesReady,

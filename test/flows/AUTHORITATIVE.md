@@ -17,7 +17,7 @@
   - Helper libs (đọc source trước):
     - `test/flows/lib/env.ts` — exports `{ DATABASE_URL, API }`, có guard chặn DB không chứa 'flowtest' (exit 2)
     - `test/flows/lib/http.ts` — `req(method, path, { token?, body?, xff?, headers? })`, `ok(name, cond, extra)`, `expectError(res, status, code, name)`, `section(name)`, `summary(file)`, `finding(name, note)`, `sleep(ms)`
-    - `test/flows/lib/seed.ts` — `wipeDb()`, `seedRolesAndAdmin()`, `makeUser(roleCode, over?)`, `makeSeriesAt(status, { mangakaId, editorId?, ... })`, `makeContractAt(status, { seriesId, mangakaId, editorId?, ... })`, `makeChapterAt({ seriesId, chapterNumber, nameId?, manuscriptStatus?, publishedAt? })`, `makeNameAt({ seriesId, chapterId?, kind?, status?, version? })`, `makePageAt({ chapterId, pageNumber, status? })`, `makeTaskAt({ pageId, regionId?, assistantId, status?, priority?, deadline? })`, `makeStudioAssignment({ mangakaId, assistantId, seriesId?, status?, ... })`, `makeBoardSession({ creatorId, allowedEditorIds, status?, startTime?, endTime?, title? })`, `makeBoardDecision({ sessionId, decisionType, targetSeriesId?, result?, allowedEditorIds?, endingChapterAllowance?, details? })`, `makeSurveyPeriod({ createdBy?, issueNumber?, status?, startDate?, endDate? })`, `makeRankingRecords(periodId, rows[])`, `makePaymentCondition({ contractId, conditionType, payoutAmount?, payoutPct?, isRecurring?, thresholdConfig?, status? })`, `makeDeadlineRequest(...)`, `seedOtp(email, purpose)`, `setAppConfig(patch)`, `setVotingConfig(patch)`, `setBoardConfig(patch)`
+    - `test/flows/lib/seed.ts` — `wipeDb()`, `seedRolesAndAdmin()`, `makeUser(roleCode, over?)`, `makeSeriesAt(status, { mangakaId, editorId?, proposalStatus?, ... })`, `withProposalStoryboard(pages?)`, `makeContractAt(status, { seriesId, mangakaId, editorId?, ... })`, `makeChapterAt({ seriesId, chapterNumber, storyboardId?, manuscriptStatus?, publishedAt? })`, `makeChapterStoryboardAt({ seriesId, chapterId, status?, version? })`, `makePageAt({ chapterId, pageNumber, status? })`, `makeTaskAt({ pageId, regionId?, assistantId, status?, priority?, deadline? })`, `makeStudioAssignment({ mangakaId, assistantId, seriesId?, status?, ... })`, `makeBoardSession({ creatorId, allowedEditorIds, status?, startTime?, endTime?, title? })`, `makeBoardDecision({ sessionId, decisionType, targetSeriesId?, result?, allowedEditorIds?, endingChapterAllowance?, details? })`, `makeSurveyPeriod({ createdBy?, issueNumber?, status?, startDate?, endDate? })`, `makeRankingRecords(periodId, rows[])`, `makePaymentCondition({ contractId, conditionType, payoutAmount?, payoutPct?, isRecurring?, thresholdConfig?, status? })`, `makeDeadlineRequest(...)`, `seedOtp(email, purpose)`, `setAppConfig(patch)`, `setVotingConfig(patch)`, `setBoardConfig(patch)`
     - `test/flows/lib/auth.ts` — `login(email, pw?) → accessToken` (cache per email), `seedOtp(email, purpose)` (alias), `clearTokenCache()`, `expectError(...)` (throw version)
     - `test/flows/lib/ws.ts` — `connectBoard(token?)` → socket, `waitConnected(sock, ms?) → {connected, error?}`, `joinSession(sock, sessionId, ms?) → { status: 'SUCCESS'|'DENIED', message? }`, `waitForEvent(sock, event, ms?) → payload`
     - `test/flows/lib/cron.ts` — `withCronContext<R>(fn: (ctx) => Promise<R>) → R` — boots `dist/app.module.js` không listen HTTP, stops mọi cron tick, trả `ctx.get<T>(class)` + `ctx.close()`
@@ -37,8 +37,7 @@ import {
   ChapterStatus,
   ManuscriptStatus,
   PageStatus,
-  NameStatus,
-  NameKind,
+  StoryboardStatus,
   TaskStatus,
   ContractStatus,
   ContractType,
@@ -108,8 +107,8 @@ import {
 - `SurveyStatus.DRAFT | OPEN | CLOSED | REFLECTED`
 - `RiskLevel.NONE | LOW | MEDIUM | SEVERE`
 - `VotingAuthMode.OTP | CAPTCHA | HYBRID`
-- `NameKind.PROPOSAL | CHAPTER`
-- `NameStatus.DRAFT | SUBMITTED | IN_REVIEW | REVISION | APPROVED`
+- `ProposalStatus.DRAFT | PROPOSAL_REVIEW | PROPOSAL_REVISION | PROPOSAL_APPROVED | PITCHED | APPROVED | REJECTED | WITHDRAWN`
+- `StoryboardStatus.DRAFT | SUBMITTED | IN_REVIEW | REVISION | APPROVED`
 - `PublicationType.WEEKLY | MONTHLY | IRREGULAR`
 
 ---
@@ -157,9 +156,9 @@ REPRINT_REQUEST: PENDING→{MANGAKA_REVIEW, MANGAKA_APPROVED, BOARD_APPROVED, RE
 BOARD_SESSION: UPCOMING→ACTIVE→CONCLUDED (terminal)
                File: src/modules/board/services/board-session-state.service.ts
 
-NAME: DRAFT→SUBMITTED→IN_REVIEW→APPROVED; IN_REVIEW→REVISION→IN_REVIEW (loop)
-      updatePages/addPage: DRAFT|REVISION only
-      createChapterName: chapter.status==DRAFT required
+CHAPTER_STORYBOARD: DRAFT→SUBMITTED→IN_REVIEW→APPROVED; IN_REVIEW→REVISION→IN_REVIEW (loop)
+                    updatePages/addPage: DRAFT|REVISION only
+                    create: chapter.status==DRAFT required; chapterId is mandatory
 ```
 
 ---
@@ -172,7 +171,7 @@ Chi tiết xem source: `<module>/<module>.messages.ts` hoặc `<module>/errors/<
 - `src/modules/auth/auth.messages.ts` + `auth.errors.ts`
 - `src/modules/users/users.messages.ts` + `errors/users.errors.ts`
 - `src/modules/series/series.messages.ts` + `errors/series.errors.ts`
-- `src/modules/name/name.messages.ts` + `errors/name.errors.ts`
+- `src/modules/storyboard/storyboard.messages.ts` + `errors/storyboard.errors.ts`
 - `src/modules/chapter/chapter.messages.ts` + `errors/chapter.errors.ts`
 - `src/modules/task/task.messages.ts` + `errors/task.errors.ts`
 - `src/modules/contract/contract.messages.ts` + `errors/contract.errors.ts`
@@ -199,7 +198,7 @@ Chi tiết xem source: `<module>/<module>.messages.ts` hoặc `<module>/errors/<
 Frequency table (chi tiết đầy đủ trong source):
 
 - `Error.SeriesNotFound, Error.NotSeriesOwner, Error.ProposalNotEditable, Error.InvalidSeriesTransition, Error.SeriesNotReadyToPitch`
-- `Error.ChapterNotFound, Error.NotSeriesEditor, Error.InvalidManuscriptTransition, Error.NoPagesToSubmit, Error.TasksNotAllApproved, Error.RevisionNotResolved, Error.PageNotEditable, Error.DuplicateChapterNumber, Error.NameNotApproved, Error.ContractNotExecuted, Error.ChapterNotHoldable, Error.ChapterAlreadyOnHold, Error.ChapterNotOnHold, Error.EndingAllowanceExceeded, Error.ChapterNumberLocked`
+- `Error.ChapterNotFound, Error.NotSeriesEditor, Error.InvalidManuscriptTransition, Error.NoPagesToSubmit, Error.TasksNotAllApproved, Error.RevisionNotResolved, Error.PageNotEditable, Error.DuplicateChapterNumber, Error.ChapterStoryboardNotApproved, Error.ContractNotExecuted, Error.ChapterNotHoldable, Error.ChapterAlreadyOnHold, Error.ChapterNotOnHold, Error.EndingAllowanceExceeded, Error.ChapterNumberLocked`
 - `Error.TaskNotFound, Error.NotTaskAssignee, Error.AssistantNotHired, Error.AssetNotFound, Error.TaskNotReassignable, Error.TaskNotCancellable, Error.RegionHasApprovedTasks, Error.ChapterOnHold, Error.InvalidTaskTransition`
 - `Error.ContractNotFound, Error.ContractNotSignableYet, Error.InvalidContractTransition, Error.AmendmentNotFound, Error.AmendmentNotVoidable`
 - `Error.PaymentRecordNotFound, Error.PaymentNotPayable, Error.PaymentConditionNotFound`
@@ -238,58 +237,43 @@ POST   /admin/users/:id/reset-password
 GET    /admin/stats
 
 # Series
-POST   /series                              body: { title, genres, demographic?, publicationType?, synopsis?, ... }
+POST   /series/proposals                    body: { title, genres, demographic?, synopsis?, storyboardPages?, ... } → Series DRAFT + embedded proposal
 GET    /series?...
 GET    /series/:id
-PATCH  /series/:id                          update trong khi status DRAFT/IN_REVIEW
-DELETE /series/:id                          chỉ khi DRAFT
-POST   /series/:id/submit                   transition sang IN_REVIEW
-POST   /series/:id/start-review             Editor set reviewStartedAt
-POST   /series/:id/pitch                    Editor → READY_TO_PITCH
-POST   /series/:id/serialize                Board → SERIALIZED (thường qua board decision)
-POST   /series/:id/hold                     → HIATUS
+PATCH  /series/:id                          update metadata theo ownership/editor scope
+PUT    /series/proposals/:id                Mangaka sửa embedded proposal khi DRAFT/PROPOSAL_REVISION
+DELETE /series/proposals/:id                Mangaka xoá Series DRAFT; không cascade chapter storyboard
+POST   /series/:id/submit                   proposal → PROPOSAL_REVIEW; Series → IN_REVIEW
+POST   /series/:id/claim                    Editor claim hồ sơ IN_REVIEW
+POST   /series/:id/release                  Editor trả hồ sơ về hàng đợi
+POST   /series/:id/proposal/request-revision → PROPOSAL_REVISION
+POST   /series/:id/proposal/resubmit        PROPOSAL_REVISION → PROPOSAL_REVIEW
+POST   /series/:id/proposal/approve         Editor phụ trách: proposal → PROPOSAL_APPROVED và Series → READY_TO_PITCH ngay trong cùng action
+POST   /series/:id/pitch                    Editor: READY_TO_PITCH → PITCHED
+POST   /series/:id/reject                   Editor từ chối concept → ABANDONED
+POST   /series/:id/reopen                   ABANDONED/WITHDRAWN → Series DRAFT + proposal DRAFT; không đổi chapter storyboard
+POST   /series/:id/reopen-review            REJECTED → IN_REVIEW + proposal PROPOSAL_REVISION; không đổi chapter storyboard
+POST   /series/:id/hiatus                   → HIATUS
 POST   /series/:id/resume                   → SERIALIZED
-POST   /series/:id/start-completion         → COMPLETING (Board decision COMPLETION)
-POST   /series/:id/finalize-completion      → COMPLETED
-POST   /series/:id/start-cancelling         → CANCELLING (set endingChapterAllowance + chapterCountAtCancelling)
+POST   /series/:id/finalize-ending          hoàn tất lifecycle kết thúc
+POST   /series/:id/propose-completion       đề xuất kết thúc tự nhiên
+POST   /series/:id/force-cancel             Editor phụ trách đóng huỷ không ending
 POST   /series/:id/withdraw                 DRAFT/IN_REVIEW/READY_TO_PITCH → WITHDRAWN
-POST   /series/:id/abandon                  IN_REVIEW → ABANDONED
-POST   /series/:id/reject                   Editor: READY_TO_PITCH → REJECTED
-POST   /series/:id/propose-franchise        set franchiseConsentStatus
 POST   /series/:id/franchise-consent        approve/reject consent
-POST   /series/:id/co-owner                 set coOwnerId
 
-# Proposal (embedded) — name related
-POST   /series/:seriesId/name-proposals
-GET    /series/:seriesId/name-proposals
-POST   /name-proposals/:id/submit           PROPOSAL_DRAFT → SUBMITTED
-POST   /name-proposals/:id/review           → PROPOSAL_REVISION / APPROVED / REJECTED
-POST   /name-proposals/:id/resubmit         REVISION → SUBMITTED (version+1)
-POST   /name-proposals/:id/pages
-POST   /name-proposals/:id/request-revision → REVISION
-POST   /name-proposals/:id/approve          → APPROVED
-POST   /name-proposals/:id/reject           → REJECTED
+# Chapter storyboard — chapter-scoped only (Spec 28)
+POST   /chapters/:id/storyboards                             tạo storyboard khi chapter DRAFT
+POST   /chapters/:id/storyboards/:storyboardId/submit        DRAFT → SUBMITTED
+GET    /chapters/:id/storyboards                             list storyboard của chapter (0..1)
+GET    /chapters/:id/storyboards/:storyboardId               chi tiết storyboard
+POST   /chapters/:id/storyboards/:storyboardId/request-revision → REVISION
+POST   /chapters/:id/storyboards/:storyboardId/resubmit      REVISION → IN_REVIEW, version++
+POST   /chapters/:id/storyboards/:storyboardId/approve       → APPROVED; emit StoryboardApproved { seriesId, storyboardId, chapterId }
+PUT    /chapters/:id/storyboards/:storyboardId/pages         thay toàn bộ pages (DRAFT/REVISION only)
+POST   /chapters/:id/storyboards/:storyboardId/pages         thêm một page (DRAFT/REVISION only)
+DELETE /chapters/:id/storyboards/:storyboardId               chapter DRAFT + storyboard chưa APPROVED
 
-# Name (chapter) — chapter-scoped (Spec 12 tách vai; chapter-Name là tài nguyên của CHAPTER, không phải SERIES)
-POST   /chapters/:id/names                        create chapter-Name (kind=CHAPTER) — chapter DRAFT only
-GET    /chapters/:id/names                        list Name của chapter (0..1)
-GET    /chapters/:id/names/:nameId                chi tiết chapter-Name
-POST   /chapters/:id/names/:nameId/request-revision → REVISION
-POST   /chapters/:id/names/:nameId/resubmit       REVISION → IN_REVIEW, version++
-POST   /chapters/:id/names/:nameId/approve        → APPROVED
-PUT    /chapters/:id/names/:nameId/pages          thay TOÀN BỘ pages (DRAFT/REVISION only)
-POST   /chapters/:id/names/:nameId/pages          thêm 1 page (DRAFT/REVISION only)
-DELETE /chapters/:id/names/:nameId                xoá chapter-Name (chapter DRAFT + Name chưa APPROVED) → 200 { message }
-
-# Name (proposal) — series-scoped, **PROPOSAL-ONLY** (Spec 12)
-# Truy cập chapter-Name qua các route dưới đây → 404 Error.NameNotFound (bằng chứng tách vai).
-GET    /series/:id/names                          list proposal-Name (CHỈ kind=PROPOSAL; query không có filter kind — strict reject mọi field lạ → 422)
-GET    /series/:id/names/:nameId                  chi tiết proposal-Name
-POST   /series/:id/names/:nameId/request-revision → REVISION
-POST   /series/:id/names/:nameId/resubmit         REVISION → IN_REVIEW, version++
-POST   /series/:id/names/:nameId/approve          → APPROVED (emit NameApproved → Series READY_TO_PITCH nếu kind=PROPOSAL)
-PUT    /series/:id/names/:nameId/pages            thay TOÀN BỘ pages (DRAFT/REVISION only)
-POST   /series/:id/names/:nameId/pages            thêm 1 page (DRAFT/REVISION only)
+Không có lifecycle storyboard cấp Series. Flow 01 gọi đủ 7 method/path legacy và yêu cầu router-level 404 với message `Cannot METHOD /exact/path`.
 
 # Self-service identity (Spec 12 Part A)
 GET    /me                                        thông tin tài khoản của chính mình (mọi role; KHÔNG password)
@@ -306,16 +290,15 @@ GET    /staff/:userId                             xem công khai staff profile (
 GET    /board/suggest-members?seriesId=           gợi ý roster Board theo thể loại series; items[].score giảm dần, size lẻ >= 3 — EDITOR/SUPER_ADMIN only
 
 # Chapters
-POST   /series/:seriesId/chapters           body: { chapterNumber, title?, nameId? }
-GET    /series/:seriesId/chapters
+POST   /chapters                            body: { seriesId, chapterNumber, title? }
+GET    /chapters?seriesId=:seriesId
 GET    /chapters/:id
-PATCH  /chapters/:id
-DELETE /chapters/:id                        chỉ khi DRAFT, nameId=null
-POST   /chapters/:id/start-composite
-POST   /chapters/:id/editor-review
-POST   /chapters/:id/submit-editor-revision
-POST   /chapters/:id/ready-for-print
-POST   /chapters/:id/awaiting-co-owner
+PATCH  /chapters/:id                        title pre-PUBLISHED; chapterNumber chỉ DRAFT, không sync sang storyboard
+DELETE /chapters/:id                        chỉ khi DRAFT; cascade tài nguyên thuộc chapter
+POST   /chapters/:id/manuscript/submit
+POST   /chapters/:id/manuscript/request-revision
+POST   /chapters/:id/manuscript/resubmit
+POST   /chapters/:id/manuscript/approve
 POST   /chapters/:id/co-owner-approve
 POST   /chapters/:id/co-owner-reject        body: { reason }
 POST   /chapters/:id/hold                   body: { reason, expectedReturnDate? }
@@ -364,14 +347,16 @@ GET    /contracts/:id
 PATCH  /contracts/:id                       Editable state
 POST   /contracts/:id/versions
 GET    /contracts/:id/versions
-POST   /contracts/:id/submit-mangaka-review → MANGAKA_REVIEW
-POST   /contracts/:id/approve-mangaka       → MANGAKA_APPROVED
-POST   /contracts/:id/start-negotiation      → NEGOTIATION
-POST   /contracts/:id/board-approve          → BOARD_APPROVED
-POST   /contracts/:id/board-reject          → loại
-POST   /contracts/:id/sign-mangaka          → MANGAKA_SIGNED
-POST   /contracts/:id/signatures            list signatures
-POST   /contracts/:id/sign                  → FULLY_EXECUTED
+POST   /contracts/:id/submit-review         → BOARD_REVIEW
+POST   /contracts/:id/claim                 Board representative claims slot
+POST   /contracts/:id/release               Board representative releases slot
+POST   /contracts/:id/assign-representative Editor assigns representative
+POST   /contracts/:id/comments              Board review comments
+GET    /contracts/:id/comments
+POST   /contracts/:id/sign-representative   → AWAITING_MANGAKA
+POST   /contracts/:id/sign-mangaka          → FULLY_EXECUTED
+POST   /contracts/:id/reject                → REJECTED_BY_MANGAKA
+POST   /contracts/:id/redraft               → DRAFT
 POST   /contracts/:id/terminate             body: { reason }
 POST   /contracts/:id/amendments
 PATCH  /contracts/amendments/:id

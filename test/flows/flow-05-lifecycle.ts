@@ -256,7 +256,7 @@ const main = async () => {
   ok(
     'F05-010c CHANGE_FORMAT → notify content nhắc đặt deadline',
     (await prisma.notification.count({
-      where: { recipientId: { in: [m1.id, e1.id] }, referenceId: sFmt.id, content: { contains: 'deadline' } }
+      where: { recipientId: { in: [m1.id, e1.id] }, referenceId: sFmt.id, content: { contains: 'hạn nộp' } }
     })) > 0
   )
   ok(

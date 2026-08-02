@@ -11,7 +11,15 @@ export class PaymentConditionRepo {
   findContractById(contractId: string) {
     return this.prisma.contract.findUnique({
       where: { id: contractId },
-      select: { id: true, editorId: true, mangakaId: true, status: true }
+      select: {
+        id: true,
+        editorId: true,
+        mangakaId: true,
+        status: true,
+        contractType: true,
+        valuationAmount: true,
+        publisherOwnershipPct: true
+      }
     })
   }
 
@@ -34,6 +42,13 @@ export class PaymentConditionRepo {
   findManyByContractId(contractId: string): Promise<PaymentCondition[]> {
     return this.prisma.paymentCondition.findMany({
       where: { contractId },
+      orderBy: { id: 'asc' }
+    })
+  }
+
+  findActiveConditionsByContract(contractId: string): Promise<PaymentCondition[]> {
+    return this.prisma.paymentCondition.findMany({
+      where: { contractId, status: { not: PaymentConditionStatus.DISABLED } },
       orderBy: { id: 'asc' }
     })
   }

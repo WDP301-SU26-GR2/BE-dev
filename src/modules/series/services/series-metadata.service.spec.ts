@@ -29,7 +29,7 @@ const baseSeries = {
   completionProposal: null,
   createdAt: new Date('2026-01-01T00:00:00Z'),
   proposal: {
-    nameId: '507f1f77bcf86cd799439015',
+    storyboardPages: [],
     synopsis: 'old synopsis',
     characterDesigns: ['k1'],
     estimatedLength: 20,
@@ -103,7 +103,7 @@ describe('SeriesMetadataService.update', () => {
       type: 'SYSTEM',
       referenceId: SERIES_ID,
       referenceType: 'SERIES_METADATA_UPDATED',
-      content: 'Đã cập nhật thông tin series: synopsis'
+      content: 'Đã cập nhật thông tin bộ truyện: synopsis'
     })
   })
 
@@ -118,7 +118,7 @@ describe('SeriesMetadataService.update', () => {
     await make(deps).update({ userId: MANGAKA, roleName: 'MANGAKA' }, SERIES_ID, { coverImage: '' })
 
     expect(deps.notification.notifySafe).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientId: EDITOR, content: 'Đã cập nhật thông tin series: coverImage' })
+      expect.objectContaining({ recipientId: EDITOR, content: 'Đã cập nhật thông tin bộ truyện: coverImage' })
     )
   })
 

@@ -1,4 +1,5 @@
 import { DeadlineWarningCron } from './deadline-warning.cron'
+import { TaskMessages } from 'src/modules/task/task.messages'
 
 describe('DeadlineWarningCron', () => {
   it('skips when Redis lock is not acquired', async () => {
@@ -15,7 +16,11 @@ describe('DeadlineWarningCron', () => {
   it('enqueues warning with day scoped referenceType', async () => {
     const redis = { setNxEx: jest.fn().mockResolvedValue(true) }
     const repo = {
-      findChaptersNearDeadline: jest.fn().mockResolvedValue([{ chapterId: 'C1', seriesId: 'S1' }]),
+      findChaptersNearDeadline: jest
+        .fn()
+        .mockResolvedValue([
+          { chapterId: '0123456789abcdef01234567', seriesId: 'S1', chapterNumber: 12, seriesTitle: 'Bến Cảng Vô Danh' }
+        ]),
       findSeriesRecipients: jest.fn().mockResolvedValue({ mangakaId: 'M1', editorId: null }),
       findTasksNearDeadline: jest.fn().mockResolvedValue([])
     }
@@ -27,8 +32,9 @@ describe('DeadlineWarningCron', () => {
     expect(queue.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
         recipientId: 'M1',
-        referenceId: 'C1',
-        referenceType: expect.stringMatching(/^DEADLINE_WARNING:\d{4}-\d{2}-\d{2}$/)
+        referenceId: '0123456789abcdef01234567',
+        referenceType: expect.stringMatching(/^DEADLINE_WARNING:\d{4}-\d{2}-\d{2}$/),
+        content: 'Chương 12 — «Bến Cảng Vô Danh» sắp đến hạn nộp'
       })
     )
   })
@@ -38,7 +44,11 @@ describe('DeadlineWarningCron', () => {
     const repo = {
       findChaptersNearDeadline: jest.fn().mockResolvedValue([]),
       findSeriesRecipients: jest.fn(),
-      findTasksNearDeadline: jest.fn().mockResolvedValue([{ taskId: 'T1', assistantId: 'A1', mangakaId: 'M1' }])
+      findTasksNearDeadline: jest
+        .fn()
+        .mockResolvedValue([
+          { taskId: 'T1', assistantId: 'A1', mangakaId: 'M1', taskType: 'BACKGROUND', pageNumber: 5, chapterNumber: 12 }
+        ])
     }
     const queue = { enqueue: jest.fn().mockResolvedValue(undefined) }
     const cron = new DeadlineWarningCron(redis as never, repo as never, queue as never)
@@ -49,16 +59,56 @@ describe('DeadlineWarningCron', () => {
       expect.objectContaining({
         recipientId: 'A1',
         referenceId: 'T1',
-        referenceType: expect.stringMatching(/^TASK_DEADLINE_WARNING:\d{4}-\d{2}-\d{2}$/)
+        referenceType: expect.stringMatching(/^TASK_DEADLINE_WARNING:\d{4}-\d{2}-\d{2}$/),
+        content: 'Công việc vẽ nền (trang 5, chương 12) sắp đến hạn nộp'
       })
     )
     expect(queue.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
         recipientId: 'M1',
         referenceId: 'T1',
-        referenceType: expect.stringMatching(/^TASK_DEADLINE_WARNING:\d{4}-\d{2}-\d{2}$/)
+        referenceType: expect.stringMatching(/^TASK_DEADLINE_WARNING:\d{4}-\d{2}-\d{2}$/),
+        content: 'Công việc vẽ nền (trang 5, chương 12) sắp đến hạn nộp'
       })
     )
+  })
+
+  it('uses the shared Vietnamese label for every Specialization value', () => {
+    expect(TaskMessages.specializationLabel).toEqual({
+      BACKGROUND: 'vẽ nền',
+      SCREENTONE: 'dán screentone',
+      EFFECT_LINES: 'hiệu ứng',
+      INKING: 'tô mực',
+      COLORING: 'tô màu',
+      LETTERING: 'đi chữ'
+    })
+  })
+
+  it('falls back to a generic task label when taskType is null', async () => {
+    const redis = { setNxEx: jest.fn().mockResolvedValue(true) }
+    const repo = {
+      findChaptersNearDeadline: jest.fn().mockResolvedValue([]),
+      findSeriesRecipients: jest.fn(),
+      findTasksNearDeadline: jest
+        .fn()
+        .mockResolvedValue([
+          { taskId: 'T1', assistantId: 'A1', mangakaId: null, taskType: null, pageNumber: 5, chapterNumber: 12 }
+        ])
+    }
+    const queue = { enqueue: jest.fn().mockResolvedValue(undefined) }
+    const cron = new DeadlineWarningCron(redis as never, repo as never, queue as never)
+
+    await cron.run()
+
+    expect(queue.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceId: 'T1',
+        content: 'Công việc (trang 5, chương 12) sắp đến hạn nộp'
+      })
+    )
+    const content = queue.enqueue.mock.calls[0][0].content
+    expect(content).not.toContain('undefined')
+    expect(content).not.toContain('null')
   })
 })
 

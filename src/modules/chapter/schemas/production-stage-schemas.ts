@@ -14,7 +14,7 @@ export const StageAnalyticsSchema = z.object({
   longestTask: z
     .object({
       taskId: z.string(),
-      taskType: z.string().nullable(),
+      taskType: zEnum($Enums.Specialization, 'Specialization').nullable(),
       assistantId: z.string().nullable(),
       durationMs: z.number()
     })
@@ -88,7 +88,7 @@ const StageOutputItemSchema = z
   })
   .strict()
   .refine((value) => Boolean(value.fileKey) !== Boolean(value.reuseInput), {
-    message: 'Choose exactly one output source'
+    message: 'Phải chọn đúng một nguồn đầu ra'
   })
 
 export const ConfirmStageOutputsBodySchema = z

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { ChapterStatus, ManuscriptStatus, NameStatus, PageStatus, ProductionStageStatus } from '@prisma/client'
+import { ChapterStatus, ManuscriptStatus, StoryboardStatus, PageStatus, ProductionStageStatus } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { zObjectId } from 'src/core/http/schemas/object-id.schema'
 import { WARNING_LEVEL } from '../chapter.constant'
@@ -16,7 +16,8 @@ export const CreateChapterBodySchema = extendApi(
     .strict(),
   {
     title: 'CreateChapterBody',
-    description: 'Tạo chapter (chapter-first): chapterNumber + title; Name tạo sau qua POST /chapters/:id/names'
+    description:
+      'Tạo chapter (chapter-first): chapterNumber + title; Storyboard tạo sau qua POST /chapters/:id/storyboards'
   }
 )
 
@@ -133,7 +134,7 @@ export const ChapterResSchema = extendApi(
   z.object({
     id: z.string(),
     seriesId: z.string(),
-    nameId: z.string().nullable(),
+    storyboardId: z.string().nullable(),
     chapterNumber: z.number(),
     title: z.string().nullable(),
     totalPages: z.number().nullable(),
@@ -186,7 +187,9 @@ export const PageListResSchema = extendApi(z.object({ items: z.array(PageResSche
 export const ChapterProgressResSchema = extendApi(
   z.object({
     chapterId: z.string(),
-    nameStatus: zEnum(NameStatus, 'NameStatus').nullable().describe('null = chapter không gắn Name'),
+    storyboardStatus: zEnum(StoryboardStatus, 'StoryboardStatus')
+      .nullable()
+      .describe('null = chapter không gắn Storyboard'),
     totalPages: z.number(),
     pagesReady: z.number().describe('Số trang đã hết task mở (sẵn sàng nộp)'),
     pagesPending: z.number().describe('Số trang còn task đang mở'),

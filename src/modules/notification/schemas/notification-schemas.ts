@@ -29,6 +29,7 @@ export const NotificationResSchema = extendApi(
       .string()
       .nullable()
       .describe('Mã action liên quan đến referenceId, ví dụ TASK_APPROVED hoặc CHAPTER_PUBLISHED'),
+    title: z.string().describe('Tiêu đề ngắn suy từ referenceType; luôn có giá trị'),
     content: z.string().nullable().describe('Nội dung hiển thị; notification mới luôn có content'),
     isRead: z.boolean(),
     createdAt: z.string().describe('ISO 8601')

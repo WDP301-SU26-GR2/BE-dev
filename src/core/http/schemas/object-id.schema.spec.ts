@@ -11,6 +11,11 @@ describe('ObjectId schema', () => {
     expect(zObjectId().safeParse(value).success).toBe(false)
   })
 
+  it('uses a Vietnamese default validation message', () => {
+    const result = zObjectId().safeParse('bad')
+    expect(result.error?.issues[0]?.message).toBe('Mã định danh không hợp lệ')
+  })
+
   it('preserves an entity-specific validation message', () => {
     const result = zObjectId('pageId is invalid').safeParse('bad')
     expect(result.error?.issues[0]?.message).toBe('pageId is invalid')

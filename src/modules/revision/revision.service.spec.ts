@@ -12,7 +12,7 @@ const RESOLVED_AT = new Date('2026-07-14T01:00:00Z')
 
 const row = {
   id: REV_ID,
-  targetType: RevisionTargetType.NAME,
+  targetType: RevisionTargetType.STORYBOARD,
   targetId: TARGET,
   seriesId: null,
   round: 1,
@@ -49,7 +49,7 @@ const make = (deps: ReturnType<typeof makeDeps>) =>
   new RevisionService(deps.repo as unknown as RevisionRepository, deps.notification as unknown as NotificationService)
 
 const openInput = {
-  targetType: RevisionTargetType.NAME,
+  targetType: RevisionTargetType.STORYBOARD,
   targetId: TARGET,
   seriesId: null,
   reason: 'fix panel 3',
@@ -89,14 +89,14 @@ describe('RevisionService.currentRound', () => {
     const deps = makeDeps()
     deps.repo.countByTarget.mockResolvedValue(2)
 
-    await expect(make(deps).currentRound(RevisionTargetType.NAME, TARGET)).resolves.toBe(2)
+    await expect(make(deps).currentRound(RevisionTargetType.STORYBOARD, TARGET)).resolves.toBe(2)
   })
 
   it('returns 0 when the DB errors (never throws)', async () => {
     const deps = makeDeps()
     deps.repo.countByTarget.mockRejectedValue(new Error('mongo down'))
 
-    await expect(make(deps).currentRound(RevisionTargetType.NAME, TARGET)).resolves.toBe(0)
+    await expect(make(deps).currentRound(RevisionTargetType.STORYBOARD, TARGET)).resolves.toBe(0)
   })
 })
 

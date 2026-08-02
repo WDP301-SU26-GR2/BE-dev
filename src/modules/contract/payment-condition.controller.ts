@@ -16,6 +16,7 @@ import {
   ContractNotFoundForPaymentException,
   PaymentConditionNotEditableException,
   PaymentConditionNotFoundException,
+  PaymentPayoutExceedsCapException,
   UnauthorizedPaymentConditionEditorException
 } from '../payment/errors/payment.error'
 import { PaymentService } from '../payment/services/payment.service'
@@ -32,11 +33,15 @@ export class PaymentConditionController {
   @ApiOperation({ summary: 'Editor tạo điều kiện thanh toán cho hợp đồng' })
   @Post(':contractId/payment-conditions')
   @ApiResponse({ status: 422, description: 'Validation fail' })
-  @ApiErrors(new ContractNotFoundForPaymentException(), new UnauthorizedPaymentConditionEditorException())
+  @ApiErrors(
+    new ContractNotFoundForPaymentException(),
+    new UnauthorizedPaymentConditionEditorException(),
+    new PaymentPayoutExceedsCapException()
+  )
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 201, type: PaymentConditionResDto })
   createPaymentCondition(
-    @Param('contractId') contractId: string,
+    @Param('contractId', ContractIdParamPipe) contractId: string,
     @ActiveUser('userId') editorId: string,
     @Body() dto: CreatePaymentConditionBodyDto
   ) {
@@ -64,13 +69,14 @@ export class PaymentConditionController {
     new ContractNotFoundForPaymentException(),
     new UnauthorizedPaymentConditionEditorException(),
     new PaymentConditionNotFoundException(),
-    new PaymentConditionNotEditableException()
+    new PaymentConditionNotEditableException(),
+    new PaymentPayoutExceedsCapException()
   )
   @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 200, type: PaymentConditionResDto })
   updatePaymentCondition(
-    @Param('contractId') contractId: string,
-    @Param('conditionId') conditionId: string,
+    @Param('contractId', ContractIdParamPipe) contractId: string,
+    @Param('conditionId', PaymentConditionIdParamPipe) conditionId: string,
     @ActiveUser('userId') editorId: string,
     @Body() dto: UpdatePaymentConditionBodyDto
   ) {

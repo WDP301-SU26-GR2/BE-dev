@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
-import { $Enums } from '@prisma/client'
-import { zEnum } from 'src/core/http/docs/enum-docs'
+import { $Enums, RoleCode } from '@prisma/client'
+import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
 import { UserMiniSchema } from 'src/core/models/user-mini.model'
 
@@ -87,7 +87,7 @@ export const AmendmentSignatureResSchema = z.object({
   id: z.string(),
   amendmentId: z.string(),
   userId: z.string(),
-  role: z.string(),
+  role: zEnumString({ BOARD_MEMBER: RoleCode.BOARD_MEMBER }, 'AmendmentSignerRole'),
   signedAt: zDateField()
 })
 

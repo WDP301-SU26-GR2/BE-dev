@@ -13,9 +13,9 @@ import {
 } from './contract-amendment-schema'
 
 const baseContract = {
-  seriesId: 'series',
-  mangakaId: 'mangaka',
-  boardDecisionId: 'decision',
+  seriesId: '507f1f77bcf86cd799439011',
+  mangakaId: '507f1f77bcf86cd799439012',
+  boardDecisionId: '507f1f77bcf86cd799439013',
   contractType: 'REVENUE_SHARE',
   valuationAmount: 1_000,
   publisherOwnershipPct: 60,
@@ -33,7 +33,7 @@ describe('contract input business rules', () => {
     expect(parsed.contractEnd).toEqual(new Date(baseContract.contractEnd))
   })
 
-  it('requires a 100 percent ownership split except for a full buyout', () => {
+  it('enforces ownership split by contract type', () => {
     expect(
       CreateContractBodySchema.safeParse({ ...baseContract, publisherOwnershipPct: 80, mangakaOwnershipPct: 30 })
         .success
@@ -43,17 +43,22 @@ describe('contract input business rules', () => {
         ...baseContract,
         contractType: 'FULL_BUYOUT',
         publisherOwnershipPct: 80,
-        mangakaOwnershipPct: 30
+        mangakaOwnershipPct: 20
+      }).success
+    ).toBe(false)
+    expect(
+      CreateContractBodySchema.safeParse({
+        ...baseContract,
+        contractType: 'FULL_BUYOUT',
+        publisherOwnershipPct: 100,
+        mangakaOwnershipPct: 0
       }).success
     ).toBe(true)
   })
 
-  it('requires ownership percentages to be changed as one consistent pair', () => {
-    expect(EditorUpdateContractBodySchema.safeParse({ publisherOwnershipPct: 60 }).success).toBe(false)
-    expect(EditorUpdateContractBodySchema.safeParse({ mangakaOwnershipPct: 40 }).success).toBe(false)
-    expect(
-      EditorUpdateContractBodySchema.safeParse({ publisherOwnershipPct: 70, mangakaOwnershipPct: 40 }).success
-    ).toBe(false)
+  it('allows partial update payloads; merged money invariants are enforced by the service', () => {
+    expect(EditorUpdateContractBodySchema.safeParse({ publisherOwnershipPct: 60 }).success).toBe(true)
+    expect(EditorUpdateContractBodySchema.safeParse({ mangakaOwnershipPct: 40 }).success).toBe(true)
     expect(
       EditorUpdateContractBodySchema.safeParse({ publisherOwnershipPct: 60, mangakaOwnershipPct: 40 }).success
     ).toBe(true)

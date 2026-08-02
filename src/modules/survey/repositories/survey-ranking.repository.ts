@@ -71,6 +71,22 @@ export class SurveyRankingRepository {
     })
   }
 
+  findInternalByPeriodIds(surveyPeriodIds: string[]) {
+    if (surveyPeriodIds.length === 0) return Promise.resolve([])
+    return this.prisma.rankingRecord.findMany({
+      where: { surveyPeriodId: { in: surveyPeriodIds } },
+      orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }],
+      select: {
+        seriesId: true,
+        surveyPeriodId: true,
+        isAtRisk: true,
+        riskLevel: true,
+        isReliable: true,
+        recordedAt: true
+      }
+    })
+  }
+
   async finalizeScoped(surveyPeriodId: string, records: FinalizedRankingRecordData[]): Promise<boolean> {
     return this.prisma.$transaction(async (transaction) => {
       const claimed = await transaction.surveyPeriod.updateMany({

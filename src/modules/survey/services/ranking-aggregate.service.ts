@@ -1,62 +1,28 @@
 import { Injectable } from '@nestjs/common'
-import { PublicationType } from '@prisma/client'
+import { RiskLevel } from '@prisma/client'
 import { createHash } from 'crypto'
 import { RANKING_IMMUTABLE_TTL_SEC } from 'src/infrastructure/redis/cache.constant'
 import { CacheService } from 'src/infrastructure/redis/cache.service'
 import { AppConfigService } from 'src/modules/app-config/app-config.service'
 import { SurveyRepository } from '../survey.repo'
+import type {
+  AggregateRankingRecord,
+  InternalRankingAggregateResult,
+  InternalRankingRecord,
+  RankingAggregateItem,
+  RankingAggregateLevel,
+  RankingAggregateQuery,
+  RankingAggregateRepository,
+  RankingAggregateResult
+} from './ranking-aggregate.types'
 
-export type RankingAggregateLevel = 'MONTH' | 'YEAR'
-
-export type RankingAggregateQuery = {
-  magazine: string
-  publicationType: PublicationType
-  level: RankingAggregateLevel
-  year: number
-  month?: number
-}
-
-type ScopedPeriod = { id: string }
-
-type AggregateRankingRecord = {
-  seriesId: string
-  surveyPeriodId: string
-  voteCount: number
-  normalizedScore: number
-}
-
-type RankingAggregateRepository = {
-  findReflectedScopedPeriodsInRange(
-    magazine: string,
-    publicationType: PublicationType,
-    from: Date,
-    to: Date
-  ): Promise<ScopedPeriod[]>
-  findRankingRecordsByPeriodIds(periodIds: string[]): Promise<AggregateRankingRecord[]>
-  findSeriesTitlesByIds(seriesIds: string[]): Promise<Array<{ id: string; title: string }>>
-}
-
-export type RankingAggregateItem = {
-  rankPosition: number
-  seriesId: string
-  seriesTitle: string | null
-  reflectedIssueCount: number
-  totalWeightedVoteCount: number
-  participatedIssueCount: number
-  participationCoverage: number
-  averageNormalizedScore: number
-  isProvisional: boolean
-}
-
-export type RankingAggregateResult = {
-  magazine: string
-  publicationType: PublicationType
-  level: RankingAggregateLevel
-  year: number
-  month?: number
-  reflectedIssueCount: number
-  items: RankingAggregateItem[]
-}
+export type {
+  InternalRankingAggregateResult,
+  RankingAggregateItem,
+  RankingAggregateLevel,
+  RankingAggregateQuery,
+  RankingAggregateResult
+} from './ranking-aggregate.types'
 
 @Injectable()
 export class RankingAggregateService {
@@ -67,8 +33,28 @@ export class RankingAggregateService {
   ) {}
 
   async getAggregate(query: RankingAggregateQuery): Promise<RankingAggregateResult> {
+    return this.getAggregateResult(query, false)
+  }
+
+  async getInternalAggregate(query: RankingAggregateQuery): Promise<InternalRankingAggregateResult> {
+    return this.getAggregateResult(query, true)
+  }
+
+  private getAggregateResult(
+    query: RankingAggregateQuery,
+    includeInternalSignals: false
+  ): Promise<RankingAggregateResult>
+  private getAggregateResult(
+    query: RankingAggregateQuery,
+    includeInternalSignals: true
+  ): Promise<InternalRankingAggregateResult>
+  private async getAggregateResult(
+    query: RankingAggregateQuery,
+    includeInternalSignals: boolean
+  ): Promise<RankingAggregateResult | InternalRankingAggregateResult> {
     const magazine = query.magazine.trim()
-    const suffix = this.cacheSuffix({ ...query, magazine })
+    const baseSuffix = this.cacheSuffix({ ...query, magazine })
+    const suffix = includeInternalSignals ? `internal:${baseSuffix}` : baseSuffix
 
     return this.cacheService.getOrSet('ranking', suffix, RANKING_IMMUTABLE_TTL_SEC, async () => {
       const { from, to } = this.resolveRange(query.level, query.year, query.month)
@@ -78,19 +64,39 @@ export class RankingAggregateService {
       ])
       const reflectedIssueCount = periods.length
       const periodIds = periods.map((period) => period.id)
-      const records = await this.aggregateRepository.findRankingRecordsByPeriodIds(periodIds)
+      const [records, internalRecords] = await Promise.all([
+        this.aggregateRepository.findRankingRecordsByPeriodIds(periodIds),
+        includeInternalSignals
+          ? this.aggregateRepository.findInternalRankingRecordsByPeriodIds(periodIds)
+          : Promise.resolve([])
+      ])
       const titleBySeriesId = new Map(
         (
           await this.aggregateRepository.findSeriesTitlesByIds([...new Set(records.map((record) => record.seriesId))])
         ).map((series) => [series.id, series.title])
       )
 
-      const items = this.aggregate(
+      const publicItems = this.aggregate(
         records,
         reflectedIssueCount,
         config.rankingAggregateMinCoverageRatio,
         titleBySeriesId
       )
+      const latestSignals = new Map<string, InternalRankingRecord>()
+      for (const record of internalRecords) {
+        if (!latestSignals.has(record.seriesId)) latestSignals.set(record.seriesId, record)
+      }
+      const items = includeInternalSignals
+        ? publicItems.map((item) => {
+            const signal = latestSignals.get(item.seriesId)
+            return {
+              ...item,
+              isAtRisk: signal?.isAtRisk ?? false,
+              riskLevel: signal?.riskLevel ?? RiskLevel.NONE,
+              isReliable: signal?.isReliable ?? false
+            }
+          })
+        : publicItems
       return {
         magazine,
         publicationType: query.publicationType,

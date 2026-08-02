@@ -5,7 +5,7 @@ const chapterId = '0123456789abcdef01234567'
 
 const createFixture = () => {
   const tx = {
-    name: { deleteMany: jest.fn() },
+    storyboard: { deleteMany: jest.fn() },
     manuscript: { deleteMany: jest.fn(), update: jest.fn() },
     schedule: { deleteMany: jest.fn() },
     page: { deleteMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
@@ -20,7 +20,7 @@ const createFixture = () => {
   }
   const prisma = {
     series: { findUnique: jest.fn(), findMany: jest.fn() },
-    name: { findUnique: jest.fn(), update: jest.fn() },
+    storyboard: { findUnique: jest.fn(), update: jest.fn() },
     contract: { findFirst: jest.fn() },
     chapter: {
       count: jest.fn(),
@@ -57,13 +57,13 @@ describe('ChapterRepository workflow persistence', () => {
     prisma.chapter.findUnique.mockResolvedValue({ id: chapterId, manuscript: {}, schedule: {} })
 
     await expect(
-      repo.createChapter({ seriesId: 'series', chapterNumber: 2, title: undefined, nameId: undefined })
+      repo.createChapter({ seriesId: 'series', chapterNumber: 2, title: undefined, storyboardId: undefined })
     ).resolves.toMatchObject({ id: chapterId })
 
     expect(prisma.chapter.create).toHaveBeenCalledWith({
       data: {
         seriesId: 'series',
-        nameId: null,
+        storyboardId: null,
         chapterNumber: 2,
         title: null,
         status: ChapterStatus.DRAFT
@@ -78,12 +78,21 @@ describe('ChapterRepository workflow persistence', () => {
   it('filters published and held chapters from deadline warnings', async () => {
     const { prisma, repo } = createFixture()
     prisma.schedule.findMany.mockResolvedValue([
-      { chapterId: 'eligible', chapter: { seriesId: 's1', status: ChapterStatus.DRAFT, hold: null } },
+      {
+        chapterId: 'eligible',
+        chapter: {
+          seriesId: 's1',
+          status: ChapterStatus.DRAFT,
+          hold: null,
+          chapterNumber: 2,
+          series: { title: 'Bộ truyện thử' }
+        }
+      },
       { chapterId: 'published', chapter: { seriesId: 's2', status: ChapterStatus.PUBLISHED, hold: null } },
       { chapterId: 'held', chapter: { seriesId: 's3', status: ChapterStatus.DRAFT, hold: { reason: 'pause' } } }
     ])
     await expect(repo.findChaptersNearDeadline(new Date())).resolves.toEqual([
-      { chapterId: 'eligible', seriesId: 's1' }
+      { chapterId: 'eligible', seriesId: 's1', chapterNumber: 2, seriesTitle: 'Bộ truyện thử' }
     ])
   })
 
@@ -213,7 +222,7 @@ describe('ChapterRepository workflow persistence', () => {
   it('deletes the complete chapter aggregate in one transaction', async () => {
     const { tx, repo } = createFixture()
     await repo.deleteChapterCascade(chapterId)
-    expect(tx.name.deleteMany).toHaveBeenCalledWith({ where: { chapterId } })
+    expect(tx.storyboard.deleteMany).toHaveBeenCalledWith({ where: { chapterId } })
     expect(tx.chapterCoOwnerApproval.deleteMany).toHaveBeenCalledWith({ where: { chapterId } })
     expect(tx.deadlineRequest.deleteMany).toHaveBeenCalledWith({ where: { chapterId } })
     expect(tx.chapter.delete).toHaveBeenCalledWith({ where: { id: chapterId } })

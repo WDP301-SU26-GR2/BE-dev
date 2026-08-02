@@ -1,4 +1,4 @@
-import { PublicationType } from '@prisma/client'
+import { PublicationType, RiskLevel } from '@prisma/client'
 import { createHash } from 'crypto'
 import { RankingAggregateQuerySchema } from '../schemas/survey-schemas'
 import { RankingAggregateService } from './ranking-aggregate.service'
@@ -9,6 +9,7 @@ function make() {
   const repository = {
     findReflectedScopedPeriodsInRange: jest.fn(),
     findRankingRecordsByPeriodIds: jest.fn(),
+    findInternalRankingRecordsByPeriodIds: jest.fn(),
     findSeriesTitlesByIds: jest.fn()
   }
   const appConfigService = { get: jest.fn().mockResolvedValue({ rankingAggregateMinCoverageRatio: 0.5 }) }
@@ -138,6 +139,67 @@ describe('RankingAggregateService', () => {
     })
 
     expect(result.items.map((item) => item.seriesId)).toEqual(['a', 'b', 'z'])
+  })
+
+  it('adds only the latest per-series internal risk signals to the authenticated aggregate', async () => {
+    const { service, repository } = make()
+    repository.findReflectedScopedPeriodsInRange.mockResolvedValue([period('p1'), period('p2')])
+    repository.findRankingRecordsByPeriodIds.mockResolvedValue([
+      { seriesId: 'a', surveyPeriodId: 'p1', voteCount: 4, normalizedScore: 0.4 },
+      { seriesId: 'a', surveyPeriodId: 'p2', voteCount: 6, normalizedScore: 0.6 }
+    ])
+    repository.findInternalRankingRecordsByPeriodIds.mockResolvedValue([
+      {
+        seriesId: 'a',
+        surveyPeriodId: 'p2',
+        isAtRisk: true,
+        riskLevel: RiskLevel.MEDIUM,
+        isReliable: true,
+        recordedAt: new Date('2026-07-08T00:00:00.000Z')
+      },
+      {
+        seriesId: 'a',
+        surveyPeriodId: 'p1',
+        isAtRisk: false,
+        riskLevel: RiskLevel.NONE,
+        isReliable: false,
+        recordedAt: new Date('2026-07-01T00:00:00.000Z')
+      }
+    ])
+    repository.findSeriesTitlesByIds.mockResolvedValue([{ id: 'a', title: 'A' }])
+
+    const result = await service.getInternalAggregate({
+      magazine: ' Jump ',
+      publicationType: PublicationType.WEEKLY,
+      level: 'YEAR',
+      year: 2026
+    })
+
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({ isAtRisk: true, riskLevel: RiskLevel.MEDIUM, isReliable: true })
+    )
+    expect(repository.findInternalRankingRecordsByPeriodIds).toHaveBeenCalledWith(['p1', 'p2'])
+  })
+
+  it('keeps the public aggregate result free of internal risk signals', async () => {
+    const { service, repository } = make()
+    repository.findReflectedScopedPeriodsInRange.mockResolvedValue([period('p1')])
+    repository.findRankingRecordsByPeriodIds.mockResolvedValue([
+      { seriesId: 'a', surveyPeriodId: 'p1', voteCount: 4, normalizedScore: 1 }
+    ])
+    repository.findSeriesTitlesByIds.mockResolvedValue([{ id: 'a', title: 'A' }])
+
+    const result = await service.getAggregate({
+      magazine: 'Jump',
+      publicationType: PublicationType.WEEKLY,
+      level: 'YEAR',
+      year: 2026
+    })
+
+    expect(result.items[0]).not.toHaveProperty('isAtRisk')
+    expect(result.items[0]).not.toHaveProperty('riskLevel')
+    expect(result.items[0]).not.toHaveProperty('isReliable')
+    expect(repository.findInternalRankingRecordsByPeriodIds).not.toHaveBeenCalled()
   })
 })
 

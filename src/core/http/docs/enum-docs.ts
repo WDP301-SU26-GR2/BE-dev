@@ -22,11 +22,11 @@ export const ENUM_DOCS = {
   StudioAssignmentStatus: 'Trạng thái hợp tác studio: ACTIVE, COMPLETED, TERMINATED',
   SeriesStatus: 'Series state machine status',
   ProposalStatus: 'Series proposal review status',
-  NameStatus: 'Name/chapter-name review status',
-  NameKind: 'Name storyboard kind: PROPOSAL (proposal chapter-sample) or CHAPTER (per-chapter storyboard)',
+  StoryboardStatus:
+    'Trạng thái bản phác thảo của chương: DRAFT (đang soạn) → SUBMITTED (đã nộp) → IN_REVIEW (Editor đang xem) ⇄ REVISION (cần sửa) → APPROVED (đã duyệt)',
   ChapterStatus: 'Chapter production status',
   ManuscriptStatus: {
-    DRAFT: 'Chapter mới tạo, chưa có trang (đang ở khâu Name).',
+    DRAFT: 'Chapter mới tạo, chưa có trang; chờ duyệt Storyboard trước khi sản xuất.',
     IN_PRODUCTION: 'Đang sản xuất trang.',
     EDITOR_REVIEW: 'Đã nộp, Editor đang duyệt.',
     EDITOR_REVISION: 'Editor yêu cầu sửa.',
@@ -39,13 +39,13 @@ export const ENUM_DOCS = {
     COMPLETED: 'Đã nộp, đang ở tay Editor. KHÔNG sửa được.',
     REVISING: 'Editor (hoặc co-owner) yêu cầu sửa — mở khoá sửa lại.'
   },
-  AnnotationTargetType: 'Annotation target: PAGE, REGION, TASK, MANUSCRIPT, NAME',
+  AnnotationTargetType: 'Đối tượng chú thích: PAGE, REGION, TASK, MANUSCRIPT, STORYBOARD',
   AnnotationType: 'Annotation type: TEXT, HIGHLIGHT, DRAWING',
   ReviewStage: 'Review stage: ASSISTANT, MANGAKA, EDITOR',
   AssetType:
     'Uploaded asset type: REFERENCE, BACKGROUND, SCREENTONE, BRUSH, OTHER, DOCUMENT (system-generated documents)',
   NotificationType: 'Notification type: SYSTEM, CONTRACT, TASK, DEADLINE, SURVEY, BOARD, REVIEW',
-  RevisionTargetType: 'Đối tượng của vòng yêu cầu sửa: PROPOSAL, NAME, MANUSCRIPT, TASK',
+  RevisionTargetType: 'Đối tượng của vòng yêu cầu sửa: PROPOSAL, STORYBOARD, MANUSCRIPT, TASK',
   AiJobType: 'AI job type: SEGMENT; COLOR/NUMBER are reserved for Spec 3',
   AiJobStatus: 'AI job lifecycle: QUEUED -> RUNNING -> SUCCEEDED | FAILED',
   AiSegmentMode: 'Segmentation mode: MODEL (YOLO deep learning) or HEURISTIC (OpenCV baseline)',
@@ -77,8 +77,19 @@ export const ENUM_DOCS = {
     'Giai đoạn trong phiên họp Board: PRESENTING (editor trình bày hồ sơ), QA (Board hỏi đáp qua chat), VOTING (chỉ bỏ phiếu — chat bị khóa)',
   ContractType:
     'Loại hợp đồng: FULL_BUYOUT (NXB mua đứt 100%, toàn quyền) | REVENUE_SHARE (ăn chia %, quyết định lớn cần Mangaka đồng ý) — BR-CONTRACT-03',
-  ContractStatus:
-    'Vòng đời hợp đồng: DRAFT → MANGAKA_REVIEW → MANGAKA_APPROVED → BOARD_APPROVED → NEGOTIATION → MANGAKA_SIGNED → FULLY_EXECUTED (khoá); kết thúc: FULFILLED | TERMINATED | TERMINATED_BY_BREACH | EXPIRED | VOIDED',
+  ContractStatus: {
+    DRAFT: 'Editor đang soạn; có thể cập nhật điều khoản và payment conditions.',
+    BOARD_REVIEW: 'Editor đã submit; chờ một Board representative trong roster claim và ký.',
+    AWAITING_MANGAKA: 'Board representative đã ký; chờ Mangaka chấp nhận/ký hoặc từ chối.',
+    ACTIVATION_PENDING: 'Replacement contract đã đủ chữ ký; chờ transfer finalizer kích hoạt và terminate hợp đồng cũ.',
+    FULLY_EXECUTED: 'Hợp đồng đã đủ chữ ký và có hiệu lực.',
+    REJECTED_BY_MANGAKA: 'Mangaka từ chối sau bước Board representative ký; Editor có thể redraft.',
+    FULFILLED: 'Hợp đồng đã hoàn thành nghĩa vụ.',
+    TERMINATED: 'Hợp đồng đã chấm dứt.',
+    TERMINATED_BY_BREACH: 'Hợp đồng chấm dứt do vi phạm.',
+    EXPIRED: 'Hợp đồng hết hạn.',
+    VOIDED: 'Hợp đồng nháp/đang ký đã bị vô hiệu hoá.'
+  },
   ContractAmendmentStatus:
     'Vòng đời phụ lục hợp đồng: DRAFT → PENDING_SIGNATURES → FULLY_EXECUTED | VOIDED (reject → về DRAFT)',
   AmendmentTrigger:
@@ -101,7 +112,12 @@ export const ENUM_DOCS = {
     'Vòng đời kỳ bình chọn: DRAFT → OPEN (đang nhận phiếu) → CLOSED → REFLECTED (đã chốt ranking, công khai được)',
   BoardDecisionResult:
     'Kết quả quyết định Hội đồng: PENDING (đang bỏ phiếu), PENDING_QUORUM (chưa đủ quorum), APPROVED (thông qua), REJECTED (bác bỏ), EXPIRED (phiên đóng khi chưa chốt → cần mở phiên mới)',
-  VoteValue: 'Giá trị phiếu bầu của thành viên Hội đồng: APPROVE, REJECT, ABSTAIN'
+  VoteValue: 'Giá trị phiếu bầu của thành viên Hội đồng: APPROVE, REJECT, ABSTAIN',
+  ExperienceLevel: 'Mức kinh nghiệm hồ sơ: JUNIOR, MID, SENIOR',
+  PaymentMethod: 'Phương thức thanh toán: BANK_TRANSFER hoặc CASH',
+  DeadlineSide: 'Phe thương lượng hạn nộp: MANGAKA hoặc EDITOR',
+  RegionSource: 'Nguồn tạo vùng: MANUAL hoặc AI',
+  PublicationVersionType: 'Loại phiên bản phát hành: ORIGINAL, DIGITAL hoặc FLIPPED'
 } as const
 
 type EnumDocKey = keyof typeof ENUM_DOCS
@@ -120,6 +136,12 @@ const describeEnum = <T extends EnumLike>(enumObject: T, key: string) => {
 
 export function zEnum<T extends EnumLike>(enumObject: T, key: string) {
   return z.enum(valuesOf(enumObject)).describe(describeEnum(enumObject, key))
+}
+
+// Response fields backed by legacy Mongo String columns need a broad TypeScript
+// type while retaining strict runtime validation and enum metadata in Swagger.
+export function zEnumString<T extends EnumLike>(enumObject: T, key: string): z.ZodType<string> {
+  return zEnum(enumObject, key) as z.ZodType<string>
 }
 
 export function zRole() {

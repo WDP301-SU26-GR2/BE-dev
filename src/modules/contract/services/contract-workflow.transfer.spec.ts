@@ -5,7 +5,7 @@ import { ContractWorkflowService } from './contract-workflow.service'
 describe('ContractWorkflowService transfer settlement capability', () => {
   const setup = () => {
     const repository = { compareAndSetStatusInTransaction: jest.fn().mockResolvedValue(true) }
-    const service = new ContractWorkflowService(repository as never, {} as never, {} as never)
+    const service = new ContractWorkflowService(repository as never, {} as never, {} as never, {} as never)
     return { service, repository }
   }
 

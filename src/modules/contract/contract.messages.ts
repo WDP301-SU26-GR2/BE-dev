@@ -5,36 +5,35 @@ export const ContractMessages = {
   response: {
     // Có sẵn ở contract.service — giữ tập trung tại đây cho dễ i18n sau này.
     contractDraftCreated: 'Đã tạo bản nháp hợp đồng',
-    contractSentToMangaka: 'Đã gửi hợp đồng cho Mangaka xem xét',
-    contractMangakaApproved: 'Mangaka đã đồng ý các điều khoản hợp đồng.',
-    contractBoardApproved: 'Hội đồng đã duyệt điều khoản — sẵn sàng ký.',
-    contractMangakaRequestedChanges: 'Mangaka yêu cầu chỉnh sửa điều khoản hợp đồng.',
-    contractBoardRequestedChanges: 'Hội đồng yêu cầu chỉnh sửa điều khoản — cần gửi lại Mangaka duyệt.',
-    boardSignaturesCompleted: 'Toàn bộ thành viên Hội đồng đã ký hợp đồng',
     replacementAwaitingActivation: 'Hợp đồng thay thế đã ký đủ và đang chờ kích hoạt chuyển nhượng',
-    boardSignatureRecorded: (signed: number, required: number) =>
-      `Đã ghi nhận chữ ký. Đang chờ các thành viên Hội đồng còn lại (${signed}/${required})`,
-    revenueRecorded: 'Đã ghi nhận doanh thu, hệ thống đang chia theo hợp đồng.'
+    revenueRecorded: 'Đã ghi nhận doanh thu, hệ thống đang chia theo hợp đồng.',
+    submittedForReview: 'Đã gửi hợp đồng để Hội đồng xem xét nội bộ.',
+    representativeClaimed: 'Đã nhận vai trò đại diện ký hợp đồng.',
+    representativeReleased: 'Đã nhả vai trò đại diện ký hợp đồng.',
+    representativeAssigned: 'Đã gán đại diện ký hợp đồng.',
+    representativeSigned: 'Đại diện Hội đồng đã ký, hợp đồng đang chờ tác giả.',
+    mangakaRejected: 'Tác giả đã từ chối hợp đồng.',
+    redrafted: 'Đã tạo bản nháp hợp đồng mới từ hợp đồng bị từ chối.',
+    commentAdded: 'Đã thêm góp ý hợp đồng.'
   },
   notification: {
     // Content thông báo gửi tới editor / mangaka / board — string thuần, không có tham số động.
     contractDraftCreatedEditor: 'Bản hợp đồng nháp đã được tạo thành công.',
     contractDraftCreatedMangaka: 'Một hợp đồng mới đã được tạo cho bạn và đang chờ xem xét.',
-    contractSentToMangaka: 'Hợp đồng đã được gửi cho bạn để xem xét và ký kết.',
-    contractUpdated: 'Hợp đồng đã được editor cập nhật và cần bạn xem xét lại.',
-    contractMangakaApproved: 'Mangaka đã đồng ý các điều khoản hợp đồng.',
-    // Lý do bắt buộc (B-CON-02): Editor phải biết SỬA GÌ, không chỉ biết "có người đòi sửa".
-    mangakaRequestedChanges: (reason: string) => `Mangaka yêu cầu chỉnh sửa điều khoản hợp đồng. Lý do: ${reason}`,
-    boardApproved: 'Hội đồng đã duyệt điều khoản — sẵn sàng ký.',
-    boardRequestedChanges: (reason: string) =>
-      `Hội đồng yêu cầu chỉnh sửa điều khoản — cần gửi lại Mangaka duyệt. Lý do: ${reason}`,
+    contractUpdated: 'Hợp đồng đã được biên tập viên cập nhật và cần bạn xem xét lại.',
     contractFullyExecutedMangaka: 'Hợp đồng đã được ký kết hoàn tất.',
     contractFullyExecutedEditor: 'Hợp đồng đã được ký kết hoàn tất.',
+    representativeNeeded: 'Hợp đồng đang chờ một thành viên Hội đồng nhận làm đại diện ký.',
+    representativeAssigned: 'Bạn đã được gán làm đại diện ký hợp đồng.',
+    representativeSigned: 'Đại diện Hội đồng đã ký hợp đồng. Vui lòng xem xét và ký hoặc từ chối.',
+    mangakaRejected: (reason: string) => `Tác giả đã từ chối hợp đồng. Lý do: ${reason}`,
+    redrafted: 'Một bản nháp hợp đồng mới đã được tạo sau khi hợp đồng trước bị từ chối.',
+    repClaimEscalated: 'Hợp đồng quá hạn chưa có đại diện Hội đồng nhận ký.',
     amendmentCreated: 'Một phụ lục hợp đồng đang được soạn — vui lòng theo dõi.',
     amendmentPendingSignatures: 'Phụ lục hợp đồng đã sẵn sàng để ký.',
     contractAmended: 'Điều khoản hợp đồng đã được cập nhật qua phụ lục.',
-    amendmentRejected: 'Mangaka đã từ chối phụ lục — vui lòng chỉnh sửa điều khoản.',
-    amendmentNeeded: 'Series cần phụ lục hợp đồng — vui lòng nhập điều khoản và trình ký.'
+    amendmentRejected: 'Tác giả đã từ chối phụ lục — vui lòng chỉnh sửa điều khoản.',
+    amendmentNeeded: 'Bộ truyện cần phụ lục hợp đồng — vui lòng nhập điều khoản và trình ký.'
   },
   error: {
     // Error.* code (FE map sang text hiển thị). KHÔNG hard-code chuỗi hiển thị ở service.
@@ -73,20 +72,28 @@ export const ContractMessages = {
     amendmentNotVoidable: 'Error.AmendmentNotVoidable',
     ownershipMismatch: 'Error.OwnershipMismatch',
     replacementActivationInvalid: 'Error.ReplacementActivationInvalid',
-    replacementActivationUnavailable: 'Error.ReplacementActivationUnavailable'
+    replacementActivationUnavailable: 'Error.ReplacementActivationUnavailable',
+    representativeAlreadyClaimed: 'Error.ContractRepresentativeAlreadyClaimed',
+    notInBoardRoster: 'Error.NotInContractBoardRoster',
+    notRepresentative: 'Error.NotContractRepresentative',
+    noRepresentative: 'Error.ContractNoRepresentative',
+    notInBoardReview: 'Error.ContractNotInBoardReview',
+    notAwaitingMangaka: 'Error.ContractNotAwaitingMangaka',
+    redraftNotAllowed: 'Error.ContractRedraftNotAllowed',
+    invalidContractMoney: 'Error.InvalidContractMoney'
   },
   errorText: {
     'Error.BoardDecisionNotFound': 'Không tìm thấy quyết định Hội đồng',
     'Error.InvalidSerializationDecision': 'Quyết định Hội đồng không hợp lệ để tạo hợp đồng serial hóa',
     'Error.InvalidContractDecision': 'Quyết định Hội đồng không khớp với hợp đồng hoặc phiên bản hiện hành',
     'Error.ContractApprovalDecisionRequired': 'Tài nguyên chưa có quyết định CONTRACT được Hội đồng phê duyệt',
-    'Error.ContractMangakaMismatch': 'Mangaka trong hợp đồng không phải chủ sở hữu Series',
-    'Error.OpenContractExists': 'Series hoặc quyết định này đã có hợp đồng chưa kết thúc',
+    'Error.ContractMangakaMismatch': 'Tác giả trong hợp đồng không phải chủ sở hữu bộ truyện',
+    'Error.OpenContractExists': 'Bộ truyện hoặc quyết định này đã có hợp đồng chưa kết thúc',
     'Error.InvalidContractTransition': 'Không thể chuyển hợp đồng sang trạng thái này',
     'Error.ContractNotSignableYet': 'Hợp đồng chưa sẵn sàng để ký',
-    'Error.NotContractMangaka': 'Bạn không phải Mangaka của hợp đồng này',
+    'Error.NotContractMangaka': 'Bạn không phải tác giả của hợp đồng này',
     'Error.ContractAccessDenied': 'Bạn không có quyền truy cập hợp đồng này',
-    'Error.SeriesNotSerialized': 'Series chưa được duyệt để phát hành dài kỳ',
+    'Error.SeriesNotSerialized': 'Bộ truyện chưa được duyệt để phát hành dài kỳ',
     'Error.ContractNotAmendable': 'Hợp đồng hiện không thể tạo phụ lục',
     'Error.OpenAmendmentExists': 'Hợp đồng đã có một phụ lục chưa hoàn tất',
     'Error.AmendmentNotFound': 'Không tìm thấy phụ lục hợp đồng',
@@ -98,15 +105,23 @@ export const ContractMessages = {
     'Error.OwnershipMismatch': 'Tỷ lệ sở hữu trong phụ lục không hợp lệ',
     'Error.ContractNotFound': 'Không tìm thấy hợp đồng',
     'Error.RevenueNotApplicable': 'Hợp đồng này không áp dụng chia doanh thu',
-    'Error.NotAssignedContractEditor': 'Chỉ Editor phụ trách mới được chỉnh sửa hợp đồng',
+    'Error.NotAssignedContractEditor': 'Chỉ biên tập viên phụ trách mới được chỉnh sửa hợp đồng',
     'Error.InvalidContractStatus': 'Trạng thái hợp đồng không phù hợp với thao tác này',
     'Error.ContractAlreadySigned': 'Bên này đã ký hợp đồng',
     'Error.ContractBoardDecisionMissing': 'Không tìm thấy quyết định Hội đồng của hợp đồng',
     'Error.NotAuthorizedInBoard': 'Bạn không thuộc Hội đồng được chỉ định cho hợp đồng này',
     'Error.BoardMemberAlreadySigned': 'Bạn đã ký hợp đồng này',
-    'Error.MangakaSignNotRequired': 'Hợp đồng này không yêu cầu chữ ký của Mangaka',
+    'Error.MangakaSignNotRequired': 'Hợp đồng này không yêu cầu chữ ký của tác giả',
     'Error.ContractNotExecutedForPdf': 'Hợp đồng chưa ký khoá — chỉ xuất PDF từ khi FULLY_EXECUTED',
     'Error.ReplacementActivationInvalid': 'Yêu cầu chuyển nhượng thiếu hợp đồng gốc',
-    'Error.ReplacementActivationUnavailable': 'Tạm thời chưa thể kích hoạt hợp đồng thay thế'
+    'Error.ReplacementActivationUnavailable': 'Tạm thời chưa thể kích hoạt hợp đồng thay thế',
+    'Error.ContractRepresentativeAlreadyClaimed': 'Hợp đồng đã có đại diện Hội đồng',
+    'Error.NotInContractBoardRoster': 'Bạn không thuộc roster Hội đồng của hợp đồng này',
+    'Error.NotContractRepresentative': 'Bạn không phải đại diện Hội đồng của hợp đồng này',
+    'Error.ContractNoRepresentative': 'Hợp đồng chưa có đại diện Hội đồng',
+    'Error.ContractNotInBoardReview': 'Hợp đồng không ở trạng thái Hội đồng xem xét',
+    'Error.ContractNotAwaitingMangaka': 'Hợp đồng không ở trạng thái chờ tác giả',
+    'Error.ContractRedraftNotAllowed': 'Chỉ có thể redraft hợp đồng đã bị tác giả từ chối',
+    'Error.InvalidContractMoney': 'Điều khoản tiền hoặc tỷ lệ sở hữu của hợp đồng không hợp lệ'
   }
 } as const

@@ -4,17 +4,18 @@ import {
   Demographic,
   FranchiseConsentStatus,
   Genre,
-  NameKind,
-  NameStatus,
   ProposalStatus,
   PublicationType,
   RelationshipType,
+  RoleCode,
   SeriesStatus
 } from '@prisma/client'
-import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
 import { UserMiniSchema } from 'src/core/models/user-mini.model'
 
-const NamePageSchema = z.object({ pageNumber: z.number().int().min(1), fileUrl: z.string().min(1) })
+export const StoryboardPageSchema = z
+  .object({ pageNumber: z.number().int().min(1), fileUrl: z.string().min(1) })
+  .strict()
 
 export const CreateProposalBodySchema = extendApi(
   z
@@ -27,12 +28,12 @@ export const CreateProposalBodySchema = extendApi(
       synopsis: z.string().max(5000).optional(),
       characterDesigns: z.array(z.string()).default([]),
       estimatedLength: z.number().int().min(1).optional(),
-      namePages: z.array(NamePageSchema).default([]),
+      storyboardPages: z.array(StoryboardPageSchema).default([]),
       parentSeriesId: z.string().optional(),
       relationshipType: zEnum(RelationshipType, 'RelationshipType').optional()
     })
     .strict(),
-  { title: 'CreateProposalBody', description: 'Tạo proposal + Name mẫu' }
+  { title: 'CreateProposalBody', description: 'Tạo proposal + trang phác thảo nộp kèm' }
 )
 
 export const UpdateProposalBodySchema = extendApi(
@@ -45,7 +46,8 @@ export const UpdateProposalBodySchema = extendApi(
       publicationType: zEnum(PublicationType, 'PublicationType').nullish(),
       synopsis: z.string().max(5000).nullish(),
       characterDesigns: z.array(z.string()).nullish(),
-      estimatedLength: z.number().int().min(1).nullish()
+      estimatedLength: z.number().int().min(1).nullish(),
+      storyboardPages: z.array(StoryboardPageSchema).nullish()
     })
     .strict(),
   { title: 'UpdateProposalBody', description: 'Sửa proposal (DRAFT/PROPOSAL_REVISION) - gửi field nào sửa field đó' }
@@ -119,7 +121,7 @@ export const SeriesResSchema = extendApi(
     // PB-06: completion proposal (Mangaka/Editor đề xuất kết thúc tự nhiên); null nếu chưa đề xuất.
     completionProposal: z
       .object({
-        proposedByRole: z.string().describe('Vai trò người đề xuất (MANGAKA|EDITOR)'),
+        proposedByRole: zEnumString({ MANGAKA: RoleCode.MANGAKA, EDITOR: RoleCode.EDITOR }, 'CompletionProposalRole'),
         proposedById: z.string().describe('UserId người đề xuất'),
         reason: z.string().describe('Lý do đề xuất'),
         proposedEndingChapters: z.number().int().nullable().describe('Số chương kết thúc dự kiến; null nếu không ghi'),
@@ -129,9 +131,11 @@ export const SeriesResSchema = extendApi(
       .describe('Đề xuất kết thúc tự nhiên (PB-06); null nếu chưa đề xuất'),
     proposal: z
       .object({
-        nameId: z.string().nullable().describe('Id Name chương mẫu gắn proposal'),
         synopsis: z.string().nullable(),
         characterDesigns: z.array(z.string()).describe('Mảng object key ảnh thiết kế nhân vật (R2)'),
+        storyboardPages: z
+          .array(StoryboardPageSchema)
+          .describe('Trang phác thảo chương mẫu nộp kèm hồ sơ; fileUrl là object key R2'),
         estimatedLength: z.number().nullable().describe('Số chương ước tính'),
         status: zEnum(ProposalStatus, 'ProposalStatus'),
         createdAt: z.string().describe('ISO 8601')
@@ -144,27 +148,6 @@ export const SeriesResSchema = extendApi(
     description: 'Series view (shape CHƯA bọc envelope — nằm trong `data`). Audit history không trả ở đây.'
   }
 )
-
-export const NameResSchema = extendApi(
-  z.object({
-    id: z.string(),
-    seriesId: z.string(),
-    chapterNumber: z.number().nullable().describe('null cho Name chương mẫu của proposal'),
-    // Spec 8: kind field exposed so FE can distinguish PROPOSAL vs CHAPTER on the bundled
-    // CreateProposalRes payload (and anywhere else series module returns a Name).
-    kind: zEnum(NameKind, 'NameKind'),
-    status: zEnum(NameStatus, 'NameStatus'),
-    version: z.number().describe('Tăng mỗi lần resubmit'),
-    submittedAt: z.string().nullable().describe('ISO 8601; null khi chưa submit'),
-    pages: z.array(NamePageSchema).describe('Các trang vẽ thô; fileUrl là object key (R2)')
-  }),
-  { title: 'NameRes', description: 'Name view (shape CHƯA bọc envelope — nằm trong `data`)' }
-)
-
-export const CreateProposalResSchema = extendApi(z.object({ series: SeriesResSchema, name: NameResSchema }), {
-  title: 'CreateProposalRes',
-  description: 'Series + Name mẫu vừa tạo'
-})
 
 export type CreateProposalBodyType = z.infer<typeof CreateProposalBodySchema>
 export type UpdateProposalBodyType = z.infer<typeof UpdateProposalBodySchema>

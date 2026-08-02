@@ -22,13 +22,13 @@ export const CreateSurveyPeriodBodySchema = extendApi(
     .object({
       issueNumber: z.number().int().positive(),
       reflectedIssueNumber: z.number().int().positive().optional(),
-      magazine: z.string().trim().min(1, { message: 'magazine is required.' }),
+      magazine: z.string().trim().min(1, { message: 'Thiếu thông tin tạp chí' }),
       publicationType: zEnum(PublicationType, 'PublicationType'),
       eligibleSeriesIds: z
-        .array(zObjectId('eligibleSeriesIds must be ObjectIds.'))
-        .min(1, { message: 'eligibleSeriesIds must contain at least one series.' })
+        .array(zObjectId('Mã bộ truyện tham gia không hợp lệ'))
+        .min(1, { message: 'Phải chọn ít nhất một bộ truyện tham gia kỳ bình chọn' })
         .refine((ids) => new Set(ids).size === ids.length, {
-          message: 'eligibleSeriesIds must not contain duplicates.'
+          message: 'Danh sách bộ truyện tham gia bị trùng'
         }),
       startDate: z.string().datetime({ message: 'startDate phải là chuỗi ISO 8601.' }),
       endDate: z.string().datetime({ message: 'endDate phải là chuỗi ISO 8601.' }),
@@ -36,7 +36,7 @@ export const CreateSurveyPeriodBodySchema = extendApi(
     })
     .strict()
     .refine((body) => new Date(body.startDate) < new Date(body.endDate), {
-      message: 'startDate must be before endDate.',
+      message: 'Ngày bắt đầu phải trước ngày kết thúc',
       path: ['endDate']
     }),
   { title: 'CreateSurveyPeriodBody', description: 'Editor tạo kỳ bình chọn mới' }
@@ -84,6 +84,34 @@ export const SurveyPeriodResSchema = extendApi(
     })
     .strict(),
   { title: 'SurveyPeriodRes', description: 'Chi tiết kỳ bình chọn' }
+)
+
+export const SurveyPeriodListQuerySchema = extendApi(
+  z
+    .object({
+      magazine: z.string().trim().min(1, { message: 'Thiếu thông tin tạp chí' }).optional(),
+      publicationType: zEnum(PublicationType, 'PublicationType').optional(),
+      status: zEnum(SurveyStatus, 'SurveyStatus').optional(),
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+      offset: z.coerce.number().int().min(0).default(0)
+    })
+    .strict(),
+  {
+    title: 'SurveyPeriodListQuery',
+    description: 'Bộ lọc và phân trang danh sách kỳ bình chọn nội bộ'
+  }
+)
+
+export const SurveyPeriodListResSchema = extendApi(
+  z
+    .object({
+      items: z.array(SurveyPeriodResSchema),
+      total: z.number().int().nonnegative(),
+      limit: z.number().int().positive(),
+      offset: z.number().int().nonnegative()
+    })
+    .strict(),
+  { title: 'SurveyPeriodListRes', description: 'Danh sách kỳ bình chọn nội bộ có phân trang' }
 )
 
 export const SurveyDataEntryResSchema = extendApi(

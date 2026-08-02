@@ -106,14 +106,7 @@ export class DashboardRepository {
       where: {
         editorId,
         status: {
-          in: [
-            $Enums.ContractStatus.DRAFT,
-            $Enums.ContractStatus.MANGAKA_REVIEW,
-            $Enums.ContractStatus.MANGAKA_APPROVED,
-            $Enums.ContractStatus.BOARD_APPROVED,
-            $Enums.ContractStatus.NEGOTIATION,
-            $Enums.ContractStatus.MANGAKA_SIGNED
-          ]
+          in: [$Enums.ContractStatus.BOARD_REVIEW, $Enums.ContractStatus.AWAITING_MANGAKA]
         }
       },
       select: { id: true, seriesId: true, status: true },

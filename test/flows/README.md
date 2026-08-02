@@ -1,11 +1,13 @@
 # Flow-Test Suite (Acceptance Test) — Flow 1–13
 
 > Bộ acceptance test **end-to-end trên hệ thật**: server NestJS (port 4100) + MongoDB replica-set `rs0`
-> + Redis + BullMQ + WebSocket + cron. Không mock gì cả.
 >
-> **Trạng thái (2026-07-12):** **15/15 file PASS — 1.974 case, 0 FAIL.**
+> - Redis + BullMQ + WebSocket + cron. Không mock gì cả.
+>
+> **Inventory (2026-08-01):** runner có **16 file**, bảng RBAC hiện có **273 route**; tổng bảng coverage là **2.386 case/probe**.
+> Đây là inventory tài liệu, không phải tuyên bố full flow vừa được chạy lại.
 
-## Vì sao cần (bổ sung cho 780 unit test)
+## Vì sao cần (bổ sung cho unit test)
 
 Unit test mock repo → **không bắt được lỗi tích hợp**. Loạt bug chỉ lộ ở đây:
 `deletedAt isSet:false`, mock-blindspot reprint, schema-mismatch → 500, JWT trùng chuỗi, thiếu index DB…
@@ -16,6 +18,7 @@ Xem [`FINDINGS.md`](./FINDINGS.md).
 ## Chạy từ số 0
 
 ### 1. Hạ tầng
+
 ```bash
 # MongoDB replica set (bắt buộc — Prisma cần transaction)
 mongosh --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'   # chỉ 1 lần
@@ -26,6 +29,7 @@ docker start redis   # hoặc container Redis bất kỳ map cổng 6379
 ```
 
 ### 2. `.env.flowtest`
+
 ```bash
 cp .env.flowtest.example .env.flowtest
 ```
@@ -91,8 +95,8 @@ test/flows/
 │   ├── auth.ts    # login (cache theo email) + seedOtp (bcrypt '123456')
 │   ├── ws.ts      # socket.io client cho namespace /board
 │   └── cron.ts    # withCronContext (boot AppModule, stop cron tick, gọi .run() thủ công) + clearCronLocks + waitUntil
-├── flow-01..13    # 11 file theo Flow của Requiment
-├── cross-rbac-sweep.ts   # 226 route × 6 token = 1.350 probe
+├── flow-01..13    # 12 file theo Flow của Requirement, gồm flow-01 admin-hardening supplement
+├── cross-rbac-sweep.ts   # 273 route × 6 token = 1.638 probe
 ├── cross-ws.ts           # WebSocket board (auth handshake + room + broadcast)
 ├── cross-cron.ts         # 7 cron chạy THẬT (6 gọi trực tiếp + board-scheduler đợi tick)
 ├── cross-events.ts       # 10 cặp event emit→listen, verify side-effect DB
@@ -103,24 +107,32 @@ test/flows/
 
 ### Coverage hiện tại
 
-| File | Case | Nội dung |
-|---|---:|---|
-| flow-11-auth-identity | 58 | register/verify/login/refresh-rotation/forgot/admin-moderation/reputation Bayesian |
-| flow-01-serialization | 82 | proposal → claim/release race → review loop → pitch → board vote → SERIALIZED |
-| flow-06-contract-payment | 78 | contract negotiation + ký OTP + 4 loại PaymentCondition + amendment |
-| flow-02-chapter-production | 100 | chapter-first + Name gate + page/manuscript + publish gate + hold + ending |
-| flow-03-task-studio | 70 | danh bạ + invite→assignment + region cascade + task lifecycle + presign R2 |
-| flow-04-voting-ranking | 70 | guest OTP vote + anti-spam + merge 2 nguồn + tie-break + at-risk tiering |
-| flow-05-lifecycle | 46 | hiatus/resume + TIME_BOUND pause + board CANCEL/COMPLETE/FORMAT + ending allowance |
-| flow-07-reprint | 55 | AS_IS/WITH_REVISION + ownership branch + auto-publish |
-| flow-08-transfer | 74 | Mô hình A (FULL_BUYOUT) + ký 3 bên (REVENUE_SHARE) + co-owner approve |
-| flow-10-deadline | 29 | propose/counter/agree turn-taking + finalize + board-resolve |
-| flow-12-13-franchise-publication | 19 | franchise consent gate + PublicationVersion CRUD |
-| cross-rbac-sweep | 1350 | 226 route × (none + 5 role) |
-| cross-cron | 22 | otp-cleanup, orphan-asset, deadline-warning, coowner-escalation, hiatus-too-long, TIME_BOUND, board-scheduler |
-| cross-events | 15 | NameApproved, ContractAmendmentRequested, availability, chapter.published, series.serialized/cancelling, hiatus, RankingFinalized, flip-terminal |
-| cross-ws | 6 | handshake JWT, roster guard, broadcast voteProgressUpdated |
-| **TỔNG** | **1.974** | |
+| File                             |      Case | Nội dung                                                                                                                                                                            |
+| -------------------------------- | --------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| flow-01-admin-hardening          |        19 | admin commitment guards + Board roster cap                                                                                                                                          |
+| flow-11-auth-identity            |        58 | register/verify/login/refresh-rotation/forgot/admin-moderation/reputation Bayesian                                                                                                  |
+| flow-01-serialization            |        87 | composite proposal → claim/release → single approval tới READY_TO_PITCH → pitch → board vote; 7 router-level legacy-route 404 checks                                                |
+| flow-06-contract-payment         |        78 | contract negotiation + ký OTP + 4 loại PaymentCondition + amendment                                                                                                                 |
+| flow-02-chapter-production       |       100 | chapter-first + chapter storyboard gate + page/manuscript + publish gate + hold + ending                                                                                            |
+| flow-03-task-studio              |        70 | danh bạ + invite→assignment + region cascade + task lifecycle + presign R2                                                                                                          |
+| flow-04-voting-ranking           |        70 | guest OTP vote + anti-spam + merge 2 nguồn + tie-break + at-risk tiering                                                                                                            |
+| flow-05-lifecycle                |        46 | hiatus/resume + TIME_BOUND pause + board CANCEL/COMPLETE/FORMAT + ending allowance                                                                                                  |
+| flow-07-reprint                  |        55 | AS_IS/WITH_REVISION + ownership branch + auto-publish                                                                                                                               |
+| flow-08-transfer                 |        74 | Mô hình A (FULL_BUYOUT) + ký 3 bên (REVENUE_SHARE) + co-owner approve                                                                                                               |
+| flow-10-deadline                 |        29 | propose/counter/agree turn-taking + finalize + board-resolve                                                                                                                        |
+| flow-12-13-franchise-publication |        19 | franchise consent gate + PublicationVersion CRUD                                                                                                                                    |
+| cross-rbac-sweep                 |      1638 | 273 route × (none + 5 role)                                                                                                                                                         |
+| cross-cron                       |        22 | otp-cleanup, orphan-asset, deadline-warning, coowner-escalation, hiatus-too-long, TIME_BOUND, board-scheduler                                                                       |
+| cross-events                     |        15 | StoryboardApproved, composite proposal approval, ContractAmendmentRequested, availability, chapter.published, series.serialized/cancelling, hiatus, RankingFinalized, flip-terminal |
+| cross-ws                         |         6 | handshake JWT, roster guard, broadcast voteProgressUpdated                                                                                                                          |
+| **TỔNG**                         | **2.386** |                                                                                                                                                                                     |
+
+### Contract Spec 28
+
+- Proposal là composite của Series; `storyboardPages` nằm trong proposal. Submit đưa proposal tới `PROPOSAL_REVIEW` và Series tới `IN_REVIEW`; Editor phụ trách approve một lần để proposal thành `PROPOSAL_APPROVED` và Series thành `READY_TO_PITCH` ngay.
+- Storyboard là tài nguyên chỉ thuộc chapter, dùng `StoryboardStatus` và các route `/chapters/:id/storyboards`. Helper fixture tương ứng là `makeChapterStoryboardAt`; `makeChapterAt` chỉ nhận `storyboardId?` và không đồng bộ `chapterNumber` sang storyboard.
+- Event approval là `StoryboardApproved { seriesId, storyboardId, chapterId }`. Listener chapter seed bốn production stage; Series không nghe event này để đổi status.
+- Flow 01 giữ đủ bảy request HTTP tới lifecycle Series cũ và chỉ pass khi nhận đúng router-level `404` với message `Cannot METHOD /exact/path`.
 
 ---
 
@@ -136,9 +148,11 @@ test/flows/
 ## Regenerate bảng RBAC
 
 `route-roles.ts` là **contract RBAC** — sinh từ metadata runtime, không sửa tay:
+
 ```bash
 pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
 ```
+
 Sweep so code với bảng: lệch = finding.
 
 ---

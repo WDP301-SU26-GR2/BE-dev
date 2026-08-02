@@ -38,7 +38,9 @@ jobs:
       # Compose validates the declared env_file path even though this runner
       # only checks configuration and never receives production secrets.
       - name: Create non-secret compose env marker
-        run: touch .env
+        run: |
+          touch .env
+          printf 'deploy-verify-placeholder' > ops/prometheus/metrics_api_key
       - name: Validate production compose with AI disabled and enabled
         env:
           API_IMAGE: ghcr.io/example/mangaka-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
@@ -245,6 +247,13 @@ jobs:
 
             umask 077
             mkdir -p .releases
+            # /metrics is called directly by Prometheus inside the Docker network.
+            # Mount the existing backend API_KEY as a Docker secret; never commit it.
+            METRICS_API_KEY="$(read_deploy_env API_KEY)"
+            [ -n "${METRICS_API_KEY}" ] || { echo 'API_KEY is required for Prometheus metrics scraping'; exit 1; }
+            printf '%s' "${METRICS_API_KEY}" > ops/prometheus/metrics_api_key
+            chmod 600 ops/prometheus/metrics_api_key
+            unset METRICS_API_KEY
             if [ -f .releases/current.env ]; then
               cp .releases/current.env .releases/previous.env
             elif [ -n "${PREVIOUS_API_IMAGE}" ]; then

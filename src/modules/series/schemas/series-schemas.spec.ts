@@ -105,6 +105,44 @@ describe('series schemas — coverImage', () => {
     expect(UpdateProposalBodySchema.safeParse({ namePages: [] }).success).toBe(false)
   })
 
+  it('UpdateProposalBody accepts storyboardPages', () => {
+    const parsed = UpdateProposalBodySchema.parse({
+      storyboardPages: [{ pageNumber: 1, fileUrl: 'uploads/u1/p1.png' }]
+    })
+    expect(parsed.storyboardPages).toEqual([{ pageNumber: 1, fileUrl: 'uploads/u1/p1.png' }])
+  })
+
+  it('CreateProposalBody defaults storyboardPages to []', () => {
+    expect(CreateProposalBodySchema.parse({ title: 'T' }).storyboardPages).toEqual([])
+  })
+
+  it.each([[{ pageNumber: 0, fileUrl: 'a' }], [{ pageNumber: 1.5, fileUrl: 'a' }], [{ pageNumber: 1, fileUrl: '' }]])(
+    'rejects invalid storyboard page %j',
+    (storyboardPages) => {
+      expect(UpdateProposalBodySchema.safeParse({ storyboardPages }).success).toBe(false)
+    }
+  )
+
+  it('UpdateProposalBody preserves null and [] storyboardPages semantics', () => {
+    expect(UpdateProposalBodySchema.parse({ storyboardPages: null }).storyboardPages).toBeNull()
+    expect(UpdateProposalBodySchema.parse({ storyboardPages: [] }).storyboardPages).toEqual([])
+  })
+
+  it('rejects unknown fields inside storyboardPages items', () => {
+    expect(
+      UpdateProposalBodySchema.safeParse({
+        storyboardPages: [{ pageNumber: 1, fileUrl: 'page.png', unexpected: true }]
+      }).success
+    ).toBe(false)
+  })
+
+  it('UpdateProposalBody rejects namePages but accepts storyboardPages (Spec 28)', () => {
+    expect(UpdateProposalBodySchema.safeParse({ namePages: [] }).success).toBe(false)
+    expect(UpdateProposalBodySchema.safeParse({ storyboardPages: [{ pageNumber: 1, fileUrl: 'a' }] }).success).toBe(
+      true
+    )
+  })
+
   it('UpdateProposalBody accepts null fields', () => {
     const parsed = UpdateProposalBodySchema.parse({ genres: null })
     expect(parsed.genres).toBeNull()

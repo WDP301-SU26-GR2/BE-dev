@@ -8,6 +8,12 @@ rule_files:
 scrape_configs:
   - job_name: mangaka-api
     metrics_path: /metrics
+    # API requires machine authentication. The secret is mounted by Docker and
+    # generated on the VPS during deployment; it is never committed to Git.
+    http_headers:
+      x-api-key:
+        files:
+          - /run/secrets/prometheus_metrics_api_key
     static_configs:
       - targets:
           - api:3000

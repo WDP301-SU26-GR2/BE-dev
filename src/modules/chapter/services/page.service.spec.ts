@@ -1,4 +1,4 @@
-import { ManuscriptStatus, NameStatus } from '@prisma/client'
+import { ManuscriptStatus, StoryboardStatus } from '@prisma/client'
 import {
   ChapterAccessDeniedException,
   ChapterNotFoundException,
@@ -38,7 +38,7 @@ class PageService extends PageServiceImpl {
 
 function makeDeps(over: Record<string, unknown> = {}) {
   const repo = {
-    findChapterById: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1', nameId: 'n1' }),
+    findChapterById: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1', storyboardId: 'sb1' }),
     findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' }),
     findManuscriptByChapterId: jest.fn().mockResolvedValue({ id: 'm1', status: ManuscriptStatus.DRAFT }),
     createPage: jest.fn().mockResolvedValue({ id: 'p1', chapterId: 'c1', status: 'DRAFT' }),
@@ -46,7 +46,7 @@ function makeDeps(over: Record<string, unknown> = {}) {
     findPagesByChapterId: jest.fn().mockResolvedValue([]),
     updatePage: jest.fn().mockResolvedValue({ id: 'p1' }),
     findPageByChapterAndNumber: jest.fn().mockResolvedValue(null),
-    findNameStatus: jest.fn().mockResolvedValue(NameStatus.APPROVED),
+    findStoryboardStatus: jest.fn().mockResolvedValue(StoryboardStatus.APPROVED),
     ...over
   }
   const manuscriptState = { transition: jest.fn().mockResolvedValue({}) }
@@ -175,7 +175,7 @@ describe('PageService.deletePage', () => {
 
   function makeDeleteDeps(over: Record<string, unknown> = {}) {
     const repo = {
-      findChapterById: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1', nameId: 'n1' }),
+      findChapterById: jest.fn().mockResolvedValue({ id: 'c1', seriesId: 's1', storyboardId: 'sb1' }),
       findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' }),
       findPageById: jest.fn().mockResolvedValue({ id: PG, chapterId: 'c1', status: 'DRAFT' }),
       findTasksByPage: jest.fn().mockResolvedValue([]),
@@ -333,7 +333,7 @@ describe('PageService.deletePagesBulk', () => {
 
   function makeBulkDeps(over: Record<string, unknown> = {}) {
     const repo = {
-      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', nameId: 'n1' }),
+      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', storyboardId: 'sb1' }),
       findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' }),
       findPagesByIds: jest.fn().mockResolvedValue([
         { id: P1, chapterId: CH, status: 'DRAFT' },
@@ -461,7 +461,7 @@ describe('PageService.listPages scoping', () => {
 
   function makeScopeDeps(over: Record<string, unknown> = {}, activeAssignment: unknown = null) {
     const { repo, manuscriptState } = makeDeps({
-      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', nameId: 'n1' }),
+      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', storyboardId: 'sb1' }),
       findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'mangaka', editorId: 'editor' }),
       findPagesByChapterId: jest.fn().mockResolvedValue([{ id: 'p1', chapterId: CH, status: 'DRAFT' }]),
       ...over
@@ -706,12 +706,12 @@ describe('PageService.updatePage extended fields', () => {
   })
 })
 
-describe('PageService.createPage gate (Name APPROVED)', () => {
+describe('PageService.createPage gate (Storyboard APPROVED)', () => {
   const CH = '012345678901234567890123'
 
-  it('chapter has no Name → 409 ChapterNameNotApproved', async () => {
+  it('chapter has no Storyboard → 409 ChapterStoryboardNotApproved', async () => {
     const { repo, manuscriptState } = makeDeps({
-      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', nameId: null }),
+      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', storyboardId: null }),
       findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' })
     })
     const svc = new PageService(
@@ -725,11 +725,11 @@ describe('PageService.createPage gate (Name APPROVED)', () => {
     await expect(svc.createPage('u1', CH, { pageNumber: 1, originalFile: 'f.png' })).rejects.toThrow()
   })
 
-  it('Name not APPROVED → 409', async () => {
+  it('Storyboard not APPROVED → 409', async () => {
     const { repo, manuscriptState } = makeDeps({
-      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', nameId: 'n1' }),
+      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', storyboardId: 'sb1' }),
       findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' }),
-      findNameStatus: jest.fn().mockResolvedValue(NameStatus.IN_REVIEW)
+      findStoryboardStatus: jest.fn().mockResolvedValue(StoryboardStatus.IN_REVIEW)
     })
     const svc = new PageService(
       repo as never,
@@ -742,12 +742,12 @@ describe('PageService.createPage gate (Name APPROVED)', () => {
     await expect(svc.createPage('u1', CH, { pageNumber: 1, originalFile: 'f.png' })).rejects.toThrow()
   })
 
-  it('Name APPROVED → creates page + Manuscript IN_PRODUCTION', async () => {
+  it('Storyboard APPROVED → creates page + Manuscript IN_PRODUCTION', async () => {
     const { repo, manuscriptState } = makeDeps({
-      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', nameId: 'n1' }),
+      findChapterById: jest.fn().mockResolvedValue({ id: CH, seriesId: 's1', storyboardId: 'sb1' }),
       findSeriesById: jest.fn().mockResolvedValue({ id: 's1', mangakaId: 'u1' }),
       findManuscriptByChapterId: jest.fn().mockResolvedValue({ id: 'm1', status: ManuscriptStatus.DRAFT }),
-      findNameStatus: jest.fn().mockResolvedValue(NameStatus.APPROVED)
+      findStoryboardStatus: jest.fn().mockResolvedValue(StoryboardStatus.APPROVED)
     })
     const svc = new PageService(
       repo as never,

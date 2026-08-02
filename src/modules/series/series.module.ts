@@ -10,9 +10,7 @@ import { SeriesStateService } from './services/series-state.service'
 import { SeriesLifecycleService } from './services/series-lifecycle.service'
 import { SeriesSerializeService } from './services/series-serialize.service'
 import { SeriesIntegrationListener } from './services/series-integration.listener'
-import { NameApprovedListener } from './services/name-approved.listener'
 import { HiatusTooLongCron } from './services/hiatus-too-long.cron'
-import { NameModule } from 'src/modules/name/name.module'
 import { SeriesMetadataService } from './services/series-metadata.service'
 import { SeriesOwnershipPort } from '../transfer/ports/series-ownership.port'
 import { SeriesOwnershipAdapter } from './adapters/series-ownership.adapter'
@@ -20,13 +18,10 @@ import { SeriesProposalAccessService } from './services/series-proposal-access.s
 import { SeriesLifecycleNotificationService } from './services/series-lifecycle-notification.service'
 import { SeriesCompletionProposalService } from './services/series-completion-proposal.service'
 
-// Spec 8 §6: NameApprovedListener lắng NameApproved event (emit bởi name module SAU commit) →
-// nếu kind=PROPOSAL → advance READY_TO_PITCH. kind=CHAPTER → no-op.
-// SeriesStateService reads Name status (still needed by tryAdvanceToReadyToPitch proposal-approve
-// path + listener) → NameRepo from name module.
-// NameController (cùng base path) giờ thuộc NameModule — xem name/name.module.ts.
+// Spec 28: vòng duyệt proposal gộp với phác thảo thành 1 hành động. Chapter-storyboard
+// được AppModule wire độc lập; series module không phụ thuộc storyboard và không lắng event duyệt.
 @Module({
-  imports: [NameModule],
+  imports: [],
   controllers: [SeriesController],
   providers: [
     SeriesService,
@@ -43,7 +38,6 @@ import { SeriesCompletionProposalService } from './services/series-completion-pr
     SeriesMetadataService,
     SeriesSerializeService,
     SeriesIntegrationListener,
-    NameApprovedListener,
     HiatusTooLongCron,
     { provide: SeriesOwnershipPort, useClass: SeriesOwnershipAdapter }
   ],

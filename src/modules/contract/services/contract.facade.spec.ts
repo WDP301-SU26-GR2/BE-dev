@@ -1,14 +1,13 @@
 import 'reflect-metadata'
-import { ContractStatus } from '@prisma/client'
 import { ContractService } from './contract.service'
 
 describe('ContractService application boundary', () => {
-  it('stays within the six-dependency facade limit', () => {
+  it('keeps the facade as a thin delegator to focused use-case services', () => {
     const dependencies = Reflect.getMetadata('design:paramtypes', ContractService) as unknown[]
     expect(dependencies).toHaveLength(6)
   })
 
-  it('preserves every public compatibility signature by delegating to focused use-case services', async () => {
+  it('preserves the current public compatibility signatures by delegating to focused services', async () => {
     const query = {
       healthCheck: jest.fn().mockReturnValue({ status: 'OK', module: 'Contract' }),
       getContracts: jest.fn(),
@@ -18,19 +17,21 @@ describe('ContractService application boundary', () => {
     }
     const draft = {
       createDraft: jest.fn(),
-      editorUpdateContract: jest.fn()
+      editorUpdateContract: jest.fn(),
+      redraft: jest.fn()
     }
     const workflow = {
-      updateStatusByWorkflow: jest.fn(),
-      sendToMangaka: jest.fn(),
-      mangakaApprove: jest.fn(),
-      mangakaRequestChanges: jest.fn(),
-      boardApprove: jest.fn(),
-      boardRequestChanges: jest.fn()
+      submitForReview: jest.fn(),
+      claimRepresentative: jest.fn(),
+      releaseRepresentative: jest.fn(),
+      assignRepresentative: jest.fn(),
+      addComment: jest.fn(),
+      listComments: jest.fn()
     }
     const signing = {
       signByMangakaWithOtp: jest.fn(),
-      signByBoardWithOtp: jest.fn(),
+      signByRepresentativeWithOtp: jest.fn(),
+      rejectByMangaka: jest.fn(),
       checkContractStatus: jest.fn()
     }
     const pdf = { exportPdf: jest.fn() }
@@ -51,15 +52,17 @@ describe('ContractService application boundary', () => {
     await service.getContractVersionById('contract', 'version', 'user', 'EDITOR')
     await service.exportPdf('contract', 'user', 'EDITOR')
     await service.createDraft('editor', { seriesId: 'series' } as never)
-    await service.updateStatusByWorkflow('contract', 'user', ContractStatus.MANGAKA_REVIEW)
-    await service.sendToMangaka('contract', 'editor')
+    await service.submitForReview('contract', 'editor')
     await service.editorUpdateContract('contract', 'editor', {}, 'note')
-    await service.mangakaApprove('contract', 'mangaka')
-    await service.mangakaRequestChanges('contract', 'mangaka', 'reason')
-    await service.boardApprove('contract', 'board', 'approve-decision')
-    await service.boardRequestChanges('contract', 'board', 'reject-decision', 'reason')
+    await service.claimRepresentative('contract', 'board')
+    await service.releaseRepresentative('contract', 'board')
+    await service.assignRepresentative('contract', 'admin', { representativeId: 'board' })
+    await service.addComment('contract', 'board', { content: 'LGTM' })
+    await service.listComments('contract', 'user', 'EDITOR')
+    await service.signByRepresentativeWithOtp('contract', 'board', 'b@example.test', '123456')
     await service.signByMangakaWithOtp('contract', 'mangaka', 'm@example.test', '123456')
-    await service.signByBoardWithOtp('contract', 'board', 'b@example.test', '123456')
+    await service.rejectByMangaka('contract', 'mangaka', { reason: 'price' })
+    await service.redraft('contract', 'editor')
     await service.checkContractStatus('contract', 'user', 'EDITOR')
     await service.reportRevenue('contract', 'user', 'EDITOR', { revenue: 100, period: '2026-07' })
 
@@ -69,15 +72,17 @@ describe('ContractService application boundary', () => {
     expect(query.getContractVersionById).toHaveBeenCalledWith('contract', 'version', 'user', 'EDITOR')
     expect(pdf.exportPdf).toHaveBeenCalledWith('contract', 'user', 'EDITOR')
     expect(draft.createDraft).toHaveBeenCalledWith('editor', { seriesId: 'series' })
-    expect(workflow.updateStatusByWorkflow).toHaveBeenCalledWith('contract', 'user', ContractStatus.MANGAKA_REVIEW)
-    expect(workflow.sendToMangaka).toHaveBeenCalledWith('contract', 'editor')
+    expect(workflow.submitForReview).toHaveBeenCalledWith('contract', 'editor')
     expect(draft.editorUpdateContract).toHaveBeenCalledWith('contract', 'editor', {}, 'note')
-    expect(workflow.mangakaApprove).toHaveBeenCalledWith('contract', 'mangaka')
-    expect(workflow.mangakaRequestChanges).toHaveBeenCalledWith('contract', 'mangaka', 'reason')
-    expect(workflow.boardApprove).toHaveBeenCalledWith('contract', 'board', 'approve-decision')
-    expect(workflow.boardRequestChanges).toHaveBeenCalledWith('contract', 'board', 'reject-decision', 'reason')
+    expect(workflow.claimRepresentative).toHaveBeenCalledWith('contract', 'board')
+    expect(workflow.releaseRepresentative).toHaveBeenCalledWith('contract', 'board')
+    expect(workflow.assignRepresentative).toHaveBeenCalledWith('contract', 'admin', { representativeId: 'board' })
+    expect(workflow.addComment).toHaveBeenCalledWith('contract', 'board', { content: 'LGTM' })
+    expect(workflow.listComments).toHaveBeenCalledWith('contract', 'user', 'EDITOR')
+    expect(signing.signByRepresentativeWithOtp).toHaveBeenCalledWith('contract', 'board', 'b@example.test', '123456')
     expect(signing.signByMangakaWithOtp).toHaveBeenCalledWith('contract', 'mangaka', 'm@example.test', '123456')
-    expect(signing.signByBoardWithOtp).toHaveBeenCalledWith('contract', 'board', 'b@example.test', '123456')
+    expect(signing.rejectByMangaka).toHaveBeenCalledWith('contract', 'mangaka', 'price')
+    expect(draft.redraft).toHaveBeenCalledWith('contract', 'editor')
     expect(signing.checkContractStatus).toHaveBeenCalledWith('contract', 'user', 'EDITOR')
     expect(revenue.reportRevenue).toHaveBeenCalledWith('contract', 'user', 'EDITOR', {
       revenue: 100,

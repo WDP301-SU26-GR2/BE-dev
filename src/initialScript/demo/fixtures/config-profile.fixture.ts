@@ -11,7 +11,7 @@ export const seedConfigs = async ({ prisma, accounts }: DemoContext) => {
       where: { id: appConfig.id },
       data: {
         coOwnerApprovalGraceDays: 7,
-        nameMaxReviewRounds: 8,
+        storyboardMaxReviewRounds: 8,
         reputationRecommendThreshold: 4,
         hiatusTooLongDays: 30,
         lowVoteReliabilityThreshold: 10,

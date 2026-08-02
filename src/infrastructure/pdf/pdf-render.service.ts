@@ -33,7 +33,7 @@ export type ContractPdfData = {
     payoutPct: number | null
     status: string
   }>
-  signatures: Array<{ displayName: string; signedAt: string }>
+  signatures: Array<{ role?: string; displayName: string; signedAt: string }>
   versionCount: number
   executedAmendmentCount: number
   latestAmendmentAt: string | null

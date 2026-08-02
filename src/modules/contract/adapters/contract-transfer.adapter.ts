@@ -22,6 +22,8 @@ export class ContractTransferAdapter implements ContractTransferPort {
         sourceTransferRequestId: command.sourceTransferRequestId,
         contractType: command.contractType,
         valuationAmount: command.valuationAmount,
+        publisherOwnershipPct: command.publisherOwnershipPct,
+        mangakaOwnershipPct: command.mangakaOwnershipPct,
         status: ContractStatus.DRAFT,
         conditions: {
           create: command.conditions.map((condition) => ({

@@ -14,8 +14,8 @@ import { SeriesProposalService } from './services/series-proposal.service'
 import { SeriesClaimService } from './services/series-claim.service'
 import { SeriesMetadataService } from './services/series-metadata.service'
 
-// Spec 8: các route Name (lifecycle + reads + chapter-Name create) đã chuyển sang NameController→
-// NameService trực tiếp. Orchestrator series.service chỉ còn proposal/pitch/claim/query/lifecycle.
+// Spec 28: chapter storyboard lifecycle lives in StoryboardModule.
+// This orchestrator only coordinates proposal, pitch, claim, query, and Series lifecycle use cases.
 @Injectable()
 export class SeriesService {
   constructor(

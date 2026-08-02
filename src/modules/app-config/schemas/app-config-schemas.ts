@@ -11,7 +11,11 @@ export const AppConfigResSchema = extendApi(
     id: z.string(),
     updatedBy: z.string().nullable().describe('Admin user id that last updated app config'),
     coOwnerApprovalGraceDays: z.number().int().nonnegative().describe('Grace days for co-owner approval flows'),
-    nameMaxReviewRounds: z.number().int().positive().describe('Maximum name review rounds before loop warning'),
+    storyboardMaxReviewRounds: z
+      .number()
+      .int()
+      .positive()
+      .describe('Maximum storyboard review rounds before loop warning'),
     reputationRecommendThreshold: z.number().min(1).max(5).describe('Minimum reputation score for recommendations'),
     hiatusTooLongDays: z.number().int().positive().describe('Days before a hiatus is considered too long'),
     lowVoteReliabilityThreshold: z.number().int().nonnegative().describe('Vote count below which reliability is low'),
@@ -22,6 +26,11 @@ export const AppConfigResSchema = extendApi(
       .describe('Minimum reflected-issue participation coverage required for a non-provisional aggregate rank'),
     maxUploadBytes: z.number().int().positive().max(MAX_UPLOAD_BYTES_CAP).describe('Maximum upload size in bytes'),
     assignmentGraceDays: z.number().int().nonnegative().describe('Grace days around assignment lifecycle checks'),
+    boardRepClaimGraceDays: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Grace days before unclaimed contract review escalates'),
     updatedAt: z.string()
   }),
   { title: 'AppConfigRes', description: 'Application-wide runtime configuration' }
@@ -31,7 +40,9 @@ export const PatchAppConfigBodySchema = extendApi(
   z
     .object({
       coOwnerApprovalGraceDays: intNonnegative('Grace days for co-owner approval flows').nullable().optional(),
-      nameMaxReviewRounds: intPositive('Maximum name review rounds before loop warning').nullable().optional(),
+      storyboardMaxReviewRounds: intPositive('Maximum storyboard review rounds before loop warning')
+        .nullable()
+        .optional(),
       reputationRecommendThreshold: z
         .number()
         .min(1)
@@ -56,7 +67,10 @@ export const PatchAppConfigBodySchema = extendApi(
         .describe('Maximum upload size in bytes; hard cap is 50MB')
         .nullable()
         .optional(),
-      assignmentGraceDays: intNonnegative('Grace days around assignment lifecycle checks').nullable().optional()
+      assignmentGraceDays: intNonnegative('Grace days around assignment lifecycle checks').nullable().optional(),
+      boardRepClaimGraceDays: intNonnegative('Grace days before unclaimed contract review escalates')
+        .nullable()
+        .optional()
     })
     .strict(),
   { title: 'PatchAppConfigBody', description: 'Partial app config update; null fields are ignored' }

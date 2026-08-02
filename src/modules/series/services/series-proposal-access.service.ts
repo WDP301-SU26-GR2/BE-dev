@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common'
 import { FranchiseConsentStatus, NotificationType } from '@prisma/client'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { NotificationService } from 'src/modules/notification/notification.service'
-import { toNameRes } from 'src/modules/name/name.mapper'
 import { SeriesMessages } from '../series.messages'
 import { SeriesRepository } from '../series.repo'
 import { toSeriesRes } from '../series.mapper'
@@ -34,7 +33,7 @@ export class SeriesProposalAccessService {
         parentMangakaId = parent.mangakaId
       }
     }
-    const { series, name } = await this.repository.createProposalSeries(mangakaId, body, franchiseConsentStatus)
+    const series = await this.repository.createProposalSeries(mangakaId, body, franchiseConsentStatus)
     if (parentMangakaId) {
       await this.notificationService.notifySafe({
         recipientId: parentMangakaId,
@@ -44,7 +43,7 @@ export class SeriesProposalAccessService {
         content: SeriesMessages.notification.franchiseConsentRequested
       })
     }
-    return { series: toSeriesRes(series), name: toNameRes(name) }
+    return toSeriesRes(series)
   }
 
   async franchiseConsent(seriesId: string, callerId: string, approve: boolean) {

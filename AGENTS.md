@@ -11,9 +11,13 @@
   `annotation`, `storage`, `studio` (A4-a: CollaborationInvite/StudioAssignment/directory), `task`, `ai`
   (A4-b: Region/Task/TaskVersion + cascade A4→A3), `audit` (PA-06: AuditLog `@Global` dual-write + `GET /audit`),
   `app-config` (PA-10: registry tham số nghiệp vụ `@Global` + `GET/PATCH /admin/app-config`) (Creation & Production).
-  **BE-B** (Commercial & Governance) **đã bắt đầu**: module
-  `contract` (B1) **và** `board` (B5 — Board/Decision engine) đã có trong repo — **KHÔNG sửa hộ BE-B**
-  (chỉ để sẵn convention dùng chung ở `core/`).
+- **Feature modules BE-B** (Commercial & Governance): `contract` (B1), `payment`, `board` (B5 — Board/Decision
+  engine), `reprint` (B2), `transfer` (B3), `survey` (B4), `publication` (B6), `tankobon`.
+  🔵 **CẬP NHẬT 2026-07-30 — BE-A ĐƯỢC PHÉP SỬA CODE BE-B.** Rule cũ "KHÔNG sửa hộ BE-B" đã **bỏ**.
+  Khi sửa module BE-B, vẫn phải giữ đúng convention chung: single-writer state service (§9), message catalog
+  (§7), `@ApiErrors` + `zEnum` (§12), port cho cross-module (§9), và **không** phá contract event ở
+  `core/events/domain-events.ts` mà không sync cả hai phía emit/listen. Sửa BE-B thì cũng phải cập nhật
+  flowtest + `route-roles.ts` + FE guide tương ứng như khi sửa BE-A.
 - **Quy tắc vàng**: Vertical slice (NestJS chuẩn). Mỗi module tự chứa đủ: controller(s), service(s), repo,
   schemas, dto, errors, (mapper/constant/ports nếu cần).
 - **AI service** (`ai-service/`): process **Python FastAPI riêng** (KHÔNG phải NestJS module). Module `ai` gọi nó qua
@@ -172,6 +176,30 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   - Interceptor đăng ký **TRƯỚC** `ZodSerializerInterceptor` (Zod serialize DTO xong → envelope mới bọc).
   - ⚠️ Swagger DTO khai báo shape *chưa bọc*; response thật luôn bọc envelope (FE đọc `data`).
 
+### 7.1. Từ điển chuẩn tiếng Việt (Spec 29 — BẮT BUỘC)
+
+Mọi text user-facing (`response` / `notification` / `reason` / `errorText`, email, message validate Zod)
+phải là **tiếng Việt**. Bảng dưới là nguồn sự thật; test `message-language.spec.ts` enforce tự động.
+
+| KHÔNG dùng | Dùng |
+|---|---|
+| series / Series | bộ truyện |
+| Mangaka | tác giả |
+| deadline | hạn nộp |
+| Editor | biên tập viên |
+| task / Task | công việc |
+| review | duyệt / xem xét |
+| Storyboard | bản phác thảo |
+| Board | Hội đồng |
+| canvas | khung vẽ |
+| access token | phiên đăng nhập |
+
+**Giữ nguyên (từ mượn, không dịch):** `OTP` `AI` `email` `Google` `PDF` `API` `captcha` `studio`
+`tankobon` `manga` + giá trị enum in hoa (`HIATUS`, `SEVERE`).
+
+**KHÔNG áp bảng này cho:** mã lỗi `Error.*`, tên biến/field/route, giá trị enum, `referenceType`,
+comment code, Swagger summary/`.describe()`. Đó là thứ máy đọc.
+
 ## 8. Cross-cutting: Events & Notification (Sprint 0)
 
 - **Domain events** (`src/core/events/domain-events.ts`): contract dùng chung BE-A/BE-B, in-process qua
@@ -184,7 +212,7 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   tự nuốt lỗi + log, **KHÔNG BAO GIỜ throw** (mirror `notifySafe`); gọi **SAU** DB write chính commit, NGOÀI transaction.
   Mọi state-transition BE-A cắm; BE-B (Contract/BoardDecision) cắm tương tự. `actorId` null = hành động hệ thống.
 - **AppConfigService** (`@Global`, PA-10): `get()` trả registry tham số nghiệp vụ (cache in-memory TTL 30s + lazy-seed +
-  invalidate-on-PATCH). Wire BE-A: `nameMaxReviewRounds` (PA-05), `maxUploadBytes` (A7), `reputationRecommendThreshold`
+  invalidate-on-PATCH). Wire BE-A: `storyboardMaxReviewRounds` (PA-05), `maxUploadBytes` (A7), `reputationRecommendThreshold`
   (A-AUTH-07); 4 key còn lại seed sẵn chờ BE-B. Env/constant cũ = **seed default**, KHÔNG còn đọc runtime.
 
 ## 9. State Machine & Single-writer

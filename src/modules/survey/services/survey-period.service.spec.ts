@@ -22,7 +22,7 @@ function period(overrides: Record<string, unknown> = {}) {
 function makeDeps() {
   return {
     repo: {
-      findManySurveyPeriods: jest.fn().mockResolvedValue([]),
+      findManySurveyPeriods: jest.fn().mockResolvedValue({ items: [], total: 0 }),
       findSurveyPeriodById: jest.fn(),
       getReaderVotesByPeriod: jest.fn().mockResolvedValue([]),
       getSurveyDataByPeriod: jest.fn().mockResolvedValue([]),
@@ -47,12 +47,19 @@ function make(deps: ReturnType<typeof makeDeps>) {
 }
 
 describe('SurveyPeriodService query guards', () => {
-  it('maps period lists and a single existing period', async () => {
+  it('maps a filtered paginated period list with a stable response shape and a single existing period', async () => {
     const deps = makeDeps()
-    deps.repo.findManySurveyPeriods.mockResolvedValue([period()])
+    deps.repo.findManySurveyPeriods.mockResolvedValue({ items: [period()], total: 7 })
     deps.repo.findSurveyPeriodById.mockResolvedValue(period())
 
-    await expect(make(deps).getSurveyPeriods()).resolves.toHaveLength(1)
+    const query = { magazine: ' Jump ', publicationType: 'WEEKLY', status: 'OPEN', limit: 10, offset: 20 } as const
+    await expect(make(deps).getSurveyPeriods(query as never)).resolves.toMatchObject({
+      items: [{ id: PERIOD_ID, startDate: '2026-07-01T00:00:00.000Z' }],
+      total: 7,
+      limit: 10,
+      offset: 20
+    })
+    expect(deps.repo.findManySurveyPeriods).toHaveBeenCalledWith({ ...query, magazine: 'Jump' })
     await expect(make(deps).getSurveyPeriodById(PERIOD_ID)).resolves.toMatchObject({
       id: PERIOD_ID,
       startDate: '2026-07-01T00:00:00.000Z'

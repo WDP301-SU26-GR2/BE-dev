@@ -77,6 +77,15 @@ jobs:
 
       - name: Validate Prometheus alert rules and alert fixtures
         run: |
+          # Placeholder only: Prometheus reads the real API key from the VPS
+          # Docker secret at deploy time.
+          printf 'ci-placeholder' > ops/prometheus/metrics_api_key
+          docker run --rm \
+            -v "${PWD}/ops/prometheus:/prometheus-rules:ro" \
+            -v "${PWD}/ops/prometheus/metrics_api_key:/run/secrets/prometheus_metrics_api_key:ro" \
+            -v "${PWD}/ops/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro" \
+            --entrypoint /bin/promtool \
+            prom/prometheus:v2.55.1 check config /prometheus-rules/prometheus.yml
           docker run --rm \
             -v "${PWD}/ops/prometheus:/prometheus-rules:ro" \
             --entrypoint /bin/promtool \
@@ -218,7 +227,11 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          pnpm audit --prod --audit-level high 2>&1 | tee ci-baseline/pnpm-audit.txt
+          # pnpm's --audit-level only filters output; it does not set the exit threshold.
+          # Validate JSON ourselves so low/moderate findings remain visible but do not block CI.
+          pnpm audit --prod --json > ci-baseline/pnpm-audit.json 2>&1 || true
+          cat ci-baseline/pnpm-audit.json
+          node test/supply-chain/verify-security-policy.mjs validate-pnpm-audit ci-baseline/pnpm-audit.json
 
       - id: ai
         name: AI tests and Python dependency audit
@@ -238,6 +251,8 @@ jobs:
           AI_IMAGE: ghcr.io/example/mangaka-ai@sha256:1111111111111111111111111111111111111111111111111111111111111111
           AI_SERVICE_API_KEY: ci-ai-service-key
         run: |
+          # Non-secret placeholder required only for Docker Compose validation.
+          printf 'ci-placeholder' > ops/prometheus/metrics_api_key
           docker compose -f docker-compose.prod.yml config --quiet
           docker compose -f docker-compose.prod.yml --profile ai config --quiet
           docker compose -f docker-compose.prod.yml --profile monitoring config --quiet
@@ -254,17 +269,30 @@ jobs:
       - name: Enforce quality outcomes
         if: always()
         run: |
-          test "${{ steps.lint.outcome }}" = "success"
-          test "${{ steps.architecture.outcome }}" = "success"
-          test "${{ steps.build.outcome }}" = "success"
-          test "${{ steps.guard.outcome }}" = "success"
-          test "${{ steps.integration.outcome }}" = "success"
-          test "${{ steps.e2e.outcome }}" = "success"
-          test "${{ steps.flows.outcome }}" = "success"
-          test "${{ steps.coverage.outcome }}" = "success"
-          test "${{ steps.node-audit.outcome }}" = "success"
-          test "${{ steps.ai.outcome }}" = "success"
-          test "${{ steps.compose.outcome }}" = "success"
+          failed=0
+          check_outcome() {
+            local step_name="$1"
+            local outcome="$2"
+            echo "${step_name}: ${outcome}"
+            if [ "${outcome}" != "success" ]; then
+              echo "::error title=CI quality gate failed::${step_name} finished with ${outcome}"
+              failed=1
+            fi
+          }
+
+          check_outcome lint "${{ steps.lint.outcome }}"
+          check_outcome architecture "${{ steps.architecture.outcome }}"
+          check_outcome build "${{ steps.build.outcome }}"
+          check_outcome guard "${{ steps.guard.outcome }}"
+          check_outcome integration "${{ steps.integration.outcome }}"
+          check_outcome e2e "${{ steps.e2e.outcome }}"
+          check_outcome flows "${{ steps.flows.outcome }}"
+          check_outcome coverage "${{ steps.coverage.outcome }}"
+          check_outcome node-audit "${{ steps.node-audit.outcome }}"
+          check_outcome ai "${{ steps.ai.outcome }}"
+          check_outcome compose "${{ steps.compose.outcome }}"
+
+          exit "${failed}"
 
   build-image:
     needs: test-baseline
@@ -305,6 +333,7 @@ jobs:
           file: ./ai-service/Dockerfile
           push: false
           load: true
+          pull: true
           tags: mangaka-ai:ci-${{ github.sha }}
           cache-from: type=gha,scope=mangaka-ai
           cache-to: type=gha,mode=max,scope=mangaka-ai
@@ -339,6 +368,19 @@ jobs:
       - name: Enforce image scan outcomes
         if: always()
         run: |
-          test "${{ steps.scan-api.outcome }}" = "success"
-          test "${{ steps.scan-ai.outcome }}" = "success"
-          test "${{ steps.scan-policy.outcome }}" = "success"
+          failed=0
+          check_outcome() {
+            local scan_name="$1"
+            local outcome="$2"
+            echo "${scan_name}: ${outcome}"
+            if [ "${outcome}" != "success" ]; then
+              echo "::error title=Image scan gate failed::${scan_name} finished with ${outcome}"
+              failed=1
+            fi
+          }
+
+          check_outcome scan-api "${{ steps.scan-api.outcome }}"
+          check_outcome scan-ai "${{ steps.scan-ai.outcome }}"
+          check_outcome scan-policy "${{ steps.scan-policy.outcome }}"
+
+          exit "${failed}"

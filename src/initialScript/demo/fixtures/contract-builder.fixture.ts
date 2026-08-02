@@ -18,11 +18,15 @@ import { DAY, requiredAccount } from './demo-seed.helpers'
 import { DemoContext, SeriesSeed } from './demo-seed.types'
 
 const FOUNDATION_SESSION_TITLE = '[DEMO FOUNDATION] Serialization approvals for Flow 2-6'
+const CONTRACT_REVIEW_SESSION_TITLE = '[DEMO F6] Contract terms approval'
 
-export const ensureApprovedSerializationDecision = async (context: DemoContext, series: SeriesSeed) => {
-  const boardIds = DEMO_ACCOUNTS.filter((account) => account.role === RoleCode.BOARD_MEMBER).map(
+const demoBoardIds = (context: DemoContext) =>
+  DEMO_ACCOUNTS.filter((account) => account.role === RoleCode.BOARD_MEMBER).map(
     (account) => requiredAccount(context.accounts, account.alias).id
   )
+
+export const ensureApprovedSerializationDecision = async (context: DemoContext, series: SeriesSeed) => {
+  const boardIds = demoBoardIds(context)
   let session = await context.prisma.boardSession.findFirst({ where: { title: FOUNDATION_SESSION_TITLE } })
   if (!session) {
     session = await context.prisma.boardSession.create({
@@ -56,16 +60,62 @@ export const ensureApprovedSerializationDecision = async (context: DemoContext, 
         magazine: slot?.magazine ?? 'Manga Nexus Weekly',
         startIssueNumber: slot?.startIssueNumber ?? 101,
         publicationType: slot?.publicationType ?? 'WEEKLY',
-        note: 'Serialization decision used as the auditable basis for the demo contract.'
+        note: 'Quyết định serial hoá — căn cứ đối chiếu cho hợp đồng demo.'
       },
       decidedAt: new Date(context.now.getTime() - 89 * DAY),
       allowedEditorIds: boardIds,
       votes: boardIds.map((voterId, index) => ({
         voterId,
         voteValue: index === boardIds.length - 1 ? VoteValue.REJECT : VoteValue.APPROVE,
-        note: index === boardIds.length - 1 ? 'Đề nghị theo dõi chặt ba chương đầu.' : 'Hồ sơ và Name đạt yêu cầu.',
+        note:
+          index === boardIds.length - 1
+            ? 'Đề nghị theo dõi chặt ba chương đầu.'
+            : 'Hồ sơ và bản phác thảo đạt yêu cầu.',
         votedAt: new Date(context.now.getTime() - 89 * DAY)
       }))
+    }
+  })
+}
+
+export const createPendingPublicationContractDecision = async (
+  context: DemoContext,
+  series: SeriesSeed,
+  contractId: string,
+  versionId: string
+) => {
+  const boardIds = demoBoardIds(context)
+  let session = await context.prisma.boardSession.findFirst({ where: { title: CONTRACT_REVIEW_SESSION_TITLE } })
+  if (!session) {
+    session = await context.prisma.boardSession.create({
+      data: {
+        title: CONTRACT_REVIEW_SESSION_TITLE,
+        description:
+          'Phiên biểu quyết điều khoản hợp đồng Flow 6. Chỉ áp dụng kết quả sau khi Mangaka duyệt đúng phiên bản.',
+        creatorId: series.editorId,
+        status: BoardSessionStatus.ACTIVE,
+        phase: BoardSessionPhase.VOTING,
+        allowedEditorIds: boardIds,
+        startTime: new Date(context.now.getTime() - DAY),
+        endTime: new Date(context.now.getTime() + 14 * DAY)
+      }
+    })
+  }
+  return context.prisma.boardDecision.create({
+    data: {
+      targetSeriesId: series.id,
+      boardSessionId: session.id,
+      decisionType: DecisionType.CONTRACT,
+      result: BoardDecisionResult.PENDING,
+      totalVotes: 0,
+      approveCount: 0,
+      rejectCount: 0,
+      quorumMet: false,
+      allowedEditorIds: boardIds,
+      details: {
+        resourceType: 'PUBLICATION_CONTRACT',
+        resourceId: contractId,
+        versionId
+      }
     }
   })
 }
@@ -74,6 +124,7 @@ export const createExecutedContract = async (context: DemoContext, series: Serie
   const decision = await ensureApprovedSerializationDecision(context, series)
   const mangakaSignedAt = new Date(context.now.getTime() - 58 * DAY)
   const boardSignedAt = new Date(context.now.getTime() - 57 * DAY)
+  const representativeId = decision.allowedEditorIds[0]
   const contract = await context.prisma.contract.create({
     data: {
       seriesId: series.id,
@@ -92,7 +143,10 @@ export const createExecutedContract = async (context: DemoContext, series: Serie
       contractEnd: new Date(context.now.getTime() + 720 * DAY),
       status: ContractStatus.FULLY_EXECUTED,
       mangakaSignedAt,
-      boardSignedAt
+      boardSignedAt,
+      representativeId,
+      representativeSignedAt: boardSignedAt,
+      boardReviewStartedAt: new Date(context.now.getTime() - 58 * DAY)
     }
   })
   await context.prisma.contractVersion.create({
@@ -107,13 +161,6 @@ export const createExecutedContract = async (context: DemoContext, series: Serie
       note: 'Bản điều khoản cuối đã được hai phía ký.',
       createdAt: new Date(context.now.getTime() - 59 * DAY)
     }
-  })
-  const boardIds = decision.allowedEditorIds
-  await context.prisma.contractSignature.createMany({
-    data: [
-      { contractId: contract.id, userId: series.mangakaId, role: 'MANGAKA', signedAt: mangakaSignedAt },
-      ...boardIds.map((userId) => ({ contractId: contract.id, userId, role: 'BOARD_MEMBER', signedAt: boardSignedAt }))
-    ]
   })
   const recurring = await context.prisma.paymentCondition.create({
     data: {

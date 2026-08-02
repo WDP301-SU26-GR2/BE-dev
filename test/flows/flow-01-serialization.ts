@@ -2,7 +2,7 @@
 // ≈56 case theo spec §5 của docs/superpowers/specs/2026-07-11-flowtest-suite-design.md.
 //
 // Routes thật đã verify trên server :4100:
-//   POST   /series/proposals             (Mangaka tạo DRAFT + Name PROPOSAL)
+//   POST   /series/proposals             (Mangaka tạo DRAFT + storyboard pages composite)
 //   PUT    /series/proposals/:id         (Editor submit partial-update)
 //   DELETE /series/proposals/:id         (chỉ khi DRAFT)
 //   POST   /series/:id/submit                        → IN_REVIEW
@@ -10,13 +10,12 @@
 //   POST   /series/:id/release                       (trả về hàng đợi)
 //   POST   /series/:id/proposal/request-revision     body { reason }
 //   POST   /series/:id/proposal/resubmit
-//   POST   /series/:id/proposal/approve              → PROPOSAL_APPROVED
+//   POST   /series/:id/proposal/approve              → PROPOSAL_APPROVED + READY_TO_PITCH (Spec 28)
 //   POST   /series/:id/reject              body { reason } → ABANDONED
 //   POST   /series/:id/withdraw            body { reason } → WITHDRAWN
 //   POST   /series/:id/reopen                        → DRAFT
 //   POST   /series/:id/reopen-review       body { reason } → IN_REVIEW
 //   POST   /series/:id/pitch                          → PITCHED
-//   POST   /series/:id/names/:nameId/approve          Name PROPOSAL → APPROVED
 //   POST   /series/:id/hiatus             body { reason }
 //   POST   /series/:id/resume
 //   POST   /series/:id/finalize-ending
@@ -28,23 +27,27 @@
 //   POST   /board/decisions       + POST /board/decisions/:id/vote
 //   POST   /admin/users/:id/reset-password
 //   GET    /mangakas/:userId
-import { wipeDb, seedRolesAndAdmin, prisma, makeUser, makeSeriesAt, makeNameAt } from './lib/seed.js'
+import { wipeDb, seedRolesAndAdmin, prisma, makeUser, makeSeriesAt, withProposalStoryboard } from './lib/seed.js'
 import { req, ok, section, summary, expectError, resetCounters, sleep } from './lib/http.js'
 import { login } from './lib/auth.js'
-import { SeriesStatus, DecisionType, BoardDecisionResult, NameStatus, ProposalStatus } from '@prisma/client'
+import { SeriesStatus, DecisionType, BoardDecisionResult, ProposalStatus } from '@prisma/client'
 
 const FLOW = 'flow-01-serialization'
 
-// Tạo proposal + Name PROPOSAL — trả { seriesId, proposalId, nameId }.
+// Tạo proposal + storyboardPages ngay khi tạo — trả { seriesId, proposalId }.
+// Spec 28: proposal là composite field của Series — không còn _id riêng. `proposalId` ở đây đồng nhất với seriesId
+// để các URL `:id` trong route /series/proposals/:id trỏ đúng (controller dùng seriesId).
 const createProposal = async (token: string, body: Record<string, unknown>) => {
   const r = await req('POST', '/series/proposals', { token, body })
   if (r.status !== 201) throw new Error(`createProposal failed: ${r.status} ${r.raw.slice(0, 200)}`)
-  const s = r.json?.data?.series
-  return { seriesId: s.id as string, proposalId: s.id as string, nameId: s.proposal?.nameId as string }
+  const s = r.json?.data
+  const seriesId = s.id as string
+  return { seriesId, proposalId: seriesId }
 }
 
-// makeSeriesAt intentionally leaves proposal.nameId null. Spec 22 reopen/re-pitch needs a real linked
-// proposal-Name, so seed both records and replace the complete embedded proposal (never partial-write it).
+// makeSeriesAt intentionally leaves proposal.storyboardPages empty. Spec 22 reopen/re-pitch tests
+// need a storyboard populated on the composite proposal — embed it via `withProposalStoryboard`.
+// Spec 28: storyboard của proposal nằm trực tiếp trong `proposal.storyboardPages`.
 const makeProposalSeriesAt = async (
   status: SeriesStatus,
   input: {
@@ -52,7 +55,7 @@ const makeProposalSeriesAt = async (
     editorId?: string
     title: string
     proposalStatus: ProposalStatus
-    nameStatus: NameStatus
+    storyboardPages?: Array<{ pageNumber: number; fileUrl: string }>
   }
 ) => {
   const series = await makeSeriesAt(status, {
@@ -62,12 +65,15 @@ const makeProposalSeriesAt = async (
     proposalStatus: input.proposalStatus
   })
   if (!series.proposal) throw new Error(`makeProposalSeriesAt: ${series.id} has no proposal`)
-  const name = await makeNameAt({ seriesId: series.id, status: input.nameStatus })
   const linked = await prisma.series.update({
     where: { id: series.id },
-    data: { proposal: { set: { ...series.proposal, nameId: name.id } } }
+    data: {
+      proposal: {
+        set: { ...(series.proposal as object), storyboardPages: input.storyboardPages ?? withProposalStoryboard() }
+      } as never
+    }
   })
-  return { series: linked, name }
+  return { series: linked }
 }
 
 // Vote tới khi APPROVED (roster 3, quorum 2: phiếu 2 chốt; phiếu 3 trả 409, helper không assert).
@@ -149,27 +155,48 @@ const main = async () => {
   const saTok = await login(sa.email)
 
   // ═════════════ 01.1 — HAPPY PATH (proposal → IN_REVIEW → READY_TO_PITCH → PITCHED) ═════
+  // Spec 28: composite proposal carries storyboardPages. Editor approves ONCE → READY_TO_PITCH.
   section('01.1 Happy proposal → IN_REVIEW')
   const happy = await createProposal(m1Tok, {
     title: 'FT Happy Series',
     genres: ['ACTION', 'ROMANCE'],
     demographic: 'SHONEN',
-    synopsis: 'A happy tale.'
+    synopsis: 'A happy tale.',
+    storyboardPages: [{ pageNumber: 1, fileUrl: 'flowtest/sb-1.png' }]
   })
   ok(
     '01.1a proposal created DRAFT',
     (await prisma.series.findUnique({ where: { id: happy.seriesId } }))?.status === SeriesStatus.DRAFT
   )
-  ok('01.1b Name PROPOSAL auto-created', !!happy.nameId)
+  // F01-SB-01: proposal composite có storyboardPages ngay khi tạo (Spec 28)
+  ok(
+    'F01-SB-01 proposal.storyboardPages populated on create',
+    Array.isArray((await prisma.series.findUnique({ where: { id: happy.seriesId } }))?.proposal?.storyboardPages) &&
+      ((await prisma.series.findUnique({ where: { id: happy.seriesId } }))?.proposal?.storyboardPages ?? []).length ===
+        1,
+    'storyboardPages missing or wrong length'
+  )
 
   const r1b = await req('PUT', `/series/proposals/${happy.proposalId}`, {
     token: m1Tok,
     body: { synopsis: 'Updated synopsis — same title keeps partial-update' }
   })
-  ok('01.1c PUT partial-update proposal in DRAFT', r1b.status === 200, `got ${r1b.status}`)
+  ok('01.1c PUT partial-update proposal in DRAFT', r1b.status === 200, `got ${r1b.status} ${r1b.raw.slice(0, 200)}`)
 
   const r1d = await req('POST', `/series/${happy.seriesId}/submit`, { token: m1Tok })
   ok('01.1d submit DRAFT → IN_REVIEW (201)', r1d.status === 201, `got ${r1d.status} ${r1d.raw.slice(0, 200)}`)
+
+  // F01-SB-02: GET detail trả MỘT LẦN đủ proposal + storyboard pages (Spec 28 composite)
+  const detail = await req('GET', `/series/${happy.seriesId}`, { token: e1Tok })
+  const detailData = detail.json?.data ?? detail.json
+  ok(
+    'F01-SB-02 GET /series/:id returns composite proposal + storyboardPages',
+    detail.status === 200 &&
+      Array.isArray(detailData?.proposal?.storyboardPages) &&
+      detailData.proposal.storyboardPages.length === 1 &&
+      detailData.proposal.storyboardPages[0]?.fileUrl === 'flowtest/sb-1.png',
+    `status=${detail.status} pages=${JSON.stringify(detailData?.proposal?.storyboardPages)}`
+  )
 
   // ── 01.1 × proposal revision loop
   section('01.1 Proposal revision loop (revision → resubmit → approve)')
@@ -185,18 +212,54 @@ const main = async () => {
   const r1g = await req('POST', `/series/${happy.seriesId}/proposal/approve`, { token: e1Tok })
   ok('01.1g Editor approve proposal → PROPOSAL_APPROVED', r1g.status === 201, `got ${r1g.status}`)
 
-  // ── 01.1 × name happy
-  const r1h = await req('POST', `/series/${happy.seriesId}/names/${happy.nameId}/approve`, { token: e1Tok })
-  ok('01.1h Editor approve Name → APPROVED', r1h.status === 201, `got ${r1h.status}`)
-
-  // After BOTH approved → series auto → READY_TO_PITCH (event chain NameApproved + proposal approved)
+  // F01-SB-03: duyệt MỘT LẦN → READY_TO_PITCH ngay, không có gate thứ hai.
   await sleep(300)
   const sRTP = await prisma.series.findUnique({ where: { id: happy.seriesId } })
   ok(
-    '01.1i series auto-transition → READY_TO_PITCH',
+    'F01-SB-03 series auto-transition → READY_TO_PITCH (one approval)',
     sRTP?.status === SeriesStatus.READY_TO_PITCH,
     `got ${sRTP?.status}`
   )
+
+  // F01-SB-04: cả 7 route series-scoped cũ phải vắng mặt với đúng HTTP method gốc.
+  section('F01-SB-04 Removed /series/:id/names routes return 404')
+  const removedSeriesRoutes = [
+    { method: 'GET', suffix: '', token: e1Tok },
+    { method: 'GET', suffix: '/000000000000000000000000', token: e1Tok },
+    { method: 'POST', suffix: '/000000000000000000000000/approve', token: e1Tok },
+    {
+      method: 'POST',
+      suffix: '/000000000000000000000000/request-revision',
+      token: e1Tok,
+      body: { reason: 'removed route contract' }
+    },
+    { method: 'POST', suffix: '/000000000000000000000000/resubmit', token: m1Tok },
+    {
+      method: 'POST',
+      suffix: '/000000000000000000000000/pages',
+      token: m1Tok,
+      body: { pageNumber: 1, fileUrl: 'flowtest/removed-route.png' }
+    },
+    {
+      method: 'PUT',
+      suffix: '/000000000000000000000000/pages',
+      token: m1Tok,
+      body: { pages: [{ pageNumber: 1, fileUrl: 'flowtest/removed-route.png' }] }
+    }
+  ] as const
+  for (const route of removedSeriesRoutes) {
+    const path = `/series/${happy.seriesId}/names${route.suffix}`
+    const gone = await req(route.method, path, {
+      token: route.token,
+      ...('body' in route ? { body: route.body } : {})
+    })
+    const expectedRouterMessage = `Cannot ${route.method} ${path}`
+    ok(
+      `F01-SB-04 ${route.method} ${path} → router-level 404`,
+      gone.status === 404 && gone.json?.message === expectedRouterMessage,
+      `got ${gone.status} message=${JSON.stringify(gone.json?.message)} raw=${gone.raw.slice(0, 160)}`
+    )
+  }
 
   const r1j = await req('POST', `/series/${happy.seriesId}/pitch`, { token: e1Tok })
   ok('01.1j Editor pitch → PITCHED', r1j.status === 201, `got ${r1j.status}`)
@@ -223,7 +286,8 @@ const main = async () => {
 
   // Spec 14 section 2: metadata stays editable after serialization for the owner and assigned editor.
   section('01.1 PATCH /series/:id metadata (Spec 14)')
-  const proposalNameIdBeforePatch = sSer?.proposal?.nameId ?? null
+  // Spec 28: metadata patch phải bảo toàn storyboardPages nhúng trong proposal.
+  const storyboardCountBeforePatch = (sSer?.proposal?.storyboardPages ?? []).length
   const rMetadataOwner = await req('PATCH', `/series/${happy.seriesId}`, {
     token: m1Tok,
     body: { title: 'FT Happy Series - Revised' }
@@ -238,9 +302,9 @@ const main = async () => {
   const afterMetadataPatch = await prisma.series.findUnique({ where: { id: happy.seriesId } })
   ok('F01-PM2b DB title updated', afterMetadataPatch?.title === 'FT Happy Series - Revised')
   ok(
-    'F01-PM2c DB synopsis updated and proposal.nameId preserved',
+    'F01-PM2c DB synopsis updated and proposal.storyboardPages preserved',
     afterMetadataPatch?.proposal?.synopsis === 'Updated after serialization without replacing proposal metadata.' &&
-      (afterMetadataPatch?.proposal?.nameId ?? null) === proposalNameIdBeforePatch,
+      (afterMetadataPatch?.proposal?.storyboardPages ?? []).length === storyboardCountBeforePatch,
     `proposal=${JSON.stringify(afterMetadataPatch?.proposal)}`
   )
 
@@ -263,17 +327,17 @@ const main = async () => {
   // ═════════════ 01.2 — STATE MACHINE (invalid transitions) ══════════════════════════════
   section('01.2 State machine: invalid transitions')
 
-  // Pitch khi chưa READY_TO_PITCH
+  // Pitch khi chưa READY_TO_PITCH — chỉ submit, KHÔNG approve proposal.
   const prePitch = await createProposal(m1Tok, {
     title: 'FT PrePitch',
     genres: ['ACTION'],
     demographic: 'SHONEN',
-    synopsis: 'x'
+    synopsis: 'x',
+    storyboardPages: [{ pageNumber: 1, fileUrl: 'flowtest/sb-1.png' }]
   })
   await req('POST', `/series/${prePitch.seriesId}/submit`, { token: m1Tok })
   await req('POST', `/series/${prePitch.seriesId}/claim`, { token: e1Tok })
-  await req('POST', `/series/${prePitch.seriesId}/proposal/approve`, { token: e1Tok })
-  // Name chưa APPROVED → status = IN_REVIEW
+  // Spec 28: chưa approve proposal → status = IN_REVIEW → pitch bị chặn.
   const rPrePitch = await req('POST', `/series/${prePitch.seriesId}/pitch`, { token: e1Tok })
   expectError(rPrePitch, 409, 'Error.SeriesNotReadyToPitch', '01.2a pitch khi chưa READY_TO_PITCH')
 
@@ -320,7 +384,7 @@ const main = async () => {
   const rDelProposalNonDraft = await req('DELETE', `/series/proposals/${happy.proposalId}`, { token: m1Tok })
   expectError(rDelProposalNonDraft, 409, 'Error.ProposalNotDeletable', '01.2g DELETE proposal khi non-DRAFT')
 
-  // Pitch khi IN_REVIEW (chưa approve name)
+  // Pitch khi IN_REVIEW (proposal chưa được approve)
   const rPitchTooEarly = await req('POST', `/series/${prePitch.seriesId}/pitch`, { token: e1Tok })
   expectError(rPitchTooEarly, 409, 'Error.SeriesNotReadyToPitch', '01.2h pitch khi IN_REVIEW')
 
@@ -592,12 +656,12 @@ const main = async () => {
     title: 'FT Pre Vote',
     genres: ['ACTION'],
     demographic: 'SHONEN',
-    synopsis: 'v'
+    synopsis: 'v',
+    storyboardPages: [{ pageNumber: 1, fileUrl: 'flowtest/sb-1.png' }]
   })
   await req('POST', `/series/${pre.seriesId}/submit`, { token: m1Tok })
   await req('POST', `/series/${pre.seriesId}/claim`, { token: e1Tok })
   await req('POST', `/series/${pre.seriesId}/proposal/approve`, { token: e1Tok })
-  await req('POST', `/series/${pre.seriesId}/names/${pre.nameId}/approve`, { token: e1Tok })
   await sleep(300)
   await req('POST', `/series/${pre.seriesId}/pitch`, { token: e1Tok })
 
@@ -792,7 +856,7 @@ const main = async () => {
     }
   })
   ok('01.8a sequel created với parent khác mangaka', seqConsent.status === 201, `got ${seqConsent.status}`)
-  const sequelSeriesId = seqConsent.json.data.series.id
+  const sequelSeriesId = seqConsent.json.data.id
   // verify franchiseConsentStatus được set
   const sequelDoc = await prisma.series.findUnique({ where: { id: sequelSeriesId } })
   ok(
@@ -834,7 +898,7 @@ const main = async () => {
     }
   })
   ok('01.8f sequel cùng mangaka — không cần consent', seqSame.status === 201, `got ${seqSame.status}`)
-  const sequelSameId = seqSame.json.data.series.id
+  const sequelSameId = seqSame.json.data.id
   const sequelSameDoc = await prisma.series.findUnique({ where: { id: sequelSameId } })
   ok(
     '01.8g sequelSame.franchiseConsentStatus null/NOT_REQUIRED',
@@ -890,8 +954,6 @@ const main = async () => {
     ? ((seriesAfter as any).statusHistory as unknown[]).length
     : 0
   ok('01.9c statusHistory có entry (audit)', histLen >= 1, `len=${histLen}`)
-
-  // Create proposal name pages (series không có name pages — bỏ qua happy cho name submission loop)
 
   // ──────────────────────────────────────────────────────────────────────────
   // 01.10 — AUTO-ASSIGN BOARD ROSTER (PB-05)
@@ -997,8 +1059,7 @@ const main = async () => {
   const reopenSeed = await makeProposalSeriesAt(SeriesStatus.ABANDONED, {
     mangakaId: m1.id,
     title: 'FT S22 Reopen Queue',
-    proposalStatus: ProposalStatus.REJECTED,
-    nameStatus: NameStatus.APPROVED
+    proposalStatus: ProposalStatus.REJECTED
   })
   const reopenRes = await req('POST', `/series/${reopenSeed.series.id}/reopen`, { token: m1Tok })
   ok('F01-R1a Mangaka reopens ABANDONED → DRAFT (201)', reopenRes.status === 201, reopenRes.raw.slice(0, 200))
@@ -1006,14 +1067,16 @@ const main = async () => {
   const reopenDetail = await req('GET', `/series/${reopenSeed.series.id}`, { token: m1Tok })
   const reopenDetailData = reopenDetail.json?.data ?? reopenDetail.json
   const reopenedDb = await prisma.series.findUnique({ where: { id: reopenSeed.series.id } })
-  const reopenedNameDb = await prisma.name.findUnique({ where: { id: reopenSeed.name.id } })
   ok(
-    'F01-R1b reopened detail/DB has Series DRAFT + proposal DRAFT + Name DRAFT',
+    'F01-R1b reopened detail/DB has Series DRAFT + proposal DRAFT with embedded storyboard pages',
     reopenDetail.status === 200 &&
       reopenDetailData?.status === SeriesStatus.DRAFT &&
       reopenedDb?.proposal?.status === ProposalStatus.DRAFT &&
-      reopenedNameDb?.status === NameStatus.DRAFT,
-    `detail=${reopenDetailData?.status} proposal=${reopenedDb?.proposal?.status} name=${reopenedNameDb?.status}`
+      Array.isArray(reopenedDb?.proposal?.storyboardPages) &&
+      (reopenedDb?.proposal?.storyboardPages ?? []).length > 0,
+    `detail=${reopenDetailData?.status} proposal=${reopenedDb?.proposal?.status} sb=${
+      (reopenedDb?.proposal?.storyboardPages ?? []).length
+    }`
   )
 
   const reopenSubmit = await req('POST', `/series/${reopenSeed.series.id}/submit`, { token: m1Tok })
@@ -1035,13 +1098,13 @@ const main = async () => {
   )
 
   // F01-R3 — Board-rejected Series keeps its Editor, reopens revision, and pitches a second time.
-  // Ground truth: Board rejection changes Series.status only; proposal remains PITCHED and Name remains APPROVED.
+  // Ground truth (Spec 28): Board rejection changes Series.status only; proposal remains PITCHED
+  // and storyboardPages stays composite inside the proposal.
   const rePitchSeed = await makeProposalSeriesAt(SeriesStatus.REJECTED, {
     mangakaId: m1.id,
     editorId: e1.id,
     title: 'FT S22 Board Re-pitch',
-    proposalStatus: ProposalStatus.PITCHED,
-    nameStatus: NameStatus.APPROVED
+    proposalStatus: ProposalStatus.PITCHED
   })
   const reopenReviewRes = await req('POST', `/series/${rePitchSeed.series.id}/reopen-review`, {
     token: e1Tok,
@@ -1075,7 +1138,7 @@ const main = async () => {
   await sleep(300)
   const readyToRepitch = await prisma.series.findUnique({ where: { id: rePitchSeed.series.id } })
   ok(
-    'F01-R3f approved proposal + existing approved Name → READY_TO_PITCH',
+    'F01-R3f approved proposal (single approval, Spec 28) → READY_TO_PITCH',
     readyToRepitch?.status === SeriesStatus.READY_TO_PITCH,
     `got ${readyToRepitch?.status}`
   )
@@ -1091,8 +1154,7 @@ const main = async () => {
     mangakaId: m1.id,
     editorId: e1.id,
     title: 'FT S22 Reject Withdraw',
-    proposalStatus: ProposalStatus.PITCHED,
-    nameStatus: NameStatus.APPROVED
+    proposalStatus: ProposalStatus.PITCHED
   })
   const rejectedWithdrawRes = await req('POST', `/series/${rejectedWithdraw.series.id}/withdraw`, {
     token: m1Tok,
@@ -1109,8 +1171,7 @@ const main = async () => {
     mangakaId: m1.id,
     editorId: e1.id,
     title: 'FT S22 Reject Abandon',
-    proposalStatus: ProposalStatus.PITCHED,
-    nameStatus: NameStatus.APPROVED
+    proposalStatus: ProposalStatus.PITCHED
   })
   const rejectedAbandonRes = await req('POST', `/series/${rejectedAbandon.series.id}/reject`, {
     token: e1Tok,
@@ -1131,8 +1192,7 @@ const main = async () => {
     mangakaId: m1.id,
     editorId: e1.id,
     title: 'FT S22 Already In Review',
-    proposalStatus: ProposalStatus.PROPOSAL_REVIEW,
-    nameStatus: NameStatus.SUBMITTED
+    proposalStatus: ProposalStatus.PROPOSAL_REVIEW
   })
   const reopenAlreadyInReview = await req('POST', `/series/${alreadyInReview.series.id}/reopen-review`, {
     token: e1Tok,
@@ -1143,8 +1203,7 @@ const main = async () => {
   const roleGuardSeed = await makeProposalSeriesAt(SeriesStatus.ABANDONED, {
     mangakaId: m1.id,
     title: 'FT S22 Role Guard',
-    proposalStatus: ProposalStatus.REJECTED,
-    nameStatus: NameStatus.APPROVED
+    proposalStatus: ProposalStatus.REJECTED
   })
   const editorCallsReopen = await req('POST', `/series/${roleGuardSeed.series.id}/reopen`, { token: e1Tok })
   ok('F01-R5c Editor calling Mangaka reopen route → 403', editorCallsReopen.status === 403, editorCallsReopen.raw)

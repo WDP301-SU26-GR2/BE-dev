@@ -8,7 +8,7 @@ import { ChapterMessages } from 'src/modules/chapter/chapter.messages'
 import { ContractMessages } from 'src/modules/contract/contract.messages'
 import { DeadlineMessages } from 'src/modules/deadline/deadline.messages'
 import { HealthMessages } from 'src/modules/health/health.messages'
-import { NameMessages } from 'src/modules/name/name.messages'
+import { StoryboardMessages } from 'src/modules/storyboard/storyboard.messages'
 import { NotificationMessages } from 'src/modules/notification/notification.messages'
 import { PaymentMessages } from 'src/modules/payment/payment.messages'
 import { PublicMessages } from 'src/modules/public/public.messages'
@@ -45,7 +45,7 @@ export const MESSAGE_CATALOGS: NamedMessageCatalog[] = [
   { name: 'contract', catalog: catalog(ContractMessages) },
   { name: 'deadline', catalog: catalog(DeadlineMessages) },
   { name: 'health', catalog: catalog(HealthMessages) },
-  { name: 'name', catalog: catalog(NameMessages) },
+  { name: 'storyboard', catalog: catalog(StoryboardMessages) },
   { name: 'notification', catalog: catalog(NotificationMessages) },
   { name: 'payment', catalog: catalog(PaymentMessages) },
   { name: 'public', catalog: catalog(PublicMessages) },

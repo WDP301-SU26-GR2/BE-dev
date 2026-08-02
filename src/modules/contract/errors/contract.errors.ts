@@ -23,7 +23,7 @@ export const ContractErrors = {
   // Lỗi khi Editor này cố tình sửa hợp đồng của Editor khác phụ trách
   UnauthorizedEditor: () => new ForbiddenException(E.notAssignedContractEditor),
 
-  // Sai Mangaka của hợp đồng (approve / request-changes / ký OTP / xem tiến độ ký) — chuẩn Error.PascalCase.
+  // Sai Mangaka của hợp đồng (accept/reject bằng OTP / xem tiến độ ký) — chuẩn Error.PascalCase.
   // Trước 2026-07-17 các path này ném nhầm UnauthorizedEditor (lệch ngữ nghĩa) — đã tách.
   NotContractMangaka: () => new ForbiddenException([{ message: E.notContractMangaka, path: 'mangakaId' }]),
 
@@ -36,7 +36,7 @@ export const ContractErrors = {
   // B-CON-02: chuyển trạng thái không hợp lệ theo CONTRACT_TRANSITIONS (Requiment Flow 6)
   InvalidContractTransition: () => new ConflictException([{ message: E.invalidContractTransition, path: 'status' }]),
 
-  // B-CON-02: chưa BOARD_APPROVED thì chưa được ký
+  // B-CON-02: chưa tới trạng thái ký của phase hiện tại thì chưa được ký
   NotSignableYet: () => new ConflictException([{ message: E.contractNotSignableYet, path: 'status' }]),
 
   AlreadySigned: () => new BadRequestException(E.contractAlreadySigned),
@@ -81,6 +81,27 @@ export const ContractErrors = {
 
   BoardMemberAlreadySigned: () =>
     new BadRequestException(E.boardMemberAlreadySigned, 'Bạn đã thực hiện xác thực ký vào hợp đồng này trước đó rồi'),
+
+  ContractRepresentativeAlreadyClaimed: () =>
+    new ConflictException([{ message: E.representativeAlreadyClaimed, path: 'representativeId' }]),
+
+  NotInContractBoardRoster: () => new ForbiddenException([{ message: E.notInBoardRoster, path: 'userId' }]),
+
+  NotInContractBoardRosterForAssignment: () =>
+    new UnprocessableEntityException([{ message: E.notInBoardRoster, path: 'representativeId' }]),
+
+  NotContractRepresentative: () => new ForbiddenException([{ message: E.notRepresentative, path: 'representativeId' }]),
+
+  ContractNoRepresentative: () => new ConflictException([{ message: E.noRepresentative, path: 'representativeId' }]),
+
+  ContractNotInBoardReview: () => new ConflictException([{ message: E.notInBoardReview, path: 'status' }]),
+
+  ContractNotAwaitingMangaka: () => new ConflictException([{ message: E.notAwaitingMangaka, path: 'status' }]),
+
+  ContractRedraftNotAllowed: () => new ConflictException([{ message: E.redraftNotAllowed, path: 'status' }]),
+
+  InvalidContractMoney: () =>
+    new UnprocessableEntityException([{ message: E.invalidContractMoney, path: 'mangakaOwnershipPct' }]),
 
   // --- Spec 4: ContractAmendment errors (chuẩn BE-A Error.PascalCase) ---
 

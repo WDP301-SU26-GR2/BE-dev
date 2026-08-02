@@ -52,7 +52,7 @@ export const TransferMessages = {
     noEscalationRequired: 'Không cần chuyển cấp hoặc không tìm thấy bản ghi'
   },
   errorText: {
-    'Error.NoActiveContractForSeries': 'Không tìm thấy hợp đồng đang có hiệu lực cho series này',
+    'Error.NoActiveContractForSeries': 'Không tìm thấy hợp đồng đang có hiệu lực cho bộ truyện này',
     'Error.TransferRequestNotFound': 'Không tìm thấy yêu cầu chuyển nhượng',
     'Error.InvalidStatusForScreening': 'Yêu cầu chuyển nhượng chưa ở trạng thái phù hợp để sàng lọc',
     'Error.InvalidTransferState': 'Không thể chuyển yêu cầu chuyển nhượng sang trạng thái này',
@@ -71,9 +71,9 @@ export const TransferMessages = {
     'Error.TransferContractApprovalDecisionRequired':
       'Hợp đồng chuyển nhượng chưa có quyết định CONTRACT được Hội đồng phê duyệt',
     'Error.InvalidOwnershipSplit': 'Tổng tỷ lệ sở hữu mới phải bằng 100 và mỗi tỷ lệ phải nằm trong khoảng 0 đến 100',
-    'Error.TransferRequestingMangakaInactive': 'Mangaka gửi yêu cầu phải đang hoạt động',
+    'Error.TransferRequestingMangakaInactive': 'Tác giả gửi yêu cầu phải đang hoạt động',
     'Error.TransferRequesterAlreadyOwnsSeries': 'Chủ sở hữu hiện tại không thể tự gửi yêu cầu chuyển nhượng',
-    'Error.ActiveTransferRequestAlreadyExists': 'Series này đã có một yêu cầu chuyển nhượng đang được xử lý',
+    'Error.ActiveTransferRequestAlreadyExists': 'Bộ truyện này đã có một yêu cầu chuyển nhượng đang được xử lý',
     'Error.InvalidTransferProposal': 'Loại chuyển nhượng và tỷ lệ đề xuất không hợp lệ',
     'Error.NotChapterCoOwner': 'Bạn không phải đồng sở hữu của chương này',
     'Error.ChapterApprovalNotPending': 'Yêu cầu duyệt chương không ở trạng thái chờ xử lý'

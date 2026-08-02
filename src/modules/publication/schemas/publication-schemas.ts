@@ -1,16 +1,15 @@
 import { extendApi } from '@anatine/zod-openapi'
 import { ReadingDirection } from '@prisma/client'
 import { z } from 'zod'
-import { zEnum } from 'src/core/http/docs/enum-docs'
-
-const VERSION_TYPES = ['ORIGINAL', 'DIGITAL', 'FLIPPED'] as const
+import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
+import { PublicationVersionType } from 'src/core/http/docs/bounded-string-enums'
 
 export const CreatePublicationVersionSchema = extendApi(
   z
     .object({
       language: z.string().min(1).max(20).describe('Mã ngôn ngữ, vd JA/EN/VI'),
       readingDirection: zEnum(ReadingDirection, 'ReadingDirection').default(ReadingDirection.RTL),
-      versionType: z.enum(VERSION_TYPES).nullish().describe('ORIGINAL | DIGITAL | FLIPPED'),
+      versionType: zEnum(PublicationVersionType, 'PublicationVersionType').nullish(),
       notes: z.string().max(2000).nullish()
     })
     .strict(),
@@ -22,7 +21,7 @@ export const UpdatePublicationVersionSchema = extendApi(
     .object({
       language: z.string().min(1).max(20).nullish(),
       readingDirection: zEnum(ReadingDirection, 'ReadingDirection').nullish(),
-      versionType: z.enum(VERSION_TYPES).nullish(),
+      versionType: zEnum(PublicationVersionType, 'PublicationVersionType').nullish(),
       notes: z.string().max(2000).nullish()
     })
     .strict(),
@@ -35,7 +34,7 @@ export const PublicationVersionResSchema = extendApi(
     seriesId: z.string(),
     language: z.string(),
     readingDirection: zEnum(ReadingDirection, 'ReadingDirection'),
-    versionType: z.string().nullable().describe('ORIGINAL | DIGITAL | FLIPPED (hoặc null nếu không set)'),
+    versionType: zEnumString(PublicationVersionType, 'PublicationVersionType').nullable(),
     notes: z.string().nullable(),
     createdAt: z.string().describe('ISO 8601')
   }),

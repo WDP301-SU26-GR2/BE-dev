@@ -142,7 +142,7 @@ describe('SeriesLifecycleService.changeFormat', () => {
       })
     )
     // message mới PHẢI nhắc Editor về deadline
-    expect(SeriesMessages.notification.seriesFormatChanged).toContain('deadline')
+    expect(SeriesMessages.notification.seriesFormatChanged).toContain('Hạn nộp')
 
     // KHÔNG đụng Schedule — repo của series không được lộ bất kỳ mutator lịch nào
     // (đổi nhịp xuất bản KHÔNG hồi tố deadline chapter đang sản xuất — Requiment Flow 5 CHANGE_FORMAT).
@@ -455,7 +455,7 @@ describe('SeriesLifecycleService.forceCancel (PB-06)', () => {
     expect(d.state.transition).toHaveBeenCalledWith(
       S,
       SeriesStatus.CANCELLED,
-      expect.objectContaining({ changedBy: 'e1', reason: expect.stringContaining('without ending') })
+      expect.objectContaining({ changedBy: 'e1', reason: expect.stringContaining('chưa có chương kết') })
     )
     expect(d.bus.emit).toHaveBeenCalledWith(DomainEvent.SeriesCancelled, { seriesId: S })
     expect(d.notify.notifySafe).toHaveBeenCalledWith(expect.objectContaining({ referenceType: 'SERIES_CANCELLED' }))

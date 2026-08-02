@@ -13,8 +13,8 @@ export const PublicationMessages = {
   },
   errorText: {
     'Error.PublicationVersionNotFound': 'Không tìm thấy phiên bản xuất bản',
-    'Error.SeriesNotFound': 'Không tìm thấy series',
-    'Error.SeriesAccessDenied': 'Bạn không có quyền truy cập series này',
+    'Error.SeriesNotFound': 'Không tìm thấy bộ truyện',
+    'Error.SeriesAccessDenied': 'Bạn không có quyền truy cập bộ truyện này',
     'Error.InvalidVersionType': 'Loại phiên bản xuất bản không hợp lệ'
   }
 } as const

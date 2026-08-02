@@ -53,6 +53,8 @@ export class TransferContractService {
         sourceTransferRequestId: request.id,
         contractType: $Enums.ContractType.FULL_BUYOUT,
         valuationAmount: dto.valuationAmount,
+        publisherOwnershipPct: 100,
+        mangakaOwnershipPct: 0,
         conditions: dto.conditions
       })
       await dependencies.requestState.transition(

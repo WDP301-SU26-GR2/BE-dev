@@ -81,7 +81,7 @@ describe('ContractAmendmentService', () => {
 
   describe('create', () => {
     it('rejects when contract not FULLY_EXECUTED', async () => {
-      contractRepo.findById.mockResolvedValue(makeContract({ status: 'MANGAKA_SIGNED' }))
+      contractRepo.findById.mockResolvedValue(makeContract({ status: 'DRAFT' }))
       await expect(service.create(CONTRACT, EDITOR, { changedClauses: ['x'] })).rejects.toMatchObject({
         status: 409,
         response: {

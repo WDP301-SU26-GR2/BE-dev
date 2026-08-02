@@ -13,12 +13,12 @@ export class ChapterCommandRepository {
     seriesId: string
     chapterNumber: number
     title?: string | null
-    nameId?: string | null
+    storyboardId?: string | null
   }) {
     const chapter = await this.prisma.chapter.create({
       data: {
         seriesId: data.seriesId,
-        nameId: data.nameId ?? null,
+        storyboardId: data.storyboardId ?? null,
         chapterNumber: data.chapterNumber,
         title: data.title ?? null,
         status: ChapterStatus.DRAFT
@@ -31,9 +31,6 @@ export class ChapterCommandRepository {
 
   updateChapter(id: string, data: { title?: string; chapterNumber?: number }) {
     return this.prisma.chapter.update({ where: { id }, data })
-  }
-  updateNameChapterNumber(nameId: string, chapterNumber: number) {
-    return this.prisma.name.update({ where: { id: nameId }, data: { chapterNumber } })
   }
   setChapterHold(chapterId: string, hold: { reason: string; expectedReturnDate: Date | null; heldBy: string }) {
     return this.prisma.chapter.update({
@@ -61,7 +58,7 @@ export class ChapterCommandRepository {
   }
   async deleteChapterCascade(chapterId: string) {
     await this.prisma.$transaction(async (tx) => {
-      await tx.name.deleteMany({ where: { chapterId } })
+      await tx.storyboard.deleteMany({ where: { chapterId } })
       await tx.manuscript.deleteMany({ where: { chapterId } })
       await tx.schedule.deleteMany({ where: { chapterId } })
       await tx.page.deleteMany({ where: { chapterId } })

@@ -40,11 +40,11 @@ describe('CatchEverythingFilter', () => {
       success: false,
       statusCode: 422,
       code: 'Error.TasksNotAllApproved',
-      message: 'Còn công việc chưa được duyệt — duyệt hoặc huỷ hết task trước khi nộp',
+      message: 'Còn công việc chưa được duyệt — duyệt hoặc huỷ hết công việc trước khi nộp',
       errors: [
         {
           code: 'Error.TasksNotAllApproved',
-          message: 'Còn công việc chưa được duyệt — duyệt hoặc huỷ hết task trước khi nộp',
+          message: 'Còn công việc chưa được duyệt — duyệt hoặc huỷ hết công việc trước khi nộp',
           path: 'chapterId'
         }
       ]
@@ -83,7 +83,7 @@ describe('CatchEverythingFilter', () => {
       success: false,
       statusCode: 409,
       code: 'Error.SeriesAlreadyClaimed',
-      message: 'Series này đã có Editor khác nhận'
+      message: 'Bộ truyện này đã có biên tập viên khác nhận'
     })
   })
 
