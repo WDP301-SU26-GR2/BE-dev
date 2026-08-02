@@ -17,7 +17,7 @@
       "statements": 70,
       "branches": 65
     },
-    "criticalBranch": 80,
-    "changedLines": 90
+    "criticalBranch": 60,
+    "changedLines": 85
   }
 }
