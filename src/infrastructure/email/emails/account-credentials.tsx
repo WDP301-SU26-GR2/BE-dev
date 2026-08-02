@@ -21,7 +21,7 @@ export const AccountCredentialsEmail = ({
 }: AccountCredentialsEmailProps) => (
   <Html>
     <Head>
-      <title>{title || `[${appName}] Your account has been created`}</title>
+      <title>{title || `[${appName}] Tài khoản của bạn đã được tạo`}</title>
     </Head>
     <Body style={main}>
       <Container style={container}>
@@ -31,18 +31,16 @@ export const AccountCredentialsEmail = ({
           <Text style={brand}>{appName}</Text>
         )}
         <Text style={tertiary}>{appName}</Text>
-        <Heading style={secondary}>Hi {name || 'there'}, your account has been created.</Heading>
+        <Heading style={secondary}>Chào {name || 'bạn'}, tài khoản của bạn đã được tạo.</Heading>
         <Section style={infoBox}>
-          <Text style={infoLabel}>Login email</Text>
+          <Text style={infoLabel}>Email đăng nhập</Text>
           <Text style={emailValue}>{email}</Text>
         </Section>
         <Section style={passwordContainer}>
-          <Text style={infoLabel}>Temporary password</Text>
+          <Text style={infoLabel}>Mật khẩu tạm thời</Text>
           <Text style={passwordValue}>{temporaryPassword}</Text>
         </Section>
-        <Text style={paragraph}>
-          For security reasons, you will be asked to change your password on your first sign-in.
-        </Text>
+        <Text style={paragraph}>Vì lý do bảo mật, bạn sẽ được yêu cầu đổi mật khẩu ở lần đăng nhập đầu tiên.</Text>
       </Container>
       <Text style={footer}>{appName}</Text>
     </Body>
@@ -53,7 +51,7 @@ AccountCredentialsEmail.PreviewProps = {
   name: 'Editor A',
   email: 'editor@example.com',
   temporaryPassword: 'Temp1234',
-  title: 'Your account has been created',
+  title: 'Tài khoản của bạn đã được tạo',
   appName: 'Mangaka'
 } as AccountCredentialsEmailProps
 

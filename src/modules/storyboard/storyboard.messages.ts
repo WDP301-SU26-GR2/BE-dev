@@ -9,7 +9,7 @@ export const StoryboardMessages = {
   notification: {
     storyboardRevision: (round: number, reason: string) => `Bản phác thảo cần chỉnh sửa (vòng ${round}): ${reason}`,
     storyboardResubmitted: (round: number) => `Tác giả đã nộp lại bản phác thảo (vòng ${round})`,
-    storyboardApproved: 'Bản phác thảo của bạn đã được Editor duyệt. Bạn có thể bắt đầu vẽ bản chính.',
+    storyboardApproved: 'Bản phác thảo của bạn đã được biên tập viên duyệt. Bạn có thể bắt đầu vẽ bản chính.',
     storyboardLoopWarning: (rounds: number) => `Bản phác thảo đã qua ${rounds} vòng chỉnh sửa mà chưa được duyệt`
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/storyboard.errors.ts.
@@ -30,12 +30,12 @@ export const StoryboardMessages = {
   errorText: {
     'Error.StoryboardNotFound': 'Không tìm thấy bản phác thảo',
     'Error.InvalidStoryboardState': 'Bản phác thảo đang ở trạng thái không cho phép thao tác này',
-    'Error.NotSeriesOwner': 'Bạn không phải chủ sở hữu series này',
-    'Error.NotAssignedEditor': 'Bạn không phải Editor được phân công cho series này',
-    'Error.SeriesNotFound': 'Không tìm thấy series',
-    'Error.SeriesNotSerialized': 'Series chưa được duyệt để phát hành dài kỳ',
+    'Error.NotSeriesOwner': 'Bạn không phải chủ sở hữu bộ truyện này',
+    'Error.NotAssignedEditor': 'Bạn không phải biên tập viên được phân công cho bộ truyện này',
+    'Error.SeriesNotFound': 'Không tìm thấy bộ truyện',
+    'Error.SeriesNotSerialized': 'Bộ truyện chưa được duyệt để phát hành dài kỳ',
     'Error.DuplicateChapterStoryboard': 'Chương này đã có bản phác thảo',
-    'Error.SeriesAccessDenied': 'Bạn không có quyền truy cập series này',
+    'Error.SeriesAccessDenied': 'Bạn không có quyền truy cập bộ truyện này',
     'Error.ChapterNotFound': 'Không tìm thấy chương',
     'Error.ChapterNotDraftForStoryboard': 'Chương không còn ở giai đoạn tạo bản phác thảo',
     'Error.ChapterStoryboardAlreadyExists': 'Chương này đã có bản phác thảo',

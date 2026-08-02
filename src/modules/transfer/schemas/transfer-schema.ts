@@ -21,7 +21,7 @@ export const OwnershipSplitSchema = z
 export const CreateTransferRequestSchema = extendApi(
   z
     .object({
-      seriesId: zObjectId('Series ObjectId'),
+      seriesId: zObjectId('Mã bộ truyện không hợp lệ'),
       planDescription: z.string().min(1),
       proposedType: zEnum($Enums.TransferType, 'TransferType'),
       proposedPercentage: z.number().positive().max(100).optional()

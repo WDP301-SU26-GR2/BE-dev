@@ -10,7 +10,7 @@ export const TankobonMessages = {
     dashboardAccessDenied: 'Error.DefenseDashboardAccessDenied'
   },
   errorText: {
-    'Error.SeriesNotFound': 'Không tìm thấy series',
-    'Error.DefenseDashboardAccessDenied': 'Bạn không có quyền truy cập bảng điều hành bảo vệ series'
+    'Error.SeriesNotFound': 'Không tìm thấy bộ truyện',
+    'Error.DefenseDashboardAccessDenied': 'Bạn không có quyền truy cập bảng điều hành bảo vệ bộ truyện'
   }
 } as const

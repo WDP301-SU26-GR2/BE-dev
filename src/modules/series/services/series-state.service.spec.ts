@@ -5,8 +5,17 @@ import { MODULE_METADATA, PATH_METADATA } from '@nestjs/common/constants'
 import { SeriesModule } from '../series.module'
 import { SeriesController } from '../series.controller'
 import { SeriesResDto } from '../dto/series.dto'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+
+const walkTs = (dir: string, acc: string[] = []): string[] => {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    if (statSync(full).isDirectory()) walkTs(full, acc)
+    else if (full.endsWith('.ts')) acc.push(full)
+  }
+  return acc
+}
 
 function makeRepo(overrides: Record<string, unknown> = {}) {
   return {
@@ -143,8 +152,11 @@ describe('Spec 28 — bỏ điều kiện thứ hai', () => {
       'test/flows/flow-01-serialization.ts',
       'test/flows/AUTHORITATIVE.md',
       'test/flows/README.md'
-    ]
+    ].map((file) => join(repoRoot, file))
+    files.push(...walkTs(join(repoRoot, 'src/initialScript/demo')))
     const legacyPatterns = [
+      /\bvà Name\b/,
+      /\bName đạt\b/,
       /\bNameStatus\b/,
       /\bNameKind\b/,
       /\bNameApproved\b/,
@@ -169,7 +181,7 @@ describe('Spec 28 — bỏ điều kiện thứ hai', () => {
     ]
 
     for (const file of files) {
-      const source = readFileSync(join(repoRoot, file), 'utf8')
+      const source = readFileSync(file, 'utf8')
       for (const pattern of legacyPatterns) expect(source).not.toMatch(pattern)
     }
   })

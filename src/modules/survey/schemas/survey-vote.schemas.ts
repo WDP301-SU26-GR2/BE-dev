@@ -156,7 +156,7 @@ export const LatestVoteResultsQuerySchema = z
 export const VoteContextQuerySchema = z.object({ periodId: zObjectId() }).strict()
 
 export const VoteLiveQuerySchema = extendApi(
-  z.object({ periodId: zObjectId('periodId must be an ObjectId.').describe('OPEN scoped SurveyPeriod id') }).strict(),
+  z.object({ periodId: zObjectId('Mã kỳ bình chọn không hợp lệ').describe('OPEN scoped SurveyPeriod id') }).strict(),
   { title: 'VoteLiveQuery', description: 'Public live raw-tally query for exactly one OPEN issue' }
 )
 

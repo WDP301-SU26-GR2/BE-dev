@@ -60,14 +60,17 @@ export const ensureApprovedSerializationDecision = async (context: DemoContext, 
         magazine: slot?.magazine ?? 'Manga Nexus Weekly',
         startIssueNumber: slot?.startIssueNumber ?? 101,
         publicationType: slot?.publicationType ?? 'WEEKLY',
-        note: 'Serialization decision used as the auditable basis for the demo contract.'
+        note: 'Quyết định serial hoá — căn cứ đối chiếu cho hợp đồng demo.'
       },
       decidedAt: new Date(context.now.getTime() - 89 * DAY),
       allowedEditorIds: boardIds,
       votes: boardIds.map((voterId, index) => ({
         voterId,
         voteValue: index === boardIds.length - 1 ? VoteValue.REJECT : VoteValue.APPROVE,
-        note: index === boardIds.length - 1 ? 'Đề nghị theo dõi chặt ba chương đầu.' : 'Hồ sơ và Name đạt yêu cầu.',
+        note:
+          index === boardIds.length - 1
+            ? 'Đề nghị theo dõi chặt ba chương đầu.'
+            : 'Hồ sơ và bản phác thảo đạt yêu cầu.',
         votedAt: new Date(context.now.getTime() - 89 * DAY)
       }))
     }

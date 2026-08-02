@@ -6,6 +6,6 @@ export function isObjectId(value: string): boolean {
   return OBJECT_ID_PATTERN.test(value)
 }
 
-export function zObjectId(message = 'Invalid ObjectId') {
+export function zObjectId(message = 'Mã định danh không hợp lệ') {
   return z.string().regex(OBJECT_ID_PATTERN, message).describe('MongoDB ObjectId (24 hexadecimal characters)')
 }

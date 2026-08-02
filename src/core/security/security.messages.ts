@@ -21,8 +21,8 @@ export const SecurityMessages = {
     forbiddenResource: 'Error.ForbiddenResource'
   },
   errorText: {
-    'Error.AccessTokenRequired': 'Vui lòng cung cấp access token',
-    'Error.InvalidAccessToken': 'Access token không hợp lệ',
+    'Error.AccessTokenRequired': 'Bạn chưa đăng nhập — vui lòng đăng nhập để tiếp tục',
+    'Error.InvalidAccessToken': 'Phiên đăng nhập không hợp lệ — vui lòng đăng nhập lại',
     'Error.Unauthorized': 'Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn',
     'Error.MustChangePassword': 'Bạn cần đổi mật khẩu trước khi tiếp tục',
     'Error.OtpRateLimited': 'Bạn thao tác quá nhanh — vui lòng thử lại sau',

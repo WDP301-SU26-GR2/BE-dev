@@ -147,7 +147,7 @@ export function ContractPdfDocument({ data }: { data: ContractPdfData }) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>2. Các bên</Text>
           <Field label="Bên A">Nhà xuất bản {publisher}</Field>
-          <Field label="Bên B">Mangaka: {data.mangaka.displayName}</Field>
+          <Field label="Bên B">Tác giả: {data.mangaka.displayName}</Field>
           <Field label="Đại diện soạn thảo">{data.editor?.displayName ?? DASH}</Field>
         </View>
 
@@ -159,7 +159,7 @@ export function ContractPdfDocument({ data }: { data: ContractPdfData }) {
           <Field label="Loại hợp đồng">{contractTypeLabel[data.contractType] ?? data.contractType}</Field>
           <Field label="Định giá">{fmtMoney(data.valuationAmount)}</Field>
           <Field label="Tỷ lệ sở hữu">
-            NXB: {val(data.publisherOwnershipPct)}% · Mangaka: {val(data.mangakaOwnershipPct)}%
+            NXB: {val(data.publisherOwnershipPct)}% · Tác giả: {val(data.mangakaOwnershipPct)}%
           </Field>
           <Field label="Thời hạn">
             {fmtDate(data.contractStart)} → {fmtDate(data.contractEnd)}
@@ -203,7 +203,7 @@ export function ContractPdfDocument({ data }: { data: ContractPdfData }) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>6. Chữ ký điện tử</Text>
-          <Field label="Mangaka">
+          <Field label="Tác giả">
             {data.mangaka.displayName} · {fmtDate(data.mangakaSignedAt)} · Ký điện tử qua OTP email
           </Field>
           <Text style={styles.label}>Hội đồng</Text>

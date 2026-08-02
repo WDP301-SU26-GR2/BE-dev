@@ -35,7 +35,7 @@ export const PaymentMessages = {
     'Error.PaymentConditionContractLocked':
       'Chỉ có thể thay đổi điều kiện thanh toán khi hợp đồng ở bản nháp hoặc đang thương lượng',
     'Error.ContractNotFound': 'Không tìm thấy hợp đồng',
-    'Error.NotAssignedPaymentEditor': 'Chỉ Editor phụ trách mới được quản lý điều kiện thanh toán',
+    'Error.NotAssignedPaymentEditor': 'Chỉ biên tập viên phụ trách mới được quản lý điều kiện thanh toán',
     'Error.InvalidThresholdConfig': 'Cấu hình ngưỡng thanh toán không hợp lệ',
     'Error.RecurringChapterRequiresRecurring': 'Điều kiện theo chu kỳ chương phải được đánh dấu là định kỳ',
     'Error.PaymentAccessDenied': 'Bạn không có quyền truy cập khoản thanh toán này',

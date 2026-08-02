@@ -13,7 +13,7 @@ interface OtpEmailProps {
 export const OTPEmail = ({ code, title, appName = 'Mangaka', logoUrl, expiresInMinutes = 5 }: OtpEmailProps) => (
   <Html>
     <Head>
-      <title>{title || `Your ${appName} verification code`}</title>
+      <title>{title || `Mã xác thực ${appName} của bạn`}</title>
     </Head>
     <Body style={main}>
       <Container style={container}>
@@ -22,15 +22,14 @@ export const OTPEmail = ({ code, title, appName = 'Mangaka', logoUrl, expiresInM
         ) : (
           <Text style={brand}>{appName}</Text>
         )}
-        <Text style={tertiary}>Verification code</Text>
+        <Text style={tertiary}>Mã xác thực</Text>
         <Heading style={secondary}>
-          Enter the following code in the app to verify your identity. This code expires in {expiresInMinutes}{' '}
-          {expiresInMinutes === 1 ? 'minute' : 'minutes'}.
+          Nhập mã sau vào ứng dụng để xác thực danh tính. Mã hết hạn sau {expiresInMinutes} phút.
         </Heading>
         <Section style={codeContainer}>
           <Text style={codeText}>{code}</Text>
         </Section>
-        <Text style={paragraph}>If you did not request this code, you can safely ignore this email.</Text>
+        <Text style={paragraph}>Nếu bạn không yêu cầu mã này, hãy bỏ qua email này.</Text>
       </Container>
       <Text style={footer}>{appName}</Text>
     </Body>
@@ -39,7 +38,7 @@ export const OTPEmail = ({ code, title, appName = 'Mangaka', logoUrl, expiresInM
 
 OTPEmail.PreviewProps = {
   code: '144833',
-  title: 'Your Mangaka verification code',
+  title: 'Mã xác thực Mangaka của bạn',
   appName: 'Mangaka',
   expiresInMinutes: 5
 } as OtpEmailProps

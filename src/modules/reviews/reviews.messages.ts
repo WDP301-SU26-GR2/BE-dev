@@ -3,8 +3,8 @@
 // `errors/reviews.errors.ts`, which references the `error` codes below.
 export const ReviewsMessages = {
   notification: {
-    assistantReviewed: 'Bạn nhận được đánh giá mới từ Mangaka',
-    mangakaReviewed: 'Bạn nhận được đánh giá mới từ Editor'
+    assistantReviewed: 'Bạn nhận được đánh giá mới từ tác giả',
+    mangakaReviewed: 'Bạn nhận được đánh giá mới từ biên tập viên'
   },
   // Error codes (FE maps these keys to localized text). Consumed by errors/reviews.errors.ts.
   error: {
