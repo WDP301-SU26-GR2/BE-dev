@@ -17,6 +17,16 @@ RUN pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.py
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# pip is needed only while building the image. Removing it from the runtime
+# image also removes its vendored build SBOM, which is not an application
+# dependency and can otherwise report stale package versions to image scanners.
+RUN rm -rf \
+    /usr/local/bin/pip \
+    /usr/local/bin/pip3 \
+    /usr/local/bin/pip3.11 \
+    /usr/local/lib/python3.11/site-packages/pip \
+    /usr/local/lib/python3.11/site-packages/pip-*.dist-info
+
 COPY scripts ./scripts
 RUN python scripts/download_models.py
 
