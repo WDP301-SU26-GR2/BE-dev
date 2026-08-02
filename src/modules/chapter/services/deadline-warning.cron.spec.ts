@@ -80,7 +80,7 @@ describe('DeadlineWarningCron', () => {
       EFFECT_LINES: 'hiệu ứng',
       INKING: 'tô mực',
       COLORING: 'tô màu',
-      LETTERING: 'lettering'
+      LETTERING: 'đi chữ'
     })
   })
 
