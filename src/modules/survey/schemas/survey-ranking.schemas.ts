@@ -120,3 +120,19 @@ export const RankingAggregateResSchema = extendApi(
       'Public participation-adjusted ranking. Rank uses average normalized score; total weighted votes are informational and provisional flags low coverage.'
   }
 )
+
+export const InternalRankingAggregateResSchema = extendApi(
+  RankingAggregateResSchema.extend({
+    items: z.array(
+      RankingAggregateResSchema.shape.items.element.extend({
+        isAtRisk: z.boolean(),
+        riskLevel: zEnum(RiskLevel, 'RiskLevel'),
+        isReliable: z.boolean()
+      })
+    )
+  }).strict(),
+  {
+    title: 'InternalRankingAggregateRes',
+    description: 'Xếp hạng tổng hợp nội bộ, kèm tín hiệu nguy cơ mới nhất của từng bộ truyện'
+  }
+)

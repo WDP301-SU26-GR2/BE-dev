@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
-import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
 import { zObjectId } from 'src/core/http/schemas/object-id.schema'
 import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
@@ -196,7 +196,7 @@ export const ContractVersionResSchema = extendApi(
 
 export const ContractHealthResSchema = extendApi(
   z.object({
-    status: z.string(),
+    status: zEnumString({ OK: 'OK' } as const, 'ContractHealthStatus'),
     module: z.string()
   }),
   { title: 'ContractHealthRes', description: 'Health check module contract' }
@@ -204,7 +204,7 @@ export const ContractHealthResSchema = extendApi(
 
 export const ContractSignResSchema = extendApi(
   z.object({
-    status: z.string(),
+    status: zEnum($Enums.ContractStatus, 'ContractStatus'),
     message: z.string(),
     contract: ContractResSchema.nullable()
   }),

@@ -86,6 +86,34 @@ export const SurveyPeriodResSchema = extendApi(
   { title: 'SurveyPeriodRes', description: 'Chi tiết kỳ bình chọn' }
 )
 
+export const SurveyPeriodListQuerySchema = extendApi(
+  z
+    .object({
+      magazine: z.string().trim().min(1, { message: 'Thiếu thông tin tạp chí' }).optional(),
+      publicationType: zEnum(PublicationType, 'PublicationType').optional(),
+      status: zEnum(SurveyStatus, 'SurveyStatus').optional(),
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+      offset: z.coerce.number().int().min(0).default(0)
+    })
+    .strict(),
+  {
+    title: 'SurveyPeriodListQuery',
+    description: 'Bộ lọc và phân trang danh sách kỳ bình chọn nội bộ'
+  }
+)
+
+export const SurveyPeriodListResSchema = extendApi(
+  z
+    .object({
+      items: z.array(SurveyPeriodResSchema),
+      total: z.number().int().nonnegative(),
+      limit: z.number().int().positive(),
+      offset: z.number().int().nonnegative()
+    })
+    .strict(),
+  { title: 'SurveyPeriodListRes', description: 'Danh sách kỳ bình chọn nội bộ có phân trang' }
+)
+
 export const SurveyDataEntryResSchema = extendApi(
   z.object({ seriesId: z.string().nullable(), voteCount: z.number().int() }).strict(),
   { title: 'SurveyDataEntryRes', description: 'Một entry vote offline' }

@@ -5,7 +5,7 @@
  * Với mỗi route × 6 token (none + 5 role), body `{}` (guard chạy TRƯỚC pipe nên
  * body rỗng vẫn đủ để assert 401/403):
  *
- *   - PUBLIC: none + mọi role → KHÔNG 401/403 (2xx/404/409/422/429/… OK)
+ *   - PUBLIC: bypass JWT; none + mọi role → KHÔNG 401/403 khi đáp ứng guard cục bộ (nếu có)
  *   - AUTH:   none → 401; mọi role → KHÔNG 401/403
  *   - ROLES:  none → 401; role ∉ allowed → 403; role ∈ allowed → KHÔNG 401/403
  *
@@ -77,6 +77,12 @@ const OBJECT_SCOPED_ROUTES = new Set([
   'GET /payments/users/:id/payments'
 ])
 
+const machineAuthHeaders = (method: string, path: string): Record<string, string> | undefined => {
+  if (`${method} ${path}` !== 'GET /metrics') return undefined
+  if (!process.env.API_KEY) throw new Error('API_KEY is required to verify the machine-authenticated metrics route')
+  return { 'x-api-key': process.env.API_KEY }
+}
+
 const main = async () => {
   resetCounters()
   console.log(`\n##### ${FLOW} #####`)
@@ -93,6 +99,15 @@ const main = async () => {
 
   section('rbac-sweep (none + 5 role × mỗi route)')
   await verifyOpenApiRouteSnapshot()
+
+  const metricsWithoutKey = await req('GET', '/metrics')
+  const metricsWithWrongKey = await req('GET', '/metrics', { headers: { 'x-api-key': 'wrong-flowtest-key' } })
+  ok('GET /metrics without machine API key → 401', metricsWithoutKey.status === 401, `got ${metricsWithoutKey.status}`)
+  ok(
+    'GET /metrics with wrong machine API key → 401',
+    metricsWithWrongKey.status === 401,
+    `got ${metricsWithWrongKey.status}`
+  )
 
   section('malformed ObjectId sweep (every runtime :id route)')
   for (const rule of ROUTE_RULES.filter((candidate) => /:([a-zA-Z]*id)\b/i.test(candidate.path))) {
@@ -114,9 +129,10 @@ const main = async () => {
     const realPath = substituteParams(rule.path)
     const needsBody = rule.method === 'POST' || rule.method === 'PATCH' || rule.method === 'PUT'
     const body = needsBody ? {} : undefined
+    const headers = machineAuthHeaders(rule.method, rule.path)
 
     // Probe KHÔNG token
-    const rNone = await req(rule.method, realPath, { body })
+    const rNone = await req(rule.method, realPath, { body, headers })
     if (rule.access === 'PUBLIC') {
       ok(
         `${rule.method} ${rule.path} @ none public`,
@@ -130,7 +146,7 @@ const main = async () => {
     // Probe 5 role
     for (const role of ROLE_FIXTURES_ORDER) {
       const tok = tokens.get(role)!
-      const r = await req(rule.method, realPath, { token: tok, body })
+      const r = await req(rule.method, realPath, { token: tok, body, headers })
       const name = `${rule.method} ${rule.path} @ ${role}`
 
       if (rule.access === 'PUBLIC' || rule.access === 'AUTH' || rule.allowed.includes(role)) {

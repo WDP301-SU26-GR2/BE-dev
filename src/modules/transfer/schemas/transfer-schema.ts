@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { $Enums } from '@prisma/client'
 import { extendApi } from '@anatine/zod-openapi'
-import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
 import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
 import { TransferMessages } from '../transfer.messages'
@@ -147,8 +147,8 @@ export const TransferRequestSchema = extendApi(
     series: SeriesMiniSchema.nullable().optional(),
     requestingMangaka: UserMiniSchema.nullable().optional(),
     originalMangaka: UserMiniSchema.nullable().optional(),
-    originalContractType: z.string().nullable().optional(),
-    proposedType: z.string().nullable().optional(),
+    originalContractType: zEnumString($Enums.ContractType, 'ContractType').nullable().optional(),
+    proposedType: zEnum($Enums.TransferType, 'TransferType').nullable().optional(),
     proposedPercentage: z.number().nullable().optional(),
     planDescription: z.string().nullable().optional(),
     originalContractId: z
@@ -216,7 +216,7 @@ export const TransferContractSchema = extendApi(
     series: SeriesMiniSchema.nullable().optional(),
     fromMangaka: UserMiniSchema.nullable().optional(),
     toMangaka: UserMiniSchema.nullable().optional(),
-    transferType: z.string().nullable().optional(),
+    transferType: zEnum($Enums.TransferType, 'TransferType').nullable().optional(),
     transferAmount: z.number().nullable().optional(),
     newOwnershipSplit: OwnershipSplitSchema.nullable().optional(),
     coOwnerApprovalRequired: z.boolean(),

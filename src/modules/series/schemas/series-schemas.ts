@@ -7,9 +7,10 @@ import {
   ProposalStatus,
   PublicationType,
   RelationshipType,
+  RoleCode,
   SeriesStatus
 } from '@prisma/client'
-import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
 import { UserMiniSchema } from 'src/core/models/user-mini.model'
 
 export const StoryboardPageSchema = z
@@ -120,7 +121,7 @@ export const SeriesResSchema = extendApi(
     // PB-06: completion proposal (Mangaka/Editor đề xuất kết thúc tự nhiên); null nếu chưa đề xuất.
     completionProposal: z
       .object({
-        proposedByRole: z.string().describe('Vai trò người đề xuất (MANGAKA|EDITOR)'),
+        proposedByRole: zEnumString({ MANGAKA: RoleCode.MANGAKA, EDITOR: RoleCode.EDITOR }, 'CompletionProposalRole'),
         proposedById: z.string().describe('UserId người đề xuất'),
         reason: z.string().describe('Lý do đề xuất'),
         proposedEndingChapters: z.number().int().nullable().describe('Số chương kết thúc dự kiến; null nếu không ghi'),

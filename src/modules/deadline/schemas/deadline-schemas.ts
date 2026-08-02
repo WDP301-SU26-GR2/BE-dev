@@ -1,8 +1,9 @@
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
 import { z } from 'zod'
-import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
 import { ChapterMiniSchema, SeriesMiniSchema } from 'src/core/models/user-mini.model'
+import { DeadlineSide } from 'src/core/http/docs/bounded-string-enums'
 
 const zFutureDeadline = z
   .string()
@@ -68,8 +69,8 @@ export const DeadlineRequestResSchema = extendApi(
     scheduleId: z.string(),
     chapterId: z.string().nullable(),
     seriesId: z.string().nullable(),
-    requestedBy: z.string().nullable().describe("Phe khởi tạo: 'MANGAKA' | 'EDITOR'"),
-    lastProposedBy: z.string().nullable().describe('Phe đề xuất gần nhất'),
+    requestedBy: zEnumString(DeadlineSide, 'DeadlineSide').nullable(),
+    lastProposedBy: zEnumString(DeadlineSide, 'DeadlineSide').nullable(),
     currentDeadline: z.string().nullable(),
     requestedDeadline: z.string().nullable(),
     reason: z.string().nullable(),

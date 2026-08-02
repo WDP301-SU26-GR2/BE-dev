@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums, Demographic, Genre, RoleCode } from '@prisma/client'
-import { zEnum, zRole, zRoleSubset } from 'src/core/http/docs/enum-docs'
+import { zEnum, zEnumString, zRole, zRoleSubset } from 'src/core/http/docs/enum-docs'
 import { PhoneNumberE164Schema } from 'src/core/models/user.model'
+import { ExperienceLevel } from 'src/core/http/docs/bounded-string-enums'
 
 export const AdminCreateUserBodySchema = extendApi(
   z
@@ -106,7 +107,7 @@ export const MangakaProfileBodySchema = extendApi(
     .object({
       penName: z.string().min(1).max(100),
       genres: z.array(zEnum(Genre, 'Genre')).default([]),
-      experienceLevel: z.string().optional(),
+      experienceLevel: zEnum(ExperienceLevel, 'ExperienceLevel').optional(),
       bio: z.string().optional(),
       portfolioFiles: z.array(z.string()).default([])
     })
@@ -119,7 +120,7 @@ export const MangakaProfileResSchema = extendApi(
     userId: z.string(),
     penName: z.string().nullable(),
     genres: z.array(zEnum(Genre, 'Genre')),
-    experienceLevel: z.string().nullable(),
+    experienceLevel: zEnumString(ExperienceLevel, 'ExperienceLevel').nullable(),
     bio: z.string().nullable(),
     portfolioFiles: z.array(z.string()),
     reputationScore: z.number(),
@@ -137,7 +138,7 @@ export const AssistantProfileBodySchema = extendApi(
   z
     .object({
       specializations: z.array(zEnum($Enums.Specialization, 'Specialization')).default([]),
-      experienceLevel: z.string().optional(),
+      experienceLevel: zEnum(ExperienceLevel, 'ExperienceLevel').optional(),
       portfolioFiles: z.array(z.string()).default([]),
       availabilityStatus: zEnum($Enums.AvailabilityStatus, 'AvailabilityStatus').optional(),
       // ISO 8601 date-time strings (z.date() can't be represented in JSON Schema / Swagger)
@@ -152,7 +153,7 @@ export const AssistantProfileResSchema = extendApi(
   z.object({
     userId: z.string(),
     specializations: z.array(zEnum($Enums.Specialization, 'Specialization')),
-    experienceLevel: z.string().nullable(),
+    experienceLevel: zEnumString(ExperienceLevel, 'ExperienceLevel').nullable(),
     portfolioFiles: z.array(z.string()),
     availabilityStatus: zEnum($Enums.AvailabilityStatus, 'AvailabilityStatus').nullable(),
     availabilityFrom: z.string().nullable(),
@@ -273,7 +274,7 @@ export const ListAssistantsQuerySchema = extendApi(
         .optional()
         .describe('Tìm theo tên: khớp User.name hoặc User.displayName (không phân biệt hoa thường)'),
       specialization: zEnum($Enums.Specialization, 'Specialization').optional(),
-      level: z.string().min(1).max(100).optional(),
+      level: zEnum(ExperienceLevel, 'ExperienceLevel').optional(),
       availableFrom: z.string().datetime({ offset: true }).optional(),
       availableTo: z.string().datetime({ offset: true }).optional(),
       limit: z.coerce.number().int().positive().max(100).default(20),
@@ -289,7 +290,7 @@ export const AssistantDirectoryItemSchema = extendApi(
     displayName: z.string().nullable(),
     avatar: z.string().nullable(),
     specializations: z.array(zEnum($Enums.Specialization, 'Specialization')),
-    experienceLevel: z.string().nullable(),
+    experienceLevel: zEnumString(ExperienceLevel, 'ExperienceLevel').nullable(),
     portfolioFiles: z.array(z.string()),
     availabilityStatus: zEnum($Enums.AvailabilityStatus, 'AvailabilityStatus').nullable(),
     availabilityFrom: z.string().nullable(),
@@ -327,7 +328,7 @@ export const ListMangakasQuerySchema = extendApi(
         .optional()
         .describe('Tìm theo User.name / User.displayName / MangakaProfile.penName (không phân biệt hoa thường)'),
       genre: zEnum(Genre, 'Genre').optional().describe('Lọc mangaka có thể loại này trong genres[]'),
-      level: z.string().min(1).max(100).optional(),
+      level: zEnum(ExperienceLevel, 'ExperienceLevel').optional(),
       limit: z.coerce.number().int().positive().max(100).default(20),
       offset: z.coerce.number().int().nonnegative().default(0)
     })
@@ -342,7 +343,7 @@ export const MangakaDirectoryItemSchema = extendApi(
     avatar: z.string().nullable(),
     penName: z.string(),
     genres: z.array(zEnum(Genre, 'Genre')),
-    experienceLevel: z.string().nullable(),
+    experienceLevel: zEnumString(ExperienceLevel, 'ExperienceLevel').nullable(),
     bio: z.string().nullable(),
     portfolioFiles: z.array(z.string()),
     reputationScore: z.number(),

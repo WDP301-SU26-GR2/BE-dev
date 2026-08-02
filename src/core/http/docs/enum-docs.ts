@@ -112,7 +112,12 @@ export const ENUM_DOCS = {
     'Vòng đời kỳ bình chọn: DRAFT → OPEN (đang nhận phiếu) → CLOSED → REFLECTED (đã chốt ranking, công khai được)',
   BoardDecisionResult:
     'Kết quả quyết định Hội đồng: PENDING (đang bỏ phiếu), PENDING_QUORUM (chưa đủ quorum), APPROVED (thông qua), REJECTED (bác bỏ), EXPIRED (phiên đóng khi chưa chốt → cần mở phiên mới)',
-  VoteValue: 'Giá trị phiếu bầu của thành viên Hội đồng: APPROVE, REJECT, ABSTAIN'
+  VoteValue: 'Giá trị phiếu bầu của thành viên Hội đồng: APPROVE, REJECT, ABSTAIN',
+  ExperienceLevel: 'Mức kinh nghiệm hồ sơ: JUNIOR, MID, SENIOR',
+  PaymentMethod: 'Phương thức thanh toán: BANK_TRANSFER hoặc CASH',
+  DeadlineSide: 'Phe thương lượng hạn nộp: MANGAKA hoặc EDITOR',
+  RegionSource: 'Nguồn tạo vùng: MANUAL hoặc AI',
+  PublicationVersionType: 'Loại phiên bản phát hành: ORIGINAL, DIGITAL hoặc FLIPPED'
 } as const
 
 type EnumDocKey = keyof typeof ENUM_DOCS
@@ -131,6 +136,12 @@ const describeEnum = <T extends EnumLike>(enumObject: T, key: string) => {
 
 export function zEnum<T extends EnumLike>(enumObject: T, key: string) {
   return z.enum(valuesOf(enumObject)).describe(describeEnum(enumObject, key))
+}
+
+// Response fields backed by legacy Mongo String columns need a broad TypeScript
+// type while retaining strict runtime validation and enum metadata in Swagger.
+export function zEnumString<T extends EnumLike>(enumObject: T, key: string): z.ZodType<string> {
+  return zEnum(enumObject, key) as z.ZodType<string>
 }
 
 export function zRole() {

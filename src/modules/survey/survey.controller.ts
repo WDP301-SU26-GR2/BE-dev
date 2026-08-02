@@ -17,6 +17,8 @@ import {
   RankingRecordListResDto,
   SurveyDataResDto,
   SurveyPeriodResDto,
+  SurveyPeriodListQueryDto,
+  SurveyPeriodListResDto,
   UpdateSurveyPeriodStatusBodyDto,
   VotingConfigBodyDto,
   VotingConfigResDto,
@@ -26,7 +28,9 @@ import {
   VoteContextQueryDto,
   VoteOtpRequestBodyDto,
   VoteLiveQueryDto,
-  VoteTallyResDto
+  VoteTallyResDto,
+  InternalRankingAggregateResDto,
+  RankingAggregateQueryDto
 } from './dto/survey.dto'
 import { SurveyService } from './services/survey.service'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
@@ -132,11 +136,11 @@ export class SurveyController {
   // 2026-07-27 (guard `has no dead handler` trong spec chặn tái diễn).
 
   @Get('survey-periods')
-  @Roles(RoleName.EDITOR, RoleName.SUPER_ADMIN, RoleName.BOARD_MEMBER)
-  @ApiOperation({ summary: 'Danh sách kỳ bình chọn' })
-  @ZodResponse({ status: 200, type: [SurveyPeriodResDto] })
-  getSurveyPeriods() {
-    return this.surveyService.getSurveyPeriods()
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Danh sách kỳ bình chọn nội bộ có bộ lọc và phân trang' })
+  @ZodResponse({ status: 200, type: SurveyPeriodListResDto })
+  getSurveyPeriods(@Query() query: SurveyPeriodListQueryDto) {
+    return this.surveyService.getSurveyPeriods(query)
   }
 
   @Get('survey-periods/:id')
@@ -244,6 +248,14 @@ export class SurveyController {
     @ActiveUser('roleName') roleName: string
   ) {
     return this.surveyService.getSeriesTrend(q.seriesId, q.periods, { userId, roleName })
+  }
+
+  @Get('rankings/internal/aggregate')
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Xếp hạng tổng hợp nhiều kỳ cho nội bộ, kèm tín hiệu nguy cơ mới nhất' })
+  @ZodResponse({ status: 200, type: InternalRankingAggregateResDto })
+  getInternalRankingAggregate(@Query() query: RankingAggregateQueryDto) {
+    return this.surveyService.getInternalRankingAggregate(query)
   }
 
   @Get('voting-config')
