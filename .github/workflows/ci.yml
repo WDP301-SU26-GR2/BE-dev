@@ -82,6 +82,7 @@ jobs:
           printf 'ci-placeholder' > ops/prometheus/metrics_api_key
           docker run --rm \
             -v "${PWD}/ops/prometheus:/prometheus-rules:ro" \
+            -v "${PWD}/ops/prometheus/metrics_api_key:/run/secrets/prometheus_metrics_api_key:ro" \
             --entrypoint /bin/promtool \
             prom/prometheus:v2.55.1 check config /prometheus-rules/prometheus.yml
           docker run --rm \
