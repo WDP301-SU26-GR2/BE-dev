@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { PaymentRecordStatus, PaymentType, PaymentSource } from '@prisma/client'
 import { zDateField } from 'src/core/http/docs/date-docs'
+import { PaymentMethod } from 'src/core/http/docs/bounded-string-enums'
+import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
 
 export const PaymentRecordModelSchema = extendApi(
   z.object({
@@ -13,13 +15,13 @@ export const PaymentRecordModelSchema = extendApi(
     description: z.string().nullable(),
     approvedBy: z.string().nullable(),
     approvedAt: zDateField().nullable(),
-    paymentType: z.nativeEnum(PaymentType),
-    paymentSource: z.nativeEnum(PaymentSource),
+    paymentType: zEnum(PaymentType, 'PaymentType'),
+    paymentSource: zEnum(PaymentSource, 'PaymentSource'),
     amount: z.number(),
     period: z.string().nullable(),
-    paymentMethod: z.string().nullable(),
+    paymentMethod: zEnumString(PaymentMethod, 'PaymentMethod').nullable(),
     transactionReference: z.string().nullable(),
-    status: z.nativeEnum(PaymentRecordStatus),
+    status: zEnum(PaymentRecordStatus, 'PaymentRecordStatus'),
     paidAt: zDateField().nullable(),
     cancelledAt: zDateField().nullable(),
     cancelReason: z.string().nullable(),

@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { AnnotationTargetType, AnnotationType, ReviewStage } from '@prisma/client'
-import { ENUM_DOCS, zEnum } from 'src/core/http/docs/enum-docs'
+import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
+import { RoleCode } from '@prisma/client'
 import { UserMiniSchema } from 'src/core/models/user-mini.model'
 
 export const CreateAnnotationBodySchema = extendApi(
@@ -24,7 +25,7 @@ export const AnnotationResSchema = extendApi(
     id: z.string(),
     taskId: z.string().nullable(),
     authorId: z.string().nullable(),
-    authorRole: z.string().nullable().describe(`RoleCode của người tạo annotation: ${ENUM_DOCS.RoleCode}`),
+    authorRole: zEnumString(RoleCode, 'RoleCode').nullable(),
     targetType: zEnum(AnnotationTargetType, 'AnnotationTargetType').nullable(),
     targetId: z.string().nullable(),
     annotationType: zEnum(AnnotationType, 'AnnotationType').nullable(),

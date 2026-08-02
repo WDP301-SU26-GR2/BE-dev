@@ -14,7 +14,7 @@ export const StageAnalyticsSchema = z.object({
   longestTask: z
     .object({
       taskId: z.string(),
-      taskType: z.string().nullable(),
+      taskType: zEnum($Enums.Specialization, 'Specialization').nullable(),
       assistantId: z.string().nullable(),
       durationMs: z.number()
     })

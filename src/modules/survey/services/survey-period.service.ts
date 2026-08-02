@@ -4,7 +4,7 @@ import { CacheService } from 'src/infrastructure/redis/cache.service'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
-import { CreateSurveyPeriodBodyDto, UpdateSurveyPeriodStatusBodyDto } from '../dto/survey.dto'
+import { CreateSurveyPeriodBodyDto, SurveyPeriodListQueryDto, UpdateSurveyPeriodStatusBodyDto } from '../dto/survey.dto'
 import {
   DuplicateSurveyPeriodScopeException,
   SeriesNotVotableException,
@@ -24,9 +24,15 @@ export class SurveyPeriodService {
     private readonly cacheService: CacheService
   ) {}
 
-  async getSurveyPeriods() {
-    const surveyPeriods = await this.surveyRepository.findManySurveyPeriods()
-    return surveyPeriods.map((period) => mapSurveyPeriod(period))
+  async getSurveyPeriods(query: SurveyPeriodListQueryDto) {
+    const filter = { ...query, ...(query.magazine ? { magazine: query.magazine.trim() } : {}) }
+    const { items, total } = await this.surveyRepository.findManySurveyPeriods(filter)
+    return {
+      items: items.map((period) => mapSurveyPeriod(period)),
+      total,
+      limit: query.limit,
+      offset: query.offset
+    }
   }
 
   async getSurveyPeriodById(id: string) {

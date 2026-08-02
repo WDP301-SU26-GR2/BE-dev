@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-08-01T18:17:37.841Z — 277 routes.
+// Sinh lúc: 2026-08-02T06:06:43.847Z — 278 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -520,6 +520,12 @@ export const ROUTE_RULES: RouteRule[] = [
     access: 'ROLES',
     allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
   },
+  {
+    method: 'GET',
+    path: '/rankings/internal/aggregate',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
   { method: 'DELETE', path: '/regions/:id', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'PATCH', path: '/regions/:id', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   {
@@ -645,7 +651,7 @@ export const ROUTE_RULES: RouteRule[] = [
     method: 'GET',
     path: '/survey-periods',
     access: 'ROLES',
-    allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN, RoleCode.BOARD_MEMBER]
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
   },
   { method: 'POST', path: '/survey-periods', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   {

@@ -7,6 +7,8 @@ import {
   ImportSurveyDataBodySchema,
   VotingConfigBodySchema,
   SurveyPeriodResSchema,
+  SurveyPeriodListQuerySchema,
+  SurveyPeriodListResSchema,
   VotingConfigResSchema,
   RankingRecordResSchema,
   RankingRecordListResSchema,
@@ -29,6 +31,7 @@ import {
   VotePeriodsResSchema,
   RankingAggregateQuerySchema,
   RankingAggregateResSchema,
+  InternalRankingAggregateResSchema,
   VoteLiveQuerySchema,
   VoteTallyResSchema
 } from '../schemas/survey-schemas'
@@ -40,6 +43,8 @@ export class UpdateSurveyPeriodStatusBodyDto extends createZodDto(UpdateSurveyPe
 export class ImportSurveyDataBodyDto extends createZodDto(ImportSurveyDataBodySchema) {}
 export class VotingConfigBodyDto extends createZodDto(VotingConfigBodySchema) {}
 export class SurveyPeriodResDto extends createZodDto(SurveyPeriodResSchema) {}
+export class SurveyPeriodListQueryDto extends createZodDto(SurveyPeriodListQuerySchema) {}
+export class SurveyPeriodListResDto extends createZodDto(SurveyPeriodListResSchema) {}
 export class VotingConfigResDto extends createZodDto(VotingConfigResSchema) {}
 export class RankingRecordResDto extends createZodDto(RankingRecordResSchema) {}
 export class RankingRecordListResDto extends createZodDto(RankingRecordListResSchema) {}
@@ -62,6 +67,7 @@ export class OpenVotePeriodsQueryDto extends createZodDto(OpenVotePeriodsQuerySc
 export class OpenVotePeriodsResDto extends createZodDto(OpenVotePeriodsResSchema) {}
 export class RankingAggregateQueryDto extends createZodDto(RankingAggregateQuerySchema) {}
 export class RankingAggregateResDto extends createZodDto(RankingAggregateResSchema) {}
+export class InternalRankingAggregateResDto extends createZodDto(InternalRankingAggregateResSchema) {}
 export class VoteLiveQueryDto extends createZodDto(VoteLiveQuerySchema) {}
 export class VoteTallyResDto extends createZodDto(VoteTallyResSchema) {}
 

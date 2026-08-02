@@ -680,6 +680,36 @@ const main = async () => {
       aggregateS1?.isProvisional === false,
     `got ${JSON.stringify(aggregateS1)}`
   )
+  ok(
+    '04.23h public aggregate không lộ tín hiệu nguy cơ nội bộ',
+    aggregateS1 !== undefined &&
+      !('isAtRisk' in aggregateS1) &&
+      !('riskLevel' in aggregateS1) &&
+      !('isReliable' in aggregateS1),
+    `got ${JSON.stringify(aggregateS1)}`
+  )
+
+  const internalAggregate = await req(
+    'GET',
+    `/rankings/internal/aggregate?magazine=Jump&publicationType=WEEKLY&level=MONTH&year=${rankingPeriodStart.getUTCFullYear()}&month=${rankingPeriodStart.getUTCMonth() + 1}`,
+    { token: editorTok }
+  )
+  const internalAggregateData = internalAggregate.json?.data ?? internalAggregate.json
+  const internalAggregateS1 = internalAggregateData?.items?.find(
+    (item: { seriesId: string }) => item.seriesId === s1.id
+  )
+  ok(
+    '04.23i internal aggregate 200',
+    internalAggregate.status === 200,
+    `got ${internalAggregate.status} ${internalAggregate.raw.slice(0, 200)}`
+  )
+  ok(
+    '04.23j internal aggregate giữ đủ isAtRisk/riskLevel/isReliable',
+    typeof internalAggregateS1?.isAtRisk === 'boolean' &&
+      typeof internalAggregateS1?.riskLevel === 'string' &&
+      typeof internalAggregateS1?.isReliable === 'boolean',
+    `got ${JSON.stringify(internalAggregateS1)}`
+  )
   ok('04.23e s1 có rankPosition', !!r1Rec && (r1Rec.rankPosition ?? 0) > 0, `got ${r1Rec?.rankPosition}`)
 
   section('F04.26 <8 chapter → at-risk=NONE')
@@ -847,12 +877,44 @@ const main = async () => {
   section('F04.50 /survey-periods list')
   const r50 = await req('GET', '/survey-periods', { token: editorTok })
   ok('04.50a list 200', r50.status === 200, `got ${r50.status}`)
-  const arr50 = Array.isArray(r50.json) ? r50.json : Array.isArray(r50.json?.data) ? r50.json.data : []
+  const page50 = r50.json?.data ?? r50.json
+  const arr50 = Array.isArray(page50?.items) ? page50.items : []
   ok('04.50b list có >=1 period', arr50.length >= 1, `got ${arr50.length}`)
+  ok(
+    '04.50c list trả metadata phân trang',
+    typeof page50?.total === 'number' && page50.limit === 20 && page50.offset === 0,
+    `got ${JSON.stringify(page50)}`
+  )
 
-  section('F04.51 /survey-periods M → 403')
+  const r50Filtered = await req(
+    'GET',
+    '/survey-periods?magazine=Jump&publicationType=WEEKLY&status=REFLECTED&limit=1&offset=0',
+    { token: editorTok }
+  )
+  const filteredPage = r50Filtered.json?.data ?? r50Filtered.json
+  ok('04.50d filtered list 200', r50Filtered.status === 200, `got ${r50Filtered.status}`)
+  ok(
+    '04.50e filter + limit được áp dụng trên dữ liệu thật',
+    filteredPage?.items?.length === 1 &&
+      filteredPage.items[0].magazine === 'Jump' &&
+      filteredPage.items[0].publicationType === 'WEEKLY' &&
+      filteredPage.items[0].status === 'REFLECTED' &&
+      filteredPage.limit === 1 &&
+      filteredPage.offset === 0,
+    `got ${JSON.stringify(filteredPage)}`
+  )
+
+  section('F04.51 /survey-periods M có đường lấy surveyPeriodId nội bộ')
   const r51 = await req('GET', '/survey-periods', { token: mangakaTok })
-  ok('04.51a M list → 403', r51.status === 403, `got ${r51.status}`)
+  const mangakaPage = r51.json?.data ?? r51.json
+  ok('04.51a M list → 200', r51.status === 200, `got ${r51.status}`)
+  ok(
+    '04.51b M tìm được surveyPeriodId',
+    Boolean(
+      Array.isArray(mangakaPage?.items) && mangakaPage.items.some((period: { id: string }) => period.id === periodId)
+    ),
+    `got ${JSON.stringify(mangakaPage)}`
+  )
 
   section('F04.52 /rankings seriesId rác')
   const r52 = await req('GET', '/rankings?seriesId=aaaaaaaaaaaaaaaaaaaaaaaa&periods=12', { token: adminTok })

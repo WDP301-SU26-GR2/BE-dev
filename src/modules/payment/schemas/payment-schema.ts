@@ -4,6 +4,7 @@ import { PaymentRecordStatus, PaymentType, PaymentSource } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 import { PaymentRecordModelSchema } from './payment.model'
 import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
+import { PaymentMethod } from 'src/core/http/docs/bounded-string-enums'
 
 // ============================================================================
 // 1. REQUEST SCHEMAS (Dữ liệu đầu vào)
@@ -32,7 +33,7 @@ export const GetPaymentsQuerySchema = extendApi(
 export const PayPaymentBodySchema = extendApi(
   z
     .object({
-      paymentMethod: z.string().min(1, { message: 'paymentMethod là bắt buộc' }),
+      paymentMethod: zEnum(PaymentMethod, 'PaymentMethod'),
       transactionReference: z.string().min(1, { message: 'transactionReference là bắt buộc' }),
       note: z.string().optional()
     })

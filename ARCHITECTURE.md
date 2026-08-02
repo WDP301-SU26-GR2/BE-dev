@@ -66,7 +66,7 @@ BE-dev/
 │   │   ├── publication/            # Publication version management
 │   │   ├── dashboard/              # Audience-specific dashboard controllers
 │   │   ├── public/                 # Public read-only endpoints
-│   │   └── health/                 # Liveness, readiness and Prometheus metrics
+│   │   └── health/                 # Public liveness/readiness; Prometheus metrics require x-api-key
 │   │       # mỗi module: controller(s) + service (orchestrator) + services/ (use-case + state)
 │   │       #            + repo + mapper? + messages? + constant? + ports? + schemas + dto + errors
 │   │       # <name>.messages.ts: catalog text user-facing (response/notification/error) — string thuần,
@@ -334,7 +334,7 @@ const configSchema = z.object({
 
 ### Models
 
-Schema (`prisma/schema.prisma`) khai báo **toàn bộ domain Mangaka** (~39 models) từ đầu. BE-A đã hiện thực 10 module (auth, users, notification, reviews, series, chapter, annotation, storage, studio, task); BE-B đã bắt đầu module `contract` + `board`. Nhóm models theo bounded context:
+Schema (`prisma/schema.prisma`) khai báo **toàn bộ domain Mangaka** (~39 models) từ đầu. BE-A đã hiện thực 10 module (auth, users, notification, reviews, series, chapter, annotation, storage, studio, task); BE-B đã hiện thực 8 module (`contract`, `payment`, `board`, `reprint`, `transfer`, `survey`, `publication`, `tankobon`). Nhóm models theo bounded context:
 
 | Nhóm | Models |
 |------|--------|

@@ -39,4 +39,8 @@ export class RankingQueryService {
   getAggregate(query: RankingAggregateQueryDto) {
     return this.aggregateService.getAggregate(query)
   }
+
+  getInternalAggregate(query: RankingAggregateQueryDto) {
+    return this.aggregateService.getInternalAggregate(query)
+  }
 }

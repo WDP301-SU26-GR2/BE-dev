@@ -1,9 +1,10 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { $Enums } from '@prisma/client'
-import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
 import { UserMiniSchema } from 'src/core/models/user-mini.model'
 import { zObjectId } from 'src/core/http/schemas/object-id.schema'
+import { RegionSource } from 'src/core/http/docs/bounded-string-enums'
 
 const CoordinatesSchema = z
   .object({
@@ -42,7 +43,7 @@ export const RegionResSchema = extendApi(
     pageId: z.string(),
     coordinates: CoordinatesSchema.nullable(),
     regionType: zEnum($Enums.RegionType, 'RegionType').nullable(),
-    createdBy: z.string().nullable().describe('MANUAL | AI'),
+    createdBy: zEnumString(RegionSource, 'RegionSource').nullable(),
     confirmedByMangaka: z.boolean(),
     confidenceScore: z.number().nullable().describe('null khi MANUAL'),
     detectedSubtype: z.string().nullable().describe('Original AI model class (frame/body/text-block/bubble/...)'),

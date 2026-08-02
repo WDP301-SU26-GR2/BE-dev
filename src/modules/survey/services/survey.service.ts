@@ -4,6 +4,7 @@ import {
   CreateSurveyPeriodBodyDto,
   ImportSurveyDataBodyDto,
   RankingAggregateQueryDto,
+  SurveyPeriodListQueryDto,
   ReaderVoteBodyDto,
   UpdateSurveyPeriodStatusBodyDto,
   VoteOtpRequestBodyDto,
@@ -39,8 +40,8 @@ export class SurveyService {
     return this.guestVoteService.getLiveTally(periodId)
   }
 
-  getSurveyPeriods() {
-    return this.surveyPeriodService.getSurveyPeriods()
+  getSurveyPeriods(query: SurveyPeriodListQueryDto) {
+    return this.surveyPeriodService.getSurveyPeriods(query)
   }
 
   getSurveyPeriodById(id: string) {
@@ -105,6 +106,10 @@ export class SurveyService {
 
   getRankingAggregate(query: RankingAggregateQueryDto) {
     return this.rankingQueryService.getAggregate(query)
+  }
+
+  getInternalRankingAggregate(query: RankingAggregateQueryDto) {
+    return this.rankingQueryService.getInternalAggregate(query)
   }
 
   getVotingConfig() {

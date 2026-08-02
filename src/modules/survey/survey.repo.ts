@@ -34,8 +34,8 @@ export class SurveyRepository {
   createSurveyPeriod(data: CreateSurveyPeriodBodyDto) {
     return this.periods.create(data)
   }
-  findManySurveyPeriods() {
-    return this.periods.findMany()
+  findManySurveyPeriods(filter: Parameters<SurveyPeriodRepository['findMany']>[0]) {
+    return this.periods.findMany(filter)
   }
   findSurveyPeriodById(id: string) {
     return this.periods.findById(id)
@@ -129,6 +129,9 @@ export class SurveyRepository {
   }
   findRankingRecordsByPeriodIds(surveyPeriodIds: string[]) {
     return this.rankings.findByPeriodIds(surveyPeriodIds)
+  }
+  findInternalRankingRecordsByPeriodIds(surveyPeriodIds: string[]) {
+    return this.rankings.findInternalByPeriodIds(surveyPeriodIds)
   }
   finalizeScopedRanking(surveyPeriodId: string, records: FinalizedRankingRecordData[]) {
     return this.rankings.finalizeScoped(surveyPeriodId, records)

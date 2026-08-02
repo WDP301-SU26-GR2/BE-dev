@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { RiskLevel } from '@prisma/client'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 
 export const CreateTankobonSalesBodySchema = z.object({
   seriesId: z.string().describe('Series ObjectId'),
@@ -28,7 +30,7 @@ export const DefenseDashboardResSchema = z.object({
       previousRank: z.number().int().nullable(),
       rankChange: z.number().int().nullable(),
       isAtRisk: z.boolean(),
-      riskLevel: z.string(),
+      riskLevel: zEnum(RiskLevel, 'RiskLevel'),
       recordedAt: z.string()
     })
   ),

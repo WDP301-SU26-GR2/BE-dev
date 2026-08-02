@@ -4,13 +4,14 @@ import { $Enums } from '@prisma/client'
 import { ReprintChapterSchema } from './reprint-request.model'
 import { zDateField } from 'src/core/http/docs/date-docs'
 import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
+import { zEnum } from 'src/core/http/docs/enum-docs'
 
 // B-RPT-01: Payload tạo yêu cầu tái bản ban đầu từ Board/Editor
 export const CreateReprintRequestBodySchema = extendApi(
   z
     .object({
       seriesId: z.string().min(1, { message: 'seriesId là bắt buộc' }),
-      revisionMode: z.nativeEnum($Enums.ReprintRevisionMode),
+      revisionMode: zEnum($Enums.ReprintRevisionMode, 'ReprintRevisionMode'),
       reason: z.string().min(1, { message: 'reason không được để trống' }),
       chapterRangeStart: z.number().int().positive({ message: 'chapterRangeStart phải lớn hơn 0' }),
       chapterRangeEnd: z.number().int().positive({ message: 'chapterRangeEnd phải lớn hơn 0' })
@@ -87,11 +88,11 @@ export const ReprintRequestResSchema = extendApi(
     id: z.string(),
     seriesId: z.string(),
     requestedBy: z.string().nullable(),
-    revisionMode: z.nativeEnum($Enums.ReprintRevisionMode).nullable(),
+    revisionMode: zEnum($Enums.ReprintRevisionMode, 'ReprintRevisionMode').nullable(),
     reason: z.string().nullable(),
     chapterRangeStart: z.number().int().nullable(),
     chapterRangeEnd: z.number().int().nullable(),
-    status: z.string(),
+    status: zEnum($Enums.ReprintRequestStatus, 'ReprintRequestStatus'),
     mangakaApprovedAt: zDateField().nullable(),
     boardApprovedAt: zDateField().nullable(),
     publishedAt: zDateField().nullable(),

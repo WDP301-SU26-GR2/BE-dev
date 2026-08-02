@@ -1,4 +1,4 @@
-import { PublicationType } from '@prisma/client'
+import { PublicationType, SurveyStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { CreateSurveyPeriodBodyDto, ImportSurveyDataBodyDto } from '../dto/survey.dto'
 
@@ -20,8 +20,28 @@ export class SurveyPeriodRepository {
     })
   }
 
-  findMany() {
-    return this.prisma.surveyPeriod.findMany({ orderBy: { startDate: 'desc' } })
+  async findMany(filter: {
+    magazine?: string
+    publicationType?: PublicationType
+    status?: SurveyStatus
+    limit: number
+    offset: number
+  }) {
+    const where = {
+      ...(filter.magazine ? { magazine: filter.magazine } : {}),
+      ...(filter.publicationType ? { publicationType: filter.publicationType } : {}),
+      ...(filter.status ? { status: filter.status } : {})
+    }
+    const [items, total] = await Promise.all([
+      this.prisma.surveyPeriod.findMany({
+        where,
+        orderBy: [{ startDate: 'desc' }, { id: 'desc' }],
+        take: filter.limit,
+        skip: filter.offset
+      }),
+      this.prisma.surveyPeriod.count({ where })
+    ])
+    return { items, total }
   }
 
   findById(id: string) {

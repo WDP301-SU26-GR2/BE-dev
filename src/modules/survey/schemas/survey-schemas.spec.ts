@@ -1,5 +1,63 @@
 import { ReaderVoteListItemSchema, ReaderVoteResSchema } from './survey-vote.schemas'
-import { BoardRankingItemSchema } from './survey-schemas'
+import {
+  BoardRankingItemSchema,
+  InternalRankingAggregateResSchema,
+  RankingAggregateResSchema,
+  SurveyPeriodListQuerySchema,
+  SurveyPeriodListResSchema
+} from './survey-schemas'
+
+describe('internal survey period listing schemas', () => {
+  it('coerces pagination defaults and validates enum filters', () => {
+    expect(
+      SurveyPeriodListQuerySchema.parse({
+        magazine: ' Jump ',
+        publicationType: 'WEEKLY',
+        status: 'OPEN',
+        limit: '10',
+        offset: '20'
+      })
+    ).toEqual({ magazine: 'Jump', publicationType: 'WEEKLY', status: 'OPEN', limit: 10, offset: 20 })
+    expect(SurveyPeriodListQuerySchema.parse({})).toEqual({ limit: 20, offset: 0 })
+    expect(SurveyPeriodListQuerySchema.safeParse({ status: 'INVALID' }).success).toBe(false)
+  })
+
+  it('uses a stable paginated response object instead of a bare array', () => {
+    expect(SurveyPeriodListResSchema.safeParse({ items: [], total: 0, limit: 20, offset: 0 }).success).toBe(true)
+    expect(SurveyPeriodListResSchema.safeParse([]).success).toBe(false)
+  })
+})
+
+describe('public/internal aggregate schema boundary', () => {
+  const aggregate = {
+    magazine: 'Jump',
+    publicationType: 'WEEKLY',
+    level: 'YEAR',
+    year: 2026,
+    reflectedIssueCount: 1,
+    items: [
+      {
+        rankPosition: 1,
+        seriesId: 'series-1',
+        seriesTitle: 'A',
+        reflectedIssueCount: 1,
+        totalWeightedVoteCount: 10,
+        participatedIssueCount: 1,
+        participationCoverage: 1,
+        averageNormalizedScore: 1,
+        isProvisional: false,
+        isAtRisk: true,
+        riskLevel: 'SEVERE',
+        isReliable: true
+      }
+    ]
+  }
+
+  it('accepts risk fields only in the authenticated internal response schema', () => {
+    expect(InternalRankingAggregateResSchema.safeParse(aggregate).success).toBe(true)
+    expect(RankingAggregateResSchema.safeParse(aggregate).success).toBe(false)
+  })
+})
 
 describe('BoardRankingItemSchema', () => {
   it('accepts normalizedScore from a scoped finalized RankingRecord', () => {
