@@ -269,17 +269,30 @@ jobs:
       - name: Enforce quality outcomes
         if: always()
         run: |
-          test "${{ steps.lint.outcome }}" = "success"
-          test "${{ steps.architecture.outcome }}" = "success"
-          test "${{ steps.build.outcome }}" = "success"
-          test "${{ steps.guard.outcome }}" = "success"
-          test "${{ steps.integration.outcome }}" = "success"
-          test "${{ steps.e2e.outcome }}" = "success"
-          test "${{ steps.flows.outcome }}" = "success"
-          test "${{ steps.coverage.outcome }}" = "success"
-          test "${{ steps.node-audit.outcome }}" = "success"
-          test "${{ steps.ai.outcome }}" = "success"
-          test "${{ steps.compose.outcome }}" = "success"
+          failed=0
+          check_outcome() {
+            local step_name="$1"
+            local outcome="$2"
+            echo "${step_name}: ${outcome}"
+            if [ "${outcome}" != "success" ]; then
+              echo "::error title=CI quality gate failed::${step_name} finished with ${outcome}"
+              failed=1
+            fi
+          }
+
+          check_outcome lint "${{ steps.lint.outcome }}"
+          check_outcome architecture "${{ steps.architecture.outcome }}"
+          check_outcome build "${{ steps.build.outcome }}"
+          check_outcome guard "${{ steps.guard.outcome }}"
+          check_outcome integration "${{ steps.integration.outcome }}"
+          check_outcome e2e "${{ steps.e2e.outcome }}"
+          check_outcome flows "${{ steps.flows.outcome }}"
+          check_outcome coverage "${{ steps.coverage.outcome }}"
+          check_outcome node-audit "${{ steps.node-audit.outcome }}"
+          check_outcome ai "${{ steps.ai.outcome }}"
+          check_outcome compose "${{ steps.compose.outcome }}"
+
+          exit "${failed}"
 
   build-image:
     needs: test-baseline
