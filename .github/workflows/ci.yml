@@ -333,6 +333,7 @@ jobs:
           file: ./ai-service/Dockerfile
           push: false
           load: true
+          pull: true
           tags: mangaka-ai:ci-${{ github.sha }}
           cache-from: type=gha,scope=mangaka-ai
           cache-to: type=gha,mode=max,scope=mangaka-ai
