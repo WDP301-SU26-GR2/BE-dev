@@ -77,6 +77,13 @@ jobs:
 
       - name: Validate Prometheus alert rules and alert fixtures
         run: |
+          # Placeholder only: Prometheus reads the real API key from the VPS
+          # Docker secret at deploy time.
+          printf 'ci-placeholder' > ops/prometheus/metrics_api_key
+          docker run --rm \
+            -v "${PWD}/ops/prometheus:/prometheus-rules:ro" \
+            --entrypoint /bin/promtool \
+            prom/prometheus:v2.55.1 check config /prometheus-rules/prometheus.yml
           docker run --rm \
             -v "${PWD}/ops/prometheus:/prometheus-rules:ro" \
             --entrypoint /bin/promtool \
@@ -238,6 +245,8 @@ jobs:
           AI_IMAGE: ghcr.io/example/mangaka-ai@sha256:1111111111111111111111111111111111111111111111111111111111111111
           AI_SERVICE_API_KEY: ci-ai-service-key
         run: |
+          # Non-secret placeholder required only for Docker Compose validation.
+          printf 'ci-placeholder' > ops/prometheus/metrics_api_key
           docker compose -f docker-compose.prod.yml config --quiet
           docker compose -f docker-compose.prod.yml --profile ai config --quiet
           docker compose -f docker-compose.prod.yml --profile monitoring config --quiet

@@ -97,6 +97,8 @@ services:
       - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./ops/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
+    secrets:
+      - prometheus_metrics_api_key
     expose:
       - "9090"
 
@@ -121,3 +123,6 @@ volumes:
   caddy-data:
   caddy-config:
 
+secrets:
+  prometheus_metrics_api_key:
+    file: ./ops/prometheus/metrics_api_key
