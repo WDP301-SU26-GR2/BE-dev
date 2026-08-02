@@ -7,7 +7,7 @@ export const TaskMessages = {
     EFFECT_LINES: 'hiệu ứng',
     INKING: 'tô mực',
     COLORING: 'tô màu',
-    LETTERING: 'lettering'
+    LETTERING: 'đi chữ'
   } as Record<string, string>,
   notification: {
     taskAssigned: 'Bạn được giao một công việc mới',
