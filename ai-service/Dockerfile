@@ -3,7 +3,11 @@ FROM python:3.11-slim
 WORKDIR /srv
 ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+# Install libexpat1 explicitly so each rebuild takes Debian's security-fixed
+# package rather than retaining the version bundled in the Python base image.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libexpat1 libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip setuptools wheel jaraco.context
 # Keep the CPU wheels as a tested torch/torchvision pair. Installing torch
 # alone here lets the later Ultralytics install resolve an incompatible

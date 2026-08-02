@@ -367,6 +367,19 @@ jobs:
       - name: Enforce image scan outcomes
         if: always()
         run: |
-          test "${{ steps.scan-api.outcome }}" = "success"
-          test "${{ steps.scan-ai.outcome }}" = "success"
-          test "${{ steps.scan-policy.outcome }}" = "success"
+          failed=0
+          check_outcome() {
+            local scan_name="$1"
+            local outcome="$2"
+            echo "${scan_name}: ${outcome}"
+            if [ "${outcome}" != "success" ]; then
+              echo "::error title=Image scan gate failed::${scan_name} finished with ${outcome}"
+              failed=1
+            fi
+          }
+
+          check_outcome scan-api "${{ steps.scan-api.outcome }}"
+          check_outcome scan-ai "${{ steps.scan-ai.outcome }}"
+          check_outcome scan-policy "${{ steps.scan-policy.outcome }}"
+
+          exit "${failed}"
