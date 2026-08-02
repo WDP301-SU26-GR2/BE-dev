@@ -48,6 +48,24 @@ describe('NotificationReadService', () => {
     )
   })
 
+  it('list returns a title resolved from referenceType', async () => {
+    repo.findForRecipient.mockResolvedValue([
+      { ...baseNotification, type: 'TASK', referenceType: 'TASK_ASSIGNED', content: 'Bạn được giao một công việc mới' }
+    ])
+
+    const result = await service.list('u1', { isRead: undefined, limit: 20, offset: 0 })
+
+    expect(result.items[0].title).toBe('Công việc mới')
+    expect(result.items[0].content).toBe('Bạn được giao một công việc mới')
+    expect(result.items[0].referenceType).toBe('TASK_ASSIGNED')
+  })
+
+  it('returns a type fallback title for an old notification without referenceType', async () => {
+    const result = await service.list('u1', { isRead: undefined, limit: 20, offset: 0 })
+
+    expect(result.items[0].title).toBe('Hạn nộp')
+  })
+
   it('list passes isRead + type filters to repo', async () => {
     await service.list('u1', { isRead: false, type: 'DEADLINE', limit: 10, offset: 0 })
 

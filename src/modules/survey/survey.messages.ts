@@ -10,8 +10,8 @@ export const SurveyMessages = {
     votingConfigUpdated: 'Cấu hình bình chọn đã được lưu.'
   },
   notification: {
-    rankingAtRisk: 'Series của bạn đang ở vùng nguy cơ theo kết quả bình chọn kỳ này.',
-    rankingSevereDigest: (n: number) => `Có ${n} series ở mức nguy cơ nghiêm trọng (SEVERE) cần Hội đồng xem xét.`,
+    rankingAtRisk: 'Bộ truyện của bạn đang ở vùng nguy cơ theo kết quả bình chọn kỳ này.',
+    rankingSevereDigest: (n: number) => `Có ${n} bộ truyện ở mức nguy cơ nghiêm trọng (SEVERE) cần Hội đồng xem xét.`,
     rankingFinalized: 'Kết quả xếp hạng kỳ bình chọn đã được tính toán.',
     // Spec 11 §1.3 — text giữ nguyên 1:1 từ hard-code trong service
     surveyPeriodCreated: 'Kỳ bình chọn mới đã được tạo thành công.',
@@ -41,8 +41,8 @@ export const SurveyMessages = {
     seriesNotFoundForRanking: 'Error.SeriesNotFound'
   },
   errorText: {
-    'Error.SurveyPeriodInvalidTransition': 'Invalid survey period state transition',
-    'Error.DuplicateSurveyPeriodScope': 'A survey period already exists for this magazine, publication type, and issue',
+    'Error.SurveyPeriodInvalidTransition': 'Không thể chuyển kỳ bình chọn sang trạng thái này',
+    'Error.DuplicateSurveyPeriodScope': 'Đã tồn tại kỳ bình chọn cho tạp chí, loại phát hành và số này',
     'Error.SurveyPeriodNotFound': 'Không tìm thấy kỳ bình chọn',
     'Error.SurveyPeriodNotOpen': 'Kỳ bình chọn hiện chưa mở',
     'Error.SurveyPeriodAlreadyFinalized': 'Kỳ bình chọn đã được chốt',
@@ -55,11 +55,11 @@ export const SurveyMessages = {
     'Error.SurveyDataImportNotAllowed': 'Không thể nhập dữ liệu ở trạng thái hiện tại',
     'Error.RankingFinalizeNotAllowed': 'Chưa thể chốt xếp hạng ở trạng thái hiện tại',
     'Error.VotingConfigNotFound': 'Không tìm thấy cấu hình bình chọn',
-    'Error.TooManySeriesSelected': 'Bạn đã chọn quá số series cho phép',
-    'Error.DuplicateSeriesInVote': 'Danh sách bình chọn có series bị trùng',
-    'Error.SeriesNotVotable': 'Series này không đủ điều kiện bình chọn',
+    'Error.TooManySeriesSelected': 'Bạn đã chọn quá số bộ truyện cho phép',
+    'Error.DuplicateSeriesInVote': 'Danh sách bình chọn có bộ truyện bị trùng',
+    'Error.SeriesNotVotable': 'Bộ truyện này không đủ điều kiện bình chọn',
     'Error.CaptchaRejected': 'Không thể xác minh captcha — vui lòng thử lại',
     'Error.RankingAccessDenied': 'Bạn không có quyền truy cập dữ liệu xếp hạng này',
-    'Error.SeriesNotFound': 'Không tìm thấy series'
+    'Error.SeriesNotFound': 'Không tìm thấy bộ truyện'
   }
 } as const

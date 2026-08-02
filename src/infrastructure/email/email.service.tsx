@@ -14,7 +14,7 @@ export class EmailService {
   }
 
   async sendOTP(payload: { email: string; code: string; expiresInMinutes: number }) {
-    const subject = `Your ${envConfig.NAME_APP} verification code`
+    const subject = `Mã xác thực ${envConfig.NAME_APP} của bạn`
     return await this.resend.emails.send({
       from: envConfig.EMAIL_FROM,
       to: [payload.email],
@@ -32,7 +32,7 @@ export class EmailService {
   }
 
   async sendAccountCredentials(payload: { email: string; name: string; temporaryPassword: string }) {
-    const subject = `[${envConfig.NAME_APP}] Your account has been created`
+    const subject = `[${envConfig.NAME_APP}] Tài khoản của bạn đã được tạo`
     return await this.resend.emails.send({
       from: envConfig.EMAIL_FROM,
       to: [payload.email],

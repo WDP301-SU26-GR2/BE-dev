@@ -30,6 +30,6 @@ export const UsersMessages = {
     'Error.UserAlreadyDeleted': 'Người dùng này đã bị xoá',
     'Error.UserNotDeleted': 'Người dùng này chưa bị xoá',
     'Error.UserHasActiveCommitments':
-      'Không thể vô hiệu hoá tài khoản khi còn ràng buộc đang hoạt động (series/hợp đồng/task/hội đồng) — xử lý xong mới xoá/khoá được'
+      'Không thể vô hiệu hoá tài khoản khi còn ràng buộc đang hoạt động (bộ truyện/hợp đồng/công việc/Hội đồng) — xử lý xong mới xoá/khoá được'
   }
 } as const

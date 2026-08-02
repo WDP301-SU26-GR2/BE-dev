@@ -88,7 +88,7 @@ const StageOutputItemSchema = z
   })
   .strict()
   .refine((value) => Boolean(value.fileKey) !== Boolean(value.reuseInput), {
-    message: 'Choose exactly one output source'
+    message: 'Phải chọn đúng một nguồn đầu ra'
   })
 
 export const ConfirmStageOutputsBodySchema = z

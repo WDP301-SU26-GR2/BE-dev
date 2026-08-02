@@ -21,6 +21,6 @@ export const AiMessages = {
     'Error.AiJobNotFound': 'Không tìm thấy tác vụ AI',
     'Error.AiJobNotApplicable': 'Tác vụ AI này không thể áp dụng ở trạng thái hiện tại',
     'Error.AiJobSourceStale': 'Nguồn của tác vụ AI không còn khớp với giai đoạn hiện tại',
-    'Error.AiSourceCanvasMismatch': 'Kích thước ảnh nguồn AI không khớp với canvas của trang'
+    'Error.AiSourceCanvasMismatch': 'Kích thước ảnh nguồn AI không khớp với khung vẽ của trang'
   }
 } as const

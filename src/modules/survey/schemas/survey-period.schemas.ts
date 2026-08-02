@@ -22,13 +22,13 @@ export const CreateSurveyPeriodBodySchema = extendApi(
     .object({
       issueNumber: z.number().int().positive(),
       reflectedIssueNumber: z.number().int().positive().optional(),
-      magazine: z.string().trim().min(1, { message: 'magazine is required.' }),
+      magazine: z.string().trim().min(1, { message: 'Thiếu thông tin tạp chí' }),
       publicationType: zEnum(PublicationType, 'PublicationType'),
       eligibleSeriesIds: z
-        .array(zObjectId('eligibleSeriesIds must be ObjectIds.'))
-        .min(1, { message: 'eligibleSeriesIds must contain at least one series.' })
+        .array(zObjectId('Mã bộ truyện tham gia không hợp lệ'))
+        .min(1, { message: 'Phải chọn ít nhất một bộ truyện tham gia kỳ bình chọn' })
         .refine((ids) => new Set(ids).size === ids.length, {
-          message: 'eligibleSeriesIds must not contain duplicates.'
+          message: 'Danh sách bộ truyện tham gia bị trùng'
         }),
       startDate: z.string().datetime({ message: 'startDate phải là chuỗi ISO 8601.' }),
       endDate: z.string().datetime({ message: 'endDate phải là chuỗi ISO 8601.' }),
@@ -36,7 +36,7 @@ export const CreateSurveyPeriodBodySchema = extendApi(
     })
     .strict()
     .refine((body) => new Date(body.startDate) < new Date(body.endDate), {
-      message: 'startDate must be before endDate.',
+      message: 'Ngày bắt đầu phải trước ngày kết thúc',
       path: ['endDate']
     }),
   { title: 'CreateSurveyPeriodBody', description: 'Editor tạo kỳ bình chọn mới' }

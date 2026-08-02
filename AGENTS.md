@@ -176,6 +176,30 @@ Tách service theo use-case khi **bất kỳ** điều kiện nào:
   - Interceptor đăng ký **TRƯỚC** `ZodSerializerInterceptor` (Zod serialize DTO xong → envelope mới bọc).
   - ⚠️ Swagger DTO khai báo shape *chưa bọc*; response thật luôn bọc envelope (FE đọc `data`).
 
+### 7.1. Từ điển chuẩn tiếng Việt (Spec 29 — BẮT BUỘC)
+
+Mọi text user-facing (`response` / `notification` / `reason` / `errorText`, email, message validate Zod)
+phải là **tiếng Việt**. Bảng dưới là nguồn sự thật; test `message-language.spec.ts` enforce tự động.
+
+| KHÔNG dùng | Dùng |
+|---|---|
+| series / Series | bộ truyện |
+| Mangaka | tác giả |
+| deadline | hạn nộp |
+| Editor | biên tập viên |
+| task / Task | công việc |
+| review | duyệt / xem xét |
+| Storyboard | bản phác thảo |
+| Board | Hội đồng |
+| canvas | khung vẽ |
+| access token | phiên đăng nhập |
+
+**Giữ nguyên (từ mượn, không dịch):** `OTP` `AI` `email` `Google` `PDF` `API` `captcha` `studio`
+`tankobon` `manga` + giá trị enum in hoa (`HIATUS`, `SEVERE`).
+
+**KHÔNG áp bảng này cho:** mã lỗi `Error.*`, tên biến/field/route, giá trị enum, `referenceType`,
+comment code, Swagger summary/`.describe()`. Đó là thứ máy đọc.
+
 ## 8. Cross-cutting: Events & Notification (Sprint 0)
 
 - **Domain events** (`src/core/events/domain-events.ts`): contract dùng chung BE-A/BE-B, in-process qua

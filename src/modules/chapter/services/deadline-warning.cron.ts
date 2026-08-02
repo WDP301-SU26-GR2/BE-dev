@@ -5,6 +5,7 @@ import envConfig from 'src/core/config/envConfig'
 import { CronMetricsService, runCron } from 'src/core/observability/cron-metrics.service'
 import { RedisService } from 'src/infrastructure/redis/redis.service'
 import { NotificationQueue } from 'src/modules/notification/notification.queue'
+import { TaskMessages } from 'src/modules/task/task.messages'
 import { ChapterRepository } from '../chapter.repo'
 import { ChapterMessages } from '../chapter.messages'
 
@@ -48,7 +49,7 @@ export class DeadlineWarningCron {
                 type: NotificationType.DEADLINE,
                 referenceId: chapter.chapterId,
                 referenceType: `DEADLINE_WARNING:${today}`,
-                content: ChapterMessages.notification.deadlineWarning(chapter.chapterId)
+                content: ChapterMessages.notification.deadlineWarning(chapter.chapterNumber, chapter.seriesTitle)
               })
             }
           } catch (error) {
@@ -60,13 +61,15 @@ export class DeadlineWarningCron {
 
         for (const task of tasks) {
           const targets = [task.assistantId, task.mangakaId].filter((id): id is string => typeof id === 'string')
+          // null = chưa gán loại việc (hoặc giá trị lạ) → message tự bỏ phần nhãn, không ghép chuỗi rỗng.
+          const taskLabel = task.taskType == null ? null : (TaskMessages.specializationLabel[task.taskType] ?? null)
           for (const recipientId of targets) {
             await this.notificationQueue.enqueue({
               recipientId,
               type: NotificationType.DEADLINE,
               referenceId: task.taskId,
               referenceType: `TASK_DEADLINE_WARNING:${today}`,
-              content: ChapterMessages.notification.taskDeadlineWarning(task.taskId)
+              content: ChapterMessages.notification.taskDeadlineWarning(taskLabel, task.pageNumber, task.chapterNumber)
             })
           }
         }

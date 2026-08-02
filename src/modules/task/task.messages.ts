@@ -1,6 +1,14 @@
 // Centralized user-facing message codes for the task module — single source of truth.
 // Plain strings only (no NestJS imports). HTTP status + path live in errors/task.errors.ts.
 export const TaskMessages = {
+  specializationLabel: {
+    BACKGROUND: 'vẽ nền',
+    SCREENTONE: 'dán screentone',
+    EFFECT_LINES: 'hiệu ứng',
+    INKING: 'tô mực',
+    COLORING: 'tô màu',
+    LETTERING: 'lettering'
+  } as Record<string, string>,
   notification: {
     taskAssigned: 'Bạn được giao một công việc mới',
     taskSubmittedForReview: (version: number) => `Có công việc được gửi để bạn duyệt (phiên bản ${version})`,
@@ -14,7 +22,7 @@ export const TaskMessages = {
   // thì giữ nguyên (không migrate) — chấp nhận lệch lịch sử.
   reason: {
     regionDeleted: 'Vùng được giao đã bị xoá',
-    cancelledByMangaka: 'Mangaka đã huỷ công việc này',
+    cancelledByMangaka: 'Tác giả đã huỷ công việc này',
     reassigned: 'Công việc đã được chuyển cho trợ lý khác'
   },
   error: {
@@ -38,15 +46,15 @@ export const TaskMessages = {
     'Error.PageNotFound': 'Không tìm thấy trang',
     'Error.RegionNotFound': 'Không tìm thấy vùng làm việc',
     'Error.TaskNotFound': 'Không tìm thấy công việc',
-    'Error.NotSeriesOwner': 'Bạn không phải chủ sở hữu series này',
+    'Error.NotSeriesOwner': 'Bạn không phải chủ sở hữu bộ truyện này',
     'Error.NotTaskAssignee': 'Bạn không phải người được giao công việc này',
-    'Error.AssistantNotHired': 'Trợ lý chưa có hợp tác hiệu lực với Mangaka',
+    'Error.AssistantNotHired': 'Trợ lý chưa có hợp tác hiệu lực với tác giả',
     'Error.AssetNotFound': 'Không tìm thấy tệp tài nguyên',
     'Error.TaskNotReassignable': 'Công việc hiện không thể giao lại',
     'Error.TaskNotCancellable': 'Công việc hiện không thể huỷ',
     'Error.RegionHasApprovedTasks': 'Vùng này có công việc đã được duyệt nên không thể xoá',
     'Error.ChapterOnHold': 'Chương đang tạm dừng sản xuất',
-    'Error.PageNotEditable': 'Trang đang được Editor duyệt, không thể chỉnh sửa',
+    'Error.PageNotEditable': 'Trang đang được biên tập viên duyệt, không thể chỉnh sửa',
     'Error.InvalidTaskTransition': 'Không thể chuyển công việc sang trạng thái này',
     'Error.TaskFileForbidden': 'Bạn không có quyền tải tệp của công việc này',
     'Error.TaskDescriptionLocked': 'Không thể đổi mô tả sau khi trợ lý đã bắt đầu công việc'

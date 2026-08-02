@@ -78,12 +78,21 @@ describe('ChapterRepository workflow persistence', () => {
   it('filters published and held chapters from deadline warnings', async () => {
     const { prisma, repo } = createFixture()
     prisma.schedule.findMany.mockResolvedValue([
-      { chapterId: 'eligible', chapter: { seriesId: 's1', status: ChapterStatus.DRAFT, hold: null } },
+      {
+        chapterId: 'eligible',
+        chapter: {
+          seriesId: 's1',
+          status: ChapterStatus.DRAFT,
+          hold: null,
+          chapterNumber: 2,
+          series: { title: 'Bộ truyện thử' }
+        }
+      },
       { chapterId: 'published', chapter: { seriesId: 's2', status: ChapterStatus.PUBLISHED, hold: null } },
       { chapterId: 'held', chapter: { seriesId: 's3', status: ChapterStatus.DRAFT, hold: { reason: 'pause' } } }
     ])
     await expect(repo.findChaptersNearDeadline(new Date())).resolves.toEqual([
-      { chapterId: 'eligible', seriesId: 's1' }
+      { chapterId: 'eligible', seriesId: 's1', chapterNumber: 2, seriesTitle: 'Bộ truyện thử' }
     ])
   })
 

@@ -1,17 +1,51 @@
-import { ChapterStatus, PageStatus, TaskStatus } from '@prisma/client'
+import { ChapterStatus, PageStatus, Specialization, TaskStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+
+type ChapterNearDeadline = {
+  chapterId: string
+  seriesId: string
+  chapterNumber: number
+  seriesTitle: string
+}
+
+type TaskNearDeadline = {
+  taskId: string
+  assistantId: string | null
+  mangakaId: string
+  taskType: Specialization | null
+  pageNumber: number
+  chapterNumber: number
+}
 
 export class ChapterProgressQueryRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findChaptersNearDeadline(beforeDate: Date) {
+  async findChaptersNearDeadline(beforeDate: Date): Promise<ChapterNearDeadline[]> {
     const schedules = await this.prisma.schedule.findMany({
       where: { currentDeadline: { lte: beforeDate } },
-      select: { chapterId: true, chapter: { select: { seriesId: true, status: true, hold: true } } }
+      select: {
+        chapterId: true,
+        chapter: {
+          select: {
+            seriesId: true,
+            status: true,
+            hold: true,
+            chapterNumber: true,
+            series: { select: { title: true } }
+          }
+        }
+      }
     })
     return schedules
       .filter((schedule) => schedule.chapter.status !== ChapterStatus.PUBLISHED && !schedule.chapter.hold)
-      .map((schedule) => ({ chapterId: schedule.chapterId, seriesId: schedule.chapter.seriesId }))
+      .map(
+        (schedule): ChapterNearDeadline => ({
+          chapterId: schedule.chapterId,
+          seriesId: schedule.chapter.seriesId,
+          chapterNumber: schedule.chapter.chapterNumber,
+          seriesTitle: schedule.chapter.series.title
+        })
+      )
   }
 
   async countPagesByStatus(chapterId: string): Promise<Partial<Record<PageStatus, number>>> {
@@ -109,25 +143,44 @@ export class ChapterProgressQueryRepository {
     }))
   }
 
-  async findTasksNearDeadline(now: Date, before: Date) {
+  async findTasksNearDeadline(now: Date, before: Date): Promise<TaskNearDeadline[]> {
     const tasks = await this.prisma.task.findMany({
       where: {
         deadline: { gt: now, lte: before },
         status: { in: [TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS, TaskStatus.REVISION_REQUESTED] }
       },
-      select: { id: true, assistantId: true, pageId: true }
+      select: { id: true, assistantId: true, pageId: true, taskType: true }
     })
     if (tasks.length === 0) return []
     const pages = await this.prisma.page.findMany({
       where: { id: { in: tasks.map((task) => task.pageId) } },
-      select: { id: true, chapter: { select: { hold: true, series: { select: { mangakaId: true } } } } }
+      select: {
+        id: true,
+        pageNumber: true,
+        chapter: {
+          select: {
+            hold: true,
+            chapterNumber: true,
+            series: { select: { mangakaId: true } }
+          }
+        }
+      }
     })
     const byPage = new Map(pages.map((page) => [page.id, page]))
     return tasks.flatMap((task) => {
       const page = byPage.get(task.pageId)
       return !page || page.chapter.hold
         ? []
-        : [{ taskId: task.id, assistantId: task.assistantId, mangakaId: page.chapter.series.mangakaId }]
+        : [
+            {
+              taskId: task.id,
+              assistantId: task.assistantId,
+              mangakaId: page.chapter.series.mangakaId,
+              taskType: task.taskType,
+              pageNumber: page.pageNumber,
+              chapterNumber: page.chapter.chapterNumber
+            }
+          ]
     })
   }
 }

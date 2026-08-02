@@ -63,7 +63,7 @@ export const GetSeriesTrendQuerySchema = extendApi(
 )
 
 const RankingAggregateBaseQuerySchema = {
-  magazine: z.string().trim().min(1, { message: 'magazine is required.' }),
+  magazine: z.string().trim().min(1, { message: 'Thiếu thông tin tạp chí' }),
   publicationType: zEnum(PublicationType, 'PublicationType'),
   year: z.coerce.number().int().min(1970).max(9999)
 }
@@ -78,7 +78,7 @@ export const RankingAggregateQuerySchema = extendApi(
     .strict()
     .superRefine((query, context) => {
       if (query.level === 'MONTH' && query.month == null) {
-        context.addIssue({ code: 'custom', message: 'month is required when level is MONTH.', path: ['month'] })
+        context.addIssue({ code: 'custom', message: 'Phải chọn tháng khi xem xếp hạng theo tháng', path: ['month'] })
       }
     }),
   {

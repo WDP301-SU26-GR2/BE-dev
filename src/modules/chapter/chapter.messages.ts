@@ -7,10 +7,17 @@ export const ChapterMessages = {
     taskRemovedWithPage: 'Trang chứa công việc của bạn đã bị xoá',
     awaitingCoOwnerApproval: 'Chương đang chờ đồng sở hữu duyệt',
     chapterPublished: 'Chương đã được xuất bản',
-    deadlineWarning: (chapterId: string) => `Chương ${chapterId} sắp đến hạn`,
-    taskDeadlineWarning: (taskId: string) => `Công việc ${taskId} sắp đến hạn`,
+    deadlineWarning: (chapterNumber: number, seriesTitle: string) =>
+      `Chương ${chapterNumber} — «${seriesTitle}» sắp đến hạn nộp`,
+    // `taskTypeLabel` null = Task chưa gán loại công việc (Task.taskType là `Specialization?`).
+    // Nhận null thay vì một chuỗi "chung" để không phải so khớp magic-string với bên gọi.
+    taskDeadlineWarning: (taskTypeLabel: string | null, pageNumber: number, chapterNumber: number) => {
+      const label = taskTypeLabel ? `${taskTypeLabel} ` : ''
+      return `Công việc ${label}(trang ${pageNumber}, chương ${chapterNumber}) sắp đến hạn nộp`
+    },
     manuscriptSubmitted: 'Bản thảo đã được gửi duyệt',
-    editorRequestedRevision: (round: number, reason: string) => `Editor yêu cầu chỉnh sửa (vòng ${round}): ${reason}`,
+    editorRequestedRevision: (round: number, reason: string) =>
+      `Biên tập viên yêu cầu chỉnh sửa (vòng ${round}): ${reason}`,
     manuscriptResubmitted: (round: number) => `Đã nộp lại bản thảo (vòng ${round})`,
     manuscriptApproved: 'Bản thảo đã được duyệt và sẵn sàng in',
     chapterHeld: (reason: string) => `Quá trình sản xuất chương đang tạm dừng: ${reason}`,
@@ -77,21 +84,21 @@ export const ChapterMessages = {
   },
   errorText: {
     'Error.ChapterNotFound': 'Không tìm thấy chương',
-    'Error.NotSeriesOwner': 'Bạn không phải chủ sở hữu series này',
-    'Error.NotSeriesEditor': 'Bạn không phải Editor của series này',
+    'Error.NotSeriesOwner': 'Bạn không phải chủ sở hữu bộ truyện này',
+    'Error.NotSeriesEditor': 'Bạn không phải biên tập viên của bộ truyện này',
     'Error.InvalidManuscriptTransition': 'Không thể chuyển bản thảo sang trạng thái này',
     'Error.InvalidPageTransition': 'Không thể chuyển trang sang trạng thái này',
     'Error.NoPagesToSubmit': 'Chương chưa có trang để nộp',
-    'Error.TasksNotAllApproved': 'Còn công việc chưa được duyệt — duyệt hoặc huỷ hết task trước khi nộp',
+    'Error.TasksNotAllApproved': 'Còn công việc chưa được duyệt — duyệt hoặc huỷ hết công việc trước khi nộp',
     'Error.RevisionNotResolved': 'Vẫn còn yêu cầu chỉnh sửa chưa hoàn tất',
-    'Error.PageNotEditable': 'Trang đang được Editor duyệt, không thể chỉnh sửa',
-    'Error.DuplicateChapterNumber': 'Số chương này đã tồn tại trong series',
+    'Error.PageNotEditable': 'Trang đang được biên tập viên duyệt, không thể chỉnh sửa',
+    'Error.DuplicateChapterNumber': 'Số chương này đã tồn tại trong bộ truyện',
     'Error.DuplicatePageNumber': 'Số trang này đã tồn tại trong chương',
     'Error.PageHasApprovedTasks': 'Trang này có công việc đã được duyệt nên không thể xoá',
     'Error.PagesNotReadyForPublish': 'Còn trang chưa hoàn tất (chưa được duyệt) — không thể xuất bản chương',
     'Error.PageNotFound': 'Không tìm thấy trang',
-    'Error.SeriesNotSerialized': 'Series chưa được duyệt để phát hành dài kỳ',
-    'Error.ContractNotExecuted': 'Series chưa có hợp đồng hiệu lực nên chưa thể xuất bản',
+    'Error.SeriesNotSerialized': 'Bộ truyện chưa được duyệt để phát hành dài kỳ',
+    'Error.ContractNotExecuted': 'Bộ truyện chưa có hợp đồng hiệu lực nên chưa thể xuất bản',
     'Error.ChapterAccessDenied': 'Bạn không có quyền truy cập chương này',
     'Error.ChapterNotHoldable': 'Chương hiện không thể tạm dừng sản xuất',
     'Error.ChapterAlreadyOnHold': 'Chương đã được tạm dừng',
@@ -100,7 +107,7 @@ export const ChapterMessages = {
     'Error.NotCoOwner': 'Bạn không phải đồng sở hữu của chương này',
     'Error.CoOwnerApprovalNotPending': 'Yêu cầu duyệt của đồng sở hữu không còn chờ xử lý',
     'Error.CoOwnerApprovalNotFound': 'Không tìm thấy yêu cầu duyệt của đồng sở hữu',
-    'Error.ChapterStoryboardNotApproved': 'Storyboard của chương chưa được duyệt',
+    'Error.ChapterStoryboardNotApproved': 'Bản phác thảo của chương chưa được duyệt',
     'Error.ChapterNotEditable': 'Chương hiện không thể chỉnh sửa',
     'Error.ChapterNumberLocked': 'Số chương đã bị khoá và không thể thay đổi',
     'Error.ChapterNotDeletable': 'Chương hiện không thể xoá',
@@ -117,10 +124,11 @@ export const ChapterMessages = {
     'Error.ProductionPageSetLocked': 'Không thể thêm trang sau khi giai đoạn đầu đã hoàn thành',
     'Error.TaskTypeNotInStage': 'Loại công việc không thuộc giai đoạn này',
     'Error.StageNotEditable': 'Giai đoạn đã hoàn thành, không sửa được',
-    'Error.StageNotDeletable': 'Chỉ xoá được giai đoạn chưa mở, chưa có task và không phải bước chốt',
+    'Error.StageNotDeletable': 'Chỉ xoá được giai đoạn chưa mở, chưa có công việc và không phải bước chốt',
     'Error.ProductionNotFinalized': 'Chưa tới bước tổng hợp cuối — hoàn thành các giai đoạn trước khi nộp',
     'Error.StageNotReopenable': 'Chỉ giai đoạn đã hoàn thành mới mở lại được',
-    'Error.StageReopenNotAllowed': 'Chỉ mở lại giai đoạn khi bản thảo đang ở trạng thái Editor yêu cầu chỉnh sửa',
+    'Error.StageReopenNotAllowed':
+      'Chỉ mở lại giai đoạn khi bản thảo đang ở trạng thái biên tập viên yêu cầu chỉnh sửa',
     'Error.StageNotInsertable': 'Không thể chèn giai đoạn mới ở vị trí này',
     'Error.FinalCheckNotCompletable': 'Giai đoạn kiểm tra cuối được đóng khi nộp bản thảo, không đóng thủ công'
   }

@@ -4,7 +4,7 @@ export const PublicMessages = {
     chapterNotFound: 'Error.PublicChapterNotFound'
   },
   errorText: {
-    'Error.PublicSeriesNotFound': 'Không tìm thấy series công khai',
+    'Error.PublicSeriesNotFound': 'Không tìm thấy bộ truyện công khai',
     'Error.PublicChapterNotFound': 'Không tìm thấy chương công khai'
   }
 } as const
