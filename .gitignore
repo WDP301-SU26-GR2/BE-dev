@@ -96,3 +96,6 @@ ai-service/**/*.py[cod]
 # Flowtest run logs (local-only)
 flowtest-results/
 server-flowtest*.log
+
+# Generated on the VPS from API_KEY and mounted only into Prometheus.
+ops/prometheus/metrics_api_key
