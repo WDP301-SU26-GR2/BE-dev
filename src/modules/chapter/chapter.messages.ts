@@ -7,8 +7,11 @@ export const ChapterMessages = {
     taskRemovedWithPage: 'Trang chứa công việc của bạn đã bị xoá',
     awaitingCoOwnerApproval: 'Chương đang chờ đồng sở hữu duyệt',
     chapterPublished: 'Chương đã được xuất bản',
-    deadlineWarning: (chapterNumber: number, seriesTitle: string) =>
-      `Chương ${chapterNumber} — «${seriesTitle}» sắp đến hạn nộp`,
+    deadlineWarning: (chapterNumber: number, seriesTitle: string, level: string) => {
+      const prefix = level === 'CRITICAL' ? 'ĐÃ QUÁ HẠN' : 'Sắp đến hạn nộp'
+      const urgency = level === 'RED' ? ' — cần xử lý gấp' : ''
+      return `${prefix}: chương ${chapterNumber} — «${seriesTitle}»${urgency}`
+    },
     // `taskTypeLabel` null = Task chưa gán loại công việc (Task.taskType là `Specialization?`).
     // Nhận null thay vì một chuỗi "chung" để không phải so khớp magic-string với bên gọi.
     taskDeadlineWarning: (taskTypeLabel: string | null, pageNumber: number, chapterNumber: number) => {
@@ -81,6 +84,11 @@ export const ChapterMessages = {
     stageReopened: 'Đã mở lại giai đoạn sản xuất',
     stageCompleted: 'Đã hoàn thành giai đoạn',
     stageRemoved: 'Đã xoá giai đoạn'
+  },
+  // Spec 30: lý do cho cascade hold/resume theo Series HIATUS.
+  reason: {
+    hiatusResumed: 'Bộ truyện hoạt động lại sau thời gian tạm ngưng',
+    hiatusDeadlineShift: 'Dời hạn nộp bù thời gian bộ truyện tạm ngưng'
   },
   errorText: {
     'Error.ChapterNotFound': 'Không tìm thấy chương',

@@ -31,3 +31,4 @@ export const ParentSeriesNotFoundException = new UnprocessableEntityException([
 export const FranchiseConsentRequiredException = new ConflictException(E.franchiseConsentRequired)
 export const NotOriginalMangakaException = new ForbiddenException(E.notOriginalMangaka)
 export const NotFranchiseConsentTargetException = new ConflictException(E.notFranchiseConsentTarget)
+export const SeriesRequestRequiredException = new ConflictException(E.seriesRequestRequired)

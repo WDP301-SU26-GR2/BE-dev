@@ -9,7 +9,8 @@ export const SeriesMessages = {
   },
   // Internal reasons stored on Series.statusHistory (audit trail) are also user-visible activity text.
   reason: {
-    forceCancelNoEnding: 'Đã huỷ khi chưa có chương kết — tác giả không thể hoàn thành'
+    forceCancelNoEnding: 'Đã huỷ khi chưa có chương kết — tác giả không thể hoàn thành',
+    hiatusHold: 'Bộ truyện tạm ngưng theo yêu cầu của tác giả'
   },
   // In-app notification content (notification layer).
   notification: {
@@ -21,6 +22,7 @@ export const SeriesMessages = {
     seriesReopenedForReview:
       'Biên tập viên đã mở lại vòng chỉnh sửa sau khi hội đồng từ chối — hãy cập nhật hồ sơ và nộp lại',
     seriesWithdrawnAfterReject: 'Tác giả đã rút bộ truyện sau khi hội đồng từ chối',
+    seriesWithdrawnInReview: 'Tác giả đã rút hồ sơ khỏi hàng đợi duyệt',
     seriesCancelling: (allowance: number | null) =>
       allowance != null
         ? `Hội đồng đã quyết định huỷ bộ truyện. Bạn được cấp ${allowance} chương để kết thúc.`
@@ -66,7 +68,8 @@ export const SeriesMessages = {
     seriesNotInCancellingState: 'Error.SeriesNotInCancellingState',
     franchiseConsentRequired: 'Error.FranchiseConsentRequired',
     notOriginalMangaka: 'Error.NotOriginalMangaka',
-    notFranchiseConsentTarget: 'Error.NotFranchiseConsentTarget'
+    notFranchiseConsentTarget: 'Error.NotFranchiseConsentTarget',
+    seriesRequestRequired: 'Error.SeriesRequestRequired'
   },
   errorText: {
     'Error.SeriesNotFound': 'Không tìm thấy bộ truyện',
@@ -88,6 +91,8 @@ export const SeriesMessages = {
     'Error.SeriesNotInCancellingState': 'Bộ truyện chưa ở trạng thái đang huỷ',
     'Error.FranchiseConsentRequired': 'Cần sự đồng ý của tác giả sở hữu bộ truyện gốc',
     'Error.NotOriginalMangaka': 'Bạn không phải tác giả sở hữu bộ truyện gốc',
-    'Error.NotFranchiseConsentTarget': 'Yêu cầu đồng ý này không dành cho bạn'
+    'Error.NotFranchiseConsentTarget': 'Yêu cầu đồng ý này không dành cho bạn',
+    'Error.SeriesRequestRequired':
+      'Hồ sơ đã sẵn sàng trình Hội đồng — vui lòng gửi yêu cầu rút để biên tập viên xem xét'
   }
 } as const

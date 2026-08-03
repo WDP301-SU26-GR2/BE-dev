@@ -1,4 +1,4 @@
-import { ChapterStatus, PageStatus, Specialization, TaskStatus } from '@prisma/client'
+import { ChapterStatus, PageStatus, PublicationType, SeriesStatus, Specialization, TaskStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 
 type ChapterNearDeadline = {
@@ -15,10 +15,92 @@ type TaskNearDeadline = {
   taskType: Specialization | null
   pageNumber: number
   chapterNumber: number
+  isOverdue: boolean
+}
+
+export type ChapterDeadlineScanItem = {
+  chapterId: string
+  seriesId: string
+  chapterNumber: number
+  seriesTitle: string
+  publicationType: PublicationType | null
+  deadline: Date | null
+  mangakaId: string
+  editorId: string | null
+  progressPct: number
 }
 
 export class ChapterProgressQueryRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findChaptersForDeadlineScan(): Promise<ChapterDeadlineScanItem[]> {
+    const schedules = await this.prisma.schedule.findMany({
+      where: { currentDeadline: { not: null } },
+      select: {
+        chapterId: true,
+        currentDeadline: true,
+        chapter: {
+          select: {
+            seriesId: true,
+            status: true,
+            hold: true,
+            chapterNumber: true,
+            series: {
+              select: { title: true, status: true, publicationType: true, mangakaId: true, editorId: true }
+            }
+          }
+        }
+      }
+    })
+    const alive = schedules.filter(
+      (schedule) =>
+        schedule.chapter.status !== ChapterStatus.PUBLISHED &&
+        !schedule.chapter.hold &&
+        schedule.chapter.series.status !== SeriesStatus.HIATUS
+    )
+    if (alive.length === 0) return []
+
+    const chapterIds = alive.map((schedule) => schedule.chapterId)
+    const pages = await this.prisma.page.findMany({
+      where: { chapterId: { in: chapterIds } },
+      select: { id: true, chapterId: true }
+    })
+    const tasks = await this.prisma.task.findMany({
+      where: { pageId: { in: pages.map((page) => page.id) } },
+      select: { pageId: true, status: true }
+    })
+    const tasksByPage = new Map<string, string[]>()
+    for (const task of tasks) {
+      const list = tasksByPage.get(task.pageId) ?? []
+      list.push(task.status)
+      tasksByPage.set(task.pageId, list)
+    }
+    const pagesByChapter = new Map<string, string[]>()
+    for (const page of pages) {
+      const list = pagesByChapter.get(page.chapterId) ?? []
+      list.push(page.id)
+      pagesByChapter.set(page.chapterId, list)
+    }
+
+    return alive.map((schedule) => {
+      const pageIds = pagesByChapter.get(schedule.chapterId) ?? []
+      const ready = pageIds.filter((pageId) => {
+        const statuses = (tasksByPage.get(pageId) ?? []).filter((status) => status !== TaskStatus.CANCELLED)
+        return statuses.every((status) => status === TaskStatus.APPROVED)
+      }).length
+      return {
+        chapterId: schedule.chapterId,
+        seriesId: schedule.chapter.seriesId,
+        chapterNumber: schedule.chapter.chapterNumber,
+        seriesTitle: schedule.chapter.series.title,
+        publicationType: schedule.chapter.series.publicationType,
+        deadline: schedule.currentDeadline,
+        mangakaId: schedule.chapter.series.mangakaId,
+        editorId: schedule.chapter.series.editorId,
+        progressPct: pageIds.length === 0 ? 0 : ready / pageIds.length
+      }
+    })
+  }
 
   async findChaptersNearDeadline(beforeDate: Date): Promise<ChapterNearDeadline[]> {
     const schedules = await this.prisma.schedule.findMany({
@@ -31,13 +113,18 @@ export class ChapterProgressQueryRepository {
             status: true,
             hold: true,
             chapterNumber: true,
-            series: { select: { title: true } }
+            series: { select: { title: true, status: true } }
           }
         }
       }
     })
     return schedules
-      .filter((schedule) => schedule.chapter.status !== ChapterStatus.PUBLISHED && !schedule.chapter.hold)
+      .filter(
+        (schedule) =>
+          schedule.chapter.status !== ChapterStatus.PUBLISHED &&
+          !schedule.chapter.hold &&
+          schedule.chapter.series.status !== SeriesStatus.HIATUS
+      )
       .map(
         (schedule): ChapterNearDeadline => ({
           chapterId: schedule.chapterId,
@@ -146,10 +233,10 @@ export class ChapterProgressQueryRepository {
   async findTasksNearDeadline(now: Date, before: Date): Promise<TaskNearDeadline[]> {
     const tasks = await this.prisma.task.findMany({
       where: {
-        deadline: { gt: now, lte: before },
+        deadline: { lte: before },
         status: { in: [TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS, TaskStatus.REVISION_REQUESTED] }
       },
-      select: { id: true, assistantId: true, pageId: true, taskType: true }
+      select: { id: true, assistantId: true, pageId: true, taskType: true, deadline: true }
     })
     if (tasks.length === 0) return []
     const pages = await this.prisma.page.findMany({
@@ -161,7 +248,7 @@ export class ChapterProgressQueryRepository {
           select: {
             hold: true,
             chapterNumber: true,
-            series: { select: { mangakaId: true } }
+            series: { select: { mangakaId: true, status: true } }
           }
         }
       }
@@ -169,7 +256,7 @@ export class ChapterProgressQueryRepository {
     const byPage = new Map(pages.map((page) => [page.id, page]))
     return tasks.flatMap((task) => {
       const page = byPage.get(task.pageId)
-      return !page || page.chapter.hold
+      return !page || page.chapter.hold || page.chapter.series.status === SeriesStatus.HIATUS
         ? []
         : [
             {
@@ -178,7 +265,8 @@ export class ChapterProgressQueryRepository {
               mangakaId: page.chapter.series.mangakaId,
               taskType: task.taskType,
               pageNumber: page.pageNumber,
-              chapterNumber: page.chapter.chapterNumber
+              chapterNumber: page.chapter.chapterNumber,
+              isOverdue: task.deadline != null && task.deadline.getTime() < now.getTime()
             }
           ]
     })

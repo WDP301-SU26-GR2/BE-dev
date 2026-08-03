@@ -108,4 +108,7 @@ export class TaskRepository {
       this.queries
     ) as typeof this.queries.findTasksByAssistantInStatuses
   }
+  get findOverdueForCancel(): typeof this.queries.findOverdueForCancel {
+    return this.queries.findOverdueForCancel.bind(this.queries) as typeof this.queries.findOverdueForCancel
+  }
 }

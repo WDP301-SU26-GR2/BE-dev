@@ -78,7 +78,8 @@ const CRON_LOCK_KEYS = [
   'cron:coowner-escalation',
   'cron:hiatus-too-long',
   'cron:payment-timebound-missed',
-  'cron:board-scheduler'
+  'cron:board-scheduler',
+  'cron:task-overdue-cancel'
 ]
 
 export const clearCronLocks = async (): Promise<void> => {

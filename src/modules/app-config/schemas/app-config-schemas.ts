@@ -31,6 +31,11 @@ export const AppConfigResSchema = extendApi(
       .int()
       .nonnegative()
       .describe('Grace days before unclaimed contract review escalates'),
+    taskOverdueGraceHours: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Số giờ ân hạn sau hạn nộp trước khi công việc bị tự huỷ'),
     updatedAt: z.string()
   }),
   { title: 'AppConfigRes', description: 'Application-wide runtime configuration' }
@@ -69,6 +74,14 @@ export const PatchAppConfigBodySchema = extendApi(
         .optional(),
       assignmentGraceDays: intNonnegative('Grace days around assignment lifecycle checks').nullable().optional(),
       boardRepClaimGraceDays: intNonnegative('Grace days before unclaimed contract review escalates')
+        .nullable()
+        .optional(),
+      taskOverdueGraceHours: z
+        .number()
+        .int()
+        .nonnegative()
+        .max(168)
+        .describe('Số giờ ân hạn trước khi công việc quá hạn bị tự huỷ; tối đa 168 giờ (7 ngày)')
         .nullable()
         .optional()
     })

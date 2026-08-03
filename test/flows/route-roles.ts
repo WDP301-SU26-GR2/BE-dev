@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-08-02T06:06:43.847Z — 278 routes.
+// Sinh lúc: 2026-08-03T21:02:28.929Z — 284 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -593,6 +593,22 @@ export const ROUTE_RULES: RouteRule[] = [
   },
   {
     method: 'GET',
+    path: '/series-requests',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
+  { method: 'POST', path: '/series-requests', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  {
+    method: 'GET',
+    path: '/series-requests/:id',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
+  { method: 'POST', path: '/series-requests/:id/accept', access: 'ROLES', allowed: [RoleCode.EDITOR] },
+  { method: 'POST', path: '/series-requests/:id/cancel', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
+  { method: 'POST', path: '/series-requests/:id/reject', access: 'ROLES', allowed: [RoleCode.EDITOR] },
+  {
+    method: 'GET',
     path: '/series/:id',
     access: 'ROLES',
     allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
@@ -613,12 +629,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { method: 'POST', path: '/series/:id/proposal/approve', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/series/:id/proposal/request-revision', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/series/:id/proposal/resubmit', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  {
-    method: 'POST',
-    path: '/series/:id/propose-completion',
-    access: 'ROLES',
-    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR]
-  },
+  { method: 'POST', path: '/series/:id/propose-completion', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/series/:id/reject', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/series/:id/release', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'POST', path: '/series/:id/reopen', access: 'ROLES', allowed: [RoleCode.MANGAKA] },

@@ -401,21 +401,32 @@ const main = async () => {
   ok('F05-019 force-cancel khi SERIALIZED → 409', rForceBad.status === 409, `got ${rForceBad.status}`)
 
   const sProp = await makeSeriesAt(SeriesStatus.SERIALIZED, { mangakaId: m1.id, editorId: e1.id })
-  const rProp = await req('POST', `/series/${sProp.id}/propose-completion`, {
+  // Spec 30: propose-completion nay chỉ EDITOR — mangaka dùng POST /series-requests.
+  const rPropM = await req('POST', `/series/${sProp.id}/propose-completion`, {
     token: m1Tok,
     body: { reason: 'hết truyện rồi' }
   })
   ok(
-    'F05-020a propose-completion bởi MANGAKA (participant) → 2xx',
+    'F05-020a propose-completion bởi MANGAKA → 403 (Spec 30)',
+    rPropM.status === 403,
+    `got ${rPropM.status} ${rPropM.raw.slice(0, 150)}`
+  )
+  const rProp = await req('POST', `/series/${sProp.id}/propose-completion`, {
+    token: e1Tok,
+    body: { reason: 'biên tập viên đề xuất kết thúc' }
+  })
+  ok(
+    'F05-020a2 propose-completion bởi EDITOR → 2xx',
     rProp.status === 200 || rProp.status === 201,
     `got ${rProp.status} ${rProp.raw.slice(0, 150)}`
   )
+  // Spec 30: biên tập viên là người đề xuất ⇒ phía được báo là TÁC GIẢ (không phải biên tập viên).
   ok(
-    'F05-020b propose-completion → notify Editor',
+    'F05-020b propose-completion bởi EDITOR → notify TÁC GIẢ',
     await waitUntil(
       async () =>
         (await prisma.notification.count({
-          where: { recipientId: e1.id, referenceType: 'SERIES_COMPLETION_PROPOSED', referenceId: sProp.id }
+          where: { recipientId: m1.id, referenceType: 'SERIES_COMPLETION_PROPOSED', referenceId: sProp.id }
         })) === 1,
       10_000,
       500
@@ -427,9 +438,11 @@ const main = async () => {
   })
   ok('F05-021 propose-completion bởi mangaka NGOÀI cuộc → 403', rPropOut.status === 403, `got ${rPropOut.status}`)
 
-  const sPropDraft = await makeSeriesAt(SeriesStatus.DRAFT, { mangakaId: m1.id })
+  // Guard trạng thái: phải gọi bằng biên tập viên PHỤ TRÁCH, nếu không guard "người trong cuộc"
+  // bắn 403 trước và ta không kiểm được guard trạng thái.
+  const sPropDraft = await makeSeriesAt(SeriesStatus.IN_REVIEW, { mangakaId: m1.id, editorId: e1.id })
   const rPropDraft = await req('POST', `/series/${sPropDraft.id}/propose-completion`, {
-    token: m1Tok,
+    token: e1Tok,
     body: { reason: 'x' }
   })
   ok(

@@ -6,6 +6,7 @@ import { zDateField } from 'src/core/http/docs/date-docs'
 import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
 import { TransferMessages } from '../transfer.messages'
 import { zObjectId } from 'src/core/http/schemas/object-id.schema'
+import { zMoney } from 'src/core/http/schemas/money.schema'
 
 export const OwnershipSplitSchema = z
   .record(z.string(), z.number().min(0).max(100))
@@ -75,7 +76,7 @@ export const AssignFullBuyoutSchema = extendApi(
       .min(1)
       .optional()
       .describe('Deprecated compatibility field; ignored in favor of request.boardDecisionId'),
-    valuationAmount: z.number().positive(),
+    valuationAmount: zMoney({ positive: true }),
     conditions: z
       .array(
         z.object({
@@ -102,7 +103,7 @@ export const ListTransferRequestsQuerySchema = extendApi(
 export const CreateTransferContractSchema = extendApi(
   z.object({
     transferRequestId: z.string().min(1),
-    transferAmount: z.number().positive(),
+    transferAmount: zMoney({ positive: true }),
     transferType: zEnum($Enums.TransferType, 'TransferType'),
     newOwnershipSplit: OwnershipSplitSchema,
     coOwnerApprovalRequired: z.boolean().default(false)

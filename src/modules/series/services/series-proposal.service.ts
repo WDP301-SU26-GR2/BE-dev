@@ -16,6 +16,7 @@ import { SeriesStateService } from './series-state.service'
 import { SeriesMessages } from '../series.messages'
 import { requireAssignedEditor } from './series-editor.guard'
 import { SeriesProposalAccessService } from './series-proposal-access.service'
+import { SeriesWithdrawService } from './series-withdraw.service'
 
 @Injectable()
 export class SeriesProposalService {
@@ -23,7 +24,8 @@ export class SeriesProposalService {
     private readonly seriesRepository: SeriesRepository,
     private readonly seriesStateService: SeriesStateService,
     private readonly revisionService: RevisionService,
-    private readonly accessService: SeriesProposalAccessService
+    private readonly accessService: SeriesProposalAccessService,
+    private readonly withdrawService: SeriesWithdrawService
   ) {}
 
   async createProposal(mangakaId: string, body: CreateProposalBodyType) {
@@ -140,23 +142,7 @@ export class SeriesProposalService {
   }
 
   async withdraw(mangakaId: string, seriesId: string, reason: string) {
-    const series = await this.accessService.requireOwner(seriesId, mangakaId)
-    // Transition TRƯỚC (validate state machine — PITCHED trở đi bị 409), proposal status ghi SAU.
-    // Đảo thứ tự sẽ để lại proposal=WITHDRAWN trên series đang PITCHED khi transition bị chặn.
-    await this.seriesStateService.transition(seriesId, SeriesStatus.WITHDRAWN, {
-      changedBy: mangakaId,
-      reason
-    })
-    const updated = await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.WITHDRAWN)
-    if (series.status === SeriesStatus.REJECTED && series.editorId) {
-      await this.accessService.notify(
-        series.editorId,
-        seriesId,
-        'SERIES_WITHDRAWN_AFTER_REJECT',
-        SeriesMessages.notification.seriesWithdrawnAfterReject
-      )
-    }
-    return toSeriesRes(updated)
+    return this.withdrawService.withdraw(mangakaId, seriesId, reason)
   }
 
   async reopen(mangakaId: string, seriesId: string) {

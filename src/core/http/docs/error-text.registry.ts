@@ -17,6 +17,7 @@ import { ReprintRequestMessages } from 'src/modules/reprint/reprint-request.mess
 import { ReviewsMessages } from 'src/modules/reviews/reviews.messages'
 import { RevisionMessages } from 'src/modules/revision/revision.messages'
 import { SeriesMessages } from 'src/modules/series/series.messages'
+import { SeriesRequestMessages } from 'src/modules/series-request/series-request.messages'
 import { StorageMessages } from 'src/modules/storage/storage.messages'
 import { StudioMessages } from 'src/modules/studio/studio.messages'
 import { SurveyMessages } from 'src/modules/survey/survey.messages'
@@ -54,6 +55,7 @@ export const MESSAGE_CATALOGS: NamedMessageCatalog[] = [
   { name: 'reviews', catalog: catalog(ReviewsMessages) },
   { name: 'revision', catalog: catalog(RevisionMessages) },
   { name: 'series', catalog: catalog(SeriesMessages) },
+  { name: 'series-request', catalog: catalog(SeriesRequestMessages) },
   { name: 'storage', catalog: catalog(StorageMessages) },
   { name: 'studio', catalog: catalog(StudioMessages) },
   { name: 'survey', catalog: catalog(SurveyMessages) },

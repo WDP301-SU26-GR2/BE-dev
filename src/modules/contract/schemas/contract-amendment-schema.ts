@@ -3,11 +3,12 @@ import { extendApi } from '@anatine/zod-openapi'
 import { $Enums, RoleCode } from '@prisma/client'
 import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
+import { zMoney } from 'src/core/http/schemas/money.schema'
 import { UserMiniSchema } from 'src/core/models/user-mini.model'
 
 // Body chung cho create/patch: các typed term optional (null/omit = không đổi).
 const amendmentTermFields = {
-  valuationAmount: z.number().positive({ message: 'valuationAmount phải lớn hơn 0' }).optional(),
+  valuationAmount: zMoney({ positive: true }).optional(),
   publisherOwnershipPct: z.number().min(0).max(100).optional(),
   mangakaOwnershipPct: z.number().min(0).max(100).optional(),
   terminationClause: z.string().min(1).optional(),

@@ -554,23 +554,38 @@ const main = async () => {
 
   // ═════════════ 01.6 — COMPLETION proposal (PB-06) ═══════════════════════════════════════
   section('01.6 Propose completion + Cancel flow')
+  // Spec 30: propose-completion nay CHỈ dành cho biên tập viên (kênh "đề xuất mềm").
+  // Tác giả muốn kết thúc sớm thì đi POST /series-requests với requestType=COMPLETION.
   const rPropComp = await req('POST', `/series/${happy.seriesId}/propose-completion`, {
-    token: m1Tok,
+    token: e1Tok,
     body: { reason: 'đã xong cốt truyện' }
   })
   ok(
-    '01.6a propose-completion → 200/201',
+    '01.6a propose-completion bởi EDITOR → 200/201',
     rPropComp.status === 200 || rPropComp.status === 201,
-    `got ${rPropComp.status}`
+    `got ${rPropComp.status} ${rPropComp.raw.slice(0, 160)}`
   )
   await sleep(300)
 
-  // propose-completion series chưa SERIALIZED (DRAFT) → 409
-  const rPropOnDraft = await req('POST', `/series/${draft2.seriesId}/propose-completion`, {
+  const rPropByMangaka = await req('POST', `/series/${happy.seriesId}/propose-completion`, {
     token: m1Tok,
+    body: { reason: 'tác giả thử' }
+  })
+  ok('01.6a2 MANGAKA gọi propose-completion → 403', rPropByMangaka.status === 403, `got ${rPropByMangaka.status}`)
+
+  // Guard trạng thái: biên tập viên PHỤ TRÁCH gọi trên series chưa SERIALIZED → 409.
+  // (Phải có editorId khớp, nếu không guard "người trong cuộc" bắn 403 trước khi tới guard trạng thái.)
+  const notSerialized = await makeSeriesAt(SeriesStatus.IN_REVIEW, { mangakaId: m1.id, editorId: e1.id })
+  const rPropOnDraft = await req('POST', `/series/${notSerialized.id}/propose-completion`, {
+    token: e1Tok,
     body: { reason: 'try' }
   })
-  expectError(rPropOnDraft, 409, 'Error.SeriesNotProposableForCompletion', '01.6b propose-completion series DRAFT')
+  expectError(
+    rPropOnDraft,
+    409,
+    'Error.SeriesNotProposableForCompletion',
+    '01.6b propose-completion khi series chưa SERIALIZED → 409'
+  )
 
   // Board COMPLETION decision → series COMPLETING
   const { decisionId: compDecision } = await createSessionWithDecision(
@@ -941,19 +956,33 @@ const main = async () => {
     demographic: 'SHONEN',
     synopsis: 'w'
   })
+  // Spec 30: DRAFT không có gì để rút — phải 409 SeriesRequestRequired (FE dùng DELETE proposal).
   const rW = await req('POST', `/series/${w1.seriesId}/withdraw`, { token: m1Tok, body: { reason: 'tôi đổi ý' } })
-  ok('01.9a Mangaka withdraw DRAFT → WITHDRAWN', rW.status === 201 || rW.status === 200, `got ${rW.status}`)
+  expectError(rW, 409, 'Error.SeriesRequestRequired', '01.9a withdraw ở DRAFT → 409 (dùng DELETE proposal)')
+
+  // Spec 30: rút ở IN_REVIEW vẫn được rút thẳng (không cần biên tập viên duyệt).
+  await req('POST', `/series/${w1.seriesId}/submit`, { token: m1Tok })
+  const rWReview = await req('POST', `/series/${w1.seriesId}/withdraw`, {
+    token: m1Tok,
+    body: { reason: 'tôi đổi ý' }
+  })
   ok(
-    '01.9b series.status = WITHDRAWN',
-    (await prisma.series.findUnique({ where: { id: w1.seriesId } }))?.status === SeriesStatus.WITHDRAWN
+    '01.9b withdraw ở IN_REVIEW → 2xx (rút thẳng, không cần duyệt)',
+    rWReview.status === 200 || rWReview.status === 201,
+    `got ${rWReview.status} ${rWReview.raw.slice(0, 160)}`
   )
 
-  // statusHistory tối thiểu 1 entry INITIAL → cuối + audit
+  // statusHistory ghi audit cho transition có thật (DRAFT→IN_REVIEW→WITHDRAWN).
   const seriesAfter = await prisma.series.findUnique({ where: { id: w1.seriesId } })
   const histLen = Array.isArray((seriesAfter as any)?.statusHistory)
     ? ((seriesAfter as any).statusHistory as unknown[]).length
     : 0
   ok('01.9c statusHistory có entry (audit)', histLen >= 1, `len=${histLen}`)
+  ok(
+    '01.9c2 series kết thúc ở WITHDRAWN',
+    seriesAfter?.status === SeriesStatus.WITHDRAWN,
+    `status=${seriesAfter?.status}`
+  )
 
   // ──────────────────────────────────────────────────────────────────────────
   // 01.10 — AUTO-ASSIGN BOARD ROSTER (PB-05)
@@ -1166,6 +1195,45 @@ const main = async () => {
       (rejectedWithdrawRes.json?.data?.status ?? rejectedWithdrawRes.json?.status) === SeriesStatus.WITHDRAWN,
     rejectedWithdrawRes.raw.slice(0, 200)
   )
+
+  // F01-S30 — Spec 30: rút ở READY_TO_PITCH phải đi qua yêu cầu chính thức.
+  const readyWithdraw = await makeProposalSeriesAt(SeriesStatus.READY_TO_PITCH, {
+    mangakaId: m1.id,
+    editorId: e1.id,
+    title: 'FT S30 Ready Withdraw',
+    proposalStatus: ProposalStatus.PROPOSAL_APPROVED
+  })
+  const rDirect = await req('POST', `/series/${readyWithdraw.series.id}/withdraw`, {
+    token: m1Tok,
+    body: { reason: 'đổi ý' }
+  })
+  expectError(rDirect, 409, 'Error.SeriesRequestRequired', 'F01-S30a withdraw trực tiếp ở READY_TO_PITCH → 409')
+
+  const rReq = await req('POST', '/series-requests', {
+    token: m1Tok,
+    body: { seriesId: readyWithdraw.series.id, requestType: 'WITHDRAW', reason: 'tôi muốn rút hồ sơ' }
+  })
+  ok('F01-S30b tạo yêu cầu rút → 201', rReq.status === 201, `got ${rReq.status} ${rReq.raw.slice(0, 200)}`)
+  const sreqId = rReq.json?.data?.id as string
+
+  const rDup = await req('POST', '/series-requests', {
+    token: m1Tok,
+    body: { seriesId: readyWithdraw.series.id, requestType: 'WITHDRAW', reason: 'lần hai' }
+  })
+  expectError(rDup, 409, 'Error.OpenSeriesRequestExists', 'F01-S30c yêu cầu thứ hai → 409')
+
+  const rAcc = await req('POST', `/series-requests/${sreqId}/accept`, { token: e1Tok, body: {} })
+  ok('F01-S30d biên tập viên chấp nhận → 201', rAcc.status === 201, `got ${rAcc.status} ${rAcc.raw.slice(0, 200)}`)
+
+  const sAfter = await prisma.series.findUnique({ where: { id: readyWithdraw.series.id } })
+  ok('F01-S30e bộ truyện chuyển WITHDRAWN', sAfter?.status === SeriesStatus.WITHDRAWN, `got ${sAfter?.status}`)
+
+  // F01-S30 — propose-completion nay chỉ EDITOR (mangaka → 403).
+  const proposeM = await req('POST', `/series/${rePitchSeed.series.id}/propose-completion`, {
+    token: m1Tok,
+    body: { reason: 'tác giả thử' }
+  })
+  ok('F01-S30f MANGAKA propose-completion → 403', proposeM.status === 403, `got ${proposeM.status}`)
 
   const rejectedAbandon = await makeProposalSeriesAt(SeriesStatus.REJECTED, {
     mangakaId: m1.id,

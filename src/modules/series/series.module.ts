@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { ChapterModule } from '../chapter/chapter.module'
 import { SeriesController } from './series.controller'
 import { SeriesRepository } from './series.repo'
 import { SeriesService } from './series.service'
@@ -14,14 +15,18 @@ import { HiatusTooLongCron } from './services/hiatus-too-long.cron'
 import { SeriesMetadataService } from './services/series-metadata.service'
 import { SeriesOwnershipPort } from '../transfer/ports/series-ownership.port'
 import { SeriesOwnershipAdapter } from './adapters/series-ownership.adapter'
+import { SeriesContextPort } from '../series-request/ports/series-context.port'
+import { SeriesRequestContextAdapter } from './adapters/series-request-context.adapter'
 import { SeriesProposalAccessService } from './services/series-proposal-access.service'
 import { SeriesLifecycleNotificationService } from './services/series-lifecycle-notification.service'
 import { SeriesCompletionProposalService } from './services/series-completion-proposal.service'
+import { SeriesHiatusService } from './services/series-hiatus.service'
+import { SeriesWithdrawService } from './services/series-withdraw.service'
 
 // Spec 28: vòng duyệt proposal gộp với phác thảo thành 1 hành động. Chapter-storyboard
 // được AppModule wire độc lập; series module không phụ thuộc storyboard và không lắng event duyệt.
 @Module({
-  imports: [],
+  imports: [ChapterModule],
   controllers: [SeriesController],
   providers: [
     SeriesService,
@@ -29,18 +34,30 @@ import { SeriesCompletionProposalService } from './services/series-completion-pr
     SeriesStateService,
     SeriesProposalService,
     SeriesProposalAccessService,
+    SeriesWithdrawService,
     SeriesPitchService,
     SeriesClaimService,
     SeriesQueryService,
     SeriesLifecycleService,
     SeriesLifecycleNotificationService,
     SeriesCompletionProposalService,
+    SeriesHiatusService,
     SeriesMetadataService,
     SeriesSerializeService,
     SeriesIntegrationListener,
     HiatusTooLongCron,
-    { provide: SeriesOwnershipPort, useClass: SeriesOwnershipAdapter }
+    { provide: SeriesOwnershipPort, useClass: SeriesOwnershipAdapter },
+    { provide: SeriesContextPort, useClass: SeriesRequestContextAdapter }
   ],
-  exports: [SeriesOwnershipPort]
+  // Spec 30: SeriesRequestModule cần đọc trạng thái/quyền sở hữu bộ truyện (qua SeriesContextPort —
+  // KHÔNG lộ repository ra ngoài module, xem AGENTS §5) và điều khiển vòng đời (state + lifecycle + notify).
+  exports: [
+    SeriesOwnershipPort,
+    SeriesContextPort,
+    SeriesStateService,
+    SeriesLifecycleService,
+    SeriesLifecycleNotificationService,
+    SeriesProposalAccessService
+  ]
 })
 export class SeriesModule {}

@@ -1,4 +1,4 @@
-﻿import { Module } from '@nestjs/common'
+import { Module } from '@nestjs/common'
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
 import { MiddlewareConsumer, NestModule } from '@nestjs/common'
 import { ScheduleModule } from '@nestjs/schedule'
@@ -16,6 +16,7 @@ import { NotificationModule } from './modules/notification/notification.module'
 import { AnnotationModule } from './modules/annotation/annotation.module'
 import { ReviewsModule } from './modules/reviews/reviews.module'
 import { SeriesModule } from './modules/series/series.module'
+import { SeriesRequestModule } from './modules/series-request/series-request.module'
 import { StoryboardModule } from './modules/storyboard/storyboard.module'
 import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
@@ -51,6 +52,7 @@ import { RuntimeMetricsInterceptor } from './core/http/interceptors/runtime-metr
     NotificationModule,
     ReviewsModule,
     SeriesModule,
+    SeriesRequestModule,
     StoryboardModule,
     StorageModule,
     ChapterModule,

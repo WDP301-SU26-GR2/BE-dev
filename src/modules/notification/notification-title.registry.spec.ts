@@ -7,7 +7,7 @@ import {
 
 describe('Notification title registry (Spec 29)', () => {
   it('contains the complete static title catalog from Appendix B', () => {
-    expect(Object.keys(NOTIFICATION_TITLE_VI)).toHaveLength(88)
+    expect(Object.keys(NOTIFICATION_TITLE_VI)).toHaveLength(96)
 
     const allTitles = [
       ...Object.values(NOTIFICATION_TITLE_VI),
