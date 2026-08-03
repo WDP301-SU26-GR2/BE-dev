@@ -1,7 +1,16 @@
 import { Task, TaskStatus } from '@prisma/client'
+import { SeriesStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import type { TaskListWhere } from '../task.repo'
 import { TaskHydrationRepository } from './task-hydration.repository'
+
+export type OverdueTaskItem = {
+  taskId: string
+  assistantId: string | null
+  mangakaId: string
+  pageNumber: number
+  chapterNumber: number
+}
 
 export class TaskQueryRepository {
   constructor(
@@ -107,5 +116,45 @@ export class TaskQueryRepository {
 
   findTasksByAssistantInStatuses(assistantId: string, statuses: TaskStatus[]): Promise<Task[]> {
     return this.prisma.task.findMany({ where: { assistantId, status: { in: statuses } } })
+  }
+
+  async findOverdueForCancel(cutoff: Date): Promise<OverdueTaskItem[]> {
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        deadline: { not: null, lt: cutoff },
+        status: { in: [TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS, TaskStatus.REVISION_REQUESTED] }
+      },
+      select: { id: true, assistantId: true, pageId: true, deadline: true }
+    })
+    if (tasks.length === 0) return []
+    const pages = await this.prisma.page.findMany({
+      where: { id: { in: tasks.map((task) => task.pageId) } },
+      select: {
+        id: true,
+        pageNumber: true,
+        chapter: {
+          select: {
+            hold: true,
+            chapterNumber: true,
+            series: { select: { mangakaId: true, status: true } }
+          }
+        }
+      }
+    })
+    const byPage = new Map(pages.map((page) => [page.id, page]))
+    return tasks.flatMap((task) => {
+      const page = byPage.get(task.pageId)
+      // Chapter đang tạm dừng hoặc bộ truyện đang tạm ngưng → sản xuất đóng băng có chủ đích, không tính trễ.
+      if (!page || page.chapter.hold || page.chapter.series.status === SeriesStatus.HIATUS) return []
+      return [
+        {
+          taskId: task.id,
+          assistantId: task.assistantId,
+          mangakaId: page.chapter.series.mangakaId,
+          pageNumber: page.pageNumber,
+          chapterNumber: page.chapter.chapterNumber
+        }
+      ]
+    })
   }
 }

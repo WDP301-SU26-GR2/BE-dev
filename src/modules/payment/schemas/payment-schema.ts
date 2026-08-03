@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { PaymentRecordStatus, PaymentType, PaymentSource } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { zMoney } from 'src/core/http/schemas/money.schema'
 import { PaymentRecordModelSchema } from './payment.model'
 import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
 import { PaymentMethod } from 'src/core/http/docs/bounded-string-enums'
@@ -60,7 +61,7 @@ export const CreatePaymentInternalSchema = extendApi(
   z
     .object({
       receiverId: z.string().min(1),
-      amount: z.number().positive({ message: 'amount phải lớn hơn 0' }),
+      amount: zMoney({ positive: true }),
       paymentType: zEnum(PaymentType, 'PaymentType'),
       paymentSource: zEnum(PaymentSource, 'PaymentSource').default(PaymentSource.CONTRACT),
       contractId: z.string().min(1),

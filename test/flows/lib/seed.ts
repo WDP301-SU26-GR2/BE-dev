@@ -724,6 +724,7 @@ export const setAppConfig = async (
     lowVoteReliabilityThreshold: number
     coOwnerApprovalGraceDays: number
     assignmentGraceDays: number
+    taskOverdueGraceHours: number
   }>
 ) => {
   const existing = await prisma.appConfig.findFirst()

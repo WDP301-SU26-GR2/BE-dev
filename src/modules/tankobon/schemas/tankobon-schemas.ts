@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { RiskLevel } from '@prisma/client'
 import { zEnum } from 'src/core/http/docs/enum-docs'
+import { UNITS_SOLD_MAX } from 'src/core/http/schemas/money.schema'
 
 export const CreateTankobonSalesBodySchema = z.object({
   seriesId: z.string().describe('Series ObjectId'),
   volumeNumber: z.number().int().positive(),
-  unitsSold: z.number().int().nonnegative(),
+  unitsSold: z.number().int().nonnegative().max(UNITS_SOLD_MAX),
   period: z.string().min(1).describe('Free-text period label, e.g. "2026-Q2"')
 })
 export type CreateTankobonSalesBodyType = z.infer<typeof CreateTankobonSalesBodySchema>

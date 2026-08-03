@@ -35,6 +35,7 @@ import { ProductionStageAnalyticsService } from './services/production-stage-ana
 import { ChapterPlanningService } from './services/chapter-planning.service'
 import { ChapterProductionService } from './services/chapter-production.service'
 import { ChapterQueryService } from './services/chapter-query.service'
+import { ChapterHiatusCascadeService } from './services/chapter-hiatus-cascade.service'
 
 @Module({
   imports: [StudioModule],
@@ -71,7 +72,8 @@ import { ChapterQueryService } from './services/chapter-query.service'
     ProductionStageAccessService,
     ProductionStageAnalyticsService,
     ProductionStagePageService,
-    ProductionStageSeedListener
+    ProductionStageSeedListener,
+    ChapterHiatusCascadeService
   ],
   exports: [
     PageStateService,
@@ -80,7 +82,8 @@ import { ChapterQueryService } from './services/chapter-query.service'
     ChapterProgressService,
     TaskProductionStageQueryPort,
     AiProductionStageQueryPort,
-    ProductionStageStateService
+    ProductionStageStateService,
+    ChapterHiatusCascadeService
   ]
 })
 export class ChapterModule {}

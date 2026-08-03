@@ -14,6 +14,7 @@ export function toAppConfigRes(row: AppConfig): AppConfigResType {
     maxUploadBytes: row.maxUploadBytes,
     assignmentGraceDays: row.assignmentGraceDays,
     boardRepClaimGraceDays: row.boardRepClaimGraceDays,
+    taskOverdueGraceHours: row.taskOverdueGraceHours,
     updatedAt: row.updatedAt.toISOString()
   }
 }

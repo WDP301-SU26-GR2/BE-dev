@@ -86,6 +86,15 @@ export class SeriesRepository extends SeriesProposalRepository {
     return this.commands.setHiatusStartedAt(seriesId, date)
   }
 
+  // Spec 30: set cả `hiatusStartedAt` + `hiatusExpectedReturnDate` (1 transaction ẩn).
+  setHiatusStart(seriesId: string, startedAt: Date, expectedReturnDate: Date | null) {
+    return this.commands.setHiatusStart(seriesId, startedAt, expectedReturnDate)
+  }
+
+  clearHiatus(seriesId: string) {
+    return this.commands.clearHiatus(seriesId)
+  }
+
   setEndingChapterAllowance(seriesId: string, allowance: number | null, chapterCountAtCancelling?: number) {
     return this.commands.setEndingChapterAllowance(seriesId, allowance, chapterCountAtCancelling)
   }
@@ -116,5 +125,13 @@ export class SeriesRepository extends SeriesProposalRepository {
     }
   ) {
     return this.commands.setCompletionProposal(seriesId, proposal)
+  }
+
+  findSeriesIdsByOwner(key: 'mangakaId' | 'editorId', userId: string) {
+    return this.queries.findSeriesIdsByOwner(key, userId)
+  }
+
+  findActiveAssistantIdsBySeries(seriesId: string) {
+    return this.queries.findActiveAssistantIdsBySeries(seriesId)
   }
 }

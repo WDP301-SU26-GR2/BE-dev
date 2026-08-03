@@ -6,8 +6,10 @@ import {
   NotAssignedEditorException,
   NotFranchiseConsentTargetException,
   NotOriginalMangakaException,
-  NotSeriesOwnerException
+  NotSeriesOwnerException,
+  SeriesRequestRequiredException
 } from '../errors/series.errors'
+import { SeriesWithdrawService } from './series-withdraw.service'
 
 const baseSeries = {
   id: 's1',
@@ -72,11 +74,17 @@ function make(seriesOverride: Record<string, unknown> = {}) {
     currentRound: jest.fn().mockResolvedValue(1)
   }
   const accessService = new SeriesProposalAccessService(seriesRepository as never, notificationService as never)
+  const withdrawService = new SeriesWithdrawService(
+    seriesRepository as never,
+    seriesStateService as never,
+    accessService
+  )
   const service = new SeriesProposalService(
     seriesRepository as never,
     seriesStateService as never,
     revisionService as never,
-    accessService
+    accessService,
+    withdrawService
   )
   return {
     service,
@@ -278,6 +286,33 @@ describe('SeriesProposalService', () => {
     )
     expect(seriesRepository.updateProposalStatus.mock.invocationCallOrder[0]).toBeLessThan(
       notificationService.notifySafe.mock.invocationCallOrder[0]
+    )
+  })
+
+  // Spec 30 — withdraw ở DRAFT không cho phép (chưa nộp thì không có gì để rút).
+  it('withdraw ở DRAFT → 409 SeriesRequestRequired (dùng DELETE proposal)', async () => {
+    const { service, seriesStateService } = make({ status: SeriesStatus.DRAFT })
+    await expect(service.withdraw('m1', 's1', 'đổi ý')).rejects.toBe(SeriesRequestRequiredException)
+    expect(seriesStateService.transition).not.toHaveBeenCalled()
+  })
+
+  // Spec 30 — READY_TO_PITCH phải đi qua POST /series-requests với requestType=WITHDRAW.
+  it('withdraw ở READY_TO_PITCH → 409 SeriesRequestRequired', async () => {
+    const { service, seriesStateService } = make({ status: SeriesStatus.READY_TO_PITCH })
+    await expect(service.withdraw('m1', 's1', 'đổi ý')).rejects.toBe(SeriesRequestRequiredException)
+    expect(seriesStateService.transition).not.toHaveBeenCalled()
+  })
+
+  // Spec 30 — withdraw ở IN_REVIEW cũng phải báo biên tập viên.
+  it('withdraw ở IN_REVIEW → notify editor với SERIES_WITHDRAWN_IN_REVIEW', async () => {
+    const { service, notificationService } = make({
+      status: SeriesStatus.IN_REVIEW,
+      editorId: 'e1',
+      proposal: { ...baseSeries.proposal, status: ProposalStatus.PROPOSAL_REVIEW }
+    })
+    await service.withdraw('m1', 's1', 'đổi ý')
+    expect(notificationService.notifySafe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'e1', referenceType: 'SERIES_WITHDRAWN_IN_REVIEW' })
     )
   })
 

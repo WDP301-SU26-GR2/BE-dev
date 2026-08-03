@@ -36,6 +36,7 @@
     "test:flow": "tsx test/flows/run-all.ts",
     "flowtest": "tsx test/flows/run-all.ts",
     "flowtest:one": "tsx",
+    "route-roles:gen": "pnpm build && tsx test/flows/_generate-route-roles.ts",
     "verify": "pnpm lint && pnpm test:architecture && pnpm build && pnpm test:unit && pnpm test:guard && pnpm test:integration"
   },
   "dependencies": {

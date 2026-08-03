@@ -65,6 +65,24 @@ export class SeriesCommandRepository {
     await this.prismaService.series.update({ where: { id: seriesId }, data: { hiatusStartedAt: date } })
   }
 
+  // Spec 30: `hiatusExpectedReturnDate` là field riêng (KHÔNG nối chuỗi vào reason).
+  async setHiatusStart(seriesId: string, startedAt: Date, expectedReturnDate: Date | null) {
+    await this.prismaService.series.update({
+      where: { id: seriesId },
+      data: {
+        hiatusStartedAt: startedAt,
+        hiatusExpectedReturnDate: expectedReturnDate ?? { unset: true }
+      }
+    })
+  }
+
+  async clearHiatus(seriesId: string) {
+    await this.prismaService.series.update({
+      where: { id: seriesId },
+      data: { hiatusStartedAt: { unset: true }, hiatusExpectedReturnDate: { unset: true } }
+    })
+  }
+
   async setEndingChapterAllowance(seriesId: string, allowance: number | null, chapterCountAtCancelling?: number) {
     await this.prismaService.series.update({
       where: { id: seriesId },

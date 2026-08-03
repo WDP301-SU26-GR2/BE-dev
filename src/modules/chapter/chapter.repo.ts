@@ -72,6 +72,11 @@ export class ChapterRepository {
       this.progressQueries
     ) as typeof this.progressQueries.findChaptersNearDeadline
   }
+  get findChaptersForDeadlineScan(): typeof this.progressQueries.findChaptersForDeadlineScan {
+    return this.progressQueries.findChaptersForDeadlineScan.bind(
+      this.progressQueries
+    ) as typeof this.progressQueries.findChaptersForDeadlineScan
+  }
   get countPagesByStatus(): typeof this.progressQueries.countPagesByStatus {
     return this.progressQueries.countPagesByStatus.bind(
       this.progressQueries

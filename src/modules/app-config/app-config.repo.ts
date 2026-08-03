@@ -14,6 +14,10 @@ export class AppConfigRepository {
     return this.prismaService.appConfig.create({ data })
   }
 
+  async existsById(id: string): Promise<boolean> {
+    return (await this.prismaService.appConfig.count({ where: { id } })) > 0
+  }
+
   update(id: string, data: Prisma.AppConfigUpdateInput) {
     return this.prismaService.appConfig.update({ where: { id }, data })
   }

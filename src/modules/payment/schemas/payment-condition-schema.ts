@@ -1,10 +1,11 @@
 import { z } from 'zod'
 import { extendApi } from '@anatine/zod-openapi'
 import { ConditionType } from '@prisma/client'
+import { zMoney } from 'src/core/http/schemas/money.schema'
 import { PaymentConditionModelSchema } from './payment-condition.model'
 
 const payoutFields = {
-  payoutAmount: z.number().min(0).optional(),
+  payoutAmount: zMoney().optional(),
   payoutPct: z.number().min(0).max(100).optional()
 }
 
@@ -95,7 +96,7 @@ export const UpdatePaymentConditionBodySchema = extendApi(
   z
     .object({
       thresholdConfig: z.unknown().optional(),
-      payoutAmount: z.number().min(0).optional(),
+      payoutAmount: zMoney().optional(),
       payoutPct: z.number().min(0).max(100).optional(),
       isRecurring: z.boolean().optional()
     })

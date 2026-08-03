@@ -298,9 +298,11 @@ export class SeriesController {
   // PB-06: Mangaka/Editor raises a soft natural-completion proposal. Status stays SERIALIZED/HIATUS;
   // only `completionProposal` is set. Counterparty (the other side) gets a notification.
   @Post(':id/propose-completion')
-  @ApiOperation({ summary: 'Đề xuất kết thúc series tự nhiên (Mangaka/Editor) — PB-06' })
+  @ApiOperation({
+    summary: 'Biên tập viên đề xuất kết thúc bộ truyện tự nhiên (PB-06). Tác giả dùng POST /series-requests.'
+  })
   @ApiErrors(SeriesAccessDeniedException, SeriesNotProposableForCompletionException, SeriesNotFoundException)
-  @Roles(RoleName.MANGAKA, RoleName.EDITOR)
+  @Roles(RoleName.EDITOR)
   @ZodResponse({ status: 200, type: SeriesResDto })
   proposeCompletion(
     @Param('id') id: string,

@@ -180,7 +180,15 @@ describe('ChapterRepository workflow persistence', () => {
       { id: 'held', chapter: { hold: { reason: 'pause' }, series: { mangakaId: 'm2' } } }
     ])
     await expect(repo.findTasksNearDeadline(new Date(), new Date())).resolves.toEqual([
-      { taskId: 't1', assistantId: 'a1', mangakaId: 'm1' }
+      {
+        taskId: 't1',
+        assistantId: 'a1',
+        mangakaId: 'm1',
+        taskType: undefined,
+        pageNumber: undefined,
+        chapterNumber: undefined,
+        isOverdue: false
+      }
     ])
   })
 

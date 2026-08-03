@@ -14,6 +14,7 @@ import { TaskAssignmentValidatorService } from './services/task-assignment-valid
 import { TaskReviewService } from './services/task-review.service'
 import { TaskMediaService } from './services/task-media.service'
 import { AssistantAvailabilityListener } from './services/assistant-availability.listener'
+import { TaskOverdueCancelCron } from './services/task-overdue-cancel.cron'
 
 @Module({
   imports: [ChapterModule, StorageModule, StudioModule],
@@ -29,7 +30,8 @@ import { AssistantAvailabilityListener } from './services/assistant-availability
     TaskAssignmentMutationService,
     TaskReviewService,
     TaskMediaService,
-    AssistantAvailabilityListener
+    AssistantAvailabilityListener,
+    TaskOverdueCancelCron
   ],
   exports: [RegionService]
 })
