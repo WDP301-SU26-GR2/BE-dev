@@ -18,8 +18,7 @@ import { transactionClient } from 'src/infrastructure/database/transaction-conte
 import { CreateContractBodyType } from './schemas/contract-schema'
 
 export type ContractSettlementFailure =
-  | 'TRANSFER_REQUEST_MISSING_ORIGINAL_CONTRACT'
-  | 'TRANSFER_REPLACEMENT_OUTBOX_UNAVAILABLE'
+  'TRANSFER_REQUEST_MISSING_ORIGINAL_CONTRACT' | 'TRANSFER_REPLACEMENT_OUTBOX_UNAVAILABLE'
 
 class ContractSettlementInvariantError extends Error {
   constructor(readonly reason: ContractSettlementFailure) {

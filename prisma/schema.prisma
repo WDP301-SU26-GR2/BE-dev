@@ -1754,7 +1754,7 @@ model AppConfig {
   maxUploadBytes                   Int   @default(15728640)
   assignmentGraceDays              Int   @default(0)
   boardRepClaimGraceDays           Int   @default(3)
-  taskOverdueGraceHours            Int   @default(24)
+  taskOverdueGraceHours            Int   @default(0)
 
   updatedAt DateTime @updatedAt
 

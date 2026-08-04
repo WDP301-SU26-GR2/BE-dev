@@ -588,8 +588,7 @@ const main = async () => {
     body: { fileName: 'page.png', contentType: 'image/png', contentLength: 1024 }
   })
   const signData = rSign.json?.data as
-    | { assetId?: string; key?: string; uploadUrl?: string; requiredHeaders?: Record<string, string> }
-    | undefined
+    { assetId?: string; key?: string; uploadUrl?: string; requiredHeaders?: Record<string, string> } | undefined
   ok(
     'F03-046 uploads/sign OK → assetId + uploadUrl + requiredHeaders CHỈ Content-Type',
     rSign.status === 201 &&
