@@ -160,10 +160,8 @@ const main = async () => {
   const freshMangaka = await makeUser(RoleCode.MANGAKA)
   const rPublicNoProfile = await req('GET', `/mangakas/${freshMangaka.id}`, { token: mangakaTok })
   ok(
-    'F11-011 GET /mangakas/:id chưa build profile → graceful hasProfile:false + KHÔNG lộ email',
-    rPublicNoProfile.status === 200 &&
-      rPublicNoProfile.json?.data?.hasProfile === false &&
-      !('email' in (rPublicNoProfile.json?.data ?? {})),
+    'F11-011 GET /mangakas/:id chưa build profile → graceful hasProfile:false',
+    rPublicNoProfile.status === 200 && rPublicNoProfile.json?.data?.hasProfile === false,
     `got ${rPublicNoProfile.status} ${rPublicNoProfile.raw.slice(0, 160)}`
   )
 

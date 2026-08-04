@@ -13,7 +13,7 @@ type ProfileRow = {
   ratingAvg: number
   ratingCount: number
   isRecommended: boolean
-  user: { displayName: string | null; avatar: string | null } | null
+  user: { displayName: string | null; avatar: string | null; email: string; phoneNumber: string } | null
 }
 
 /** Spec 14 §3.2 — danh bạ Mangaka cho Editor/Board và tác giả tìm series gốc. */
@@ -41,6 +41,8 @@ export class MangakaDirectoryService {
       userId: row.userId,
       displayName: row.user?.displayName ?? null,
       avatar: row.user?.avatar ?? null,
+      email: row.user?.email ?? '',
+      phoneNumber: row.user?.phoneNumber ?? '',
       penName: row.penName,
       genres: row.genres as MangakaDirectoryItemType['genres'],
       experienceLevel: row.experienceLevel,

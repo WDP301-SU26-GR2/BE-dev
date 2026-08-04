@@ -43,14 +43,21 @@ export class UserProfileRepository {
   findMangakaProfileByUserId(userId: string) {
     return this.prismaService.mangakaProfile.findUnique({
       where: { userId },
-      include: { user: { select: { displayName: true, avatar: true } } }
+      include: { user: { select: { displayName: true, avatar: true, email: true, phoneNumber: true } } }
     })
   }
 
   findUserBasicsWithRole(userId: string) {
     return this.prismaService.user.findFirst({
       where: { id: userId, deletedAt: { isSet: false } },
-      select: { id: true, displayName: true, avatar: true, role: { select: { code: true } } }
+      select: {
+        id: true,
+        displayName: true,
+        avatar: true,
+        email: true,
+        phoneNumber: true,
+        role: { select: { code: true } }
+      }
     })
   }
 
@@ -91,7 +98,7 @@ export class UserProfileRepository {
   findAssistantProfileByUserId(userId: string) {
     return this.prismaService.assistantProfile.findUnique({
       where: { userId },
-      include: { user: { select: { displayName: true, avatar: true } } }
+      include: { user: { select: { displayName: true, avatar: true, email: true, phoneNumber: true } } }
     })
   }
 

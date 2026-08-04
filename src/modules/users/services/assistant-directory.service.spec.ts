@@ -10,7 +10,7 @@ function make() {
 }
 
 describe('AssistantDirectoryService.list', () => {
-  it('maps profiles to directory items (ISO dates, displayName/avatar from user) and hides email/phone', async () => {
+  it('maps profiles to directory items (ISO dates, displayName/avatar/contact from user)', async () => {
     const { service, usersRepository } = make()
     usersRepository.findAssistantsForDirectory.mockResolvedValueOnce([
       {
@@ -25,7 +25,7 @@ describe('AssistantDirectoryService.list', () => {
         ratingAvg: 4.5,
         ratingCount: 8,
         isRecommended: true,
-        user: { displayName: 'Assistant One', avatar: null }
+        user: { displayName: 'Assistant One', avatar: null, email: 'asst1@x.com', phoneNumber: '+84911111111' }
       }
     ])
     usersRepository.countAssistantsForDirectory.mockResolvedValueOnce(1)
@@ -45,9 +45,12 @@ describe('AssistantDirectoryService.list', () => {
       reputationScore: 4.2,
       ratingAvg: 4.5,
       ratingCount: 8,
-      isRecommended: true
+      isRecommended: true,
+      email: 'asst1@x.com',
+      phoneNumber: '+84911111111'
     })
-    expect(JSON.stringify(res.items[0])).not.toContain('email')
+    expect(res.items[0].email).toBe('asst1@x.com')
+    expect(res.items[0].phoneNumber).toBe('+84911111111')
   })
 
   it('returns empty list when no assistants', async () => {

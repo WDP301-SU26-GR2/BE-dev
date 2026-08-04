@@ -129,9 +129,14 @@ export const MangakaProfileResSchema = extendApi(
     isRecommended: z.boolean(),
     displayName: z.string().nullable().optional(),
     avatar: z.string().nullable().optional(),
+    email: z.string().describe('Email liên hệ (danh bạ nội bộ hiển thị contact)'),
+    phoneNumber: z.string().describe('Số điện thoại liên hệ'),
     hasProfile: z.boolean().describe('false = user chưa build hồ sơ; field profile = default rỗng')
   }),
-  { title: 'MangakaProfileRes', description: 'Mangaka profile view (public). hasProfile=false khi chưa cập nhật.' }
+  {
+    title: 'MangakaProfileRes',
+    description: 'Mangaka profile view (danh bạ nội bộ, kèm email/phone). hasProfile=false khi chưa cập nhật.'
+  }
 )
 
 export const AssistantProfileBodySchema = extendApi(
@@ -164,9 +169,14 @@ export const AssistantProfileResSchema = extendApi(
     isRecommended: z.boolean(),
     displayName: z.string().nullable().optional(),
     avatar: z.string().nullable().optional(),
+    email: z.string().describe('Email liên hệ (danh bạ nội bộ hiển thị contact)'),
+    phoneNumber: z.string().describe('Số điện thoại liên hệ'),
     hasProfile: z.boolean().describe('false = user chưa build hồ sơ; field profile = default rỗng')
   }),
-  { title: 'AssistantProfileRes', description: 'Assistant profile view (public). hasProfile=false khi chưa cập nhật.' }
+  {
+    title: 'AssistantProfileRes',
+    description: 'Assistant profile view (danh bạ nội bộ, kèm email/phone). hasProfile=false khi chưa cập nhật.'
+  }
 )
 
 export type AdminCreateUserBodyType = z.infer<typeof AdminCreateUserBodySchema>
@@ -298,9 +308,11 @@ export const AssistantDirectoryItemSchema = extendApi(
     reputationScore: z.number(),
     ratingAvg: z.number(),
     ratingCount: z.number(),
-    isRecommended: z.boolean()
+    isRecommended: z.boolean(),
+    email: z.string().describe('Email liên hệ (danh bạ nội bộ hiển thị contact)'),
+    phoneNumber: z.string().describe('Số điện thoại liên hệ')
   }),
-  { title: 'AssistantDirectoryItem', description: 'Một trợ lý trong danh bạ (ẩn email/phone)' }
+  { title: 'AssistantDirectoryItem', description: 'Một trợ lý trong danh bạ (kèm email/phone để liên hệ)' }
 )
 
 export const AssistantDirectoryListResSchema = extendApi(
@@ -349,9 +361,11 @@ export const MangakaDirectoryItemSchema = extendApi(
     reputationScore: z.number(),
     ratingAvg: z.number(),
     ratingCount: z.number(),
-    isRecommended: z.boolean()
+    isRecommended: z.boolean(),
+    email: z.string().describe('Email liên hệ (danh bạ nội bộ hiển thị contact)'),
+    phoneNumber: z.string().describe('Số điện thoại liên hệ')
   }),
-  { title: 'MangakaDirectoryItem', description: 'Một mangaka trong danh bạ (ẩn email/phone)' }
+  { title: 'MangakaDirectoryItem', description: 'Một mangaka trong danh bạ (kèm email/phone để liên hệ)' }
 )
 
 export const MangakaDirectoryListResSchema = extendApi(

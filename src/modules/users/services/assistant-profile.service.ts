@@ -35,6 +35,8 @@ export class AssistantProfileService {
         ...this.toResponse(rest),
         displayName: user?.displayName ?? null,
         avatar: user?.avatar ?? null,
+        email: user?.email ?? '',
+        phoneNumber: user?.phoneNumber ?? '',
         hasProfile: true
       }
     }
@@ -56,6 +58,8 @@ export class AssistantProfileService {
       isRecommended: false,
       displayName: user.displayName ?? null,
       avatar: user.avatar ?? null,
+      email: user.email ?? '',
+      phoneNumber: user.phoneNumber ?? '',
       hasProfile: false
     }
   }
