@@ -95,6 +95,11 @@ export class UserProfileRepository {
     })
   }
 
+  async mangakaProfileExists(userId: string): Promise<boolean> {
+    const count = await this.prismaService.mangakaProfile.count({ where: { userId } })
+    return count > 0
+  }
+
   findAssistantProfileByUserId(userId: string) {
     return this.prismaService.assistantProfile.findUnique({
       where: { userId },

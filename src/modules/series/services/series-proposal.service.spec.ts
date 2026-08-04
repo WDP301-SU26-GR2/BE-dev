@@ -3,6 +3,7 @@ import { SeriesProposalService } from './series-proposal.service'
 import { SeriesProposalAccessService } from './series-proposal-access.service'
 import {
   FranchiseConsentRequiredException,
+  MangakaProfileRequiredException,
   NotAssignedEditorException,
   NotFranchiseConsentTargetException,
   NotOriginalMangakaException,
@@ -79,19 +80,22 @@ function make(seriesOverride: Record<string, unknown> = {}) {
     seriesStateService as never,
     accessService
   )
+  const mangakaProfileGate = { hasProfile: jest.fn().mockResolvedValue(true) }
   const service = new SeriesProposalService(
     seriesRepository as never,
     seriesStateService as never,
     revisionService as never,
     accessService,
-    withdrawService
+    withdrawService,
+    mangakaProfileGate
   )
   return {
     service,
     seriesRepository,
     seriesStateService,
     notificationService,
-    revisionService
+    revisionService,
+    mangakaProfileGate
   }
 }
 
@@ -129,6 +133,15 @@ describe('SeriesProposalService', () => {
   it('submit by non-owner throws', async () => {
     const { service } = make()
     await expect(service.submit('other', 's1')).rejects.toBeDefined()
+  })
+
+  it('submit: Mangaka chưa build hồ sơ → 409 MangakaProfileRequired, KHÔNG transition', async () => {
+    const { service, seriesStateService, seriesRepository, mangakaProfileGate } = make()
+    mangakaProfileGate.hasProfile.mockResolvedValueOnce(false)
+    await expect(service.submit('m1', 's1')).rejects.toBe(MangakaProfileRequiredException)
+    expect(mangakaProfileGate.hasProfile).toHaveBeenCalledWith('m1')
+    expect(seriesRepository.updateProposalStatus).not.toHaveBeenCalled()
+    expect(seriesStateService.transition).not.toHaveBeenCalled()
   })
 
   it('approve: proposal->PROPOSAL_APPROVED then directly transitions to READY_TO_PITCH', async () => {

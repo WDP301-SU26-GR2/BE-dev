@@ -15,6 +15,8 @@ import { UsersService } from './users.service'
 import { UserAdminFacade } from './services/user-admin.facade'
 import { UserDirectoryFacade } from './services/user-directory.facade'
 import { UserProfileFacade } from './services/user-profile.facade'
+import { MangakaProfileGatePort } from '../series/ports/mangaka-profile-gate.port'
+import { MangakaProfileGateAdapter } from './adapters/mangaka-profile-gate.adapter'
 
 @Module({
   controllers: [UsersController],
@@ -33,8 +35,15 @@ import { UserProfileFacade } from './services/user-profile.facade'
     MangakaDirectoryService,
     AssistantProfileService,
     AssistantDirectoryService,
-    StaffProfileService
+    StaffProfileService,
+    { provide: MangakaProfileGatePort, useClass: MangakaProfileGateAdapter }
   ],
-  exports: [AdminStatsService, MangakaProfileService, AssistantProfileService, StaffProfileService]
+  exports: [
+    AdminStatsService,
+    MangakaProfileService,
+    AssistantProfileService,
+    StaffProfileService,
+    MangakaProfileGatePort
+  ]
 })
 export class UsersModule {}

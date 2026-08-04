@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ChapterModule } from '../chapter/chapter.module'
+import { UsersModule } from '../users/users.module'
 import { SeriesController } from './series.controller'
 import { SeriesRepository } from './series.repo'
 import { SeriesService } from './series.service'
@@ -26,7 +27,7 @@ import { SeriesWithdrawService } from './services/series-withdraw.service'
 // Spec 28: vòng duyệt proposal gộp với phác thảo thành 1 hành động. Chapter-storyboard
 // được AppModule wire độc lập; series module không phụ thuộc storyboard và không lắng event duyệt.
 @Module({
-  imports: [ChapterModule],
+  imports: [ChapterModule, UsersModule],
   controllers: [SeriesController],
   providers: [
     SeriesService,

@@ -69,7 +69,8 @@ export const SeriesMessages = {
     franchiseConsentRequired: 'Error.FranchiseConsentRequired',
     notOriginalMangaka: 'Error.NotOriginalMangaka',
     notFranchiseConsentTarget: 'Error.NotFranchiseConsentTarget',
-    seriesRequestRequired: 'Error.SeriesRequestRequired'
+    seriesRequestRequired: 'Error.SeriesRequestRequired',
+    mangakaProfileRequired: 'Error.MangakaProfileRequired'
   },
   errorText: {
     'Error.SeriesNotFound': 'Không tìm thấy bộ truyện',
@@ -93,6 +94,7 @@ export const SeriesMessages = {
     'Error.NotOriginalMangaka': 'Bạn không phải tác giả sở hữu bộ truyện gốc',
     'Error.NotFranchiseConsentTarget': 'Yêu cầu đồng ý này không dành cho bạn',
     'Error.SeriesRequestRequired':
-      'Hồ sơ đã sẵn sàng trình Hội đồng — vui lòng gửi yêu cầu rút để biên tập viên xem xét'
+      'Hồ sơ đã sẵn sàng trình Hội đồng — vui lòng gửi yêu cầu rút để biên tập viên xem xét',
+    'Error.MangakaProfileRequired': 'Vui lòng hoàn thiện hồ sơ tác giả trước khi nộp để biên tập viên xem xét'
   }
 } as const

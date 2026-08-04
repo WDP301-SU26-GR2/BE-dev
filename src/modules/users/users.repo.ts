@@ -37,6 +37,10 @@ export class UsersRepository extends UserAdminRepository {
     return this.profile.findMangakaProfileByUserId(userId)
   }
 
+  mangakaProfileExists(userId: string): Promise<boolean> {
+    return this.profile.mangakaProfileExists(userId)
+  }
+
   findUserBasicsWithRole(userId: string) {
     return this.profile.findUserBasicsWithRole(userId)
   }

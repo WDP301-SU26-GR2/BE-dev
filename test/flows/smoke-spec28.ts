@@ -2,7 +2,7 @@
 // Tests complete data flow through real API endpoint
 import { wipeDb, seedRolesAndAdmin, prisma, makeUser } from './lib/seed.js'
 
-import { login, clearTokenCache } from './lib/auth.js'
+import { login, clearTokenCache, ensureMangakaProfile } from './lib/auth.js'
 
 import { req, ok, section, summary } from './lib/http.js'
 
@@ -32,6 +32,9 @@ async function main() {
   section('1. Login từ API')
   const m1Tok = await login(m1.email)
   const m2Tok = await login(m2.email)
+  // BR 2026-08-04: submit yêu cầu Mangaka có hồ sơ.
+  await ensureMangakaProfile(m1Tok, 'FT S28 M1')
+  await ensureMangakaProfile(m2Tok, 'FT S28 M2')
   const e1Tok = await login(e1.email)
   ok('Token mangaka dài > 50', m1Tok.length > 50)
   ok('Token editor dài > 50', e1Tok.length > 50)

@@ -32,3 +32,4 @@ export const FranchiseConsentRequiredException = new ConflictException(E.franchi
 export const NotOriginalMangakaException = new ForbiddenException(E.notOriginalMangaka)
 export const NotFranchiseConsentTargetException = new ConflictException(E.notFranchiseConsentTarget)
 export const SeriesRequestRequiredException = new ConflictException(E.seriesRequestRequired)
+export const MangakaProfileRequiredException = new ConflictException(E.mangakaProfileRequired)
