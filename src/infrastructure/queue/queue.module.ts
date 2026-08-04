@@ -17,7 +17,7 @@ import { QueueDepthMetricsService } from './queue-depth-metrics.service'
       imports: [RedisModule],
       inject: [REDIS_BULL_CONNECTION],
       useFactory: (connection: Redis): QueueOptions => ({
-        connection: connection as unknown as QueueOptions['connection']
+        connection: connection
       })
     })
   ],

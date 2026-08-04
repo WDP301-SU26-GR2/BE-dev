@@ -15,7 +15,9 @@ export const TaskMessages = {
     taskRevisionRequested: (round: number, note: string) => `Công việc của bạn cần chỉnh sửa (vòng ${round}): ${note}`,
     taskApproved: 'Công việc của bạn đã được duyệt',
     taskCancelled: 'Công việc của bạn đã bị huỷ',
-    taskReassigned: 'Công việc đã được giao lại cho trợ lý khác'
+    taskReassigned: 'Công việc đã được giao lại cho trợ lý khác',
+    autoCancelledOverdue: (pageNumber: number, chapterNumber: number) =>
+      `Công việc (trang ${pageNumber}, chương ${chapterNumber}) đã bị tự huỷ vì quá hạn nộp`
   },
   // Ghi vào `Task.statusReason` — field NÀY CÓ trong TaskRes nên hiển thị thẳng cho Assistant/Mangaka.
   // Phải là tiếng Việt như mọi text user-facing khác (Spec 21). Record cũ đã lưu chuỗi tiếng Anh
@@ -23,7 +25,8 @@ export const TaskMessages = {
   reason: {
     regionDeleted: 'Vùng được giao đã bị xoá',
     cancelledByMangaka: 'Tác giả đã huỷ công việc này',
-    reassigned: 'Công việc đã được chuyển cho trợ lý khác'
+    reassigned: 'Công việc đã được chuyển cho trợ lý khác',
+    autoCancelledOverdue: 'Tự huỷ vì quá hạn nộp và hết thời gian ân hạn'
   },
   error: {
     pageNotFound: 'Error.PageNotFound',

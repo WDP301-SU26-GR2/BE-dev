@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Body, Container, Head, Heading, Html, Img, Section, Text } from 'react-email'
+import { Body, Container, Head, Heading, Html, Img, Section, Text } from './email-components'
 
 interface AccountCredentialsEmailProps {
   name?: string
@@ -7,7 +7,6 @@ interface AccountCredentialsEmailProps {
   temporaryPassword?: string
   title?: string
   appName?: string
-  // Use a publicly deployed image URL; local paths do not render in email clients.
   logoUrl?: string
 }
 
@@ -46,14 +45,6 @@ export const AccountCredentialsEmail = ({
     </Body>
   </Html>
 )
-
-AccountCredentialsEmail.PreviewProps = {
-  name: 'Editor A',
-  email: 'editor@example.com',
-  temporaryPassword: 'Temp1234',
-  title: 'Tài khoản của bạn đã được tạo',
-  appName: 'Mangaka'
-} as AccountCredentialsEmailProps
 
 export default AccountCredentialsEmail
 

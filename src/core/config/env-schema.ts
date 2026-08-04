@@ -37,6 +37,7 @@ const EnvironmentSchema = z
     OTP_RL_IP_WINDOW: positiveInt(3600, 31_536_000),
     OTP_RL_COOLDOWN: positiveInt(30, 86_400),
     DEADLINE_WARN_THRESHOLD_HOURS: positiveInt(48, 8760),
+    TASK_WARN_MIN_LEAD_HOURS: positiveInt(48, 8760),
     DEADLINE_SLOT_GRACE_HOURS: positiveInt(48, 8760),
     STORYBOARD_MAX_REVIEW_ROUNDS: positiveInt(8, 100),
     ORPHAN_ASSET_TTL_HOURS: positiveInt(24, 8760),

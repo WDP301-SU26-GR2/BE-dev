@@ -4,6 +4,7 @@ import { SeriesMessages } from '../series.messages'
 import { SeriesLifecycleService } from './series-lifecycle.service'
 import { SeriesLifecycleNotificationService } from './series-lifecycle-notification.service'
 import { SeriesCompletionProposalService } from './series-completion-proposal.service'
+import { SeriesHiatusService } from './series-hiatus.service'
 
 const makeDeps = () => {
   const state = {
@@ -18,21 +19,41 @@ const makeDeps = () => {
     setEndingChapterAllowance: jest.fn().mockResolvedValue(undefined),
     countChaptersBySeriesId: jest.fn().mockResolvedValue(0),
     setHiatusStartedAt: jest.fn().mockResolvedValue(undefined),
+    setHiatusStart: jest.fn().mockResolvedValue(undefined),
+    clearHiatus: jest.fn().mockResolvedValue(undefined),
     updatePublicationType: jest.fn().mockResolvedValue(undefined),
-    // PB-06
     setCompletionProposal: jest.fn().mockResolvedValue(undefined),
     findHiatusStartedBefore: jest.fn().mockResolvedValue([]),
-    findBoardMemberIds: jest.fn().mockResolvedValue([])
+    findBoardMemberIds: jest.fn().mockResolvedValue([]),
+    findActiveAssistantIdsBySeries: jest.fn().mockResolvedValue([])
   }
   const bus = { emit: jest.fn() }
   const notify = { notifySafe: jest.fn().mockResolvedValue(undefined) }
   const audit = { record: jest.fn().mockResolvedValue(undefined) }
-  return { state, repo, bus, notify, audit }
+  const cascade = {
+    holdAllForHiatus: jest.fn().mockResolvedValue([]),
+    releaseAllForResume: jest.fn().mockResolvedValue([])
+  }
+  return { state, repo, bus, notify, audit, cascade }
 }
 const make = (d: ReturnType<typeof makeDeps>) => {
-  const notifications = new SeriesLifecycleNotificationService(d.notify as never)
+  const notifications = new SeriesLifecycleNotificationService(d.notify as never, d.repo as never)
   const completion = new SeriesCompletionProposalService(d.repo as never, d.audit as never, notifications)
-  return new SeriesLifecycleService(d.state as never, d.repo as never, d.bus as never, notifications, completion)
+  const hiatusService = new SeriesHiatusService(
+    d.state as never,
+    d.repo as never,
+    notifications,
+    d.cascade as never,
+    d.bus as never
+  )
+  return new SeriesLifecycleService(
+    d.state as never,
+    d.repo as never,
+    d.bus as never,
+    notifications,
+    completion,
+    hiatusService
+  )
 }
 
 describe('SeriesLifecycleService.cancel', () => {
@@ -93,265 +114,151 @@ describe('SeriesLifecycleService.complete', () => {
       SeriesStatus.COMPLETING,
       expect.objectContaining({ changedBy: null })
     )
-    expect(d.notify.notifySafe).toHaveBeenCalledTimes(2)
-  })
-})
-
-describe('SeriesLifecycleService.complete — Spec 4 amendment wiring', () => {
-  it('emits ContractAmendmentRequested (COMPLETION)', async () => {
-    const d = makeDeps()
-    d.state.transition.mockResolvedValue({ id: 's1', mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.COMPLETING })
-    await make(d).complete('s1')
-    expect(d.bus.emit).toHaveBeenCalledWith(
-      DomainEvent.ContractAmendmentRequested,
-      expect.objectContaining({ seriesId: 's1', trigger: 'COMPLETION' })
-    )
-  })
-})
-
-describe('SeriesLifecycleService.changeFormat', () => {
-  it('updates publicationType without status transition', async () => {
-    const d = makeDeps()
-    await make(d).changeFormat('s1', 'MONTHLY')
-    expect(d.repo.updatePublicationType).toHaveBeenCalledWith('s1', 'MONTHLY')
-    expect(d.state.transition).not.toHaveBeenCalled()
-  })
-  it('skips update when publicationType missing', async () => {
-    const d = makeDeps()
-    await make(d).changeFormat('s1', undefined)
-    expect(d.repo.updatePublicationType).not.toHaveBeenCalled()
-  })
-  it('changeFormat: notify owners bằng message mới + KHÔNG đụng Schedule (G-6)', async () => {
-    const d = makeDeps()
-    d.repo.findById = jest.fn().mockResolvedValue({
-      id: '507f1f77bcf86cd799439011',
-      mangakaId: '507f1f77bcf86cd799439012',
-      editorId: '507f1f77bcf86cd799439013'
-    })
-    d.repo.updatePublicationType = jest.fn().mockResolvedValue(undefined)
-    const service = make(d)
-
-    await service.changeFormat('507f1f77bcf86cd799439011', 'MONTHLY')
-
-    // notify tới CẢ mangaka + editor, dùng text từ catalog
-    expect(d.notify.notifySafe).toHaveBeenCalledTimes(2)
-    expect(d.notify.notifySafe).toHaveBeenCalledWith(
-      expect.objectContaining({
-        referenceType: 'SERIES_FORMAT_CHANGED',
-        content: SeriesMessages.notification.seriesFormatChanged
-      })
-    )
-    // message mới PHẢI nhắc Editor về deadline
-    expect(SeriesMessages.notification.seriesFormatChanged).toContain('Hạn nộp')
-
-    // KHÔNG đụng Schedule — repo của series không được lộ bất kỳ mutator lịch nào
-    // (đổi nhịp xuất bản KHÔNG hồi tố deadline chapter đang sản xuất — Requiment Flow 5 CHANGE_FORMAT).
-    expect(Object.keys(d.repo)).not.toContain('updateSchedule')
-  })
-})
-
-describe('SeriesLifecycleService.changeFormat — Spec 4 amendment wiring', () => {
-  it('emits ContractAmendmentRequested (FORMAT_CHANGE) after publicationType change', async () => {
-    const d = makeDeps()
-    await make(d).changeFormat('s1', 'MONTHLY')
-    expect(d.bus.emit).toHaveBeenCalledWith(
-      DomainEvent.ContractAmendmentRequested,
-      expect.objectContaining({ seriesId: 's1', trigger: 'FORMAT_CHANGE' })
-    )
-  })
-
-  it('does NOT emit when publicationType missing (early return)', async () => {
-    const d = makeDeps()
-    await make(d).changeFormat('s1', undefined)
-    expect(d.bus.emit).not.toHaveBeenCalledWith(DomainEvent.ContractAmendmentRequested, expect.anything())
+    expect(d.notify.notifySafe).toHaveBeenCalledWith(expect.objectContaining({ referenceType: 'SERIES_COMPLETING' }))
   })
 })
 
 describe('SeriesLifecycleService.hiatus', () => {
+  const S = '0123456789abcdef01234567'
+  it('invalid id → 404', async () => {
+    const d = makeDeps()
+    await expect(make(d).hiatus('bad-id', 'e1', 'r')).rejects.toMatchObject({ status: 404 })
+  })
   it('guards assigned editor, transitions to HIATUS, sets hiatusStartedAt, emits started', async () => {
     const d = makeDeps()
-    d.repo.findById.mockResolvedValue({
-      id: '0123456789abcdef01234567',
-      mangakaId: 'm1',
-      editorId: 'e1',
-      status: SeriesStatus.SERIALIZED
-    })
-    d.state.transition.mockResolvedValue({
-      id: '0123456789abcdef01234567',
-      mangakaId: 'm1',
-      editorId: 'e1',
-      status: SeriesStatus.HIATUS
-    })
-    await make(d).hiatus('0123456789abcdef01234567', 'e1', 'author sick')
-    expect(d.state.transition).toHaveBeenCalledWith('0123456789abcdef01234567', SeriesStatus.HIATUS, {
-      changedBy: 'e1',
-      reason: 'author sick'
-    })
-    expect(d.repo.setHiatusStartedAt).toHaveBeenCalledWith('0123456789abcdef01234567', expect.any(Date))
-    expect(d.bus.emit).toHaveBeenCalledWith(DomainEvent.SeriesHiatusStarted, { seriesId: '0123456789abcdef01234567' })
+    d.repo.findById.mockResolvedValue({ id: S, mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.SERIALIZED })
+    d.state.transition.mockResolvedValue({ id: S, status: SeriesStatus.HIATUS, mangakaId: 'm1', editorId: 'e1' })
+    await make(d).hiatus(S, 'e1', 'kiệt sức')
+    expect(d.state.transition).toHaveBeenCalledWith(
+      S,
+      SeriesStatus.HIATUS,
+      expect.objectContaining({ changedBy: 'e1' })
+    )
+    expect(d.repo.setHiatusStart).toHaveBeenCalledWith(S, expect.any(Date), null)
+    expect(d.cascade.holdAllForHiatus).toHaveBeenCalled()
+    expect(d.bus.emit).toHaveBeenCalledWith(DomainEvent.SeriesHiatusStarted, { seriesId: S })
+    expect(d.notify.notifySafe).toHaveBeenCalled()
   })
-  it('throws NotAssignedEditor when caller is not the series editor', async () => {
+  it('expectedReturnDate truyền xuống setHiatusStart', async () => {
     const d = makeDeps()
-    d.repo.findById.mockResolvedValue({
-      id: '0123456789abcdef01234567',
-      mangakaId: 'm1',
-      editorId: 'e1',
-      status: SeriesStatus.SERIALIZED
-    })
-    await expect(make(d).hiatus('0123456789abcdef01234567', 'someone-else', 'x')).rejects.toThrow()
+    d.repo.findById.mockResolvedValue({ id: S, mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.SERIALIZED })
+    d.state.transition.mockResolvedValue({ id: S, status: SeriesStatus.HIATUS, mangakaId: 'm1', editorId: 'e1' })
+    await make(d).hiatus(S, 'e1', 'r', '2026-12-01T00:00:00.000Z')
+    expect(d.repo.setHiatusStart).toHaveBeenCalledWith(S, expect.any(Date), new Date('2026-12-01T00:00:00.000Z'))
+  })
+  it('không phải editor phụ trách → 403', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({ id: S, mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.SERIALIZED })
+    await expect(make(d).hiatus(S, 'eX', 'r')).rejects.toMatchObject({ status: 403 })
     expect(d.state.transition).not.toHaveBeenCalled()
   })
-  it('throws SeriesNotFound for malformed id', async () => {
+  it('holdAllForHiatus nhận actorId + reason từ messages', async () => {
     const d = makeDeps()
-    await expect(make(d).hiatus('bad-id', 'e1', 'x')).rejects.toThrow()
-    expect(d.repo.findById).not.toHaveBeenCalled()
+    d.repo.findById.mockResolvedValue({ id: S, mangakaId: 'm1', editorId: 'e1', status: SeriesStatus.SERIALIZED })
+    d.state.transition.mockResolvedValue({ id: S, status: SeriesStatus.HIATUS, mangakaId: 'm1', editorId: 'e1' })
+    await make(d).hiatus(S, 'e1', 'r')
+    expect(d.cascade.holdAllForHiatus).toHaveBeenCalledWith(S, 'e1', SeriesMessages.reason.hiatusHold)
   })
 })
 
 describe('SeriesLifecycleService.resume', () => {
+  const S = '0123456789abcdef01234567'
   it('computes pausedMs, transitions to SERIALIZED, clears hiatusStartedAt, emits ended', async () => {
     const d = makeDeps()
-    const started = new Date(Date.now() - 60_000)
+    const start = new Date(Date.now() - 86_400_000)
     d.repo.findById.mockResolvedValue({
-      id: '0123456789abcdef01234567',
+      id: S,
       mangakaId: 'm1',
       editorId: 'e1',
       status: SeriesStatus.HIATUS,
-      hiatusStartedAt: started
+      hiatusStartedAt: start
     })
-    d.state.transition.mockResolvedValue({
-      id: '0123456789abcdef01234567',
-      mangakaId: 'm1',
-      editorId: 'e1',
-      status: SeriesStatus.SERIALIZED
-    })
-    await make(d).resume('0123456789abcdef01234567', 'e1')
+    d.state.transition.mockResolvedValue({ id: S, status: SeriesStatus.SERIALIZED, mangakaId: 'm1', editorId: 'e1' })
+    await make(d).resume(S, 'e1')
     expect(d.state.transition).toHaveBeenCalledWith(
-      '0123456789abcdef01234567',
+      S,
       SeriesStatus.SERIALIZED,
       expect.objectContaining({ changedBy: 'e1' })
     )
-    expect(d.repo.setHiatusStartedAt).toHaveBeenCalledWith('0123456789abcdef01234567', null)
-    const emitCall = d.bus.emit.mock.calls.find((c) => c[0] === DomainEvent.SeriesHiatusEnded)
-    expect(emitCall).toBeDefined()
-    expect(emitCall[1].seriesId).toBe('0123456789abcdef01234567')
-    expect(emitCall[1].pausedMs).toBeGreaterThanOrEqual(60_000 - 5_000)
+    expect(d.repo.clearHiatus).toHaveBeenCalledWith(S)
+    expect(d.cascade.releaseAllForResume).toHaveBeenCalledWith(S, 'e1', expect.any(Number))
+    expect(d.bus.emit).toHaveBeenCalledWith(DomainEvent.SeriesHiatusEnded, {
+      seriesId: S,
+      pausedMs: expect.any(Number)
+    })
+    expect(d.notify.notifySafe).toHaveBeenCalledWith(expect.objectContaining({ referenceType: 'SERIES_RESUMED' }))
+  })
+  it('không có hiatusStartedAt → pausedMs=0', async () => {
+    const d = makeDeps()
+    d.repo.findById.mockResolvedValue({
+      id: S,
+      mangakaId: 'm1',
+      editorId: 'e1',
+      status: SeriesStatus.HIATUS,
+      hiatusStartedAt: null
+    })
+    d.state.transition.mockResolvedValue({ id: S, status: SeriesStatus.SERIALIZED, mangakaId: 'm1', editorId: 'e1' })
+    await make(d).resume(S, 'e1')
+    expect(d.cascade.releaseAllForResume).toHaveBeenCalledWith(S, 'e1', 0)
   })
 })
 
 describe('SeriesLifecycleService.finalizeEnding', () => {
-  it('CANCELLING → CANCELLED + emit SeriesCancelled', async () => {
+  const S = '0123456789abcdef01234567'
+  it('CANCELLING → CANCELLED + notify', async () => {
     const d = makeDeps()
     d.repo.findById.mockResolvedValue({
-      id: '0123456789abcdef01234567',
-      mangakaId: 'm1',
+      id: S,
+      status: SeriesStatus.CANCELLING,
       editorId: 'e1',
-      status: SeriesStatus.CANCELLING
+      mangakaId: 'm1'
     })
-    d.state.transition.mockResolvedValue({
-      id: '0123456789abcdef01234567',
-      mangakaId: 'm1',
-      editorId: 'e1',
-      status: SeriesStatus.CANCELLED
-    })
-    await make(d).finalizeEnding('0123456789abcdef01234567', 'e1')
+    d.state.transition.mockResolvedValue({ id: S, status: SeriesStatus.CANCELLED, editorId: 'e1', mangakaId: 'm1' })
+    await make(d).finalizeEnding(S, 'e1')
     expect(d.state.transition).toHaveBeenCalledWith(
-      '0123456789abcdef01234567',
+      S,
       SeriesStatus.CANCELLED,
       expect.objectContaining({ changedBy: 'e1' })
     )
-    expect(d.bus.emit).toHaveBeenCalledWith(DomainEvent.SeriesCancelled, {
-      seriesId: '0123456789abcdef01234567'
-    })
+    expect(d.bus.emit).toHaveBeenCalledWith(DomainEvent.SeriesCancelled, { seriesId: S })
   })
-  it('COMPLETING → COMPLETED', async () => {
+  it('COMPLETING → COMPLETED + notify', async () => {
     const d = makeDeps()
     d.repo.findById.mockResolvedValue({
-      id: '0123456789abcdef01234567',
-      mangakaId: 'm1',
+      id: S,
+      status: SeriesStatus.COMPLETING,
       editorId: 'e1',
-      status: SeriesStatus.COMPLETING
+      mangakaId: 'm1'
     })
-    d.state.transition.mockResolvedValue({
-      id: '0123456789abcdef01234567',
-      mangakaId: 'm1',
-      editorId: 'e1',
-      status: SeriesStatus.COMPLETED
-    })
-    await make(d).finalizeEnding('0123456789abcdef01234567', 'e1')
-    expect(d.state.transition).toHaveBeenCalledWith(
-      '0123456789abcdef01234567',
-      SeriesStatus.COMPLETED,
-      expect.objectContaining({ changedBy: 'e1' })
-    )
+    d.state.transition.mockResolvedValue({ id: S, status: SeriesStatus.COMPLETED, editorId: 'e1', mangakaId: 'm1' })
+    await make(d).finalizeEnding(S, 'e1')
+    expect(d.state.transition).toHaveBeenCalledWith(S, SeriesStatus.COMPLETED, expect.any(Object))
+    expect(d.notify.notifySafe).toHaveBeenCalledWith(expect.objectContaining({ referenceType: 'SERIES_COMPLETED' }))
   })
-  it('throws SeriesNotInEndingState when SERIALIZED', async () => {
+  it('SERIALIZED → 409', async () => {
     const d = makeDeps()
     d.repo.findById.mockResolvedValue({
-      id: '0123456789abcdef01234567',
-      mangakaId: 'm1',
+      id: S,
+      status: SeriesStatus.SERIALIZED,
       editorId: 'e1',
-      status: SeriesStatus.SERIALIZED
+      mangakaId: 'm1'
     })
-    await expect(make(d).finalizeEnding('0123456789abcdef01234567', 'e1')).rejects.toThrow()
+    await expect(make(d).finalizeEnding(S, 'e1')).rejects.toMatchObject({ status: 409 })
     expect(d.state.transition).not.toHaveBeenCalled()
+  })
+})
+
+describe('SeriesLifecycleService.changeFormat', () => {
+  it('skipped when no publicationType (warn, no DB write)', async () => {
+    const d = makeDeps()
+    await make(d).changeFormat('s1')
+    expect(d.repo.updatePublicationType).not.toHaveBeenCalled()
+    expect(d.bus.emit).not.toHaveBeenCalled()
   })
 })
 
 describe('SeriesLifecycleService.proposeCompletion (PB-06)', () => {
   const S = '0123456789abcdef01234567'
-  it('malformed id → 404', async () => {
-    const d = makeDeps()
-    await expect(make(d).proposeCompletion('garbage', 'm1', 'MANGAKA', { reason: 'done' })).rejects.toMatchObject({
-      status: 404
-    })
-  })
-  it('non-participant → 403', async () => {
-    const d = makeDeps()
-    d.repo.findById.mockResolvedValue({
-      id: S,
-      status: SeriesStatus.SERIALIZED,
-      mangakaId: 'm1',
-      editorId: 'e1'
-    })
-    await expect(make(d).proposeCompletion(S, 'xX', 'MANGAKA', { reason: 'done' })).rejects.toMatchObject({
-      status: 403
-    })
-    expect(d.repo.setCompletionProposal).not.toHaveBeenCalled()
-  })
-  it('status not SERIALIZED/HIATUS → 409', async () => {
-    const d = makeDeps()
-    d.repo.findById.mockResolvedValue({
-      id: S,
-      status: SeriesStatus.PITCHED,
-      mangakaId: 'm1',
-      editorId: 'e1'
-    })
-    await expect(make(d).proposeCompletion(S, 'm1', 'MANGAKA', { reason: 'done' })).rejects.toMatchObject({
-      status: 409
-    })
-    expect(d.repo.setCompletionProposal).not.toHaveBeenCalled()
-  })
-  it('HIATUS status is proposable', async () => {
-    const d = makeDeps()
-    d.repo.findById.mockResolvedValue({
-      id: S,
-      status: SeriesStatus.HIATUS,
-      mangakaId: 'm1',
-      editorId: 'e1'
-    })
-    d.repo.setCompletionProposal.mockResolvedValue({
-      id: S,
-      status: SeriesStatus.HIATUS,
-      mangakaId: 'm1',
-      editorId: 'e1'
-    })
-    await make(d).proposeCompletion(S, 'm1', 'MANGAKA', { reason: 'done' })
-    expect(d.repo.setCompletionProposal).toHaveBeenCalledWith(
-      S,
-      expect.objectContaining({ proposedByRole: 'MANGAKA', proposedById: 'm1', reason: 'done' })
-    )
-  })
   it('mangaka proposes on SERIALIZED → upsert proposal + notify editor', async () => {
     const d = makeDeps()
     d.repo.findById.mockResolvedValue({

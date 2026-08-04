@@ -17,7 +17,8 @@ const CONFIG_KEYS = [
   'rankingAggregateMinCoverageRatio',
   'maxUploadBytes',
   'assignmentGraceDays',
-  'boardRepClaimGraceDays'
+  'boardRepClaimGraceDays',
+  'taskOverdueGraceHours'
 ] as const
 
 type ConfigKey = (typeof CONFIG_KEYS)[number]
@@ -36,7 +37,13 @@ export class AppConfigService {
   }
 
   async update(adminId: string, patch: PatchAppConfigBodyType): Promise<AppConfigResType> {
-    const current = await this.getRow()
+    let current = await this.getRow()
+    // Bản cache 30s có thể trỏ tới document đã biến mất (bị xoá/tạo lại ngoài tiến trình này).
+    // Không xác thực lại thì `update` theo id cũ ném P2025 → 500 cho một thao tác lẽ ra vô hại.
+    if (!(await this.appConfigRepository.existsById(current.id))) {
+      this.cached = null
+      current = await this.getRow()
+    }
     const data: Partial<Record<ConfigKey, number>> & { updatedBy?: string } = {}
     const changes: string[] = []
 

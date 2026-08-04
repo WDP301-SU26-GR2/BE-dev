@@ -1,4 +1,4 @@
-import { Prisma, Series, SeriesStatus } from '@prisma/client'
+import { Prisma, Series, SeriesStatus, TaskStatus } from '@prisma/client'
 import { USER_MINI_FIELDS, UserMiniRow } from 'src/core/models/user-mini.model'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { SeriesListFilter } from './series-repository.types'
@@ -98,5 +98,30 @@ export class SeriesQueryRepository {
       select: { id: true }
     })
     return users.map((user) => user.id)
+  }
+
+  // Spec 30: danh sách id Series mà user làm chủ hoặc được phân công — query scoping cho SeriesRequest.
+  async findSeriesIdsByOwner(key: 'mangakaId' | 'editorId', userId: string): Promise<string[]> {
+    const rows = await this.prismaService.series.findMany({ where: { [key]: userId }, select: { id: true } })
+    return rows.map((row) => row.id)
+  }
+
+  // Spec 30: trợ lý đang giữ công việc CHƯA kết thúc trong bộ truyện — dùng cho notify khi HIATUS / RESUME.
+  async findActiveAssistantIdsBySeries(seriesId: string): Promise<string[]> {
+    const chapters = await this.prismaService.chapter.findMany({ where: { seriesId }, select: { id: true } })
+    if (chapters.length === 0) return []
+    const pages = await this.prismaService.page.findMany({
+      where: { chapterId: { in: chapters.map((chapter) => chapter.id) } },
+      select: { id: true }
+    })
+    if (pages.length === 0) return []
+    const tasks = await this.prismaService.task.findMany({
+      where: {
+        pageId: { in: pages.map((page) => page.id) },
+        status: { notIn: [TaskStatus.APPROVED, TaskStatus.CANCELLED] }
+      },
+      select: { assistantId: true }
+    })
+    return [...new Set(tasks.map((task) => task.assistantId).filter((id): id is string => Boolean(id)))]
   }
 }

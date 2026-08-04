@@ -12,3 +12,30 @@ automation/rules in this folder.
 
 Shared skills (e.g. `backend-development`) live in `.agents/skills/` and are
 available to the agent for maintenance, debugging, and implementation tasks.
+
+## Git Workflow Rules (CRITICAL)
+
+**IMPORTANT: NEVER auto-commit or push without explicit user permission.**
+
+### Before Any Commit
+- ALWAYS ask user before committing: "Tôi sẽ commit các thay đổi này. Đồng ý?"
+- List the files that will be committed
+- Wait for user confirmation
+
+### Commit Guidelines (per AGENTS.md)
+- Each commit = 1 logical change, build must be green
+- Write clear commit messages (imperative mood: "Add", "Fix", "Update")
+- First line: short summary (< 72 chars)
+- Body: explain WHY (not just WHAT)
+
+### Push
+- NEVER push without explicit user permission
+- Ask: "Đã commit. Bạn muốn tôi push lên không?"
+
+### Examples of Required User Confirmation
+```
+✅ "Tôi đã fix lỗi lint. Bạn muốn tôi commit và push không?"
+✅ "Build thành công. List changes: [files]. Commit?"
+❌ NEVER: "Automatically committing..."
+❌ NEVER: "Pushing to origin..."
+```

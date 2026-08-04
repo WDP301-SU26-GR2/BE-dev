@@ -325,11 +325,17 @@ enum ChapterHoldAction {
   RESUME
 }
 
+enum ChapterHoldSource {
+  MANUAL
+  SERIES_HIATUS
+}
+
 type ChapterHold {
   reason             String
   expectedReturnDate DateTime?
-  heldBy             String    @db.ObjectId
-  heldAt             DateTime  @default(now())
+  heldBy             String            @db.ObjectId
+  heldAt             DateTime          @default(now())
+  source             ChapterHoldSource @default(MANUAL)
 }
 
 type ChapterHoldEntry {
@@ -367,6 +373,27 @@ enum ProposalStatus {
   APPROVED
   REJECTED
   WITHDRAWN
+}
+
+// Spec 30: yêu cầu do TÁC GIẢ (mangaka chủ series) gửi, biên tập viên phụ trách duyệt/từ chối.
+// KHÁC với lệnh điều khiển trực tiếp của biên tập viên (forceCancel/proposeCompletion).
+// Trạng thái series cho phép tạo — nguồn sự thật ở `ALLOWED_SERIES_STATUS_FOR_REQUEST`:
+// - WITHDRAW:   chỉ khi READY_TO_PITCH (hồ sơ đã sẵn sàng trình Hội đồng nên phải hỏi biên tập viên;
+//               ở DRAFT/IN_REVIEW/REJECTED tác giả vẫn rút thẳng qua POST /series/:id/withdraw).
+// - HIATUS:     chỉ khi SERIALIZED — accept là tạm ngưng NGAY (không cần Hội đồng).
+// - COMPLETION: khi SERIALIZED hoặc HIATUS — accept CHƯA đổi trạng thái, biên tập viên còn phải
+//               mở BoardDecision(COMPLETION) rồi Hội đồng duyệt mới COMPLETING.
+enum SeriesRequestType {
+  WITHDRAW
+  HIATUS
+  COMPLETION
+}
+
+enum SeriesRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
 }
 
 // Spec 18: backend-driven page lifecycle.
@@ -731,6 +758,7 @@ model Series {
   coOwnerApprovalRequired  Boolean                    @default(false)
   reviewStartedAt          DateTime?
   hiatusStartedAt          DateTime? // Spec 2: set when entering HIATUS, null when resumed — used to compute pausedMs
+  hiatusExpectedReturnDate DateTime? // Spec 30: ngày dự kiến quay lại (thay việc nối chuỗi vào reason)
   endingChapterAllowance   Int? // Spec 2 + Fix-1: N ending chapters Board grants on CANCELLATION — ENFORCED bởi chapter-creation guard
   chapterCountAtCancelling Int? // Fix-1 G-1: snapshot số chapter tại thời điểm vào CANCELLING — guard ending allowance
   completionProposal       CompletionProposal?
@@ -744,6 +772,8 @@ model Series {
 
   createdAt DateTime   @default(now())
   contracts Contract[]
+
+  seriesRequests SeriesRequest[]
 
   @@index([mangakaId])
   @@index([editorId])
@@ -1724,6 +1754,7 @@ model AppConfig {
   maxUploadBytes                   Int   @default(15728640)
   assignmentGraceDays              Int   @default(0)
   boardRepClaimGraceDays           Int   @default(3)
+  taskOverdueGraceHours            Int   @default(0)
 
   updatedAt DateTime @updatedAt
 
@@ -1776,6 +1807,48 @@ model RevisionRequest {
   @@index([targetType, targetId])
   @@index([recipientId, isResolved])
   @@index([seriesId])
+}
+
+/// Spec 30: yêu cầu rút hồ sơ / tạm ngưng / kết thúc sớm. Chỉ TÁC GIẢ chủ bộ truyện gửi được
+/// (POST /series-requests), chỉ BIÊN TẬP VIÊN PHỤ TRÁCH duyệt/từ chối. ACCEPT mới đổi trạng thái
+/// bộ truyện (riêng COMPLETION còn phải qua Hội đồng); CANCELLED = người tạo tự rút yêu cầu.
+/// Tối đa MỘT yêu cầu PENDING cho mỗi bộ truyện. KHÔNG thay thế forceCancel / proposeCompletion.
+model SeriesRequest {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  seriesId String @db.ObjectId
+  series   Series @relation(fields: [seriesId], references: [id])
+
+  requestedBy  String            @db.ObjectId
+  requestType  SeriesRequestType
+  reason       String
+
+  // Spec 30: chỉ áp dụng cho HIATUS — ngày dự kiến quay lại phát hành.
+  expectedReturnDate DateTime?
+  // Spec 30: chỉ áp dụng cho COMPLETION — số chương kết thúc đề xuất (Editor duyệt → endingChapterAllowance).
+  proposedEndingChapters Int?
+
+  status       SeriesRequestStatus @default(PENDING)
+  decidedBy    String?             @db.ObjectId
+  decidedAt    DateTime?
+  decisionNote String?
+  rejectReason String?
+
+  statusHistory SeriesRequestStatusHistoryEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([seriesId, status])
+  @@index([requestedBy])
+}
+
+type SeriesRequestStatusHistoryEntry {
+  from   SeriesRequestStatus?
+  to     SeriesRequestStatus
+  by     String               @db.ObjectId
+  reason String?
+  at     DateTime             @default(now())
 }
 
 model Notification {

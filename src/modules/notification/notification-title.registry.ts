@@ -22,7 +22,14 @@ export const NOTIFICATION_TITLE_VI: Record<string, string> = {
   SERIES_REJECTED: 'Hội đồng từ chối bộ truyện',
   SERIES_REOPENED_FOR_REVIEW: 'Mở lại vòng chỉnh sửa',
   SERIES_WITHDRAWN_AFTER_REJECT: 'Tác giả rút hồ sơ',
-  COMPLETION_PROPOSED: 'Đề xuất kết thúc bộ truyện',
+  SERIES_WITHDRAWN_IN_REVIEW: 'Tác giả rút hồ sơ',
+  SERIES_COMPLETION_PROPOSED: 'Đề xuất kết thúc bộ truyện',
+  SERIES_REQUEST_CREATED: 'Yêu cầu mới từ tác giả',
+  SERIES_REQUEST_ACCEPTED: 'Yêu cầu được chấp nhận',
+  SERIES_REQUEST_REJECTED: 'Yêu cầu bị từ chối',
+  SERIES_REQUEST_CANCELLED: 'Tác giả huỷ yêu cầu',
+  SERIES_HIATUS_STARTED: 'Bộ truyện tạm ngưng',
+  SERIES_RESUMED: 'Bộ truyện hoạt động lại',
   FRANCHISE_CONSENT_REQUESTED: 'Cần bạn đồng ý làm phái sinh',
   FRANCHISE_CONSENT_APPROVED: 'Đã đồng ý làm phái sinh',
   FRANCHISE_CONSENT_REJECTED: 'Đã từ chối làm phái sinh',
@@ -97,13 +104,15 @@ export const NOTIFICATION_TITLE_VI: Record<string, string> = {
   TRANSFER_SETTLEMENT_COMPLETED: 'Chuyển nhượng hoàn tất',
   USER_BANNED: 'Tài khoản bị cấm',
   USER_BLOCKED: 'Tài khoản bị khoá',
-  USER_REACTIVATED: 'Tài khoản được kích hoạt lại'
+  USER_REACTIVATED: 'Tài khoản được kích hoạt lại',
+  TASK_AUTO_CANCELLED: 'Công việc bị tự huỷ do quá hạn'
 }
 
 // referenceType động dạng PREFIX:<biến>, khớp phần trước dấu hai chấm.
 export const NOTIFICATION_TITLE_PREFIX_VI: Record<string, string> = {
   DEADLINE_WARNING: 'Sắp đến hạn nộp',
   TASK_DEADLINE_WARNING: 'Công việc sắp đến hạn',
+  TASK_DEADLINE_OVERDUE: 'Công việc đã quá hạn',
   SERIES_HIATUS_TOO_LONG: 'Bộ truyện tạm ngưng quá lâu'
 }
 

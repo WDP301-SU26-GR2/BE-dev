@@ -4,6 +4,7 @@ import { $Enums } from '@prisma/client'
 import { zEnum, zEnumString } from 'src/core/http/docs/enum-docs'
 import { zDateField } from 'src/core/http/docs/date-docs'
 import { zObjectId } from 'src/core/http/schemas/object-id.schema'
+import { zMoney } from 'src/core/http/schemas/money.schema'
 import { SeriesMiniSchema, UserMiniSchema } from 'src/core/models/user-mini.model'
 
 // 1. Schema phục vụ API tạo bản thảo hợp đồng mới (POST /contracts)
@@ -16,9 +17,7 @@ export const CreateContractBodySchema = extendApi(
 
       contractType: zEnum($Enums.ContractType, 'ContractType'),
 
-      valuationAmount: z
-        .number({ error: 'valuationAmount phải là một số' })
-        .positive({ message: 'valuationAmount phải lớn hơn 0' }),
+      valuationAmount: zMoney({ positive: true }),
       publisherOwnershipPct: z.number({ error: 'publisherOwnershipPct phải là một số' }).min(0).max(100),
       mangakaOwnershipPct: z.number({ error: 'mangakaOwnershipPct phải là một số' }).min(0).max(100),
       terminationClause: z
@@ -84,7 +83,7 @@ export const EditorUpdateContractBodySchema = extendApi(
   z
     .object({
       contractType: zEnum($Enums.ContractType, 'ContractType').optional(),
-      valuationAmount: z.number().positive().optional(),
+      valuationAmount: zMoney({ positive: true }).optional(),
       publisherOwnershipPct: z.number().min(0).max(100).optional(),
       mangakaOwnershipPct: z.number().min(0).max(100).optional(),
       terminationClause: z.string().optional(),

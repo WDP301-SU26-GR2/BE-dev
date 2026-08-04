@@ -15,6 +15,7 @@ import { ProposeCompletionBodyType } from '../schemas/series-schemas'
 import { SeriesStateService } from './series-state.service'
 import { SeriesLifecycleNotificationService } from './series-lifecycle-notification.service'
 import { SeriesCompletionProposalService } from './series-completion-proposal.service'
+import { SeriesHiatusService } from './series-hiatus.service'
 
 @Injectable()
 export class SeriesLifecycleService {
@@ -25,7 +26,8 @@ export class SeriesLifecycleService {
     private readonly seriesRepository: SeriesRepository,
     private readonly eventBus: DomainEventBus,
     private readonly lifecycleNotifications: SeriesLifecycleNotificationService,
-    private readonly completionProposalService: SeriesCompletionProposalService
+    private readonly completionProposalService: SeriesCompletionProposalService,
+    private readonly hiatusService: SeriesHiatusService
   ) {}
 
   // Called by listener (system, changedBy=null) when Board APPROVED CANCELLATION.
@@ -85,46 +87,13 @@ export class SeriesLifecycleService {
     }
   }
 
-  // Editor-driven. Guard assigned editor + SERIALIZED (transition table enforces).
-  async hiatus(seriesId: string, actorId: string, reason: string, expectedReturnDate?: string) {
-    if (!isObjectId(seriesId)) throw SeriesNotFoundException
-    const current = await this.seriesRepository.findById(seriesId)
-    if (!current) throw SeriesNotFoundException
-    requireAssignedEditor(current, actorId)
-    const fullReason = expectedReturnDate ? `${reason} (expected return: ${expectedReturnDate})` : reason
-    const series = await this.seriesStateService.transition(seriesId, SeriesStatus.HIATUS, {
-      changedBy: actorId,
-      reason: fullReason
-    })
-    await this.seriesRepository.setHiatusStartedAt(seriesId, new Date())
-    this.eventBus.emit(DomainEvent.SeriesHiatusStarted, { seriesId })
-    await this.lifecycleNotifications.notifyOwners(
-      series,
-      'SERIES_HIATUS_STARTED',
-      SeriesMessages.notification.seriesHiatusStarted,
-      seriesId
-    )
-    return series
+  // Delegate hiatus/resume logic to a focused service.
+  hiatus(seriesId: string, actorId: string, reason: string, expectedReturnDate?: string) {
+    return this.hiatusService.hiatus(seriesId, actorId, reason, expectedReturnDate)
   }
 
-  async resume(seriesId: string, actorId: string) {
-    if (!isObjectId(seriesId)) throw SeriesNotFoundException
-    const current = await this.seriesRepository.findById(seriesId)
-    if (!current) throw SeriesNotFoundException
-    requireAssignedEditor(current, actorId)
-    let pausedMs = 0
-    if (current.hiatusStartedAt) pausedMs = Date.now() - new Date(current.hiatusStartedAt).getTime()
-    else this.logger.warn(`Series ${seriesId} resume without hiatusStartedAt — pausedMs=0.`)
-    const series = await this.seriesStateService.transition(seriesId, SeriesStatus.SERIALIZED, { changedBy: actorId })
-    await this.seriesRepository.setHiatusStartedAt(seriesId, null)
-    this.eventBus.emit(DomainEvent.SeriesHiatusEnded, { seriesId, pausedMs })
-    await this.lifecycleNotifications.notifyOwners(
-      series,
-      'SERIES_RESUMED',
-      SeriesMessages.notification.seriesResumed,
-      seriesId
-    )
-    return series
+  resume(seriesId: string, actorId: string) {
+    return this.hiatusService.resume(seriesId, actorId)
   }
 
   // Editor manually closes: CANCELLING→CANCELLED / COMPLETING→COMPLETED.
@@ -162,12 +131,6 @@ export class SeriesLifecycleService {
   // The proposal becomes actionable only when escalated to the Board (out of scope for this method).
   async proposeCompletion(seriesId: string, actorId: string, roleName: string, body: ProposeCompletionBodyType) {
     return this.completionProposalService.propose(seriesId, actorId, roleName, body)
-
-    // Spec 9 §2.1: proposal không đi qua SeriesStateService (không đổi status) nên phải ghi
-    // audit riêng — best-effort, AuditService tự nuốt lỗi.
-
-    // Notify the counterparty. Same call signature as `notifyOwners` but only one side, to keep
-    // the proposal intent between the two participants (Board not auto-notified).
   }
 
   // PB-06: Editor closes a CANCELLING series without an ending — mangaka could not deliver.

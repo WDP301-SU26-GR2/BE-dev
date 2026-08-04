@@ -305,7 +305,8 @@ const configSchema = z.object({
 | `OTP_RL_EMAIL_MAX` / `OTP_RL_EMAIL_WINDOW` | number | OTP quota theo email trong cửa sổ giây |
 | `OTP_RL_IP_MAX` / `OTP_RL_IP_WINDOW` | number | OTP quota theo IP trong cửa sổ giây |
 | `OTP_RL_COOLDOWN` | number | Cooldown giây giữa các lần xin OTP |
-| `DEADLINE_WARN_THRESHOLD_HOURS` | number | Cron cảnh báo chapter gần deadline trong N giờ tới |
+| `DEADLINE_WARN_THRESHOLD_HOURS` | number | Cron cảnh báo task gần deadline trong N giờ tới (cảnh báo cấp chapter dùng computeWarningLevel) |
+| `TASK_WARN_MIN_LEAD_HOURS` | number | Chỉ cảnh báo task có tổng thời hạn (deadline − createdAt) > N giờ; task ngắn hơn không cảnh báo (default 48) |
 | `ORPHAN_ASSET_TTL_HOURS` | number | TTL trước khi cleanup asset record chưa thấy object trên R2 |
 | `TRUST_PROXY_HOPS` | number | Express trust proxy hops để lấy đúng client IP cho rate-limit |
 | `RESEND_API_KEY` | string | API key gửi email OTP/credential (Resend) |

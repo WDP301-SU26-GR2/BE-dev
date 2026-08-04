@@ -19,6 +19,8 @@ function make() {
   const repo = {
     findFirst: jest.fn().mockResolvedValue(row),
     createDefaults: jest.fn().mockResolvedValue(row),
+    // Bản cache có thể trỏ document đã biến mất — service xác thực lại trước khi update.
+    existsById: jest.fn().mockResolvedValue(true),
     update: jest.fn().mockResolvedValue({ ...row, storyboardMaxReviewRounds: 10 })
   }
   const auditService = { record: jest.fn().mockResolvedValue(undefined) }
@@ -88,6 +90,21 @@ describe('AppConfigService', () => {
     expect(res.storyboardMaxReviewRounds).toBe(8)
     expect(repo.update).not.toHaveBeenCalled()
     expect(auditService.record).not.toHaveBeenCalled()
+  })
+
+  it('làm mới bản cache khi document trong cache đã biến mất, thay vì update theo id chết', async () => {
+    const { service, repo } = make()
+    // Nạp cache trước để service có sẵn một row (kèm id) trong bộ nhớ.
+    await service.get()
+    // Document bị xoá ngoài tiến trình này → lần update sau phải đọc lại thay vì ném lỗi id không tồn tại.
+    repo.existsById.mockResolvedValueOnce(false)
+
+    await service.update('admin1', { storyboardMaxReviewRounds: 10 })
+
+    expect(repo.existsById).toHaveBeenCalledWith(row.id)
+    // findFirst gọi lại lần nữa sau khi cache bị xoá (lần đầu do service.get()).
+    expect(repo.findFirst.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(repo.update).toHaveBeenCalled()
   })
 
   it('updates the aggregate coverage ratio as an additive app configuration key', async () => {

@@ -256,6 +256,16 @@ export const ERROR_HINTS: Record<string, string> = {
   // Spec 10 — Chapter-first flow (Task 5): Delete chapter
   'Error.ChapterNotDeletable': 'chapter can only be deleted while in DRAFT status',
   'Error.ServiceNotReady': 'MongoDB or Redis is temporarily unavailable; retry after dependency recovery',
-  'Error.VoteOtpOwnedBySurvey': 'Guest Vote OTP must be requested through POST /vote/otp'
+  'Error.VoteOtpOwnedBySurvey': 'Guest Vote OTP must be requested through POST /vote/otp',
   // Spec 12 — chapter-storyboard delete (Task 14)
+  // Spec 30 — SeriesRequest
+  'Error.SeriesRequestNotFound': 'series request does not exist (or malformed id)',
+  'Error.SeriesRequestNotAllowed':
+    'series status does not allow this request type (WITHDRAW needs READY_TO_PITCH; HIATUS needs SERIALIZED; COMPLETION needs SERIALIZED or HIATUS)',
+  'Error.OpenSeriesRequestExists': 'the series already has a PENDING request; resolve or cancel it first',
+  'Error.InvalidSeriesRequestTransition': 'request is no longer PENDING — it was already accepted/rejected/cancelled',
+  'Error.SeriesRequestAccessDenied':
+    'only the owning mangaka (create/cancel) or the assigned editor (accept/reject) may act',
+  'Error.SeriesRequestRequired':
+    'direct withdraw is not allowed at this status — DRAFT has nothing to withdraw (delete the proposal instead) and READY_TO_PITCH requires POST /series-requests with requestType=WITHDRAW'
 }

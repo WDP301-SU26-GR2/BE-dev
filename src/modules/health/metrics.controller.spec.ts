@@ -22,8 +22,7 @@ describe('Metrics endpoint', () => {
 
   it('documents x-api-key as a required machine authentication header and is not marked public in Swagger', () => {
     const headers = Reflect.getMetadata(SWAGGER_API_PARAMETERS, metricsHandler) as
-      | Array<{ name?: string; required?: boolean; description?: string }>
-      | undefined
+      Array<{ name?: string; required?: boolean; description?: string }> | undefined
     const operation = Reflect.getMetadata(SWAGGER_API_OPERATION, metricsHandler) as { security?: unknown[] } | undefined
 
     expect(headers).toEqual(

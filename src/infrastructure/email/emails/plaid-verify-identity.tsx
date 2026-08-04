@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Body, Container, Head, Heading, Html, Img, Section, Text } from 'react-email'
+import { Body, Container, Head, Heading, Html, Img, Section, Text } from './email-components'
 
 interface OtpEmailProps {
   code?: string
@@ -16,7 +16,7 @@ export const OTPEmail = ({ code, title, appName = 'Mangaka', logoUrl, expiresInM
       <title>{title || `Mã xác thực ${appName} của bạn`}</title>
     </Head>
     <Body style={main}>
-      <Container style={container}>
+      <Container style={otpContainer}>
         {logoUrl ? (
           <Img src={logoUrl} width="212" height="88" alt={appName} style={logo} />
         ) : (
@@ -36,13 +36,6 @@ export const OTPEmail = ({ code, title, appName = 'Mangaka', logoUrl, expiresInM
   </Html>
 )
 
-OTPEmail.PreviewProps = {
-  code: '144833',
-  title: 'Mã xác thực Mangaka của bạn',
-  appName: 'Mangaka',
-  expiresInMinutes: 5
-} as OtpEmailProps
-
 export default OTPEmail
 
 const main = {
@@ -50,14 +43,15 @@ const main = {
   fontFamily: 'HelveticaNeue,Helvetica,Arial,sans-serif'
 }
 
-const container = {
+const otpContainer = {
   backgroundColor: '#ffffff',
   border: '1px solid #eee',
   borderRadius: '5px',
   boxShadow: '0 5px 10px rgba(20,50,70,.2)',
   marginTop: '20px',
   maxWidth: '360px',
-  margin: '0 auto',
+  marginLeft: 'auto',
+  marginRight: 'auto',
   padding: '68px 0 130px'
 }
 

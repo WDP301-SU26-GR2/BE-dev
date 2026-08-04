@@ -26,6 +26,7 @@ import {
   CoOwnerApprovalStatus,
   OtpPurpose,
   TaskStatus,
+  PublicationType,
   RoleCode
 } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
@@ -54,6 +55,15 @@ const dateOnly = (d: Date) => d.toISOString().slice(0, 10)
 
 const countNotif = (recipientId: string, referenceType: string, referenceId?: string) =>
   prisma.notification.count({ where: { recipientId, referenceType, ...(referenceId ? { referenceId } : {}) } })
+
+const countNotifByRefPrefix = (recipientId: string, prefix: string, referenceId?: string) =>
+  prisma.notification.count({
+    where: {
+      recipientId,
+      referenceType: { startsWith: prefix },
+      ...(referenceId ? { referenceId } : {})
+    }
+  })
 
 const main = async () => {
   resetCounters()
@@ -158,11 +168,15 @@ const main = async () => {
 
     // ═══ C-05..07 DeadlineWarningCron ═══
     section('C-05..07 DeadlineWarningCron')
-    const seriesProd = await makeSeriesAt(SeriesStatus.SERIALIZED, { mangakaId: m1.id, editorId: e1.id })
+    const seriesProd = await makeSeriesAt(SeriesStatus.SERIALIZED, {
+      mangakaId: m1.id,
+      editorId: e1.id,
+      publicationType: PublicationType.WEEKLY
+    })
     const chNear = await makeChapterAt({ seriesId: seriesProd.id, chapterNumber: 1 })
     await prisma.schedule.updateMany({
       where: { chapterId: chNear.id },
-      data: { currentDeadline: new Date(Date.now() + 2 * 3_600_000) } // trong ngưỡng 48h
+      data: { currentDeadline: new Date(Date.now() + 2 * 3_600_000) } // trong ngưỡng 48h → WEEKLY RED
     })
     const chFar = await makeChapterAt({ seriesId: seriesProd.id, chapterNumber: 2 }) // deadline +7d > 48h
     const pageNear = await makePageAt({ chapterId: chNear.id, pageNumber: 1 })
@@ -172,38 +186,59 @@ const main = async () => {
       status: TaskStatus.ASSIGNED,
       deadline: new Date(Date.now() + 3_600_000)
     })
+    // Feature TASK_WARN_MIN_LEAD_HOURS (48h): chỉ cảnh báo task có tổng thời hạn (deadline − createdAt) > 48h.
+    // taskNear = "task dài" (giao từ lâu, nay gần hạn) → backdate createdAt để lead > 48h → PHẢI được cảnh báo.
+    await prisma.task.update({
+      where: { id: taskNear.id },
+      data: { createdAt: new Date(Date.now() - 5 * 86_400_000) }
+    })
+    // taskShort = "task ngắn" (giao mới, hạn gần, lead ≤ 48h) → KHÔNG được cảnh báo (thiết kế A).
+    const taskShort = await makeTaskAt({
+      pageId: pageNear.id,
+      assistantId: a1.id,
+      status: TaskStatus.ASSIGNED,
+      deadline: new Date(Date.now() + 3_600_000)
+    })
     await clearCronLocks()
     await ctx.getByName('DeadlineWarningCron').run()
-    const refChapter = `DEADLINE_WARNING:${today()}`
-    const refTask = `TASK_DEADLINE_WARNING:${today()}`
+    const refChapterPrefix = 'DEADLINE_WARNING:'
+    const refTaskPrefix = 'TASK_DEADLINE_WARNING:'
     // Notification đi qua BullMQ async → poll thay vì sleep cứng (worker có thể trễ vài giây).
     ok(
       'C-05 chapter gần deadline → notify Mangaka + Editor',
       await waitUntil(
         async () =>
-          (await countNotif(m1.id, refChapter, chNear.id)) === 1 &&
-          (await countNotif(e1.id, refChapter, chNear.id)) === 1,
+          (await countNotifByRefPrefix(m1.id, refChapterPrefix, chNear.id)) === 1 &&
+          (await countNotifByRefPrefix(e1.id, refChapterPrefix, chNear.id)) === 1,
         NOTIFICATION_DRAIN_TIMEOUT_MS,
         1_000
       )
     )
-    ok('C-05b chapter deadline xa → KHÔNG notify', (await countNotif(m1.id, refChapter, chFar.id)) === 0)
+    ok(
+      'C-05b chapter deadline xa → KHÔNG notify',
+      (await countNotifByRefPrefix(m1.id, refChapterPrefix, chFar.id)) === 0
+    )
     ok(
       'C-06 task gần deadline → notify Assistant + Mangaka',
       await waitUntil(
         async () =>
-          (await countNotif(a1.id, refTask, taskNear.id)) === 1 &&
-          (await countNotif(m1.id, refTask, taskNear.id)) === 1,
+          (await countNotifByRefPrefix(a1.id, refTaskPrefix, taskNear.id)) === 1 &&
+          (await countNotifByRefPrefix(m1.id, refTaskPrefix, taskNear.id)) === 1,
         NOTIFICATION_DRAIN_TIMEOUT_MS,
         1_000
       )
+    )
+    ok(
+      'C-06b task ngắn (lead ≤ 48h, giao mới hạn gần) → KHÔNG cảnh báo (thiết kế A — TASK_WARN_MIN_LEAD_HOURS)',
+      (await countNotifByRefPrefix(a1.id, refTaskPrefix, taskShort.id)) === 0
     )
     await clearCronLocks()
     await ctx.getByName('DeadlineWarningCron').run()
     await sleep(2_000)
     ok(
       'C-07 chạy lần 2 cùng ngày → KHÔNG double notify (idempotent per-day)',
-      (await countNotif(m1.id, refChapter, chNear.id)) === 1 && (await countNotif(a1.id, refTask, taskNear.id)) === 1
+      (await countNotifByRefPrefix(m1.id, refChapterPrefix, chNear.id)) === 1 &&
+        (await countNotifByRefPrefix(a1.id, refTaskPrefix, taskNear.id)) === 1
     )
 
     // ═══ C-08..10 CoOwnerEscalationCron ═══

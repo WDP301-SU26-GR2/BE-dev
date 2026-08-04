@@ -179,16 +179,92 @@ describe('ChapterRepository workflow persistence', () => {
       { id: 'p1', chapter: { hold: null, series: { mangakaId: 'm1' } } },
       { id: 'held', chapter: { hold: { reason: 'pause' }, series: { mangakaId: 'm2' } } }
     ])
-    await expect(repo.findTasksNearDeadline(new Date(), new Date())).resolves.toEqual([
-      { taskId: 't1', assistantId: 'a1', mangakaId: 'm1' }
+    await expect(repo.findTasksNearDeadline(new Date(), new Date(), 0)).resolves.toEqual([
+      {
+        taskId: 't1',
+        assistantId: 'a1',
+        mangakaId: 'm1',
+        taskType: undefined,
+        pageNumber: undefined,
+        chapterNumber: undefined,
+        isOverdue: false
+      }
     ])
   })
 
   it('does not look up pages when there are no near-deadline tasks', async () => {
     const { prisma, repo } = createFixture()
     prisma.task.findMany.mockResolvedValue([])
-    await expect(repo.findTasksNearDeadline(new Date(), new Date())).resolves.toEqual([])
+    await expect(repo.findTasksNearDeadline(new Date(), new Date(), 0)).resolves.toEqual([])
     expect(prisma.page.findMany).not.toHaveBeenCalled()
+  })
+
+  it('bỏ task ngắn: lead-time (deadline − createdAt) ≤ ngưỡng thì không cảnh báo', async () => {
+    const { prisma, repo } = createFixture()
+    const now = new Date()
+    const minLeadMs = 48 * 3_600_000
+    prisma.task.findMany.mockResolvedValue([
+      {
+        id: 'short',
+        assistantId: 'a1',
+        pageId: 'p1',
+        taskType: 'BACKGROUND',
+        deadline: new Date(now.getTime() + 4 * 3_600_000), // còn 4h
+        createdAt: new Date(now.getTime() - 1 * 3_600_000) // tạo 1h trước → lead 5h
+      }
+    ])
+    prisma.page.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        pageNumber: 5,
+        chapter: { hold: null, chapterNumber: 12, series: { mangakaId: 'm1', status: 'SERIALIZED' } }
+      }
+    ])
+    await expect(repo.findTasksNearDeadline(now, new Date(now.getTime() + minLeadMs), minLeadMs)).resolves.toEqual([])
+  })
+
+  it('bỏ task đúng biên: lead-time == ngưỡng (48h chẵn) cũng không cảnh báo', async () => {
+    const { prisma, repo } = createFixture()
+    const created = new Date('2026-08-01T00:00:00.000Z')
+    const minLeadMs = 48 * 3_600_000
+    const deadline = new Date(created.getTime() + minLeadMs) // lead đúng 48h
+    prisma.task.findMany.mockResolvedValue([
+      { id: 'edge', assistantId: 'a1', pageId: 'p1', taskType: 'INKING', deadline, createdAt: created }
+    ])
+    prisma.page.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        pageNumber: 1,
+        chapter: { hold: null, chapterNumber: 2, series: { mangakaId: 'm1', status: 'SERIALIZED' } }
+      }
+    ])
+    const now = new Date(deadline.getTime() - 10 * 3_600_000)
+    await expect(repo.findTasksNearDeadline(now, deadline, minLeadMs)).resolves.toEqual([])
+  })
+
+  it('giữ task dài: lead-time > ngưỡng thì vẫn cảnh báo', async () => {
+    const { prisma, repo } = createFixture()
+    const now = new Date()
+    const minLeadMs = 48 * 3_600_000
+    prisma.task.findMany.mockResolvedValue([
+      {
+        id: 'long',
+        assistantId: 'a1',
+        pageId: 'p1',
+        taskType: 'BACKGROUND',
+        deadline: new Date(now.getTime() + 20 * 3_600_000), // còn 20h → trong cửa sổ
+        createdAt: new Date(now.getTime() - 60 * 3_600_000) // lead 80h > 48h
+      }
+    ])
+    prisma.page.findMany.mockResolvedValue([
+      {
+        id: 'p1',
+        pageNumber: 5,
+        chapter: { hold: null, chapterNumber: 12, series: { mangakaId: 'm1', status: 'SERIALIZED' } }
+      }
+    ])
+    const result = await repo.findTasksNearDeadline(now, new Date(now.getTime() + minLeadMs), minLeadMs)
+    expect(result.map((task) => task.taskId)).toEqual(['long'])
   })
 
   it.each([
