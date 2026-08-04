@@ -7,8 +7,8 @@ function makeRepo(manuscript: unknown) {
     applyManuscriptTransition: jest.fn().mockImplementation((cid, mid, e) => Promise.resolve({ id: cid, to: e.to })),
     withTransaction: jest.fn()
   }
-  repo.withTransaction.mockImplementation(
-    (work: (value: typeof repo) => Promise<unknown>): Promise<unknown> => work(repo)
+  repo.withTransaction.mockImplementation((work: (value: typeof repo) => Promise<unknown>): Promise<unknown> =>
+    work(repo)
   )
   return repo
 }

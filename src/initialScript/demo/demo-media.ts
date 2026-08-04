@@ -1,11 +1,5 @@
 export type DemoMediaPurpose =
-  | 'MANGAKA_REFERENCE'
-  | 'ROUGH_DRAFT'
-  | 'LINE_ART'
-  | 'MANGA_PAGE'
-  | 'TASK_RESULT'
-  | 'BACKGROUND_REFERENCE'
-  | 'COVER'
+  'MANGAKA_REFERENCE' | 'ROUGH_DRAFT' | 'LINE_ART' | 'MANGA_PAGE' | 'TASK_RESULT' | 'BACKGROUND_REFERENCE' | 'COVER'
 
 export interface DemoMediaSource {
   slug: string

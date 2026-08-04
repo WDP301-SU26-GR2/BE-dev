@@ -125,14 +125,12 @@ export class ChapterProgressQueryRepository {
           !schedule.chapter.hold &&
           schedule.chapter.series.status !== SeriesStatus.HIATUS
       )
-      .map(
-        (schedule): ChapterNearDeadline => ({
-          chapterId: schedule.chapterId,
-          seriesId: schedule.chapter.seriesId,
-          chapterNumber: schedule.chapter.chapterNumber,
-          seriesTitle: schedule.chapter.series.title
-        })
-      )
+      .map((schedule): ChapterNearDeadline => ({
+        chapterId: schedule.chapterId,
+        seriesId: schedule.chapter.seriesId,
+        chapterNumber: schedule.chapter.chapterNumber,
+        seriesTitle: schedule.chapter.series.title
+      }))
   }
 
   async countPagesByStatus(chapterId: string): Promise<Partial<Record<PageStatus, number>>> {
@@ -230,13 +228,13 @@ export class ChapterProgressQueryRepository {
     }))
   }
 
-  async findTasksNearDeadline(now: Date, before: Date): Promise<TaskNearDeadline[]> {
+  async findTasksNearDeadline(now: Date, before: Date, minLeadMs: number): Promise<TaskNearDeadline[]> {
     const tasks = await this.prisma.task.findMany({
       where: {
         deadline: { lte: before },
         status: { in: [TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS, TaskStatus.REVISION_REQUESTED] }
       },
-      select: { id: true, assistantId: true, pageId: true, taskType: true, deadline: true }
+      select: { id: true, assistantId: true, pageId: true, taskType: true, deadline: true, createdAt: true }
     })
     if (tasks.length === 0) return []
     const pages = await this.prisma.page.findMany({
@@ -256,7 +254,11 @@ export class ChapterProgressQueryRepository {
     const byPage = new Map(pages.map((page) => [page.id, page]))
     return tasks.flatMap((task) => {
       const page = byPage.get(task.pageId)
-      return !page || page.chapter.hold || page.chapter.series.status === SeriesStatus.HIATUS
+      // Task ngắn (lead-time deadline−createdAt ≤ ngưỡng) → bỏ cảnh báo, tránh làm phiền ngay lúc mới giao.
+      return !page ||
+        page.chapter.hold ||
+        page.chapter.series.status === SeriesStatus.HIATUS ||
+        (task.deadline != null && task.deadline.getTime() - task.createdAt.getTime() <= minLeadMs)
         ? []
         : [
             {

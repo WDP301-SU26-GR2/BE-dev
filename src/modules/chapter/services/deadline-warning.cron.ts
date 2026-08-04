@@ -31,8 +31,9 @@ export class DeadlineWarningCron {
     try {
       await runCron(this.cronMetrics, 'deadline-warning', async () => {
         const taskThreshold = new Date(Date.now() + envConfig.DEADLINE_WARN_THRESHOLD_HOURS * 3600 * 1000)
+        const minLeadMs = envConfig.TASK_WARN_MIN_LEAD_HOURS * 3600 * 1000
         const scanned = await this.chapterRepository.findChaptersForDeadlineScan()
-        const tasks = await this.chapterRepository.findTasksNearDeadline(new Date(), taskThreshold)
+        const tasks = await this.chapterRepository.findTasksNearDeadline(new Date(), taskThreshold, minLeadMs)
         const today = new Date().toISOString().slice(0, 10)
         const now = new Date()
 

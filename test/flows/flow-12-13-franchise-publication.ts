@@ -68,9 +68,7 @@ const main = async () => {
   section('PV7 Invalid payload → 422')
   const pv7 = await req('POST', `/series/${seriesPV.id}/publication-versions`, {
     token: eTok,
-    body: {
-      /* missing required */
-    }
+    body: {/* missing required */}
   })
   ok('PV7.1 missing required → 422', pv7.status === 422, `got ${pv7.status}`)
 
