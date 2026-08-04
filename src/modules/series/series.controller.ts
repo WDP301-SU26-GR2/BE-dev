@@ -23,6 +23,7 @@ import {
   FranchiseConsentRequiredException,
   InvalidProposalStateException,
   InvalidSeriesTransitionException,
+  MangakaProfileRequiredException,
   NotAssignedEditorException,
   NotFranchiseConsentTargetException,
   NotOriginalMangakaException,
@@ -140,7 +141,8 @@ export class SeriesController {
     NotSeriesOwnerException,
     SeriesNotFoundException,
     InvalidProposalStateException,
-    FranchiseConsentRequiredException
+    FranchiseConsentRequiredException,
+    MangakaProfileRequiredException
   )
   @Roles(RoleName.MANGAKA)
   @ZodResponse({ status: 201, type: SeriesResDto })

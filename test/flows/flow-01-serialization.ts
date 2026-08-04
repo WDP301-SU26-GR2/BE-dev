@@ -29,7 +29,7 @@
 //   GET    /mangakas/:userId
 import { wipeDb, seedRolesAndAdmin, prisma, makeUser, makeSeriesAt, withProposalStoryboard } from './lib/seed.js'
 import { req, ok, section, summary, expectError, resetCounters, sleep } from './lib/http.js'
-import { login } from './lib/auth.js'
+import { login, ensureMangakaProfile } from './lib/auth.js'
 import { SeriesStatus, DecisionType, BoardDecisionResult, ProposalStatus } from '@prisma/client'
 
 const FLOW = 'flow-01-serialization'
@@ -146,6 +146,9 @@ const main = async () => {
   const sa = await makeUser('SUPER_ADMIN')
   const m1Tok = await login(m1.email)
   const m2Tok = await login(m2.email)
+  // BR 2026-08-04: submit yêu cầu Mangaka có hồ sơ.
+  await ensureMangakaProfile(m1Tok, 'FT M1')
+  await ensureMangakaProfile(m2Tok, 'FT M2')
   const e1Tok = await login(e1.email)
   const e2Tok = await login(e2.email)
   const b1Tok = await login(b1.email)

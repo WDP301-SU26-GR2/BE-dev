@@ -5,10 +5,12 @@ import { RevisionService } from 'src/modules/revision/revision.service'
 import {
   FranchiseConsentRequiredException,
   InvalidProposalStateException,
+  MangakaProfileRequiredException,
   ProposalNotDeletableException,
   ProposalNotEditableException,
   SeriesNotFoundException
 } from '../errors/series.errors'
+import { MangakaProfileGatePort } from '../ports/mangaka-profile-gate.port'
 import { toSeriesRes } from '../series.mapper'
 import { SeriesRepository } from '../series.repo'
 import { CreateProposalBodyType, UpdateProposalBodyType } from '../schemas/series-schemas'
@@ -25,7 +27,8 @@ export class SeriesProposalService {
     private readonly seriesStateService: SeriesStateService,
     private readonly revisionService: RevisionService,
     private readonly accessService: SeriesProposalAccessService,
-    private readonly withdrawService: SeriesWithdrawService
+    private readonly withdrawService: SeriesWithdrawService,
+    private readonly mangakaProfileGate: MangakaProfileGatePort
   ) {}
 
   async createProposal(mangakaId: string, body: CreateProposalBodyType) {
@@ -48,6 +51,10 @@ export class SeriesProposalService {
     ) {
       throw FranchiseConsentRequiredException
     }
+
+    // Quality gate: Mangaka phải có hồ sơ (track record) để Editor/Board xét khi review/pitch (Requiment §2.3b/§2.4a).
+    // Chỉ chặn lần submit đầu (DRAFT→IN_REVIEW); resubmit/reopen không chặn.
+    if (!(await this.mangakaProfileGate.hasProfile(mangakaId))) throw MangakaProfileRequiredException
 
     // Single-writer: Series.status chỉ đổi qua SeriesStateService.
     await this.seriesRepository.updateProposalStatus(seriesId, ProposalStatus.PROPOSAL_REVIEW)
