@@ -67,9 +67,10 @@ describe('MangakaProfileService.getByUserId', () => {
   })
 
   it('id rác (không 24-hex) → ProfileNotFound, không query', async () => {
-    const repo = makeRepo()
+    const findMock = jest.fn().mockResolvedValue(null)
+    const repo = makeRepo({ findMangakaProfileByUserId: findMock })
     const svc = new MangakaProfileService(repo)
     await expect(svc.getByUserId('garbage')).rejects.toBe(ProfileNotFoundException)
-    expect(repo['findMangakaProfileByUserId']).not.toHaveBeenCalled()
+    expect(findMock).not.toHaveBeenCalled()
   })
 })

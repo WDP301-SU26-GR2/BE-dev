@@ -12,7 +12,7 @@ describe('ProductionStageController boundary', () => {
     ['listPages', 'chapters/:id/stages/:stageId/pages', RequestMethod.GET],
     ['confirmOutputs', 'chapters/:id/stages/:stageId/outputs', RequestMethod.PUT]
   ])('%s preserves %s route metadata', (methodName, path, method) => {
-    const handler = ProductionStageController.prototype[methodName as keyof typeof ProductionStageController.prototype]
+    const handler = (ProductionStageController.prototype as Record<string, unknown>)[methodName]
     expect(Reflect.getMetadata(PATH_METADATA, ProductionStageController)).toBe('/')
     expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe(path)
     expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(method)
