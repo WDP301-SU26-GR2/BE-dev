@@ -186,6 +186,19 @@ const main = async () => {
       status: TaskStatus.ASSIGNED,
       deadline: new Date(Date.now() + 3_600_000)
     })
+    // Feature TASK_WARN_MIN_LEAD_HOURS (48h): chỉ cảnh báo task có tổng thời hạn (deadline − createdAt) > 48h.
+    // taskNear = "task dài" (giao từ lâu, nay gần hạn) → backdate createdAt để lead > 48h → PHẢI được cảnh báo.
+    await prisma.task.update({
+      where: { id: taskNear.id },
+      data: { createdAt: new Date(Date.now() - 5 * 86_400_000) }
+    })
+    // taskShort = "task ngắn" (giao mới, hạn gần, lead ≤ 48h) → KHÔNG được cảnh báo (thiết kế A).
+    const taskShort = await makeTaskAt({
+      pageId: pageNear.id,
+      assistantId: a1.id,
+      status: TaskStatus.ASSIGNED,
+      deadline: new Date(Date.now() + 3_600_000)
+    })
     await clearCronLocks()
     await ctx.getByName('DeadlineWarningCron').run()
     const refChapterPrefix = 'DEADLINE_WARNING:'
@@ -214,6 +227,10 @@ const main = async () => {
         NOTIFICATION_DRAIN_TIMEOUT_MS,
         1_000
       )
+    )
+    ok(
+      'C-06b task ngắn (lead ≤ 48h, giao mới hạn gần) → KHÔNG cảnh báo (thiết kế A — TASK_WARN_MIN_LEAD_HOURS)',
+      (await countNotifByRefPrefix(a1.id, refTaskPrefix, taskShort.id)) === 0
     )
     await clearCronLocks()
     await ctx.getByName('DeadlineWarningCron').run()
