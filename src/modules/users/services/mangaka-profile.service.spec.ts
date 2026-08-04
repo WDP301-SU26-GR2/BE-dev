@@ -24,7 +24,7 @@ describe('MangakaProfileService.getByUserId', () => {
         ratingAvg: 4,
         ratingCount: 2,
         isRecommended: true,
-        user: { displayName: 'Aki-sensei', avatar: null }
+        user: { displayName: 'Aki-sensei', avatar: null, email: 'aki@x.com', phoneNumber: '+84900000000' }
       })
     })
     const svc = new MangakaProfileService(repo)
@@ -32,6 +32,8 @@ describe('MangakaProfileService.getByUserId', () => {
     expect(res.hasProfile).toBe(true)
     expect(res.penName).toBe('Aki')
     expect(res.displayName).toBe('Aki-sensei')
+    expect(res.email).toBe('aki@x.com')
+    expect(res.phoneNumber).toBe('+84900000000')
   })
 
   it('user là MANGAKA nhưng chưa profile → hasProfile:false + displayName', async () => {
@@ -40,6 +42,8 @@ describe('MangakaProfileService.getByUserId', () => {
         id: VALID_ID,
         displayName: 'Newbie',
         avatar: 'k',
+        email: 'newbie@x.com',
+        phoneNumber: '+84922222222',
         role: { code: 'MANGAKA' }
       })
     })
@@ -49,6 +53,8 @@ describe('MangakaProfileService.getByUserId', () => {
     expect(res.penName).toBeNull()
     expect(res.genres).toEqual([])
     expect(res.displayName).toBe('Newbie')
+    expect(res.email).toBe('newbie@x.com')
+    expect(res.phoneNumber).toBe('+84922222222')
   })
 
   it('user sai role (EDITOR) → ProfileNotFound', async () => {

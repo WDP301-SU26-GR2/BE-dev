@@ -12,10 +12,10 @@ describe('MangakaDirectoryService', () => {
     ratingAvg: 4.5,
     ratingCount: 3,
     isRecommended: true,
-    user: { displayName: 'Saku-sensei', avatar: 'a.png' }
+    user: { displayName: 'Saku-sensei', avatar: 'a.png', email: 'saku@x.com', phoneNumber: '+84900000000' }
   }
 
-  it('maps rows to directory items without exposing email or phone', async () => {
+  it('maps rows to directory items including contact (email/phone)', async () => {
     const repo = {
       findMangakasForDirectory: jest.fn().mockResolvedValue([row]),
       countMangakasForDirectory: jest.fn().mockResolvedValue(1)
@@ -38,15 +38,17 @@ describe('MangakaDirectoryService', () => {
           reputationScore: 4.2,
           ratingAvg: 4.5,
           ratingCount: 3,
-          isRecommended: true
+          isRecommended: true,
+          email: 'saku@x.com',
+          phoneNumber: '+84900000000'
         }
       ],
       total: 1,
       limit: 20,
       offset: 0
     })
-    expect(JSON.stringify(res.items[0])).not.toContain('email')
-    expect(JSON.stringify(res.items[0])).not.toContain('phoneNumber')
+    expect(res.items[0].email).toBe('saku@x.com')
+    expect(res.items[0].phoneNumber).toBe('+84900000000')
   })
 
   it('forwards q/genre/level to both list and count queries', async () => {

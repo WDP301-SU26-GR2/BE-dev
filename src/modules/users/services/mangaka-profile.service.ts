@@ -20,7 +20,14 @@ export class MangakaProfileService {
     const profile = await this.usersRepository.findMangakaProfileByUserId(userId)
     if (profile) {
       const { user, ...rest } = profile
-      return { ...rest, displayName: user?.displayName ?? null, avatar: user?.avatar ?? null, hasProfile: true }
+      return {
+        ...rest,
+        displayName: user?.displayName ?? null,
+        avatar: user?.avatar ?? null,
+        email: user?.email ?? '',
+        phoneNumber: user?.phoneNumber ?? '',
+        hasProfile: true
+      }
     }
 
     const user = await this.usersRepository.findUserBasicsWithRole(userId)
@@ -39,6 +46,8 @@ export class MangakaProfileService {
       isRecommended: false,
       displayName: user.displayName ?? null,
       avatar: user.avatar ?? null,
+      email: user.email ?? '',
+      phoneNumber: user.phoneNumber ?? '',
       hasProfile: false
     }
   }

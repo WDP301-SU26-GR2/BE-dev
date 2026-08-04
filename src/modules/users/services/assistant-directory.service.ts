@@ -14,7 +14,7 @@ type ProfileRow = {
   ratingAvg: number
   ratingCount: number
   isRecommended: boolean
-  user: { displayName: string | null; avatar: string | null } | null
+  user: { displayName: string | null; avatar: string | null; email: string; phoneNumber: string } | null
 }
 
 @Injectable()
@@ -47,6 +47,8 @@ export class AssistantDirectoryService {
       userId: r.userId,
       displayName: r.user?.displayName ?? null,
       avatar: r.user?.avatar ?? null,
+      email: r.user?.email ?? '',
+      phoneNumber: r.user?.phoneNumber ?? '',
       specializations: r.specializations as AssistantDirectoryItemType['specializations'],
       experienceLevel: r.experienceLevel,
       portfolioFiles: r.portfolioFiles,
