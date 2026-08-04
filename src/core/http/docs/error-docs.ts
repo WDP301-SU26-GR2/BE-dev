@@ -197,6 +197,7 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.AmendmentNoChanges': 'submit requires at least one changed term + non-empty changedClauses',
   'Error.AmendmentNotPendingSignatures': 'amendment must be PENDING_SIGNATURES to sign/reject',
   'Error.MangakaSignNotRequired': 'FULL_BUYOUT amendment is board-signed only; mangaka signature not required',
+  'Error.MangakaProfileRequired': 'author must build their mangaka profile before submitting a proposal for review',
   'Error.AmendmentNotVoidable': 'amendment is already terminal (FULLY_EXECUTED/VOIDED)',
   'Error.OwnershipMismatch': 'ownership split must total 100; FULL_BUYOUT stays 100/0',
   // Spec 5 — voting/ranking completion

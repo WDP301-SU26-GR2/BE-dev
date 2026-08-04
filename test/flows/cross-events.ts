@@ -49,7 +49,7 @@ import {
   setBoardConfig
 } from './lib/seed.js'
 import { req, ok, section, summary, resetCounters, sleep } from './lib/http.js'
-import { login } from './lib/auth.js'
+import { login, ensureMangakaProfile } from './lib/auth.js'
 import { waitUntil } from './lib/cron.js'
 
 const FLOW = 'cross-events'
@@ -72,6 +72,7 @@ const main = async () => {
   const sa1 = await makeUser(RoleCode.SUPER_ADMIN)
   const sa1Tok = await login(sa1.email)
   const m1Tok = await login(m1.email)
+  await ensureMangakaProfile(m1Tok, 'FT XE M1') // BR 2026-08-04: submit cần hồ sơ Mangaka
   const a1Tok = await login(a1.email)
   const e1Tok = await login(e1.email)
   const boardToks = [await login(b1.email), await login(b2.email), await login(b3.email)]

@@ -67,6 +67,15 @@ export const login = async (email: string, password: string = PW): Promise<strin
 
 export const clearTokenCache = () => tokenCache.clear()
 
+// BR 2026-08-04: POST /series/:id/submit yêu cầu Mangaka đã build hồ sơ (Error.MangakaProfileRequired).
+// Gọi sau login cho mọi Mangaka sẽ submit proposal trong flow.
+export const ensureMangakaProfile = async (token: string, penName = 'FT Mangaka'): Promise<void> => {
+  const r: Res = await req('PUT', '/me/mangaka-profile', { token, body: { penName } })
+  if (r.status >= 300) {
+    throw new Error(`ensureMangakaProfile → ${r.status} ${r.raw.slice(0, 200)}`)
+  }
+}
+
 // Login 5 role chuẩn, trả về map { role → token }. Cần gọi sau khi đã seed user.
 // Mỗi user truyền vào đã được ACTIVE + verified, dùng password = PW.
 export const tokensForUsers = async (users: { email: string }[]) => {
