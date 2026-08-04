@@ -58,7 +58,7 @@ export class UserDirectoryRepository {
       orderBy: [{ isRecommended: 'desc' }, { reputationScore: 'desc' }, { ratingCount: 'desc' }],
       skip: page.offset,
       take: page.limit,
-      include: { user: { select: { displayName: true, avatar: true } } }
+      include: { user: { select: { displayName: true, avatar: true, email: true, phoneNumber: true } } }
     })
   }
 
@@ -92,7 +92,7 @@ export class UserDirectoryRepository {
       orderBy: [{ isRecommended: 'desc' }, { reputationScore: 'desc' }, { ratingCount: 'desc' }],
       skip: page.offset,
       take: page.limit,
-      include: { user: { select: { displayName: true, avatar: true } } }
+      include: { user: { select: { displayName: true, avatar: true, email: true, phoneNumber: true } } }
     })
   }
 

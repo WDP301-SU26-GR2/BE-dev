@@ -90,9 +90,8 @@ const main = async () => {
   const dirItems = (rDir.json?.data?.items ?? []) as Array<Record<string, unknown>>
   ok('F03-001a GET /assistants filter specialization → 200', rDir.status === 200, `got ${rDir.status}`)
   ok(
-    'F03-001b danh bạ ẨN email/phone (privacy) + có userId/reputation',
-    dirItems.length > 0 &&
-      dirItems.every((it) => !('email' in it) && !('phoneNumber' in it) && 'userId' in it && 'isRecommended' in it),
+    'F03-001b danh bạ có userId/reputation',
+    dirItems.length > 0 && dirItems.every((it) => 'userId' in it && 'isRecommended' in it),
     `count=${dirItems.length} sample=${JSON.stringify(dirItems[0] ?? {}).slice(0, 160)}`
   )
   const rDirLvl = await req('GET', '/assistants?level=SENIOR', { token: m1Tok })
@@ -100,20 +99,17 @@ const main = async () => {
   const rDirQuery = await req('GET', '/assistants?q=assistant%20needle', { token: m1Tok })
   const queryAssistantItems = (rDirQuery.json?.data?.items ?? []) as Array<Record<string, unknown>>
   ok(
-    'F03-DIR1 GET /assistants?q searches name/displayName and keeps privacy',
-    rDirQuery.status === 200 &&
-      queryAssistantItems.some((item) => item.userId === a1.id) &&
-      queryAssistantItems.every((item) => !('email' in item) && !('phoneNumber' in item)),
+    'F03-DIR1 GET /assistants?q searches name/displayName',
+    rDirQuery.status === 200 && queryAssistantItems.some((item) => item.userId === a1.id),
     `got ${rDirQuery.status} ${rDirQuery.raw.slice(0, 200)}`
   )
 
   const rMangakaByPenName = await req('GET', '/mangakas?q=PenNeedle', { token: e1Tok })
   const mangakaDirectoryItems = (rMangakaByPenName.json?.data?.items ?? []) as Array<Record<string, unknown>>
   ok(
-    'F03-DIR2 Editor searches /mangakas by penName with private fields hidden',
+    'F03-DIR2 Editor searches /mangakas by penName',
     rMangakaByPenName.status === 200 &&
-      mangakaDirectoryItems.some((item) => item.userId === m1.id && item.penName === 'Spec14PenNeedle') &&
-      mangakaDirectoryItems.every((item) => !('email' in item) && !('phoneNumber' in item)),
+      mangakaDirectoryItems.some((item) => item.userId === m1.id && item.penName === 'Spec14PenNeedle'),
     `got ${rMangakaByPenName.status} ${rMangakaByPenName.raw.slice(0, 220)}`
   )
   const rMangakaByGenre = await req('GET', '/mangakas?genre=ACTION', { token: m2Tok })

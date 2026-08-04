@@ -254,7 +254,7 @@ describe('UsersRepository — directories (Spec 14)', () => {
     expect(prismaService.mangakaProfile.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expectedWhere,
-        include: { user: { select: { displayName: true, avatar: true } } }
+        include: { user: { select: { displayName: true, avatar: true, email: true, phoneNumber: true } } }
       })
     )
     expect(prismaService.mangakaProfile.count).toHaveBeenCalledWith({ where: expectedWhere })

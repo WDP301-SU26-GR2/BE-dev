@@ -82,17 +82,21 @@ const collectText = (node: unknown, out: string[] = []): string[] => {
 const renderText = (data: ContractPdfData) => collectText(ContractPdfDocument({ data })).join(' | ')
 
 describe('ContractPdfDocument (Spec 24) — nội dung template', () => {
-  it('dựng đủ 6 mục với nhãn tiếng Việt và dữ liệu hợp đồng', () => {
+  it('dựng đủ các điều với nhãn tiếng Việt và dữ liệu hợp đồng', () => {
     const text = renderText(fullData)
     expect(text).toContain('HỢP ĐỒNG XUẤT BẢN TÁC PHẨM MANGA')
     expect(text).toContain(envConfig.NAME_APP)
-    expect(text).toContain('c1')
-    expect(text).toContain('1. Căn cứ')
-    expect(text).toContain('2. Các bên')
-    expect(text).toContain('3. Điều khoản chính')
-    expect(text).toContain('4. Điều kiện thanh toán')
-    expect(text).toContain('5. Điều khoản chấm dứt')
-    expect(text).toContain('6. Chữ ký điện tử')
+    expect(text).toContain('c1') // mã hệ thống ở footer
+    expect(text).toContain('HĐXB-') // mã hợp đồng dễ đọc ở header
+    expect(text).toContain('Căn cứ Quyết định của Hội đồng biên tập')
+    expect(text).toContain('BÊN A (Nhà xuất bản)')
+    expect(text).toContain('BÊN B (Tác giả)')
+    expect(text).toContain('Điều 1. Đối tượng hợp đồng')
+    expect(text).toContain('Điều 2. Loại hợp đồng & tỷ lệ sở hữu')
+    expect(text).toContain('Điều 3. Thời hạn hợp đồng')
+    expect(text).toContain('Điều 4. Điều kiện thanh toán')
+    expect(text).toContain('Điều 5. Điều khoản chấm dứt')
+    expect(text).toContain('Điều 6. Chữ ký điện tử')
   })
 
   it('dịch enum sang nhãn tiếng Việt (không rò enum thô ra văn bản pháp lý)', () => {
@@ -173,12 +177,13 @@ describe('ContractPdfDocument (Spec 24) — nội dung template', () => {
     expect(renderText(fullData)).toContain('10:00')
   })
 
-  it('liệt kê từng chữ ký Hội đồng + căn cứ quyết định', () => {
+  it('liệt kê từng chữ ký Hội đồng + căn cứ quyết định (enum sang tiếng Việt)', () => {
     const text = renderText(fullData)
     expect(text).toContain('Board A')
     expect(text).toContain('Tanaka Aoi')
-    expect(text).toContain('SERIALIZATION')
-    expect(text).toContain('Phiên họp Hội đồng')
+    expect(text).toContain('Serial hóa') // decisionType SERIALIZATION đã dịch
+    expect(text).toContain('Đã duyệt') // result APPROVED đã dịch
+    expect(text).not.toContain('SERIALIZATION') // không rò enum thô
     expect(text).toContain('Phiên serial hoá Q3')
   })
 
@@ -208,7 +213,7 @@ describe('ContractPdfDocument (Spec 24) — nội dung template', () => {
       signatures: [],
       boardDecision: null
     })
-    expect(text).toContain('Không có điều kiện thanh toán.')
+    expect(text).toContain('Không có điều kiện thanh toán kèm theo.')
     expect(text).toContain('—')
     expect(text).not.toContain('undefined')
     expect(text).not.toContain('null')

@@ -210,7 +210,8 @@ export class UsersController {
 
   @Get('mangakas')
   @ApiOperation({
-    summary: 'Danh bạ Mangaka: tìm theo tên/penName, lọc genre/level; ưu tiên isRecommended/reputation (ẩn email/phone)'
+    summary:
+      'Danh bạ Mangaka: tìm theo tên/penName, lọc genre/level; ưu tiên isRecommended/reputation (kèm email/phone để liên hệ)'
   })
   @Roles(RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN, RoleName.MANGAKA)
   @ZodResponse({ status: 200, type: MangakaDirectoryListResDto })
@@ -229,7 +230,7 @@ export class UsersController {
   @Get('assistants')
   @ApiOperation({
     summary:
-      'Danh bạ trợ lý: tìm theo tên, lọc specialization/level/availability, ưu tiên isRecommended/reputation (ẩn email/phone)'
+      'Danh bạ trợ lý: tìm theo tên, lọc specialization/level/availability, ưu tiên isRecommended/reputation (kèm email/phone để liên hệ)'
   })
   @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: AssistantDirectoryListResDto })

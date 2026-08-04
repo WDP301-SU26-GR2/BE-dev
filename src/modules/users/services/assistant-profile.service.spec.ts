@@ -28,20 +28,27 @@ describe('AssistantProfileService.getByUserId', () => {
         ratingAvg: 0,
         ratingCount: 0,
         isRecommended: false,
-        user: { displayName: 'Bob', avatar: null }
+        user: { displayName: 'Bob', avatar: null, email: 'bob@x.com', phoneNumber: '+84911111111' }
       })
     })
     const svc = new AssistantProfileService(repo, makeEventBus())
     const res = await svc.getByUserId(VALID_ID)
     expect(res.hasProfile).toBe(true)
     expect(res.availabilityFrom).toBe('2026-06-29T00:00:00.000Z')
+    expect(res.email).toBe('bob@x.com')
+    expect(res.phoneNumber).toBe('+84911111111')
   })
 
   it('user là ASSISTANT chưa profile → hasProfile:false', async () => {
     const repo = makeRepo({
-      findUserBasicsWithRole: jest
-        .fn()
-        .mockResolvedValue({ id: VALID_ID, displayName: 'New', avatar: null, role: { code: 'ASSISTANT' } })
+      findUserBasicsWithRole: jest.fn().mockResolvedValue({
+        id: VALID_ID,
+        displayName: 'New',
+        avatar: null,
+        email: 'newasst@x.com',
+        phoneNumber: '+84922222222',
+        role: { code: 'ASSISTANT' }
+      })
     })
     const svc = new AssistantProfileService(repo, makeEventBus())
     const res = await svc.getByUserId(VALID_ID)
@@ -49,6 +56,8 @@ describe('AssistantProfileService.getByUserId', () => {
     expect(res.specializations).toEqual([])
     expect(res.availabilityStatus).toBeNull()
     expect(res.displayName).toBe('New')
+    expect(res.email).toBe('newasst@x.com')
+    expect(res.phoneNumber).toBe('+84922222222')
   })
 
   it('user sai role → ProfileNotFound', async () => {
