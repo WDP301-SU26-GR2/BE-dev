@@ -62,9 +62,10 @@ describe('AssistantProfileService.getByUserId', () => {
   })
 
   it('id rác → ProfileNotFound, không query', async () => {
-    const repo = makeRepo()
+    const findMock = jest.fn().mockResolvedValue(null)
+    const repo = makeRepo({ findAssistantProfileByUserId: findMock })
     const svc = new AssistantProfileService(repo, makeEventBus())
     await expect(svc.getByUserId('garbage')).rejects.toBe(ProfileNotFoundException)
-    expect(repo['findAssistantProfileByUserId']).not.toHaveBeenCalled()
+    expect(findMock).not.toHaveBeenCalled()
   })
 })

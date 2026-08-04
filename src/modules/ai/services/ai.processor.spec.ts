@@ -72,7 +72,11 @@ describe('AiProcessor', () => {
     await processor.process(makeJob())
     expect(processorMetrics.run).toHaveBeenCalledWith('ai', expect.anything(), expect.any(Function))
     expect(storage.createPresignedDownload).toHaveBeenCalledWith('uploads/snapshot.png')
-    expect(client.segment).toHaveBeenCalledWith({ imageUrl: 'https://r2/signed', mode: 'MODEL' })
+    const segmentCall = (client as { segment: jest.Mock }).segment
+    expect(segmentCall).toHaveBeenCalledWith({
+      imageUrl: 'https://r2/signed',
+      mode: 'MODEL'
+    })
     expect(state.transition).toHaveBeenCalledWith(JID, ['QUEUED', 'RUNNING'], 'RUNNING', expect.any(Object))
     expect(state.transition).toHaveBeenLastCalledWith(
       JID,
@@ -107,7 +111,7 @@ describe('AiProcessor', () => {
 
     await processor.process(makeJob())
 
-    expect(client.segment).toHaveBeenCalledTimes(1)
+    expect((client as { segment: jest.Mock }).segment).toHaveBeenCalledTimes(1)
     expect(requestContext.getRequestId()).toBeUndefined()
   })
 
@@ -149,7 +153,7 @@ describe('AiProcessor', () => {
       }
     })
     await processor.process(makeJob())
-    expect(client.segment).not.toHaveBeenCalled()
+    expect((client as { segment: jest.Mock }).segment).not.toHaveBeenCalled()
     expect(state.transition).toHaveBeenLastCalledWith(
       JID,
       ['QUEUED', 'RUNNING'],
@@ -202,6 +206,6 @@ describe('AiProcessor', () => {
   it('missing AiJob skips quietly', async () => {
     const { processor, client } = makeProcessor({ repo: { findJobById: jest.fn().mockResolvedValue(null) } })
     await processor.process(makeJob())
-    expect(client.segment).not.toHaveBeenCalled()
+    expect((client as { segment: jest.Mock }).segment).not.toHaveBeenCalled()
   })
 })
