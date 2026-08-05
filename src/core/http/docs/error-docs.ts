@@ -38,7 +38,8 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.EndingAllowanceExceeded': 'Series CANCELLING đã tạo đủ số chương kết thúc Board cấp (endingChapterAllowance)',
   'Error.SurveyPeriodNotFinalized':
     'Kỳ bình chọn chưa REFLECTED (chưa finalize) — kết quả public chỉ xem được sau khi chốt',
-  'Error.ContractNotExecuted': 'series has no FULLY_EXECUTED contract; cannot publish (BR-CONTRACT-05)',
+  'Error.ContractNotExecuted':
+    'series has no FULLY_EXECUTED contract; cannot open a chapter nor publish (BR-CONTRACT-05). Ending phase (CANCELLING/COMPLETING) only requires a contract that was executed at some point.',
   'Error.InvalidContractTransition': 'contract status transition not allowed by CONTRACT_TRANSITIONS (Flow 6)',
   'Error.InvalidSerializationDecision':
     'boardDecisionId must be an APPROVED SERIALIZATION decision for the same series',

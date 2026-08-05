@@ -10,6 +10,7 @@ import {
 } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
 import { CreateChapterBodyType } from '../schemas/chapter-schemas'
+import { assertSeriesContractGate } from './contract-gate.helper'
 
 // Fix-1 G-1 (Requiment Flow 5): CANCELLING/COMPLETING vẫn được tạo chapter kết thúc; HIATUS thì không.
 const CHAPTER_CREATABLE_STATUSES: SeriesStatus[] = [
@@ -28,6 +29,10 @@ export class ChapterCreationService {
     if (!series) throw ChapterNotFoundException
     if (series.mangakaId !== userId) throw NotSeriesOwnerException
     if (!CHAPTER_CREATABLE_STATUSES.includes(series.status)) throw SeriesNotSerializedException
+    // BR-CONTRACT-05: chặn ngay từ lúc MỞ chương thay vì để cả studio vẽ xong mới báo lỗi ở publish.
+    // Đặt SAU kiểm trạng thái (HIATUS vẫn nhận `SeriesNotSerialized`) và TRƯỚC kiểm trần allowance
+    // (bộ truyện chưa từng ký thì không cần tốn count query).
+    await assertSeriesContractGate(this.chapterRepository, series)
     if (series.status === SeriesStatus.CANCELLING) {
       const allowance = series.endingChapterAllowance
       const snapshot = series.chapterCountAtCancelling

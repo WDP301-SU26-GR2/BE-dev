@@ -21,7 +21,12 @@ export class SeriesQueryService {
   constructor(private readonly seriesRepository: SeriesRepository) {}
 
   async list(caller: SeriesCaller, query: ListSeriesQueryType) {
-    const filter = { scope: this.scopeForRole(caller), status: query.status }
+    const filter = {
+      scope: this.scopeForRole(caller),
+      status: query.status,
+      magazine: query.magazine,
+      publicationType: query.publicationType
+    }
     const [rows, total] = await Promise.all([
       this.seriesRepository.findSeriesForList(filter, { limit: query.limit, offset: query.offset }),
       this.seriesRepository.countSeriesForList(filter)

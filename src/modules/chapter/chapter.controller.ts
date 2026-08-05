@@ -75,13 +75,14 @@ export class ChapterController {
   @Post('chapters')
   @ApiOperation({
     summary:
-      'Mangaka tạo Chapter (chapter-first): chapterNumber + title → Chapter(DRAFT) + Manuscript(DRAFT) + Schedule. Storyboard tạo sau qua POST /chapters/:id/storyboards.'
+      'Mangaka tạo Chapter (chapter-first): chapterNumber + title → Chapter(DRAFT) + Manuscript(DRAFT) + Schedule. Storyboard tạo sau qua POST /chapters/:id/storyboards. Chặn nếu series chưa có Contract FULLY_EXECUTED (BR-CONTRACT-05).'
   })
   @ApiErrors(
     NotSeriesOwnerException,
     ChapterNotFoundException,
     DuplicateChapterNumberException,
     SeriesNotSerializedException,
+    ContractNotExecutedException,
     EndingAllowanceExceededException
   )
   @Roles(RoleName.MANGAKA)

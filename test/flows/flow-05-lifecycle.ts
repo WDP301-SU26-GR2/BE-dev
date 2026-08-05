@@ -493,8 +493,22 @@ const main = async () => {
   expectError(rCh4, 409, 'Error.EndingAllowanceExceeded', 'F05-028 vượt allowance → 409 EndingAllowanceExceeded')
 
   const sCompleting = await makeSeriesAt(SeriesStatus.COMPLETING, { mangakaId: m1.id, editorId: e1.id })
+  // BR-CONTRACT-05: COMPLETING vẫn phải ĐÃ TỪNG có hợp đồng hiệu lực mới mở được chương kết thúc.
+  await makeContractAt(ContractStatus.FULLY_EXECUTED, {
+    seriesId: sCompleting.id,
+    mangakaId: m1.id,
+    editorId: e1.id
+  })
   const rChComp = await req('POST', '/chapters', { token: m1Tok, body: { seriesId: sCompleting.id, chapterNumber: 1 } })
   ok('F05-029 COMPLETING → tạo chapter KHÔNG trần → 201', rChComp.status === 201, `got ${rChComp.status}`)
+
+  // F05-029b — COMPLETING nhưng CHƯA TỪNG ký hợp đồng → chặn (bịt lỗ "xuất bản liên tục không hợp đồng").
+  const sCompNoContract = await makeSeriesAt(SeriesStatus.COMPLETING, { mangakaId: m1.id, editorId: e1.id })
+  const rChCompNo = await req('POST', '/chapters', {
+    token: m1Tok,
+    body: { seriesId: sCompNoContract.id, chapterNumber: 1 }
+  })
+  expectError(rChCompNo, 409, 'Error.ContractNotExecuted', 'F05-029b COMPLETING chưa từng ký hợp đồng → 409')
 
   const sHiaBlock = await makeSeriesAt(SeriesStatus.HIATUS, { mangakaId: m1.id, editorId: e1.id })
   const rChHia = await req('POST', '/chapters', { token: m1Tok, body: { seriesId: sHiaBlock.id, chapterNumber: 1 } })

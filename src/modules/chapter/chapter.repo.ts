@@ -34,6 +34,11 @@ export class ChapterRepository {
       this.queries
     ) as typeof this.queries.findExecutedContractBySeriesId
   }
+  get findEverExecutedContractBySeriesId(): typeof this.queries.findEverExecutedContractBySeriesId {
+    return this.queries.findEverExecutedContractBySeriesId.bind(
+      this.queries
+    ) as typeof this.queries.findEverExecutedContractBySeriesId
+  }
   get createChapter(): typeof this.commands.createChapter {
     return this.commands.createChapter.bind(this.commands) as typeof this.commands.createChapter
   }

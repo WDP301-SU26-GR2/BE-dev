@@ -1,4 +1,29 @@
-import { ChapterStatus, ManuscriptStatus, PageStatus, PublicationType, TaskStatus } from '@prisma/client'
+import {
+  ChapterStatus,
+  ContractStatus,
+  ManuscriptStatus,
+  PageStatus,
+  PublicationType,
+  SeriesStatus,
+  TaskStatus
+} from '@prisma/client'
+
+// BR-CONTRACT-05 — giai đoạn kết thúc (Flow 5). Ở 2 trạng thái này hợp đồng có thể đã RỜI `FULLY_EXECUTED`
+// một cách hợp lệ: CANCELLING thì payment engine gọi `terminateContractsBySeries` ngay lúc huỷ, COMPLETING thì
+// phụ lục chốt các mốc còn lại. Mangaka vẫn phải vẽ nốt chương kết thúc nên không thể đòi FULLY_EXECUTED.
+// ⚠ Trước đây code BỎ QUA hẳn việc kiểm hợp đồng ở 2 trạng thái này ⇒ bộ truyện CHƯA TỪNG ký vẫn xuất bản
+// được không giới hạn (COMPLETING lại không có trần số chương). Nay chỉ NỚI sang nhánh "đã từng hiệu lực".
+export const ENDING_SERIES_STATUSES: SeriesStatus[] = [SeriesStatus.CANCELLING, SeriesStatus.COMPLETING]
+
+// Hợp đồng đã đi qua mốc ký đủ (khác với DRAFT/BOARD_REVIEW/AWAITING_MANGAKA/ACTIVATION_PENDING/VOIDED/
+// REJECTED_BY_MANGAKA — những trạng thái CHƯA từng có hiệu lực thi hành).
+export const POST_EXECUTION_CONTRACT_STATUSES: ContractStatus[] = [
+  ContractStatus.FULLY_EXECUTED,
+  ContractStatus.FULFILLED,
+  ContractStatus.TERMINATED,
+  ContractStatus.TERMINATED_BY_BREACH,
+  ContractStatus.EXPIRED
+]
 
 export const MANUSCRIPT_TRANSITIONS: Record<ManuscriptStatus, ManuscriptStatus[]> = {
   DRAFT: [ManuscriptStatus.IN_PRODUCTION],

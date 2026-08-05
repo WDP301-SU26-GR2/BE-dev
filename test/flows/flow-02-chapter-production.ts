@@ -33,7 +33,7 @@ const responseData = <T>(res: { json: unknown }): T => {
 
 // Local helper: build a fast-forward happy-path scenario.
 // seriesA: SERIALIZED + contract FULLY_EXECUTED → chapters can publish.
-// seriesB: SERIALIZED + NO contract → publish gate must fail (ContractNotExecuted).
+// seriesB: SERIALIZED + NO contract → contract gate must fail ngay ở bước mở chương (ContractNotExecuted).
 // seriesC: HIATUS → tạo chapter must fail (SeriesNotSerialized).
 // seriesCancel: CANCELLING with allowance=2/snapshot=0.
 const makeChapterProductionScenario = async () => {
@@ -57,7 +57,7 @@ const makeChapterProductionScenario = async () => {
     mangakaId: mangakaA.id,
     editorId: editorE1.id
   })
-  // NOTE: NO contract for seriesB → publish must fail with ContractNotExecuted
+  // NOTE: NO contract for seriesB → `POST /chapters` must fail with ContractNotExecuted (BR-CONTRACT-05)
 
   const seriesHiatus = await makeSeriesAt(SeriesStatus.HIATUS, {
     mangakaId: mangakaA.id,
@@ -73,8 +73,20 @@ const makeChapterProductionScenario = async () => {
     editorId: editorE1.id
   })
   // makeSeriesAt sets endingChapterAllowance=2 + chapterCountAtCancelling=0
+  // BR-CONTRACT-05: huỷ series khiến payment engine terminate hợp đồng — nhưng bộ truyện ĐÃ TỪNG ký,
+  // nên chương kết thúc vẫn mở/xuất bản được. Fixture phải phản ánh đúng trạng thái đó.
+  await makeContractAt(ContractStatus.TERMINATED, {
+    seriesId: seriesCancelling.id,
+    mangakaId: mangakaA.id,
+    editorId: editorE1.id
+  })
 
   const seriesCompleting = await makeSeriesAt(SeriesStatus.COMPLETING, {
+    mangakaId: mangakaA.id,
+    editorId: editorE1.id
+  })
+  await makeContractAt(ContractStatus.FULLY_EXECUTED, {
+    seriesId: seriesCompleting.id,
     mangakaId: mangakaA.id,
     editorId: editorE1.id
   })
@@ -654,27 +666,20 @@ const main = async () => {
   const badPubRes = await req('POST', `/chapters/${c4.id}/publish`, { token: s.tokens.e1 })
   expectError(badPubRes, 409, 'Error.InvalidManuscriptTransition', 'F02-022 publish when not READY_FOR_PRINT')
 
-  // F02-023 — Publish seriesB (no contract) → ContractNotExecuted
-  const c6Res = await req('POST', '/chapters', {
+  // F02-023 — BR-CONTRACT-05 nay chặn NGAY từ bước mở chương: seriesB SERIALIZED nhưng chưa ký hợp đồng
+  // → `POST /chapters` đã 409, không còn để studio vẽ xong mới báo lỗi ở publish.
+  // (Cổng ở bước publish vẫn được canh riêng bởi F02-038 — hợp đồng bị TERMINATED sau khi chương đã mở.)
+  const noContractCh = await req('POST', '/chapters', {
     token: s.tokens.mA,
     body: { seriesId: s.seriesB.id, chapterNumber: 1 }
   })
-  const c6 = (c6Res.json?.data ?? c6Res.json) as { id: string }
-  const c6nRes = await req('POST', `/chapters/${c6.id}/storyboards`, {
-    token: s.tokens.mA,
-    body: { storyboardPages: [{ pageNumber: 1, fileUrl: 'r2://np' }] }
-  })
-  const c6Storyboard = (c6nRes.json?.data ?? c6nRes.json) as { id: string }
-  await req('POST', `/chapters/${c6.id}/storyboards/${c6Storyboard.id}/submit`, { token: s.tokens.mA })
-  await req('POST', `/chapters/${c6.id}/storyboards/${c6Storyboard.id}/approve`, { token: s.tokens.e1 })
-  await req('POST', `/chapters/${c6.id}/pages`, {
-    token: s.tokens.mA,
-    body: { pageNumber: 1, originalFile: 'r2://p' }
-  })
-  await submitAfterStages(s.tokens.mA, c6.id, 'F02-STG-C6')
-  await req('POST', `/chapters/${c6.id}/manuscript/approve`, { token: s.tokens.e1 })
-  const noContractPub = await req('POST', `/chapters/${c6.id}/publish`, { token: s.tokens.e1 })
-  expectError(noContractPub, 409, 'Error.ContractNotExecuted', 'F02-023 publish without contract')
+  expectError(noContractCh, 409, 'Error.ContractNotExecuted', 'F02-023 mở chương khi chưa ký hợp đồng')
+  const seriesBChapterCount = await prisma.chapter.count({ where: { seriesId: s.seriesB.id } })
+  ok(
+    'F02-023b không có chapter rác nào được tạo cho seriesB',
+    seriesBChapterCount === 0,
+    `count=${seriesBChapterCount}`
+  )
 
   // F02-024 — Publish 2 lần → InvalidManuscriptTransition (c1 already PUBLISHED)
   const dupPubRes = await req('POST', `/chapters/${c1.id}/publish`, { token: s.tokens.e1 })

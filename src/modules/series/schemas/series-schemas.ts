@@ -159,6 +159,15 @@ export const ListSeriesQuerySchema = extendApi(
   z
     .object({
       status: zEnum(SeriesStatus, 'SeriesStatus').optional(),
+      magazine: z
+        .string()
+        .trim()
+        .min(1)
+        .optional()
+        .describe('Lọc theo tạp chí (khớp tuyệt đối). Dùng để chọn series mở kỳ bình chọn.'),
+      publicationType: zEnum(PublicationType, 'PublicationType')
+        .optional()
+        .describe('Lọc theo nhịp phát hành. Kỳ bình chọn chỉ so sánh series cùng tạp chí + cùng nhịp.'),
       limit: z.coerce.number().int().positive().max(100).default(20),
       offset: z.coerce.number().int().nonnegative().default(0)
     })

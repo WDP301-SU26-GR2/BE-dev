@@ -169,6 +169,8 @@ describe('ChapterPublishService.publish — ending phase (Fix-1 G-1)', () => {
       }),
       findManuscriptByChapterId: jest.fn().mockResolvedValue({ id: 'm1', status: ManuscriptStatus.READY_FOR_PRINT }),
       findExecutedContractBySeriesId: jest.fn().mockResolvedValue(null),
+      // Ending phase: hợp đồng đã rời FULLY_EXECUTED một cách hợp lệ (cancel → TERMINATED) nhưng ĐÃ TỪNG hiệu lực.
+      findEverExecutedContractBySeriesId: jest.fn().mockResolvedValue({ id: 'k1' }),
       countPagesNotCompleted: jest.fn().mockResolvedValue(0),
       createCoOwnerApproval: jest.fn().mockResolvedValue({})
     }
@@ -182,7 +184,7 @@ describe('ChapterPublishService.publish — ending phase (Fix-1 G-1)', () => {
   }
 
   it.each([SeriesStatus.CANCELLING, SeriesStatus.COMPLETING])(
-    'series %s + NO executed contract → publish THÀNH CÔNG (gate bypass)',
+    'series %s + hợp đồng ĐÃ TỪNG hiệu lực → publish THÀNH CÔNG (chương kết thúc vẫn ra được)',
     async (status) => {
       const { repo, manuscriptState, eventBus, notification, appConfig } = makeEndingDeps(status)
       const svc = new ChapterPublishService(
@@ -194,14 +196,36 @@ describe('ChapterPublishService.publish — ending phase (Fix-1 G-1)', () => {
         asCacheService(makeCacheServiceMock())
       )
       await expect(svc.publish('e1', 'c1')).resolves.toBeDefined()
-      // Gate đã bypass → KHÔNG gọi findExecutedContractBySeriesId
+      // Ending phase nới sang nhánh "đã từng hiệu lực", KHÔNG bỏ kiểm tra.
+      expect(repo.findEverExecutedContractBySeriesId).toHaveBeenCalledWith('s1')
       expect(repo.findExecutedContractBySeriesId).not.toHaveBeenCalled()
-      // Vẫn publish bình thường
       expect(manuscriptState.transition).toHaveBeenCalledWith('c1', ManuscriptStatus.PUBLISHED, { changedBy: 'e1' })
       expect(eventBus.emit).toHaveBeenCalledWith(
         DomainEvent.ChapterPublished,
         expect.objectContaining({ chapterId: 'c1', seriesId: 's1' })
       )
+    }
+  )
+
+  it.each([SeriesStatus.CANCELLING, SeriesStatus.COMPLETING])(
+    'series %s + CHƯA TỪNG có hợp đồng → 409 ContractNotExecuted (bịt lỗ publish vô hạn)',
+    async (status) => {
+      const { repo, manuscriptState, eventBus, notification, appConfig } = makeEndingDeps(status)
+      repo.findEverExecutedContractBySeriesId.mockResolvedValue(null)
+      const svc = new ChapterPublishService(
+        repo as never,
+        manuscriptState as never,
+        eventBus as never,
+        notification as never,
+        appConfig as never,
+        asCacheService(makeCacheServiceMock())
+      )
+      await expect(svc.publish('e1', 'c1')).rejects.toMatchObject({
+        status: 409,
+        response: { message: 'Error.ContractNotExecuted' }
+      })
+      expect(manuscriptState.transition).not.toHaveBeenCalled()
+      expect(eventBus.emit).not.toHaveBeenCalled()
     }
   )
 

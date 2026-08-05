@@ -1,4 +1,32 @@
-import { bottomThirdCount, computeRiskLevel, nextConsecutiveCount } from './ranking-finalize.helpers'
+import { SeriesStatus } from '@prisma/client'
+import { bottomThirdCount, computeRiskLevel, isRiskEvaluable, nextConsecutiveCount } from './ranking-finalize.helpers'
+
+describe('isRiskEvaluable (Requiment Flow 4 — loại trừ khỏi đánh giá nguy cơ)', () => {
+  const MIN = 8
+
+  it('SERIALIZED + đủ chương → được đánh giá', () => {
+    expect(isRiskEvaluable(SeriesStatus.SERIALIZED, 8, MIN)).toBe(true)
+  })
+
+  it('thiếu chương → loại, dù status hợp lệ', () => {
+    expect(isRiskEvaluable(SeriesStatus.SERIALIZED, 7, MIN)).toBe(false)
+  })
+
+  it.each([
+    SeriesStatus.HIATUS,
+    SeriesStatus.CANCELLING,
+    SeriesStatus.COMPLETING,
+    SeriesStatus.CANCELLED,
+    SeriesStatus.COMPLETED
+  ])('%s → loại khỏi đánh giá nguy cơ dù đủ chương', (status) => {
+    expect(isRiskEvaluable(status, 100, MIN)).toBe(false)
+  })
+
+  it('status không tra được (bộ truyện đã xoá / dangling id) → loại cho an toàn', () => {
+    expect(isRiskEvaluable(null, 100, MIN)).toBe(false)
+    expect(isRiskEvaluable(undefined, 100, MIN)).toBe(false)
+  })
+})
 
 describe('ranking-finalize helpers (Spec 5 §3)', () => {
   it('bottomThirdCount = ceil(N/3)', () => {

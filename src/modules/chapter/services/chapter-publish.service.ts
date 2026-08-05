@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common'
-import { ManuscriptStatus, NotificationType, SeriesStatus } from '@prisma/client'
+import { ManuscriptStatus, NotificationType } from '@prisma/client'
 import { DomainEvent } from 'src/core/events/domain-events'
 import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import {
   ChapterNotFoundException,
   ChapterOnHoldException,
-  ContractNotExecutedException,
   NotSeriesEditorException,
   PagesNotReadyForPublishException
 } from '../errors/chapter.errors'
 import { ChapterRepository } from '../chapter.repo'
+import { assertSeriesContractGate } from './contract-gate.helper'
 import { ManuscriptStateService } from './manuscript-state.service'
 import { ChapterMessages } from '../chapter.messages'
 import { AppConfigService } from 'src/modules/app-config/app-config.service'
@@ -47,14 +47,10 @@ export class ChapterPublishService {
       if (notCompleted > 0) throw PagesNotReadyForPublishException
     }
 
-    // A3 (BR-CONTRACT-05): gate chỉ áp khi CHƯA vào ending phase (Fix-1 G-1).
-    // CANCELLING/COMPLETING: contract đã bị B-CON-09 terminate ngay lúc cancel — ending chapters
-    // vẫn phải publish được (Requiment Flow 5: Mangaka vẽ 3-5 chương kết thúc; tiền đã tất toán).
-    const ENDING_STATUSES: SeriesStatus[] = [SeriesStatus.CANCELLING, SeriesStatus.COMPLETING]
-    if (!ENDING_STATUSES.includes(series.status)) {
-      const executedContract = await this.chapterRepository.findExecutedContractBySeriesId(series.id)
-      if (!executedContract) throw ContractNotExecutedException
-    }
+    // A3 (BR-CONTRACT-05): ending phase được NỚI sang nhánh "đã từng có hợp đồng hiệu lực", KHÔNG bỏ kiểm.
+    // Bỏ kiểm (hành vi cũ) khiến bộ truyện CHƯA TỪNG ký vẫn xuất bản được — và COMPLETING lại không có trần
+    // số chương nên xuất bản được không giới hạn. Luật dùng chung với `POST /chapters` (contract-gate.helper).
+    await assertSeriesContractGate(this.chapterRepository, series)
 
     // A-CHP-06 branch: co-owner (PARTIAL_TRANSFER) cần duyệt trước khi publish.
     // coOwnerId do B3 (transfer PARTIAL_TRANSFER) set. Tạo record ChapterCoOwnerApproval + notify.

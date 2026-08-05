@@ -9,6 +9,8 @@ import {
   SurveyPeriodResSchema,
   SurveyPeriodListQuerySchema,
   SurveyPeriodListResSchema,
+  EligibleSeriesQuerySchema,
+  EligibleSeriesResSchema,
   VotingConfigResSchema,
   RankingRecordResSchema,
   RankingRecordListResSchema,
@@ -45,6 +47,8 @@ export class VotingConfigBodyDto extends createZodDto(VotingConfigBodySchema) {}
 export class SurveyPeriodResDto extends createZodDto(SurveyPeriodResSchema) {}
 export class SurveyPeriodListQueryDto extends createZodDto(SurveyPeriodListQuerySchema) {}
 export class SurveyPeriodListResDto extends createZodDto(SurveyPeriodListResSchema) {}
+export class EligibleSeriesQueryDto extends createZodDto(EligibleSeriesQuerySchema) {}
+export class EligibleSeriesResDto extends createZodDto(EligibleSeriesResSchema) {}
 export class VotingConfigResDto extends createZodDto(VotingConfigResSchema) {}
 export class RankingRecordResDto extends createZodDto(RankingRecordResSchema) {}
 export class RankingRecordListResDto extends createZodDto(RankingRecordListResSchema) {}
