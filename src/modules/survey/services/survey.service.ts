@@ -8,7 +8,8 @@ import {
   ReaderVoteBodyDto,
   UpdateSurveyPeriodStatusBodyDto,
   VoteOtpRequestBodyDto,
-  VotingConfigBodyDto
+  VotingConfigBodyDto,
+  EligibleSeriesQueryDto
 } from '../dto/survey.dto'
 import { GuestVoteService } from './guest-vote.service'
 import { DEFAULT_LOW_VOTE_RELIABILITY_THRESHOLD, RankingFinalizeService } from './ranking-finalize.service'
@@ -38,6 +39,10 @@ export class SurveyService {
 
   getLiveTally(periodId: string) {
     return this.guestVoteService.getLiveTally(periodId)
+  }
+
+  getEligibleSeries(query: EligibleSeriesQueryDto) {
+    return this.surveyPeriodService.getEligibleSeries(query)
   }
 
   getSurveyPeriods(query: SurveyPeriodListQueryDto) {

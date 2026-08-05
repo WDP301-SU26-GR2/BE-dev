@@ -1,4 +1,4 @@
-import { PublicationType } from '@prisma/client'
+import { PublicationType, SeriesStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 
 export type CreateReaderVoteData = {
@@ -90,6 +90,16 @@ export class SurveyVoteRepository {
       if (chapter.hold?.heldAt && chapter.hold.heldAt < thresholdDate) result.add(chapter.seriesId)
     }
     return result
+  }
+
+  // BR-VOTE-05: series đủ điều kiện mở kỳ cho đúng 1 tạp chí + 1 nhịp phát hành.
+  // `statuses` truyền từ service (VOTE_ELIGIBLE_SERIES_STATUSES) để repo không ôm luật nghiệp vụ.
+  findVoteEligibleSeries(magazine: string, publicationType: PublicationType, statuses: SeriesStatus[]) {
+    return this.prisma.series.findMany({
+      where: { magazine, publicationType, status: { in: statuses } },
+      select: { id: true, title: true, coverImage: true, status: true, magazine: true, publicationType: true },
+      orderBy: [{ title: 'asc' }, { id: 'asc' }]
+    })
   }
 
   findSeriesOwnershipByIds(seriesIds: string[]) {

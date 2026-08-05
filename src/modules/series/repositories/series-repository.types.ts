@@ -1,10 +1,12 @@
-import { Prisma, Series, SeriesStatus } from '@prisma/client'
+import { Prisma, PublicationType, Series, SeriesStatus } from '@prisma/client'
 
 export type SeriesListScope = { kind: 'mangaka'; userId: string } | { kind: 'editor'; userId: string } | { kind: 'all' }
 
 export type SeriesListFilter = {
   scope: SeriesListScope
   status?: SeriesStatus
+  magazine?: string
+  publicationType?: PublicationType
 }
 
 export type SeriesMetadataField = 'title' | 'coverImage' | 'synopsis' | 'characterDesigns'

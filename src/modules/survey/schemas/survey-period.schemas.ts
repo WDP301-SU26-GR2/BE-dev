@@ -1,5 +1,5 @@
 import { extendApi } from '@anatine/zod-openapi'
-import { PublicationType, SurveyStatus } from '@prisma/client'
+import { PublicationType, SeriesStatus, SurveyStatus } from '@prisma/client'
 import z from 'zod'
 import { zDateField } from 'src/core/http/docs/date-docs'
 import { zEnum } from 'src/core/http/docs/enum-docs'
@@ -99,6 +99,38 @@ export const SurveyPeriodListQuerySchema = extendApi(
   {
     title: 'SurveyPeriodListQuery',
     description: 'Bộ lọc và phân trang danh sách kỳ bình chọn nội bộ'
+  }
+)
+
+// BR-VOTE-05: Super Admin lấy đúng nhóm series được phép đưa vào `eligibleSeriesIds` của một kỳ.
+// Cả 2 scope BẮT BUỘC — một kỳ bình chọn luôn thuộc đúng 1 tạp chí + 1 nhịp phát hành.
+export const EligibleSeriesQuerySchema = extendApi(
+  z
+    .object({
+      magazine: z.string().trim().min(1, { message: 'Thiếu thông tin tạp chí' }),
+      publicationType: zEnum(PublicationType, 'PublicationType')
+    })
+    .strict(),
+  { title: 'EligibleSeriesQuery', description: 'Lọc series đủ điều kiện mở kỳ bình chọn (theo tạp chí + nhịp)' }
+)
+
+export const EligibleSeriesItemSchema = extendApi(
+  z.object({
+    id: z.string(),
+    title: z.string(),
+    coverImage: z.string().nullable(),
+    status: zEnum(SeriesStatus, 'SeriesStatus').describe('Chỉ SERIALIZED / CANCELLING / COMPLETING mới lọt vào đây'),
+    magazine: z.string().nullable(),
+    publicationType: zEnum(PublicationType, 'PublicationType').nullable()
+  }),
+  { title: 'EligibleSeriesItem' }
+)
+
+export const EligibleSeriesResSchema = extendApi(
+  z.object({ items: z.array(EligibleSeriesItemSchema), total: z.number().int().nonnegative() }),
+  {
+    title: 'EligibleSeriesRes',
+    description: 'Danh sách series được phép chọn khi mở kỳ. KHÔNG phân trang — một tạp chí/nhịp chỉ vài chục bộ.'
   }
 )
 

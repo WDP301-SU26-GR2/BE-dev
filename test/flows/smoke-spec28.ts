@@ -1,6 +1,6 @@
 // Comprehensive smoke test for Spec 28 - Storyboard & Proposal Consolidation
 // Tests complete data flow through real API endpoint
-import { wipeDb, seedRolesAndAdmin, prisma, makeUser } from './lib/seed.js'
+import { wipeDb, seedRolesAndAdmin, prisma, makeUser, makeContractAt } from './lib/seed.js'
 
 import { login, clearTokenCache, ensureMangakaProfile } from './lib/auth.js'
 
@@ -194,6 +194,8 @@ async function main() {
   // Step 13: Test chapter-storyboard vẫn hoạt động sau khi series đã được serialize.
   section('12. Chapter storyboard (Spec 28 — Storyboard entity chỉ phục vụ chapter)')
   await prisma.series.update({ where: { id: seriesId }, data: { status: 'SERIALIZED' } })
+  // BR-CONTRACT-05: mở chương yêu cầu hợp đồng FULLY_EXECUTED (gate đẩy lên từ bước publish).
+  await makeContractAt('FULLY_EXECUTED', { seriesId, mangakaId: m1.id, editorId: e1.id })
   const rCh = await req('POST', '/chapters', {
     token: m1Tok,
     body: { seriesId, chapterNumber: 1, title: 'Chapter 1' }

@@ -188,6 +188,84 @@ const main = async () => {
     title: 'FT DRAFT'
   })
 
+  // BR-VOTE-05 (2026-08-05): series đang đăng chương kết thúc VẪN được bình chọn; HIATUS/DRAFT thì không.
+  const sCancelling = await makeSeriesAt(SeriesStatus.CANCELLING, {
+    mangakaId: m1.id,
+    editorId: e1.id,
+    title: 'FT E CANCELLING',
+    magazine: 'Jump',
+    startIssueNumber: 5,
+    publicationType: PublicationType.WEEKLY
+  })
+
+  section('F04.0 GET /survey-periods/eligible-series (Super Admin dựng danh sách mở kỳ)')
+  const rEli = await req('GET', '/survey-periods/eligible-series?magazine=Jump&publicationType=WEEKLY', {
+    token: adminTok
+  })
+  const eliItems = (rEli.json?.data?.items ?? []) as Array<{ id: string; status: string }>
+  const eliIds = new Set(eliItems.map((s) => s.id))
+  ok(
+    '04.0a 200 + shape {items,total}',
+    rEli.status === 200 && typeof rEli.json?.data?.total === 'number',
+    `got ${rEli.status}`
+  )
+  ok(
+    '04.0b gồm series SERIALIZED',
+    eliIds.has(s1.id) && eliIds.has(s2.id) && eliIds.has(s3.id),
+    `ids=${[...eliIds].join(',')}`
+  )
+  ok('04.0c gồm series CANCELLING (vẫn đăng chương kết thúc)', eliIds.has(sCancelling.id))
+  ok('04.0d LOẠI series HIATUS', !eliIds.has(s4.id))
+  ok('04.0e LOẠI series DRAFT', !eliIds.has(sDraft.id))
+  ok('04.0f LOẠI series khác nhịp/khác tạp chí', !eliIds.has(sMonthly.id))
+
+  const rEliMonthly = await req(
+    'GET',
+    '/survey-periods/eligible-series?magazine=Monthly%20Mag&publicationType=MONTHLY',
+    {
+      token: adminTok
+    }
+  )
+  ok(
+    '04.0g đổi scope → chỉ còn series MONTHLY',
+    rEliMonthly.status === 200 && rEliMonthly.json?.data?.items?.[0]?.id === sMonthly.id,
+    `got ${rEliMonthly.status} ${rEliMonthly.raw.slice(0, 150)}`
+  )
+
+  const rEliMissing = await req('GET', '/survey-periods/eligible-series?publicationType=WEEKLY', { token: adminTok })
+  ok('04.0h thiếu magazine → 422', rEliMissing.status === 422, `got ${rEliMissing.status}`)
+
+  // Danh sách BE trả ra phải ĐÚNG thứ BE chấp nhận — nếu lệch thì admin chọn xong mới ăn 422.
+  const rEliCreate = await req('POST', '/survey-periods', {
+    token: adminTok,
+    body: {
+      magazine: 'Jump',
+      publicationType: PublicationType.WEEKLY,
+      issueNumber: 991,
+      eligibleSeriesIds: [...eliIds],
+      startDate: isoOffset(-86_400_000),
+      endDate: isoOffset(7 * 86_400_000)
+    }
+  })
+  ok(
+    '04.0i mọi id từ eligible-series đều được POST /survey-periods chấp nhận',
+    rEliCreate.status === 201,
+    `got ${rEliCreate.status} ${rEliCreate.raw.slice(0, 200)}`
+  )
+
+  const rEliHiatus = await req('POST', '/survey-periods', {
+    token: adminTok,
+    body: {
+      magazine: 'Jump',
+      publicationType: PublicationType.WEEKLY,
+      issueNumber: 992,
+      eligibleSeriesIds: [s4.id],
+      startDate: isoOffset(-86_400_000),
+      endDate: isoOffset(7 * 86_400_000)
+    }
+  })
+  expectError(rEliHiatus, 422, 'Error.SeriesNotVotable', '04.0j HIATUS vào kỳ → 422 SeriesNotVotable')
+
   section('F04.1 GET /vote/context public no period')
   const r1 = await req('GET', '/vote/context')
   ok('04.1a missing periodId is validation error', r1.status === 422, `got ${r1.status}`)

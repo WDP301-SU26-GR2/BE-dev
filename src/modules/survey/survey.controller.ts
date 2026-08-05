@@ -30,7 +30,9 @@ import {
   VoteLiveQueryDto,
   VoteTallyResDto,
   InternalRankingAggregateResDto,
-  RankingAggregateQueryDto
+  RankingAggregateQueryDto,
+  EligibleSeriesQueryDto,
+  EligibleSeriesResDto
 } from './dto/survey.dto'
 import { SurveyService } from './services/survey.service'
 import { MessageResDto } from 'src/core/http/dto/response.dto'
@@ -141,6 +143,19 @@ export class SurveyController {
   @ZodResponse({ status: 200, type: SurveyPeriodListResDto })
   getSurveyPeriods(@Query() query: SurveyPeriodListQueryDto) {
     return this.surveyService.getSurveyPeriods(query)
+  }
+
+  // ⚠ PHẢI khai TRƯỚC `survey-periods/:id` — nếu không Nest khớp vào route param, `id='eligible-series'`
+  // không phải ObjectId ⇒ 404 SurveyPeriodNotFound.
+  @Get('survey-periods/eligible-series')
+  @Roles(RoleName.SUPER_ADMIN)
+  @ApiOperation({
+    summary:
+      'BR-VOTE-05: series đủ điều kiện đưa vào eligibleSeriesIds của kỳ bình chọn (đúng tạp chí + nhịp phát hành). Chỉ trả SERIALIZED/CANCELLING/COMPLETING — dùng chung luật với validate ở POST /survey-periods.'
+  })
+  @ZodResponse({ status: 200, type: EligibleSeriesResDto })
+  getEligibleSeries(@Query() query: EligibleSeriesQueryDto) {
+    return this.surveyService.getEligibleSeries(query)
   }
 
   @Get('survey-periods/:id')

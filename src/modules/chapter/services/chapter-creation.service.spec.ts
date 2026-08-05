@@ -6,6 +6,9 @@ function makeRepo() {
     findSeriesById: jest.fn(),
     findChapterByNumber: jest.fn(),
     countChaptersBySeriesId: jest.fn().mockResolvedValue(0),
+    // BR-CONTRACT-05: mặc định series ĐÃ có hợp đồng hiệu lực để các case cũ giữ nguyên ý nghĩa.
+    findExecutedContractBySeriesId: jest.fn().mockResolvedValue({ id: 'k1' }),
+    findEverExecutedContractBySeriesId: jest.fn().mockResolvedValue({ id: 'k1' }),
     createChapter: jest
       .fn()
       .mockImplementation((d: Record<string, unknown>) =>
@@ -141,6 +144,95 @@ describe('ChapterCreationService.create — ending phase (Fix-1 G-1)', () => {
     await expect(make(repo).create('u', { seriesId: S, chapterNumber: 2 })).rejects.toMatchObject({
       status: 409
     })
+    expect(repo.countChaptersBySeriesId).not.toHaveBeenCalled()
+  })
+})
+
+// BR-CONTRACT-05 đẩy lên bước tạo chapter: không cho MỞ chương khi bộ truyện chưa có hợp đồng hiệu lực,
+// thay vì để cả studio vẽ xong rồi mới chặn ở publish.
+describe('ChapterCreationService.create — contract gate (BR-CONTRACT-05)', () => {
+  it('SERIALIZED + chưa có hợp đồng FULLY_EXECUTED → 409 ContractNotExecuted, không tạo chapter', async () => {
+    const repo = makeRepo()
+    repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'u', status: SeriesStatus.SERIALIZED })
+    repo.findExecutedContractBySeriesId.mockResolvedValue(null)
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 1 })).rejects.toMatchObject({
+      status: 409,
+      response: { message: 'Error.ContractNotExecuted' }
+    })
+    expect(repo.createChapter).not.toHaveBeenCalled()
+  })
+
+  it('SERIALIZED dùng đúng nhánh strict (KHÔNG chấp nhận hợp đồng đã kết thúc)', async () => {
+    const repo = makeRepo()
+    repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'u', status: SeriesStatus.SERIALIZED })
+    repo.findChapterByNumber.mockResolvedValue(null)
+    await make(repo).create('u', { seriesId: S, chapterNumber: 1 })
+    expect(repo.findExecutedContractBySeriesId).toHaveBeenCalledWith(S)
+    expect(repo.findEverExecutedContractBySeriesId).not.toHaveBeenCalled()
+  })
+
+  it.each([SeriesStatus.CANCELLING, SeriesStatus.COMPLETING])(
+    '%s + hợp đồng đã kết thúc hợp lệ (ever-executed) → vẫn tạo được chương kết thúc',
+    async (status) => {
+      const repo = makeRepo()
+      repo.findSeriesById.mockResolvedValue({
+        id: S,
+        mangakaId: 'u',
+        status,
+        endingChapterAllowance: null,
+        chapterCountAtCancelling: null
+      })
+      repo.findChapterByNumber.mockResolvedValue(null)
+      // Hợp đồng KHÔNG còn FULLY_EXECUTED (cancel → payment engine TERMINATED) nhưng đã từng hiệu lực.
+      repo.findExecutedContractBySeriesId.mockResolvedValue(null)
+      await expect(make(repo).create('u', { seriesId: S, chapterNumber: 4 })).resolves.toBeDefined()
+      expect(repo.findEverExecutedContractBySeriesId).toHaveBeenCalledWith(S)
+      expect(repo.findExecutedContractBySeriesId).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([SeriesStatus.CANCELLING, SeriesStatus.COMPLETING])(
+    '%s + CHƯA TỪNG có hợp đồng → 409 (bịt lỗ ending-phase publish vô hạn)',
+    async (status) => {
+      const repo = makeRepo()
+      repo.findSeriesById.mockResolvedValue({
+        id: S,
+        mangakaId: 'u',
+        status,
+        endingChapterAllowance: null,
+        chapterCountAtCancelling: null
+      })
+      repo.findEverExecutedContractBySeriesId.mockResolvedValue(null)
+      await expect(make(repo).create('u', { seriesId: S, chapterNumber: 4 })).rejects.toMatchObject({
+        status: 409,
+        response: { message: 'Error.ContractNotExecuted' }
+      })
+      expect(repo.createChapter).not.toHaveBeenCalled()
+    }
+  )
+
+  it('gate hợp đồng chạy SAU kiểm trạng thái — HIATUS vẫn báo SeriesNotSerialized', async () => {
+    const repo = makeRepo()
+    repo.findSeriesById.mockResolvedValue({ id: S, mangakaId: 'u', status: SeriesStatus.HIATUS })
+    repo.findExecutedContractBySeriesId.mockResolvedValue(null)
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 2 })).rejects.toMatchObject({
+      response: { message: 'Error.SeriesNotSerialized' }
+    })
+    expect(repo.findExecutedContractBySeriesId).not.toHaveBeenCalled()
+    expect(repo.findEverExecutedContractBySeriesId).not.toHaveBeenCalled()
+  })
+
+  it('gate hợp đồng chạy TRƯỚC kiểm trần allowance (không tốn count query)', async () => {
+    const repo = makeRepo()
+    repo.findSeriesById.mockResolvedValue({
+      id: S,
+      mangakaId: 'u',
+      status: SeriesStatus.CANCELLING,
+      endingChapterAllowance: 2,
+      chapterCountAtCancelling: 3
+    })
+    repo.findEverExecutedContractBySeriesId.mockResolvedValue(null)
+    await expect(make(repo).create('u', { seriesId: S, chapterNumber: 6 })).rejects.toMatchObject({ status: 409 })
     expect(repo.countChaptersBySeriesId).not.toHaveBeenCalled()
   })
 })

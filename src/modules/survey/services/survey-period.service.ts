@@ -13,6 +13,8 @@ import {
 } from '../errors/survey.errors'
 import { SurveyMessages } from '../survey.messages'
 import { SurveyRepository } from '../survey.repo'
+import { VOTE_ELIGIBLE_SERIES_STATUSES } from '../survey.constant'
+import { EligibleSeriesQueryDto } from '../dto/survey.dto'
 import { mapReaderVoteListItem, mapSurveyPeriod } from './survey.mapper'
 
 @Injectable()
@@ -57,6 +59,17 @@ export class SurveyPeriodService {
     return this.surveyRepository.getSurveyDataByPeriod(id)
   }
 
+  // BR-VOTE-05: danh sách series Super Admin được phép chọn khi mở kỳ — dùng CHUNG hằng số với validate ở
+  // `createSurveyPeriod` nên không bao giờ lệch giữa "thứ FE hiển thị" và "thứ BE chấp nhận".
+  async getEligibleSeries(query: EligibleSeriesQueryDto) {
+    const items = await this.surveyRepository.findVoteEligibleSeries(
+      query.magazine.trim(),
+      query.publicationType,
+      VOTE_ELIGIBLE_SERIES_STATUSES
+    )
+    return { items, total: items.length }
+  }
+
   async createSurveyPeriod(body: CreateSurveyPeriodBodyDto, userId?: string) {
     // HTTP validation requires scope. Keep direct legacy service callers working
     // for historic unit fixtures; they cannot create unscoped periods through API.
@@ -88,7 +101,7 @@ export class SurveyPeriodService {
       eligible.length !== body.eligibleSeriesIds.length ||
       eligible.some(
         (series) =>
-          series.status !== 'SERIALIZED' ||
+          !VOTE_ELIGIBLE_SERIES_STATUSES.includes(series.status) ||
           series.magazine?.trim() !== magazine ||
           series.publicationType !== body.publicationType
       )

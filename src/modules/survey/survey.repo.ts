@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { PublicationType } from '@prisma/client'
+import { PublicationType, SeriesStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 import { CreateSurveyPeriodBodyDto, ImportSurveyDataBodyDto } from './dto/survey.dto'
 import { SurveyConfigRepository, VotingConfigData } from './repositories/survey-config.repository'
@@ -113,6 +113,9 @@ export class SurveyRepository {
   }
   findSeriesOwnershipByIds(seriesIds: string[]) {
     return this.votes.findSeriesOwnershipByIds(seriesIds)
+  }
+  findVoteEligibleSeries(magazine: string, publicationType: PublicationType, statuses: SeriesStatus[]) {
+    return this.votes.findVoteEligibleSeries(magazine, publicationType, statuses)
   }
   findBoardMemberIds() {
     return this.votes.findBoardMemberIds()

@@ -10,7 +10,7 @@ import {
 import { SurveyMessages } from '../survey.messages'
 import { SurveyRepository } from '../survey.repo'
 import { SURVEY_CONFIG } from '../survey.constant'
-import { bottomThirdCount, computeRiskLevel, nextConsecutiveCount } from './ranking-finalize.helpers'
+import { bottomThirdCount, computeRiskLevel, isRiskEvaluable, nextConsecutiveCount } from './ranking-finalize.helpers'
 import { RankingFinalizeEffectsService } from './ranking-finalize-effects.service'
 import { RankingFinalizePersistenceService } from './ranking-finalize-persistence.service'
 
@@ -100,7 +100,9 @@ export class RankingFinalizeService {
     const appConfig = await this.appConfigService.get()
     const seriesIds = rankingItems.map((i) => i.seriesId)
     const publishedCounts =
-      seriesIds.length > 0 ? await this.surveyRepository.countPublishedChaptersBySeriesIds(seriesIds) : new Map()
+      seriesIds.length > 0
+        ? await this.surveyRepository.countPublishedChaptersBySeriesIds(seriesIds)
+        : new Map<string, number>()
     const ownership = seriesIds.length > 0 ? await this.surveyRepository.findSeriesOwnershipByIds(seriesIds) : []
     const statusById = new Map(ownership.map((o) => [o.id, o.status]))
     const typeById = new Map(ownership.map((o) => [o.id, o.publicationType ?? null]))
@@ -128,6 +130,7 @@ export class RankingFinalizeService {
     }
     const periodTotal = rankingItems.reduce((s, i) => s + i.score, 0)
     const periodLowData = periodTotal < appConfig.lowVoteReliabilityThreshold
+    const minChapters = SURVEY_CONFIG.minChaptersForRiskEvaluation
 
     // 4. Materialize RankingRecord rows + collect per-series result for notify (Task 8).
     const perSeriesResult: Array<{ seriesId: string; isAtRisk: boolean; riskLevel: string }> = []
@@ -152,12 +155,10 @@ export class RankingFinalizeService {
       const previousRank = previous?.rankPosition ?? null
       const rankChange = previousRank != null ? previousRank - (index + 1) : null
 
-      // B-VOT-05: loại trừ khỏi at-risk nếu <8 chương PUBLISHED hoặc series HIATUS.
-      const excluded =
-        (publishedCounts.get(item.seriesId) ?? 0) < SURVEY_CONFIG.minChaptersForRiskEvaluation ||
-        statusById.get(item.seriesId) === 'HIATUS'
-
-      const isAtRisk = !excluded && inBottomOfType.get(item.seriesId) === true
+      // B-VOT-05: loại khỏi at-risk nếu <8 chương PUBLISHED, hoặc bộ truyện đã tạm ngưng / đã chốt kết thúc.
+      const isAtRisk =
+        isRiskEvaluable(statusById.get(item.seriesId), publishedCounts.get(item.seriesId) ?? 0, minChapters) &&
+        inBottomOfType.get(item.seriesId) === true
       const prevCount = previous?.consecutiveAtRiskCount ?? 0
       const consecutiveAtRiskCount = nextConsecutiveCount(prevCount, isAtRisk)
       const riskLevel = computeRiskLevel(isAtRisk, consecutiveAtRiskCount)

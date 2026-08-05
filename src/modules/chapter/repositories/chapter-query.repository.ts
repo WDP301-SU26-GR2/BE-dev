@@ -1,5 +1,6 @@
 import { CoOwnerApprovalStatus, StoryboardStatus, PageStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import { POST_EXECUTION_CONTRACT_STATUSES } from '../chapter.constant'
 
 export class ChapterQueryRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -16,6 +17,13 @@ export class ChapterQueryRepository {
   findExecutedContractBySeriesId(seriesId: string) {
     return this.prisma.contract.findFirst({
       where: { seriesId, status: 'FULLY_EXECUTED' },
+      select: { id: true }
+    })
+  }
+  // BR-CONTRACT-05 nhánh ending phase: hợp đồng đã rời FULLY_EXECUTED hợp lệ nhưng ĐÃ TỪNG có hiệu lực.
+  findEverExecutedContractBySeriesId(seriesId: string) {
+    return this.prisma.contract.findFirst({
+      where: { seriesId, status: { in: POST_EXECUTION_CONTRACT_STATUSES } },
       select: { id: true }
     })
   }

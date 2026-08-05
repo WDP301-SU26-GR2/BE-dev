@@ -18,20 +18,22 @@ export class SeriesQueryRepository {
 
   private buildSeriesListWhere(filter: SeriesListFilter): Prisma.SeriesWhereInput {
     const scope = filter.scope
-    const statusWhere: Prisma.SeriesWhereInput | undefined = filter.status ? { status: filter.status } : undefined
-    const boardVisibilityWhere: Prisma.SeriesWhereInput = { status: { notIn: BOARD_HIDDEN_STATES } }
-    const scopeWhere: Prisma.SeriesWhereInput =
-      scope.kind === 'mangaka'
-        ? { mangakaId: scope.userId }
-        : scope.kind === 'editor'
-          ? {
-              OR: [{ editorId: scope.userId }, { editorId: { isSet: false }, status: { in: REVIEW_QUEUE_STATES } }]
-            }
-          : {}
-    if (scope.kind === 'all') {
-      return statusWhere ? { AND: [statusWhere, boardVisibilityWhere], ...scopeWhere } : boardVisibilityWhere
+    const conditions: Prisma.SeriesWhereInput[] = []
+    if (filter.status) conditions.push({ status: filter.status })
+    // Lọc theo tạp chí + nhịp phát hành: Super Admin cần đúng nhóm này để chọn `eligibleSeriesIds` khi mở kỳ
+    // bình chọn (BR-VOTE-05) — trước đây phải tải hết rồi lọc phía client nên dễ sót series ở trang sau.
+    if (filter.magazine) conditions.push({ magazine: filter.magazine })
+    if (filter.publicationType) conditions.push({ publicationType: filter.publicationType })
+    if (scope.kind === 'mangaka') {
+      conditions.push({ mangakaId: scope.userId })
+    } else if (scope.kind === 'editor') {
+      conditions.push({
+        OR: [{ editorId: scope.userId }, { editorId: { isSet: false }, status: { in: REVIEW_QUEUE_STATES } }]
+      })
+    } else {
+      conditions.push({ status: { notIn: BOARD_HIDDEN_STATES } })
     }
-    return { ...(statusWhere ?? {}), ...scopeWhere }
+    return conditions.length === 1 ? conditions[0] : { AND: conditions }
   }
 
   async findSeriesForList(filter: SeriesListFilter, page: { limit: number; offset: number }) {

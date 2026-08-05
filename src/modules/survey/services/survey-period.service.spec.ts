@@ -29,6 +29,7 @@ function makeDeps() {
       createSurveyPeriod: jest.fn().mockResolvedValue(period()),
       findScopedSurveyPeriod: jest.fn().mockResolvedValue(null),
       findSeriesOwnershipByIds: jest.fn().mockResolvedValue([]),
+      findVoteEligibleSeries: jest.fn().mockResolvedValue([]),
       updateSurveyPeriodStatus: jest.fn()
     },
     notification: { notifySafe: jest.fn().mockResolvedValue(undefined) },
@@ -207,5 +208,59 @@ describe('SurveyPeriodService state transitions', () => {
 
     expect(deps.audit.record).toHaveBeenCalledWith(expect.objectContaining({ actorId: null }))
     expect(deps.notification.notifySafe).not.toHaveBeenCalled()
+  })
+})
+
+// BR-VOTE-05 (2026-08-05): series đang đăng chương kết thúc vẫn nằm trên tạp chí kỳ đó ⇒ vẫn được bình chọn.
+describe('SurveyPeriodService — eligibility theo trạng thái series', () => {
+  const scopedBody = {
+    magazine: '  Jump  ',
+    publicationType: 'WEEKLY',
+    eligibleSeriesIds: ['s1'],
+    issueNumber: 10,
+    startDate: '2026-07-01',
+    endDate: '2026-07-07'
+  } as const
+
+  const owned = (status: string) => [{ id: 's1', status, magazine: 'Jump', publicationType: 'WEEKLY' }]
+
+  it.each(['SERIALIZED', 'CANCELLING', 'COMPLETING'])('chấp nhận series %s', async (status) => {
+    const deps = makeDeps()
+    deps.repo.findSeriesOwnershipByIds.mockResolvedValue(owned(status))
+    await expect(make(deps).createSurveyPeriod(scopedBody as never)).resolves.toBeDefined()
+    expect(deps.repo.createSurveyPeriod).toHaveBeenCalled()
+  })
+
+  it.each(['HIATUS', 'CANCELLED', 'COMPLETED', 'DRAFT', 'PITCHED'])('chặn series %s → 422', async (status) => {
+    const deps = makeDeps()
+    deps.repo.findSeriesOwnershipByIds.mockResolvedValue(owned(status))
+    await expect(make(deps).createSurveyPeriod(scopedBody as never)).rejects.toMatchObject({
+      status: 422,
+      response: { message: [{ message: 'Error.SeriesNotVotable', path: 'seriesIds' }] }
+    })
+    expect(deps.repo.createSurveyPeriod).not.toHaveBeenCalled()
+  })
+})
+
+describe('SurveyPeriodService.getEligibleSeries', () => {
+  it('trim tạp chí + truyền ĐÚNG bộ trạng thái dùng chung với validate lúc tạo kỳ', async () => {
+    const deps = makeDeps()
+    deps.repo.findVoteEligibleSeries.mockResolvedValue([
+      { id: 's1', title: 'A', coverImage: null, status: 'SERIALIZED', magazine: 'Jump', publicationType: 'WEEKLY' }
+    ])
+
+    await expect(
+      make(deps).getEligibleSeries({ magazine: '  Jump  ', publicationType: 'WEEKLY' } as never)
+    ).resolves.toEqual({
+      items: [
+        { id: 's1', title: 'A', coverImage: null, status: 'SERIALIZED', magazine: 'Jump', publicationType: 'WEEKLY' }
+      ],
+      total: 1
+    })
+    expect(deps.repo.findVoteEligibleSeries).toHaveBeenCalledWith('Jump', 'WEEKLY', [
+      'SERIALIZED',
+      'CANCELLING',
+      'COMPLETING'
+    ])
   })
 })
