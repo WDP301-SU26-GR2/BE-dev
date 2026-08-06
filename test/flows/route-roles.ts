@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-08-06T09:33:58.559Z — 291 routes.
+// Sinh lúc: 2026-08-06T18:11:21.139Z — 292 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -31,12 +31,6 @@ export const ROLE_FIXTURES_ORDER: RoleCode[] = [
 export const ROUTE_RULES: RouteRule[] = [
   { method: 'GET', path: '/admin/app-config', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   { method: 'PATCH', path: '/admin/app-config', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
-  {
-    method: 'GET',
-    path: '/magazines',
-    access: 'ROLES',
-    allowed: [RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
-  },
   { method: 'POST', path: '/admin/magazines', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   { method: 'DELETE', path: '/admin/magazines/:name', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   { method: 'PATCH', path: '/admin/magazines/:name', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
@@ -162,10 +156,20 @@ export const ROUTE_RULES: RouteRule[] = [
     allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN]
   },
   { method: 'GET', path: '/board/suggest-members', access: 'ROLES', allowed: [RoleCode.EDITOR, RoleCode.SUPER_ADMIN] },
-  { method: 'GET', path: '/chapters', access: 'AUTH', allowed: [] },
+  {
+    method: 'GET',
+    path: '/chapters',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.ASSISTANT, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
   { method: 'POST', path: '/chapters', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'DELETE', path: '/chapters/:id', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
-  { method: 'GET', path: '/chapters/:id', access: 'AUTH', allowed: [] },
+  {
+    method: 'GET',
+    path: '/chapters/:id',
+    access: 'ROLES',
+    allowed: [RoleCode.MANGAKA, RoleCode.EDITOR, RoleCode.ASSISTANT, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
   { method: 'PATCH', path: '/chapters/:id', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/chapters/:id/co-owner-approve', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
   { method: 'POST', path: '/chapters/:id/co-owner-reject', access: 'ROLES', allowed: [RoleCode.MANGAKA] },
@@ -432,6 +436,12 @@ export const ROUTE_RULES: RouteRule[] = [
   },
   { method: 'GET', path: '/health/live', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/health/ready', access: 'PUBLIC', allowed: [] },
+  {
+    method: 'GET',
+    path: '/magazines',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
   { method: 'GET', path: '/mangaka-reviews', access: 'AUTH', allowed: [] },
   { method: 'POST', path: '/mangaka-reviews', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   {
@@ -498,6 +508,7 @@ export const ROUTE_RULES: RouteRule[] = [
     allowed: [RoleCode.MANGAKA, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
   },
   { method: 'GET', path: '/public/chapters/:id/pages', access: 'PUBLIC', allowed: [] },
+  { method: 'GET', path: '/public/magazines', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/public/series', access: 'PUBLIC', allowed: [] },
   { method: 'GET', path: '/public/series/:id', access: 'PUBLIC', allowed: [] },
   {

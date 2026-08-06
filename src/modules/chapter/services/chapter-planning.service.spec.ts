@@ -17,7 +17,7 @@ describe('ChapterPlanningService', () => {
   const crudService = { updateChapter: jest.fn(), deleteChapter: jest.fn() }
   const scheduleService = { setSchedule: jest.fn(), extendDeadline: jest.fn() }
   const holdService = { hold: jest.fn(), resume: jest.fn() }
-  const queryService = { getOne: jest.fn() }
+  const queryService = { getOneUnchecked: jest.fn() }
   const service = new ChapterPlanningService(
     creationService as never,
     crudService as never,
@@ -30,7 +30,7 @@ describe('ChapterPlanningService', () => {
     jest.clearAllMocks()
     creationService.create.mockResolvedValue(chapter)
     crudService.updateChapter.mockResolvedValue(chapter)
-    queryService.getOne.mockResolvedValue({ id: 'chapter-1' })
+    queryService.getOneUnchecked.mockResolvedValue({ id: 'chapter-1' })
   })
 
   it('maps create and update results to the public chapter shape', async () => {
@@ -50,7 +50,7 @@ describe('ChapterPlanningService', () => {
     await expect(service.extendDeadline('user-1', 'chapter-1', {} as never)).resolves.toEqual({ id: 'chapter-1' })
     expect(scheduleService.setSchedule).toHaveBeenCalledWith('user-1', 'chapter-1', {})
     expect(scheduleService.extendDeadline).toHaveBeenCalledWith('user-1', 'chapter-1', {})
-    expect(queryService.getOne).toHaveBeenCalledTimes(2)
+    expect(queryService.getOneUnchecked).toHaveBeenCalledTimes(2)
   })
 
   it('delegates delete, hold and resume commands', async () => {

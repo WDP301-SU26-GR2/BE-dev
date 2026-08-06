@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { AuditEntityType, PublicationType, SeriesStatus } from '@prisma/client'
 import { AuditService } from 'src/modules/audit/audit.service'
-import { MagazineRegistryService } from 'src/modules/app-config/services/magazine-registry.service'
+import { MagazineRegistryService } from 'src/modules/magazine/magazine.service'
 import { normalizeMagazine } from 'src/core/http/schemas/magazine.schema'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { SeriesQueryRepository } from '../repositories/series-query.repository'

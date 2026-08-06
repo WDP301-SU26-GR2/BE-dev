@@ -102,6 +102,34 @@ describe('RankingAggregateService', () => {
     )
   })
 
+  it('collapses internal magazine whitespace for the scoped query and cache key', async () => {
+    const { service, repository, cacheService } = make()
+    repository.findReflectedScopedPeriodsInRange.mockResolvedValue([])
+    repository.findRankingRecordsByPeriodIds.mockResolvedValue([])
+    repository.findSeriesTitlesByIds.mockResolvedValue([])
+
+    await service.getAggregate({
+      magazine: 'Weekly  Jump',
+      publicationType: PublicationType.WEEKLY,
+      level: 'YEAR',
+      year: 2026
+    })
+
+    expect(repository.findReflectedScopedPeriodsInRange).toHaveBeenCalledWith(
+      'Weekly Jump',
+      PublicationType.WEEKLY,
+      new Date('2026-01-01T00:00:00.000Z'),
+      new Date('2027-01-01T00:00:00.000Z')
+    )
+    const expectedHash = createHash('sha256').update('Weekly Jump').digest('hex')
+    expect(cacheService.getOrSet).toHaveBeenCalledWith(
+      'ranking',
+      `aggregate:${expectedHash}:WEEKLY:YEAR:2026:_`,
+      3600,
+      expect.any(Function)
+    )
+  })
+
   it('excludes non-reflected, foreign, and legacy periods by relying on the scoped repository query', async () => {
     const { service, repository } = make()
     repository.findReflectedScopedPeriodsInRange.mockResolvedValue([])

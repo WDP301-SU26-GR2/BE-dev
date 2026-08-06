@@ -13,7 +13,7 @@ import { SeriesNotFoundException, SeriesSlotNotEditableException } from './error
 import {
   MagazineNotRegisteredException,
   PublicationTypeNotSupportedException
-} from '../app-config/errors/magazine.errors'
+} from '../magazine/errors/magazine.errors'
 
 @ApiTags('admin/series')
 @ApiBearerAuth()

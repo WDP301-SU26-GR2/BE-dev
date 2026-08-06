@@ -69,6 +69,26 @@ export class AppConfigService {
     return toAppConfigRes(updated)
   }
 
+  // Danh mục tạp chí lưu ở field `magazines[]` của AppConfig singleton. AppConfig SỞ HỮU document,
+  // nên nó expose accessor cho MagazineModule dùng (qua service — không xuyên repo, giữ boundary AGENTS §5).
+  async getMagazines(): Promise<AppConfig['magazines']> {
+    return (await this.getRow()).magazines ?? []
+  }
+
+  async replaceMagazines(
+    magazines: AppConfig['magazines'],
+    actorId: string
+  ): Promise<{ configId: string; magazines: AppConfig['magazines'] }> {
+    let current = await this.getRow()
+    if (!(await this.appConfigRepository.existsById(current.id))) {
+      this.cached = null
+      current = await this.getRow()
+    }
+    const updated = await this.appConfigRepository.update(current.id, { magazines, updatedBy: actorId })
+    this.cached = null
+    return { configId: current.id, magazines: updated.magazines ?? [] }
+  }
+
   private async getRow(): Promise<AppConfig> {
     const now = Date.now()
     if (this.cached && this.cached.expiresAt > now) return this.cached.row

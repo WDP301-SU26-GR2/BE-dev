@@ -116,10 +116,18 @@ export class ChapterController {
   }
 
   @Get('chapters')
-  @ApiOperation({ summary: 'List chapter theo seriesId (query)' })
+  @ApiOperation({
+    summary: 'List chapter theo seriesId (scoped: chủ sở hữu / editor phụ trách / trợ lý đang cộng tác)'
+  })
+  @ApiErrors(ChapterNotFoundException, ChapterAccessDeniedException)
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.ASSISTANT, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: ChapterListResDto })
-  listBySeries(@Query('seriesId') seriesId: string) {
-    return this.chapterService.listBySeries(seriesId)
+  listBySeries(
+    @Query('seriesId') seriesId: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.chapterService.listBySeries({ userId, roleName }, seriesId)
   }
 
   @Get('chapters/:id/progress')
@@ -133,11 +141,19 @@ export class ChapterController {
 
   @Get('chapters/:id')
   @ApiObjectIdParams('id')
-  @ApiOperation({ summary: 'Chi tiết 1 chapter (kèm manuscript/schedule)' })
-  @ApiErrors(ChapterNotFoundException)
+  @ApiOperation({
+    summary:
+      'Chi tiết 1 chapter (kèm manuscript/schedule) — scoped: chủ sở hữu / editor phụ trách / trợ lý đang cộng tác'
+  })
+  @ApiErrors(ChapterNotFoundException, ChapterAccessDeniedException)
+  @Roles(RoleName.MANGAKA, RoleName.EDITOR, RoleName.ASSISTANT, RoleName.BOARD_MEMBER, RoleName.SUPER_ADMIN)
   @ZodResponse({ status: 200, type: ChapterResDto })
-  getOne(@Param('id', ChapterIdParamPipe) id: string) {
-    return this.chapterService.getOne(id)
+  getOne(
+    @Param('id', ChapterIdParamPipe) id: string,
+    @ActiveUser('userId') userId: string,
+    @ActiveUser('roleName') roleName: string
+  ) {
+    return this.chapterService.getOne({ userId, roleName }, id)
   }
 
   @Put('chapters/:id/schedule')

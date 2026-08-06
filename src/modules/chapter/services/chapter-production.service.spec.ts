@@ -29,7 +29,7 @@ describe('ChapterProductionService', () => {
   }
   const publishService = { publish: jest.fn() }
   const coOwnerService = { approve: jest.fn(), reject: jest.fn() }
-  const queryService = { getOne: jest.fn() }
+  const queryService = { getOneUnchecked: jest.fn() }
   const service = new ChapterProductionService(
     pageService as never,
     reviewService as never,
@@ -43,7 +43,7 @@ describe('ChapterProductionService', () => {
     pageService.createPage.mockResolvedValue(page)
     pageService.listPages.mockResolvedValue([page])
     pageService.updatePage.mockResolvedValue(page)
-    queryService.getOne.mockResolvedValue({ id: 'chapter-1' })
+    queryService.getOneUnchecked.mockResolvedValue({ id: 'chapter-1' })
   })
 
   it('maps page write and list results while preserving the display-file contract', async () => {
@@ -87,6 +87,6 @@ describe('ChapterProductionService', () => {
       )
     ).resolves.toEqual({ id: 'chapter-1' })
     expect(command).toHaveBeenCalledWith('user-1', 'chapter-1', ...extra)
-    expect(queryService.getOne).toHaveBeenCalledWith('chapter-1')
+    expect(queryService.getOneUnchecked).toHaveBeenCalledWith('chapter-1')
   })
 })

@@ -30,11 +30,11 @@ export class ChapterService {
   deleteChapter(userId: string, id: string) {
     return this.planningService.deleteChapter(userId, id)
   }
-  getOne(chapterId: string) {
-    return this.queryService.getOne(chapterId)
+  getOne(user: { userId: string; roleName: string }, chapterId: string) {
+    return this.queryService.getOne(user, chapterId)
   }
-  listBySeries(seriesId: string) {
-    return this.queryService.listBySeries(seriesId)
+  listBySeries(user: { userId: string; roleName: string }, seriesId: string) {
+    return this.queryService.listBySeries(user, seriesId)
   }
   setSchedule(userId: string, chapterId: string, body: SetScheduleBodyType) {
     return this.planningService.setSchedule(userId, chapterId, body)

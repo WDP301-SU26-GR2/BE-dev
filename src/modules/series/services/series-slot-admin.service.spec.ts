@@ -1,7 +1,7 @@
 import { PublicationType, SeriesStatus } from '@prisma/client'
 import { SeriesSlotAdminService } from './series-slot-admin.service'
 import { SeriesNotFoundException, SeriesSlotNotEditableException } from '../errors/series.errors'
-import { MagazineNotRegisteredException } from 'src/modules/app-config/errors/magazine.errors'
+import { MagazineNotRegisteredException } from 'src/modules/magazine/errors/magazine.errors'
 
 const SID = 'a'.repeat(24) // ObjectId hợp lệ (guard isObjectId chạy trước findById)
 

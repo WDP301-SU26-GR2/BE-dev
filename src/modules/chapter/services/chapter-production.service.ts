@@ -40,36 +40,36 @@ export class ChapterProductionService {
 
   async submit(userId: string, chapterId: string) {
     await this.reviewService.submit(userId, chapterId)
-    return this.queryService.getOne(chapterId)
+    return this.queryService.getOneUnchecked(chapterId)
   }
 
   async requestRevision(userId: string, chapterId: string, reason: string) {
     await this.reviewService.requestRevision(userId, chapterId, reason)
-    return this.queryService.getOne(chapterId)
+    return this.queryService.getOneUnchecked(chapterId)
   }
 
   async resubmit(userId: string, chapterId: string) {
     await this.reviewService.resubmit(userId, chapterId)
-    return this.queryService.getOne(chapterId)
+    return this.queryService.getOneUnchecked(chapterId)
   }
 
   async approve(userId: string, chapterId: string) {
     await this.reviewService.approve(userId, chapterId)
-    return this.queryService.getOne(chapterId)
+    return this.queryService.getOneUnchecked(chapterId)
   }
 
   async publish(userId: string, chapterId: string) {
     await this.publishService.publish(userId, chapterId)
-    return this.queryService.getOne(chapterId)
+    return this.queryService.getOneUnchecked(chapterId)
   }
 
   async coOwnerApprove(userId: string, chapterId: string) {
     await this.coOwnerService.approve(userId, chapterId)
-    return this.queryService.getOne(chapterId)
+    return this.queryService.getOneUnchecked(chapterId)
   }
 
   async coOwnerReject(userId: string, chapterId: string, reason: string) {
     await this.coOwnerService.reject(userId, chapterId, reason)
-    return this.queryService.getOne(chapterId)
+    return this.queryService.getOneUnchecked(chapterId)
   }
 }

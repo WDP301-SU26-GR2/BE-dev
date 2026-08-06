@@ -37,12 +37,12 @@ export class ChapterPlanningService {
 
   async setSchedule(userId: string, chapterId: string, body: SetScheduleBodyType) {
     await this.scheduleService.setSchedule(userId, chapterId, body)
-    return this.queryService.getOne(chapterId)
+    return this.queryService.getOneUnchecked(chapterId)
   }
 
   async extendDeadline(userId: string, chapterId: string, body: ExtendDeadlineBodyType) {
     await this.scheduleService.extendDeadline(userId, chapterId, body)
-    return this.queryService.getOne(chapterId)
+    return this.queryService.getOneUnchecked(chapterId)
   }
 
   hold(userId: string, chapterId: string, body: HoldChapterBodyType) {
