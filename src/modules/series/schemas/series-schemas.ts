@@ -76,6 +76,21 @@ export const ReasonBodySchema = extendApi(z.object({ reason: z.string().min(1).m
   description: 'Lý do (revision/reject/withdraw)'
 })
 
+// Spec 2026-08-06 — Group E-d: Sửa slot bộ truyện
+export const UpdateSeriesSlotBodySchema = extendApi(
+  z
+    .object({
+      magazine: z.string().optional().describe('Tên tạp chí (sau normalize)'),
+      startIssueNumber: z.number().int().positive().optional().describe('Số kỳ bắt đầu'),
+      publicationType: zEnum(PublicationType, 'PublicationType').optional().describe('Nhịp phát hành')
+    })
+    .strict(),
+  {
+    title: 'UpdateSeriesSlotBody',
+    description: 'PATCH slot series — Super Admin sửa magazine/startIssueNumber/publicationType'
+  }
+)
+
 export const SeriesResSchema = extendApi(
   z.object({
     id: z.string(),
@@ -141,7 +156,8 @@ export const SeriesResSchema = extendApi(
         createdAt: z.string().describe('ISO 8601')
       })
       .nullable()
-      .describe('Hồ sơ proposal (nhúng trong Series); null nếu chưa có')
+      .describe('Hồ sơ proposal (nhúng trong Series); null nếu chưa có'),
+    message: z.string().optional().describe('Mô tả hành động vừa thực hiện — chỉ có ở response mutation')
   }),
   {
     title: 'SeriesRes',
@@ -152,6 +168,7 @@ export const SeriesResSchema = extendApi(
 export type CreateProposalBodyType = z.infer<typeof CreateProposalBodySchema>
 export type UpdateProposalBodyType = z.infer<typeof UpdateProposalBodySchema>
 export type UpdateSeriesMetadataBodyType = z.infer<typeof UpdateSeriesMetadataBodySchema>
+export type UpdateSeriesSlotBodyType = z.infer<typeof UpdateSeriesSlotBodySchema>
 export type ReasonBodyType = z.infer<typeof ReasonBodySchema>
 export type ListSeriesQueryType = z.infer<typeof ListSeriesQuerySchema>
 
@@ -185,7 +202,9 @@ export const SeriesListItemSchema = extendApi(
     coOwnerId: true,
     parentSeriesId: true,
     relationshipType: true,
-    startIssueNumber: true
+    startIssueNumber: true,
+    // `message` chỉ có nghĩa ở response mutation (reopen…), KHÔNG thuộc list item.
+    message: true
   }),
   { title: 'SeriesListItemRes', description: 'Series item gon cho danh sach; detail xem GET /series/:id' }
 )

@@ -51,6 +51,7 @@ import { RuntimeMetricsInterceptor } from './core/http/interceptors/runtime-metr
     UsersModule,
     NotificationModule,
     ReviewsModule,
+    AppConfigModule, // @Global — exports AppConfigService + MagazineRegistryService cho toàn hệ thống
     SeriesModule,
     SeriesRequestModule,
     StoryboardModule,
@@ -69,7 +70,6 @@ import { RuntimeMetricsInterceptor } from './core/http/interceptors/runtime-metr
     PaymentModule,
     AuditModule,
     RevisionModule,
-    AppConfigModule,
     PublicationModule,
     DashboardModule,
     PublicModule,

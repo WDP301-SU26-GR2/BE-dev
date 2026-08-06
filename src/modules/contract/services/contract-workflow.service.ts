@@ -7,7 +7,7 @@ import type { TransactionContext } from 'src/infrastructure/database/transaction
 import { canTransitionContract } from '../contract.constant'
 import { ContractMessages } from '../contract.messages'
 import { ContractRepo } from '../contract.repo'
-import { AssignRepresentativeBodyDto, CreateContractCommentBodyDto } from '../dto/contract.dto'
+import { AssignRepresentativeBodyDto, CreateContractCommentBodyDto, VoidContractBodyDto } from '../dto/contract.dto'
 import { ContractErrors } from '../errors/contract.errors'
 import { ContractRepresentativeService } from './contract-representative.service'
 
@@ -19,6 +19,46 @@ export class ContractWorkflowService {
     private readonly auditService: AuditService,
     private readonly representativeService?: ContractRepresentativeService
   ) {}
+
+  // Spec 2026-08-06 — Group F: Void contract draft
+  async void(contractId: string, editorId: string, dto: VoidContractBodyDto) {
+    if (!isObjectId(contractId)) throw ContractErrors.NotFound()
+    const contract = await this.contractRepo.findById(contractId)
+    if (!contract) throw ContractErrors.NotFound()
+    if (contract.editorId !== editorId) throw ContractErrors.UnauthorizedEditor()
+    this.assertTransition(contract.status, ContractStatus.VOIDED)
+
+    const previousStatus = contract.status
+    const voided = await this.contractRepo.updateStatus(contractId, ContractStatus.VOIDED)
+    await this.auditTransition(contractId, previousStatus, ContractStatus.VOIDED, editorId, dto.reason)
+
+    // Notify Mangaka only if contract was in BOARD_REVIEW (Mangaka knows about it)
+    if (previousStatus === ContractStatus.BOARD_REVIEW && contract.mangakaId) {
+      await this.notificationService.notifySafe({
+        recipientId: contract.mangakaId,
+        type: NotificationType.CONTRACT,
+        referenceId: contractId,
+        referenceType: 'CONTRACT_VOIDED',
+        content: ContractMessages.notification.contractVoided
+      })
+    }
+
+    // Notify roster if contract was in BOARD_REVIEW
+    if (previousStatus === ContractStatus.BOARD_REVIEW) {
+      const roster = await this.contractRepo.findRosterForContract(contractId)
+      for (const recipientId of roster ?? []) {
+        await this.notificationService.notifySafe({
+          recipientId,
+          type: NotificationType.CONTRACT,
+          referenceId: contractId,
+          referenceType: 'CONTRACT_VOIDED',
+          content: ContractMessages.notification.contractVoided
+        })
+      }
+    }
+
+    return voided
+  }
 
   async submitForReview(contractId: string, editorId: string) {
     if (!isObjectId(contractId)) throw ContractErrors.NotFound()

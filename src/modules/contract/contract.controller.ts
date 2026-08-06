@@ -23,7 +23,8 @@ import {
   EditorUpdateContractBodyDto,
   RejectContractBodyDto,
   ReportRevenueBodyDto,
-  SignContractWithOtpBodyDto
+  SignContractWithOtpBodyDto,
+  VoidContractBodyDto
 } from './dto/contract.dto'
 
 @ApiTags('contracts')
@@ -300,5 +301,15 @@ export class ContractController {
     @Body() body: ReportRevenueBodyDto
   ) {
     return this.contractService.reportRevenue(id, userId, roleName, body)
+  }
+
+  // Spec 2026-08-06 — Group F: Void contract draft
+  @ApiOperation({ summary: 'Editor huỷ hợp đồng nháp → VOIDED' })
+  @Post(':id/void')
+  @Roles(RoleName.EDITOR)
+  @ApiErrors(ContractErrors.NotFound(), ContractErrors.UnauthorizedEditor(), ContractErrors.InvalidContractTransition())
+  @ZodResponse({ status: 201, type: ContractResDto })
+  voidContract(@Param('id') id: string, @ActiveUser('userId') userId: string, @Body() body: VoidContractBodyDto) {
+    return this.contractService.voidContract(id, userId, body)
   }
 }

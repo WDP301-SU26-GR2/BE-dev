@@ -40,7 +40,8 @@ export const StoryboardResSchema = extendApi(
     status: zEnum(StoryboardStatus, 'StoryboardStatus'),
     version: z.number().describe('Tăng mỗi lần resubmit'),
     pages: z.array(StoryboardPageSchema).describe('Các trang vẽ thô; fileUrl là object key (R2)'),
-    submittedAt: z.string().nullable().describe('ISO 8601; null khi chưa submit')
+    submittedAt: z.string().nullable().describe('ISO 8601; null khi chưa submit'),
+    message: z.string().optional().describe('Mô tả hành động vừa thực hiện — chỉ có ở response mutation')
   }),
   {
     title: 'StoryboardRes',

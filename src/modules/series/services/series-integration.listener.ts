@@ -43,7 +43,7 @@ export class SeriesIntegrationListener {
           } else {
             await this.seriesStateService.transition(seriesId, SeriesStatus.REJECTED, {
               changedBy: null,
-              reason: 'Board rejected serialization'
+              reason: SeriesMessages.reason.boardRejectedSerialization
             })
             await this.notifyRejected(seriesId)
           }

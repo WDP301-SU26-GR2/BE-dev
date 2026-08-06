@@ -2,6 +2,18 @@
 // Plain strings only (no NestJS imports). HTTP mapping (status + path) stays in
 // `errors/chapter.errors.ts`, which references the `error` codes below.
 export const ChapterMessages = {
+  // Response message tuỳ biến (FE phân biệt hành động)
+  response: {
+    manuscriptSubmitted: 'Đã nộp bản thảo cho biên tập viên',
+    manuscriptRevisionRequested: 'Đã gửi yêu cầu chỉnh sửa bản thảo',
+    manuscriptResubmitted: 'Đã nộp lại bản thảo',
+    manuscriptApproved: 'Đã duyệt bản thảo — sẵn sàng in',
+    chapterPublished: 'Đã xuất bản chương truyện',
+    chapterDeleted: 'Đã xoá chương',
+    stageReopened: 'Đã mở lại giai đoạn sản xuất',
+    stageCompleted: 'Đã hoàn thành giai đoạn',
+    stageRemoved: 'Đã xoá giai đoạn'
+  },
   // In-app notification content (notification layer).
   notification: {
     taskRemovedWithPage: 'Trang chứa công việc của bạn đã bị xoá',
@@ -78,12 +90,6 @@ export const ChapterMessages = {
     stageReopenNotAllowed: 'Error.StageReopenNotAllowed',
     stageNotInsertable: 'Error.StageNotInsertable',
     finalCheckNotCompletable: 'Error.FinalCheckNotCompletable'
-  },
-  response: {
-    chapterDeleted: 'Đã xoá chương',
-    stageReopened: 'Đã mở lại giai đoạn sản xuất',
-    stageCompleted: 'Đã hoàn thành giai đoạn',
-    stageRemoved: 'Đã xoá giai đoạn'
   },
   // Spec 30: lý do cho cascade hold/resume theo Series HIATUS.
   reason: {

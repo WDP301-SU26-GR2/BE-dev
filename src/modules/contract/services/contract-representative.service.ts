@@ -53,10 +53,21 @@ export class ContractRepresentativeService {
   }
 
   async addComment(contractId: string, authorId: string, content: string) {
-    await this.loadBoardReviewContract(contractId)
+    const contract = await this.loadBoardReviewContract(contractId)
     const roster = await this.loadRoster(contractId)
     if (!roster.includes(authorId)) throw ContractErrors.NotInContractBoardRoster()
-    return this.contractRepo.createComment(contractId, authorId, content)
+    const created = await this.contractRepo.createComment(contractId, authorId, content)
+    // Notify Editor when Board member adds a comment
+    if (contract.editorId) {
+      await this.notificationService.notifySafe({
+        recipientId: contract.editorId,
+        type: NotificationType.CONTRACT,
+        referenceId: contractId,
+        referenceType: 'CONTRACT_COMMENT_ADDED',
+        content: ContractMessages.notification.commentAdded
+      })
+    }
+    return created
   }
 
   async listComments(contractId: string, userId: string, roleName: string) {

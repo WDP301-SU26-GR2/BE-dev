@@ -78,6 +78,14 @@ export const CreateBoardDecisionBodySchema = extendApi(
       decisionType: zEnum($Enums.DecisionType, 'DecisionType')
     })
     .superRefine((value, ctx) => {
+      // D2 (Spec 2026-08-06): SERIES_CONTRACT_APPROVAL chỉ dùng nội bộ (nhãn PDF hợp đồng), FE không tạo qua API.
+      if (value.decisionType === $Enums.DecisionType.SERIES_CONTRACT_APPROVAL) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['decisionType'],
+          message: 'SERIES_CONTRACT_APPROVAL là giá trị nội bộ, không tạo trực tiếp qua API'
+        })
+      }
       if (value.decisionType === $Enums.DecisionType.SERIALIZATION) {
         const details = (value.details ?? {}) as Record<string, unknown>
         if (typeof details.magazine !== 'string' || details.magazine.trim() === '') {

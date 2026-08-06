@@ -174,6 +174,26 @@ const clearRateLimitKeys = async () => {
 // Roles + admin — tái tạo logic src/initialScript/index.ts (KHÔNG import nó vì nó
 // throw khi roles tồn tại).
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Seed magazine registry với tất cả tạp chí mà flow test sử dụng.
+ * Spec 2026-08-06 Group E: board decision gate C2 yêu cầu magazine phải có trong danh mục.
+ * grep magazines: 'Jump', 'Monthly Mag', 'EV Jump', 'Flip', 'FT Jump', '2PHASE Smoke', 'Up Mag'
+ */
+const seedMagazines = async () => {
+  const magazines = [
+    { name: 'Jump', publicationTypes: ['WEEKLY', 'MONTHLY', 'IRREGULAR'] },
+    { name: 'Monthly Mag', publicationTypes: ['WEEKLY', 'MONTHLY', 'IRREGULAR'] },
+    { name: 'EV Jump', publicationTypes: ['WEEKLY', 'MONTHLY', 'IRREGULAR'] },
+    { name: 'Flip', publicationTypes: ['WEEKLY', 'MONTHLY', 'IRREGULAR'] },
+    { name: 'FT Jump', publicationTypes: ['WEEKLY', 'MONTHLY', 'IRREGULAR'] },
+    { name: 'FT Jump SQ', publicationTypes: ['WEEKLY', 'MONTHLY', 'IRREGULAR'] },
+    { name: '2PHASE Smoke', publicationTypes: ['WEEKLY', 'MONTHLY', 'IRREGULAR'] },
+    { name: 'Up Mag', publicationTypes: ['WEEKLY', 'MONTHLY', 'IRREGULAR'] }
+  ]
+  await setAppConfig({ magazines })
+}
+
 export const seedRolesAndAdmin = async () => {
   // Idempotent: role KHÔNG bị wipe (xem WIPE_ORDER) → chỉ tạo khi thiếu, giữ ObjectId
   // ổn định cho RoleService cache trong server đang chạy.
@@ -189,6 +209,10 @@ export const seedRolesAndAdmin = async () => {
   const missing = ROLE_SEED.filter((r) => !existingCodes.has(r.code))
   if (missing.length) await prisma.role.createMany({ data: missing })
   await makeUser(RoleCode.SUPER_ADMIN, { email: process.env.ADMIN_EMAIL ?? 'admin@flowtest.local' })
+
+  // Seed magazine registry: all magazines used by flow fixtures (Spec 2026-08-06 Group E).
+  // If a flow uses a magazine not in this list → gate C2 rejects with 422.
+  await seedMagazines()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -546,7 +570,10 @@ export const makeBoardDecision = async (o: {
       totalVotes: 0,
       approveCount: 0,
       rejectCount: 0,
-      quorumMet: false
+      quorumMet: false,
+      // BẮT BUỘC khởi tạo [] như production createDecision: pushVoteIfNotVoted (O-1) lọc `votes: { none: ... }`
+      // KHÔNG khớp document có `votes` ABSENT (Mongo null-vs-absent, AGENTS §10) ⇒ vote đầu tiên trả null → 409.
+      votes: []
     }
   })
 }
@@ -725,6 +752,7 @@ export const setAppConfig = async (
     coOwnerApprovalGraceDays: number
     assignmentGraceDays: number
     taskOverdueGraceHours: number
+    magazines: Array<{ name: string; publicationTypes: string[] }>
   }>
 ) => {
   const existing = await prisma.appConfig.findFirst()

@@ -8,6 +8,7 @@ import {
 } from './dto/board.dto'
 import { VoteDataType } from './schemas/board.model'
 import { $Enums, Prisma } from '@prisma/client'
+import { TERMINAL_DECISION_RESULTS } from './board.constant'
 
 @Injectable()
 export class BoardRepository {
@@ -27,7 +28,10 @@ export class BoardRepository {
   }
 
   findSeriesEditorById(id: string) {
-    return this.prisma.series.findUnique({ where: { id }, select: { id: true, editorId: true } })
+    return this.prisma.series.findUnique({
+      where: { id },
+      select: { id: true, editorId: true, status: true, magazine: true }
+    })
   }
 
   async findManySessions(filter?: { participantId?: string; status?: $Enums.BoardSessionStatus }) {
@@ -84,6 +88,32 @@ export class BoardRepository {
 
   async findReportById(id: string) {
     return this.prisma.seriesReport.findUnique({ where: { id } })
+  }
+
+  /**
+   * Tìm quyết định chưa terminal (không phải APPROVED/REJECTED/EXPIRED) cho một series.
+   * Dùng cho gate C1: chặn tạo decision mới khi đã có pending.
+   *
+   * Sử dụng `notIn` thay vì `in` để match cả null/absent (Prisma MongoDB).
+   */
+  async findOpenDecisionBySeries(targetSeriesId: string) {
+    return this.prisma.boardDecision.findFirst({
+      where: {
+        targetSeriesId,
+        result: { notIn: ['APPROVED', 'REJECTED', 'EXPIRED'] }
+      }
+    })
+  }
+
+  /**
+   * Tìm báo cáo theo boardDecisionId.
+   * Dùng cho gate C4: báo cáo trùng quyết định.
+   */
+  async findReportByDecisionId(boardDecisionId: string) {
+    return this.prisma.seriesReport.findMany({
+      where: { boardDecisionId },
+      orderBy: { createdAt: 'desc' }
+    })
   }
 
   async findExpiredUpcomingSessions() {
@@ -161,11 +191,19 @@ export class BoardRepository {
     })
   }
 
-  async pushVoteToDecision(decisionId: string, vote: VoteDataType) {
-    return this.prisma.boardDecision.update({
-      where: { id: decisionId },
+  /**
+   * O-1 — chèn phiếu bằng MỘT lệnh ghi có điều kiện. Bộ lọc `votes: { none: { voterId } }` khiến
+   * hai request của cùng một thành viên về đồng thời chỉ có đúng một cái khớp document, nên không
+   * còn cảnh cả hai cùng qua bước "đọc rồi kiểm" rồi cùng đẩy phiếu vào `votes[]`.
+   * Trả `null` khi thua cuộc đua để service ném `VoterAlreadyVoted`.
+   */
+  async pushVoteIfNotVoted(decisionId: string, vote: VoteDataType) {
+    const { count } = await this.prisma.boardDecision.updateMany({
+      where: { id: decisionId, votes: { none: { voterId: vote.voterId } } },
       data: { votes: { push: vote } }
     })
+    if (count === 0) return null
+    return this.findDecisionById(decisionId)
   }
 
   async updateDecisionCounters(decisionId: string, data: Prisma.BoardDecisionUpdateInput) {
@@ -173,6 +211,22 @@ export class BoardRepository {
       where: { id: decisionId },
       data
     })
+  }
+
+  /**
+   * O-2 — chỉ chốt khi quyết định CHƯA terminal. Trả về số document thực sự đổi: `0` nghĩa là một
+   * request khác đã chốt trước, khi đó bên thua tuyệt đối không được emit `BoardDecisionFinalized`
+   * (nếu không, listener series sẽ chạy hai lượt cho cùng một quyết định).
+   */
+  async finalizeDecisionCountersIfNotTerminal(
+    decisionId: string,
+    data: Prisma.BoardDecisionUpdateManyMutationInput
+  ): Promise<number> {
+    const { count } = await this.prisma.boardDecision.updateMany({
+      where: { id: decisionId, result: { notIn: TERMINAL_DECISION_RESULTS } },
+      data
+    })
+    return count
   }
 
   async findNonTerminalDecisionsBySession(sessionId: string) {

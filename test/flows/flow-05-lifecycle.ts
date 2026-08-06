@@ -4,7 +4,7 @@
  *
  * Nhóm case:
  *   LC1 Hiatus (8)          — enter/resume + TIME_BOUND pause/shift (B-CON-10) + cron hiatus-too-long
- *   LC2 Board decisions (16)— CONTINUE/CHANGE_FORMAT/COMPLETE/CANCEL apply lên Series qua event chain
+ *   LC2 Board decisions (16)— SERIALIZATION/CHANGE_FORMAT/COMPLETE/CANCEL apply lên Series qua event chain
  *   LC3 Ending + misc (12)  — finalize-ending, force-cancel, propose-completion, terminal guards, audit
  *
  * Chain THẬT (không fastForward status Series ở nhánh board): Board vote qua API →
@@ -90,7 +90,8 @@ const main = async () => {
     targetSeriesId: string,
     details: Record<string, unknown> = {},
     endingChapterAllowance?: number,
-    voters: string[] = boardToks
+    voters: string[] = boardToks,
+    voteValue: 'APPROVE' | 'REJECT' = 'APPROVE'
   ) => {
     const sessionId = await openVotingSession()
     const rd = await req('POST', '/board/decisions', {
@@ -107,7 +108,7 @@ const main = async () => {
     if (rd.status !== 201) throw new Error(`createDecision ${rd.status} ${rd.raw.slice(0, 200)}`)
     const decisionId = rd.json.data.id as string
     for (const t of voters) {
-      await req('POST', `/board/decisions/${decisionId}/vote`, { token: t, body: { voteValue: 'APPROVE' } })
+      await req('POST', `/board/decisions/${decisionId}/vote`, { token: t, body: { voteValue } })
     }
     await sleep(800) // listener transition + notify async
     return { sessionId, decisionId }
@@ -217,17 +218,39 @@ const main = async () => {
   })
 
   // ══════════════════════ LC2 — BOARD DECISIONS ══════════════════════
-  section('LC2 Board decisions apply lên Series (CONTINUE/CHANGE_FORMAT/COMPLETE/CANCEL)')
+  section('LC2 Board decisions apply lên Series (SERIALIZATION/CHANGE_FORMAT/COMPLETE/CANCEL)')
 
+  // F05-009: CANCELLATION bị bỏ phiếu REJECT → series giữ nguyên SERIALIZED
   const sCont = await makeSeriesAt(SeriesStatus.SERIALIZED, { mangakaId: m1.id, editorId: e1.id })
-  const { decisionId: decCont } = await boardDecide(DecisionType.CONTINUE, sCont.id)
+  const { decisionId: decCont } = await boardDecide(
+    DecisionType.CANCELLATION,
+    sCont.id,
+    {},
+    undefined,
+    boardToks,
+    'REJECT'
+  )
   const contDec = await prisma.boardDecision.findUnique({ where: { id: decCont } })
   ok(
-    'F05-009 CONTINUE approve → series GIỮ SERIALIZED + decision APPROVED',
+    'F05-009 CANCELLATION bị REJECT → series GIỮ SERIALIZED + decision REJECTED',
     (await prisma.series.findUnique({ where: { id: sCont.id } }))?.status === SeriesStatus.SERIALIZED &&
-      contDec?.result === 'APPROVED',
+      contDec?.result === 'REJECTED',
     `decision=${String(contDec?.result)}`
   )
+
+  // F05-009b: decisionType CONTINUE đã bị xoá khỏi enum → 422
+  const sessionBadType = await openVotingSession()
+  const rBadType = await req('POST', '/board/decisions', {
+    token: e1Tok,
+    body: {
+      boardSessionId: sessionBadType,
+      targetSeriesId: sCont.id,
+      decisionType: 'CONTINUE',
+      details: null,
+      allowedEditorIds: [b1.id, b2.id, b3.id]
+    }
+  })
+  ok('F05-009b decisionType CONTINUE đã bị xoá → 422', rBadType.status === 422, `status=${rBadType.status}`)
 
   const sFmt = await makeSeriesAt(SeriesStatus.SERIALIZED, {
     mangakaId: m1.id,
@@ -535,13 +558,30 @@ const main = async () => {
     `decisionResult=${String(decQAfter?.result)}`
   )
 
-  await boardDecide(DecisionType.CANCELLATION, sEnd.id, { endingChapterAllowance: 2 }, 2)
+  // Spec 2026-08-06 C2: CANCELLATION chỉ hợp lệ khi series SERIALIZED/HIATUS. sEnd đã CANCELLING (F05-025)
+  // ⇒ quyết định CANCELLATION lần 2 bị chặn NGAY KHI TẠO (409), không còn "no-op ở listener" như trước.
+  const sess034 = await openVotingSession()
+  const rReCancel = await req('POST', '/board/decisions', {
+    token: e1Tok,
+    body: {
+      boardSessionId: sess034,
+      targetSeriesId: sEnd.id,
+      decisionType: DecisionType.CANCELLATION,
+      details: { endingChapterAllowance: 2 },
+      allowedEditorIds: [b1.id, b2.id, b3.id]
+    }
+  })
+  ok(
+    'F05-034 CANCELLATION lần 2 khi series CANCELLING → 409 (C2 chặn ở tạo)',
+    rReCancel.status === 409,
+    `status=${rReCancel.status}`
+  )
   const sEndHist = await prisma.series.findUnique({ where: { id: sEnd.id } })
   const cancellingEntries = (sEndHist?.statusHistory ?? []).filter(
     (h) => (h as unknown as { toStatus?: string }).toStatus === SeriesStatus.CANCELLING
   )
   ok(
-    'F05-034 decision CANCEL lần 2 → transition no-op (statusHistory chỉ 1 entry CANCELLING)',
+    'F05-034b statusHistory vẫn chỉ 1 entry CANCELLING (series không bị chạm)',
     cancellingEntries.length === 1 && sEndHist?.status === SeriesStatus.CANCELLING,
     `entries=${cancellingEntries.length} status=${String(sEndHist?.status)}`
   )

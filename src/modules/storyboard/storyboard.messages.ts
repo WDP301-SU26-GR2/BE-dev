@@ -2,11 +2,16 @@
 // Plain strings only (no NestJS imports). HTTP mapping (status + path) stays in
 // `errors/storyboard.errors.ts`, which references the `error` codes below.
 export const StoryboardMessages = {
+  // Response message tuỳ biến (FE phân biệt hành động)
   response: {
+    storyboardApproved: 'Đã duyệt bản phác thảo — tác giả có thể bắt đầu vẽ bản chính',
+    storyboardSubmitted: 'Đã nộp bản phác thảo cho biên tập viên',
+    storyboardRevisionRequested: 'Đã gửi yêu cầu chỉnh sửa bản phác thảo',
     chapterStoryboardDeleted: 'Đã xoá bản phác thảo của chương'
   },
   // In-app notification content (notification layer).
   notification: {
+    storyboardSubmitted: 'Tác giả đã nộp bản phác thảo chương — mời bạn xem xét.',
     storyboardRevision: (round: number, reason: string) => `Bản phác thảo cần chỉnh sửa (vòng ${round}): ${reason}`,
     storyboardResubmitted: (round: number) => `Tác giả đã nộp lại bản phác thảo (vòng ${round})`,
     storyboardApproved: 'Bản phác thảo của bạn đã được biên tập viên duyệt. Bạn có thể bắt đầu vẽ bản chính.',

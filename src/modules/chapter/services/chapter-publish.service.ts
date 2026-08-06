@@ -84,6 +84,6 @@ export class ChapterPublishService {
       publishedAt
     })
     await this.cacheService.bumpVersion('pubseries')
-    return res
+    return { ...res, message: ChapterMessages.response.chapterPublished }
   }
 }

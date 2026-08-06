@@ -177,15 +177,18 @@ const main = async () => {
     if (c.connected) {
       const join = await joinSession(sock, session.id, 3000)
       if (join.status === 'SUCCESS') {
-        const waitPromise = waitForEvent<unknown>(sock, 'voteProgressUpdated', 5000).catch(() => null)
-        // Vote via API
+        // BoardGateway dùng Redis adapter (pub/sub). Vote đến qua HTTP (không từ socket này) nên broadcast
+        // đua với việc room-join lan qua Redis — chờ một nhịp để room settle trước khi vote, tránh miss event.
+        await sleep(300)
+        const waitPromise = waitForEvent<unknown>(sock, 'voteProgressUpdated', 8000).catch(() => null)
+        // Vote via API — GIỮ status để chẩn đoán: nếu ev==null vì vote lỗi (không phải race) sẽ lộ voteStatus.
         const { req } = await import('./lib/http.js')
-        await req('POST', `/board/decisions/${decision.id}/vote`, {
+        const rVote = await req('POST', `/board/decisions/${decision.id}/vote`, {
           token: b1Tok,
           body: { voteValue: 'APPROVE' }
         }).catch(() => null)
         const ev = await waitPromise
-        ok('WS6.1 received voteProgressUpdated', ev !== null)
+        ok('WS6.1 received voteProgressUpdated', ev !== null, `voteStatus=${rVote?.status ?? 'threw'}`)
       } else {
         ok('WS6.1 join', false, 'could not join')
       }

@@ -26,6 +26,7 @@ import {
   PageStatus,
   TaskStatus,
   DecisionType,
+  BoardDecisionResult,
   RoleCode,
   SurveyStatus,
   Specialization
@@ -182,10 +183,14 @@ const main = async () => {
   const sPitched = await makeSeriesAt(SeriesStatus.PITCHED, { mangakaId: m1.id, editorId: e1.id })
   // boardDecisionId + contractStart/End là field BẮT BUỘC của POST /contracts (schema thật).
   const preSession = await makeBoardSession({ creatorId: e1.id, allowedEditorIds: [b1.id, b2.id, b3.id] })
+  // Spec 2026-08-06 C1: một series chỉ được có MỘT quyết định CHƯA terminal. `preDecision` chỉ phục vụ
+  // EV-06a (createDraft khi series chưa SERIALIZED → 409, không phụ thuộc result), nên để nó TERMINAL
+  // (REJECTED) — nếu để PENDING sẽ chặn quyết định serial hoá thật ở dưới (409 OpenBoardDecisionExists).
   const preDecision = await makeBoardDecision({
     sessionId: preSession.id,
     decisionType: DecisionType.SERIALIZATION,
-    targetSeriesId: sPitched.id
+    targetSeriesId: sPitched.id,
+    result: BoardDecisionResult.REJECTED
   })
   const draftBody = {
     seriesId: sPitched.id,
@@ -230,8 +235,8 @@ const main = async () => {
     `status=${String(sPitchedAfter?.status)} magazine=${String(sPitchedAfter?.magazine)}`
   )
   // Gate createDraft (commit 6cbd57e) đòi decision phải đúng bộ ba (targetSeriesId, SERIALIZATION, APPROVED).
-  // `preDecision` ở trên cố tình để result=PENDING (nó phục vụ case EV-06a), nên KHÔNG dùng lại được ở đây —
-  // phải trỏ vào chính decision vừa được Board bỏ phiếu duyệt. Đừng "sửa cho xanh" bằng cách nới gate:
+  // `preDecision` ở trên là REJECTED (terminal — xem note C1), KHÔNG dùng lại được ở đây; phải trỏ vào chính
+  // decision vừa được Board bỏ phiếu DUYỆT (`approvedSerializationId`). Đừng "sửa cho xanh" bằng cách nới gate:
   // hợp đồng bắt buộc phải viện dẫn đúng quyết định serial hoá đã được thông qua.
   const rDraftAfter = await req('POST', '/contracts', {
     token: e1Tok,

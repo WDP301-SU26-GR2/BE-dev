@@ -11,7 +11,8 @@ export const ContractMessages = {
     representativeClaimed: 'Đã nhận vai trò đại diện ký hợp đồng.',
     representativeReleased: 'Đã nhả vai trò đại diện ký hợp đồng.',
     representativeAssigned: 'Đã gán đại diện ký hợp đồng.',
-    representativeSigned: 'Đại diện Hội đồng đã ký, hợp đồng đang chờ tác giả.',
+    representativeSigned: (seriesTitle: string) =>
+      `Hợp đồng cho tác phẩm «${seriesTitle}» đã được Hội đồng duyệt — mời bạn xem xét và ký.`,
     mangakaRejected: 'Tác giả đã từ chối hợp đồng.',
     redrafted: 'Đã tạo bản nháp hợp đồng mới từ hợp đồng bị từ chối.',
     commentAdded: 'Đã thêm góp ý hợp đồng.'
@@ -25,7 +26,10 @@ export const ContractMessages = {
     contractFullyExecutedEditor: 'Hợp đồng đã được ký kết hoàn tất.',
     representativeNeeded: 'Hợp đồng đang chờ một thành viên Hội đồng nhận làm đại diện ký.',
     representativeAssigned: 'Bạn đã được gán làm đại diện ký hợp đồng.',
+    commentAdded: 'Hội đồng có góp ý mới cho hợp đồng — vui lòng xem và cập nhật điều khoản.',
     representativeSigned: 'Đại diện Hội đồng đã ký hợp đồng. Vui lòng xem xét và ký hoặc từ chối.',
+    // Editor nhận khi đại diện Hội đồng ký (Spec 2026-08-06 B1) — khác message gửi tác giả.
+    representativeSignedEditor: 'Đại diện Hội đồng đã ký hợp đồng. Hợp đồng đang chờ tác giả xác nhận.',
     mangakaRejected: (reason: string) => `Tác giả đã từ chối hợp đồng. Lý do: ${reason}`,
     redrafted: 'Một bản nháp hợp đồng mới đã được tạo sau khi hợp đồng trước bị từ chối.',
     repClaimEscalated: 'Hợp đồng quá hạn chưa có đại diện Hội đồng nhận ký.',
@@ -33,7 +37,9 @@ export const ContractMessages = {
     amendmentPendingSignatures: 'Phụ lục hợp đồng đã sẵn sàng để ký.',
     contractAmended: 'Điều khoản hợp đồng đã được cập nhật qua phụ lục.',
     amendmentRejected: 'Tác giả đã từ chối phụ lục — vui lòng chỉnh sửa điều khoản.',
-    amendmentNeeded: 'Bộ truyện cần phụ lục hợp đồng — vui lòng nhập điều khoản và trình ký.'
+    amendmentNeeded: 'Bộ truyện cần phụ lục hợp đồng — vui lòng nhập điều khoản và trình ký.',
+    // Spec 2026-08-06 — Group F
+    contractVoided: 'Hợp đồng đang soạn đã bị huỷ bỏ.'
   },
   error: {
     // Error.* code (FE map sang text hiển thị). KHÔNG hard-code chuỗi hiển thị ở service.

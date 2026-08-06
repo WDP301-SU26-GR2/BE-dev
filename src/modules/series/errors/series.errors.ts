@@ -33,3 +33,8 @@ export const NotOriginalMangakaException = new ForbiddenException(E.notOriginalM
 export const NotFranchiseConsentTargetException = new ConflictException(E.notFranchiseConsentTarget)
 export const SeriesRequestRequiredException = new ConflictException(E.seriesRequestRequired)
 export const MangakaProfileRequiredException = new ConflictException(E.mangakaProfileRequired)
+
+// Spec 2026-08-06 — Group E-d: Sửa slot bộ truyện
+export const SeriesSlotNotEditableException = new ConflictException([
+  { message: E.seriesSlotNotEditable, path: 'status' }
+])

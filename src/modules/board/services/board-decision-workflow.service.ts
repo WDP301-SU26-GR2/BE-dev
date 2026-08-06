@@ -4,12 +4,15 @@ import { DomainEventBus } from 'src/core/events/domain-event-bus.service'
 import { DomainEvent, DomainEventPayload } from 'src/core/events/domain-events'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { AuditService } from 'src/modules/audit/audit.service'
+import { MagazineRegistryService } from 'src/modules/app-config/services/magazine-registry.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { BoardGateway } from '../board.gateway'
 import { BoardMessages } from '../board.messages'
 import { BoardRepository } from '../board.repo'
+import { DECISION_TYPE_ALLOWED_SERIES_STATUSES } from '../board.constant'
 import { BoardDecisionResDto, CastVoteBodyDto, CreateBoardDecisionBodyDto } from '../dto/board.dto'
 import * as Errors from '../errors/board.errors'
+import { BoardDecision } from '@prisma/client'
 
 @Injectable()
 export class BoardDecisionWorkflowService {
@@ -20,13 +23,41 @@ export class BoardDecisionWorkflowService {
     private readonly boardGateway: BoardGateway,
     private readonly notificationService: NotificationService,
     private readonly eventBus: DomainEventBus,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    private readonly magazineRegistryService: MagazineRegistryService
   ) {}
 
   async createDecision(dto: CreateBoardDecisionBodyDto) {
     const session = await this.boardRepo.findSessionById(dto.boardSessionId)
     if (!session) throw Errors.SessionNotFoundException
     if (session.allowedEditorIds.length % 2 === 0) throw Errors.InvalidBoardMembersException
+
+    if (dto.targetSeriesId) {
+      if (!isObjectId(dto.targetSeriesId)) throw Errors.SeriesNotFoundException
+      const series = await this.boardRepo.findSeriesEditorById(dto.targetSeriesId)
+      if (!series) throw Errors.SeriesNotFoundException
+
+      const allowed = DECISION_TYPE_ALLOWED_SERIES_STATUSES[dto.decisionType]
+      if (allowed && !allowed.includes(series.status)) throw Errors.DecisionTypeNotAllowedForSeriesStatusException
+
+      const details = (dto.details ?? {}) as Record<string, unknown>
+      const safeStr = (v: unknown) => (typeof v === 'string' ? v : '')
+
+      if (dto.decisionType === $Enums.DecisionType.SERIALIZATION) {
+        await this.magazineRegistryService.assertSlotAllowed(
+          safeStr(details.magazine),
+          safeStr(details.publicationType) as $Enums.PublicationType
+        )
+      }
+      if (dto.decisionType === $Enums.DecisionType.FORMAT_CHANGE) {
+        await this.magazineRegistryService.assertPublicationTypeAllowed(
+          series.magazine ?? null,
+          safeStr(details.publicationType) as $Enums.PublicationType
+        )
+      }
+      if (await this.boardRepo.findOpenDecisionBySeries(dto.targetSeriesId))
+        throw Errors.OpenBoardDecisionExistsException
+    }
 
     const decision = await this.boardRepo.createDecision(dto)
     const recipients = Array.from(new Set([session.creatorId, ...session.allowedEditorIds]))
@@ -53,24 +84,22 @@ export class BoardDecisionWorkflowService {
     if (session.status !== $Enums.BoardSessionStatus.ACTIVE) throw Errors.SessionNotOpenException
     if (!session.allowedEditorIds.includes(voterId)) throw Errors.VoterNotAllowedException
     if (session.phase !== $Enums.BoardSessionPhase.VOTING) throw Errors.VotingNotOpenException
-    if (
-      decision.result === $Enums.BoardDecisionResult.APPROVED ||
-      decision.result === $Enums.BoardDecisionResult.REJECTED ||
-      decision.result === $Enums.BoardDecisionResult.EXPIRED
-    ) {
+    const T = $Enums.BoardDecisionResult
+    if (decision.result === T.APPROVED || decision.result === T.REJECTED || decision.result === T.EXPIRED)
       throw Errors.DecisionAlreadyFinalizedException
-    }
     if (decision.votes.some((vote) => vote.voterId === voterId)) throw Errors.VoterAlreadyVotedException
 
-    const updatedDecision = await this.boardRepo.pushVoteToDecision(decisionId, {
+    const updated = await this.boardRepo.pushVoteIfNotVoted(decisionId, {
       voterId,
       voteValue: dto.voteValue,
       note: dto.note ?? null,
       votedAt: new Date()
     })
+    if (!updated) throw Errors.VoterAlreadyVotedException
+
     const finalDecision = await this.recalculateDecisionResult(
       decisionId,
-      updatedDecision.votes,
+      updated.votes,
       session.allowedEditorIds.length
     )
     this.boardGateway.broadcastVoteProgress(decision.boardSessionId, {
@@ -92,8 +121,8 @@ export class BoardDecisionWorkflowService {
     const wasTerminal =
       before?.result === $Enums.BoardDecisionResult.APPROVED || before?.result === $Enums.BoardDecisionResult.REJECTED
 
-    const approveCount = votes.filter((vote) => vote.voteValue === $Enums.VoteValue.APPROVE).length
-    const rejectCount = votes.filter((vote) => vote.voteValue === $Enums.VoteValue.REJECT).length
+    const approveCount = votes.filter((v) => v.voteValue === $Enums.VoteValue.APPROVE).length
+    const rejectCount = votes.filter((v) => v.voteValue === $Enums.VoteValue.REJECT).length
     const totalVotes = votes.length
     const quorumMet = totalVotes >= Math.ceil((rosterSize * 2) / 3)
     const winThreshold = rosterSize * majorityRatio
@@ -102,25 +131,28 @@ export class BoardDecisionWorkflowService {
     else if (approveCount > winThreshold) result = 'APPROVED'
     else if (rejectCount >= rosterSize - winThreshold || totalVotes >= rosterSize) result = 'REJECTED'
 
-    const updatedDecision = await this.boardRepo.updateDecisionCounters(decisionId, {
+    const terminalResult = result === 'APPROVED' || result === 'REJECTED' ? result : null
+    const counters = {
       quorumMet,
       totalVotes,
       approveCount,
       rejectCount,
       result,
-      decidedAt: result === 'APPROVED' || result === 'REJECTED' ? new Date() : null
-    })
-    if ((result === 'APPROVED' || result === 'REJECTED') && !wasTerminal && before) {
-      this.emitFinalized(before, result)
-      await this.auditFinalized(before, result)
+      decidedAt: terminalResult ? new Date() : null
     }
-    return updatedDecision
+
+    if (!terminalResult || wasTerminal) return this.boardRepo.updateDecisionCounters(decisionId, counters)
+    const claimed = await this.boardRepo.finalizeDecisionCountersIfNotTerminal(decisionId, counters)
+    if (claimed > 0 && before) {
+      this.emitFinalized(before, terminalResult)
+      await this.auditFinalized(before, terminalResult)
+    }
+    const current = (await this.boardRepo.findDecisionById(decisionId)) ?? before
+    if (!current) throw Errors.DecisionNotFoundException
+    return current
   }
 
-  private emitFinalized(
-    decision: NonNullable<Awaited<ReturnType<BoardRepository['findDecisionById']>>>,
-    result: 'APPROVED' | 'REJECTED'
-  ) {
+  private emitFinalized(decision: BoardDecision, result: 'APPROVED' | 'REJECTED') {
     try {
       const payload: DomainEventPayload[typeof DomainEvent.BoardDecisionFinalized] = {
         decisionId: decision.id,
@@ -137,10 +169,7 @@ export class BoardDecisionWorkflowService {
     }
   }
 
-  private async auditFinalized(
-    decision: NonNullable<Awaited<ReturnType<BoardRepository['findDecisionById']>>>,
-    result: 'APPROVED' | 'REJECTED'
-  ) {
+  private async auditFinalized(decision: BoardDecision, result: 'APPROVED' | 'REJECTED') {
     try {
       await this.auditService.record({
         actorId: null,

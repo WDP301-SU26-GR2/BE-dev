@@ -235,6 +235,13 @@ export const RejectContractBodySchema = z
   })
   .strict()
 
+// Spec 2026-08-06 — Group F: Void contract draft
+export const VoidContractBodySchema = z
+  .object({
+    reason: z.string().min(1, { message: 'reason là bắt buộc' }).max(1000).describe('Lý do huỷ hợp đồng nháp')
+  })
+  .strict()
+
 export const AssignRepresentativeBodySchema = z
   .object({
     representativeId: zObjectId('representativeId phải là ObjectId hợp lệ')
@@ -280,6 +287,7 @@ export type CreateContractBodyType = z.infer<typeof CreateContractBodySchema>
 export type EditorUpdateContractBodyType = z.infer<typeof EditorUpdateContractBodySchema>
 export type SignContractWithOtpBodyType = z.infer<typeof SignContractWithOtpBodySchema>
 export type RejectContractBodyType = z.infer<typeof RejectContractBodySchema>
+export type VoidContractBodyType = z.infer<typeof VoidContractBodySchema>
 export type AssignRepresentativeBodyType = z.infer<typeof AssignRepresentativeBodySchema>
 export type CreateContractCommentBodyType = z.infer<typeof CreateContractCommentBodySchema>
 

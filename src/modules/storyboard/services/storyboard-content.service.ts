@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
-import { StoryboardStatus, SeriesStatus } from '@prisma/client'
+import { NotificationType, StoryboardStatus, SeriesStatus } from '@prisma/client'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
+import { NotificationService } from 'src/modules/notification/notification.service'
 import {
   ChapterStoryboardAlreadyExistsException,
   ChapterNotDraftForStoryboardException,
@@ -31,7 +32,8 @@ const CHAPTER_CREATABLE_STATUSES: SeriesStatus[] = [
 export class StoryboardContentService {
   constructor(
     private readonly access: StoryboardAccessService,
-    private readonly repository: StoryboardRepo
+    private readonly repository: StoryboardRepo,
+    private readonly notificationService: NotificationService
   ) {}
 
   async createChapterStoryboard(mangakaId: string, chapterId: string, body: CreateChapterStoryboardBodyType) {
@@ -93,16 +95,25 @@ export class StoryboardContentService {
 
   async chapterSubmit(mangakaId: string, chapterId: string, storyboardId: string) {
     const seriesId = await this.access.chapterSeriesId(chapterId)
-    const { storyboard } = await this.access.requireOwnerStoryboard(seriesId, mangakaId, storyboardId, {
+    const { series, storyboard } = await this.access.requireOwnerStoryboard(seriesId, mangakaId, storyboardId, {
       chapterId
     })
     if (storyboard.status !== StoryboardStatus.DRAFT) throw InvalidStoryboardStateException
-    return toStoryboardRes(
-      await this.repository.updateStoryboardStatus(storyboardId, {
-        status: StoryboardStatus.SUBMITTED,
-        submittedAt: new Date()
+    const updated = await this.repository.updateStoryboardStatus(storyboardId, {
+      status: StoryboardStatus.SUBMITTED,
+      submittedAt: new Date()
+    })
+    // Notify Editor when storyboard is submitted
+    if (series.editorId) {
+      await this.notificationService.notifySafe({
+        recipientId: series.editorId,
+        type: NotificationType.REVIEW,
+        referenceId: storyboardId,
+        referenceType: 'STORYBOARD_SUBMITTED',
+        content: StoryboardMessages.notification.storyboardSubmitted
       })
-    )
+    }
+    return { ...toStoryboardRes(updated), message: StoryboardMessages.response.storyboardSubmitted }
   }
 
   async deleteChapterStoryboard(mangakaId: string, chapterId: string, storyboardId: string) {

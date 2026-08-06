@@ -1,16 +1,16 @@
 {
   "global": {
-    "statements": 60.76,
-    "branches": 55.68,
-    "functions": 48.74,
-    "lines": 61.71
+    "statements": 81.53,
+    "branches": 72.52,
+    "functions": 65.03,
+    "lines": 82.85
   },
   "criticalBranch": {
-    "transfer": 62.39,
-    "reprint": 44.97,
-    "guestVote": 62.92,
-    "contract": 44.51,
-    "payment": 75
+    "transfer": 80.62,
+    "reprint": 83.51,
+    "guestVote": 84.94,
+    "contract": 63.69,
+    "payment": 79.03
   },
   "targets": {
     "global": {

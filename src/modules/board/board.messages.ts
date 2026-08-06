@@ -5,7 +5,11 @@ export const BoardMessages = {
     decisionCreated: 'Một quyết định mới đã được tạo cho phiên họp Hội đồng.',
     sessionConcluded: 'Phiên họp Hội đồng đã kết thúc.',
     sessionConcludedWithExpired: (count: number) =>
-      `Phiên họp Hội đồng đã kết thúc. ${count} quyết định chưa đủ quorum đã hết hiệu lực - hãy mở phiên mới để bỏ phiếu lại.`
+      `Phiên họp Hội đồng đã kết thúc. ${count} quyết định chưa đủ số phiếu tối thiểu đã hết hiệu lực — hãy mở phiên mới để bỏ phiếu lại.`
+  },
+  // Internal reason stored on BoardDecision.reason (e.g. when session concludes without quorum)
+  reason: {
+    concludedWithoutQuorum: 'Phiên họp kết thúc khi chưa đủ số phiếu tối thiểu'
   },
   error: {
     sessionAlreadyExists: 'Error.BoardSessionAlreadyExists',
@@ -31,7 +35,11 @@ export const BoardMessages = {
     invalidPhaseTransition: 'Error.InvalidPhaseTransition',
     votingNotOpen: 'Error.VotingNotOpen',
     decisionAlreadyFinalized: 'Error.DecisionAlreadyFinalized',
-    notSessionParticipant: 'Error.NotSessionParticipant'
+    notSessionParticipant: 'Error.NotSessionParticipant',
+    // Gate C1/C2/C4 (Spec 2026-08-06)
+    openBoardDecisionExists: 'Error.OpenBoardDecisionExists',
+    decisionTypeNotAllowedForSeriesStatus: 'Error.DecisionTypeNotAllowedForSeriesStatus',
+    boardReportAlreadyExists: 'Error.BoardReportAlreadyExists'
   },
   errorText: {
     'Error.RosterSizeTooLarge': 'Sĩ số hội đồng vượt quá số thành viên cho phép',
@@ -57,6 +65,11 @@ export const BoardMessages = {
     'Error.InvalidPhaseTransition': 'Không thể chuyển phiên họp sang giai đoạn này',
     'Error.VotingNotOpen': 'Phiên biểu quyết hiện chưa mở',
     'Error.DecisionAlreadyFinalized': 'Quyết định này đã được chốt',
-    'Error.NotSessionParticipant': 'Bạn không phải thành viên của phiên họp này'
+    'Error.NotSessionParticipant': 'Bạn không phải thành viên của phiên họp này',
+    // Gate C1/C2/C4 (Spec 2026-08-06)
+    'Error.OpenBoardDecisionExists': 'Bộ truyện này đã có một quyết định Hội đồng chưa chốt',
+    'Error.DecisionTypeNotAllowedForSeriesStatus':
+      'Loại quyết định không phù hợp với trạng thái hiện tại của bộ truyện',
+    'Error.BoardReportAlreadyExists': 'Quyết định này đã có báo cáo — mỗi quyết định chỉ có một báo cáo'
   }
 } as const

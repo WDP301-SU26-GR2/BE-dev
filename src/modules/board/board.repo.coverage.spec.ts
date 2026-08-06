@@ -20,7 +20,8 @@ function makePrisma() {
       findUnique: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
-      update: jest.fn()
+      update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 })
     },
     seriesReport: {
       findUnique: jest.fn(),
@@ -68,7 +69,7 @@ describe('BoardRepository Prisma contracts', () => {
     expect(prisma.seriesReport.findUnique).toHaveBeenCalledWith({ where: { id: 'report' } })
     expect(prisma.series.findUnique).toHaveBeenCalledWith({
       where: { id: 'series' },
-      select: { id: true, editorId: true }
+      select: { id: true, editorId: true, status: true, magazine: true }
     })
   })
 
@@ -288,15 +289,17 @@ describe('BoardRepository Prisma contracts', () => {
     }
     const counters = { approveCount: { increment: 1 } }
 
-    await repo.pushVoteToDecision('decision', vote)
+    await repo.pushVoteIfNotVoted('decision', vote)
     await repo.updateDecisionCounters('decision', counters)
     await repo.findNonTerminalDecisionsBySession('session')
 
-    expect(prisma.boardDecision.update).toHaveBeenNthCalledWith(1, {
-      where: { id: 'decision' },
+    // O-1: chèn phiếu phải là lệnh ghi CÓ ĐIỀU KIỆN (`votes.none`), không phải `update` trần —
+    // đây chính là thứ chặn cùng một thành viên đẩy hai phiếu khi hai request về đồng thời.
+    expect(prisma.boardDecision.updateMany).toHaveBeenCalledWith({
+      where: { id: 'decision', votes: { none: { voterId: 'member' } } },
       data: { votes: { push: vote } }
     })
-    expect(prisma.boardDecision.update).toHaveBeenNthCalledWith(2, {
+    expect(prisma.boardDecision.update).toHaveBeenNthCalledWith(1, {
       where: { id: 'decision' },
       data: counters
     })

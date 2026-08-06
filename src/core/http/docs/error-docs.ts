@@ -269,5 +269,16 @@ export const ERROR_HINTS: Record<string, string> = {
   'Error.SeriesRequestAccessDenied':
     'only the owning mangaka (create/cancel) or the assigned editor (accept/reject) may act',
   'Error.SeriesRequestRequired':
-    'direct withdraw is not allowed at this status — DRAFT has nothing to withdraw (delete the proposal instead) and READY_TO_PITCH requires POST /series-requests with requestType=WITHDRAW'
+    'direct withdraw is not allowed at this status — DRAFT has nothing to withdraw (delete the proposal instead) and READY_TO_PITCH requires POST /series-requests with requestType=WITHDRAW',
+  // Magazine registry hints
+  'Error.MagazineAlreadyExists': 'magazine name already exists in the publisher registry',
+  'Error.MagazineNotFound': 'magazine name is not in the publisher registry',
+  'Error.MagazineInUse': 'cannot delete a magazine still referenced by series or survey periods',
+  'Error.PublicationTypeInUse': 'cannot drop a publication type still referenced by series or survey periods',
+  'Error.MagazineNotRegistered': 'details.magazine must be one of the registered magazines',
+  'Error.PublicationTypeNotSupportedByMagazine': 'the magazine does not publish at the selected cadence',
+  // Board decision gates (Spec 2026-08-06)
+  'Error.OpenBoardDecisionExists': 'the series already has a board decision that has not been finalised',
+  'Error.DecisionTypeNotAllowedForSeriesStatus': 'decision type does not match the current series status',
+  'Error.BoardReportAlreadyExists': 'each board decision can only have one series report'
 }

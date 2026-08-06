@@ -120,6 +120,12 @@ enum RoleCode {
   SUPER_ADMIN
 }
 
+// Composite type cho danh mục tạp chí hợp lệ (Spec 2026-08-06 nhóm E)
+type MagazineEntry {
+  name             String
+  publicationTypes PublicationType[]
+}
+
 enum AuditEntityType {
   SERIES
   MANUSCRIPT
@@ -584,10 +590,6 @@ enum RiskLevel {
 
 // REVIEW: inferred
 enum DecisionType {
-  CONTINUE
-  CANCEL
-  HIATUS
-  ENDING_ALLOWANCE
   SERIES_CONTRACT_APPROVAL
   SERIALIZATION
   CANCELLATION
@@ -1751,10 +1753,12 @@ model AppConfig {
   hiatusTooLongDays                Int   @default(30)
   lowVoteReliabilityThreshold      Int   @default(10)
   rankingAggregateMinCoverageRatio Float @default(0.5)
-  maxUploadBytes                   Int   @default(15728640)
+  maxUploadBytes                  Int   @default(15728640)
   assignmentGraceDays              Int   @default(0)
-  boardRepClaimGraceDays           Int   @default(3)
-  taskOverdueGraceHours            Int   @default(0)
+  boardRepClaimGraceDays          Int   @default(3)
+  taskOverdueGraceHours           Int   @default(0)
+  // Danh mục tạp chí hợp lệ (Spec 2026-08-06 nhóm E)
+  magazines                       MagazineEntry[]
 
   updatedAt DateTime @updatedAt
 
@@ -1819,12 +1823,12 @@ model SeriesRequest {
   seriesId String @db.ObjectId
   series   Series @relation(fields: [seriesId], references: [id])
 
-  requestedBy  String            @db.ObjectId
-  requestType  SeriesRequestType
-  reason       String
+  requestedBy String            @db.ObjectId
+  requestType SeriesRequestType
+  reason      String
 
   // Spec 30: chỉ áp dụng cho HIATUS — ngày dự kiến quay lại phát hành.
-  expectedReturnDate DateTime?
+  expectedReturnDate     DateTime?
   // Spec 30: chỉ áp dụng cho COMPLETION — số chương kết thúc đề xuất (Editor duyệt → endingChapterAllowance).
   proposedEndingChapters Int?
 

@@ -34,9 +34,10 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
     const boardRepo = {
       findDecisionById: jest.fn().mockResolvedValue(preDecision),
       findSessionById: jest.fn().mockResolvedValue(activeSession),
-      pushVoteToDecision: jest.fn().mockResolvedValue({ votes: pushedVotes }),
+      pushVoteIfNotVoted: jest.fn().mockResolvedValue({ votes: pushedVotes }),
       getActiveConfig: jest.fn().mockResolvedValue({ quorumMin: 1, approveMajorityRatio: 0.5 }),
-      updateDecisionCounters: jest.fn().mockResolvedValue({ id: '012345678901234567890124' })
+      updateDecisionCounters: jest.fn().mockResolvedValue({ id: '012345678901234567890124' }),
+      finalizeDecisionCountersIfNotTerminal: jest.fn().mockResolvedValue(1)
     }
     const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -46,7 +47,8 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      auditService as never
+      auditService as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     return { service, eventBus, auditService: { record: auditService.record } }
   }
@@ -146,7 +148,9 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
   function makeDecisionService(sessionOverride: { id: string; creatorId: string; allowedEditorIds: string[] } | null) {
     const boardRepo = {
       findSessionById: jest.fn().mockResolvedValue(sessionOverride),
-      createDecision: jest.fn().mockResolvedValue({ id: 'decision-1' })
+      createDecision: jest.fn().mockResolvedValue({ id: 'decision-1' }),
+      findOpenDecisionBySeries: jest.fn().mockResolvedValue(null),
+      findSeriesEditorById: jest.fn().mockResolvedValue({ id: 'series-1', status: 'PITCHED' })
     }
     const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -156,7 +160,8 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      auditService as never
+      auditService as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     return { service, boardRepo }
   }
@@ -243,9 +248,10 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
     const boardRepo = {
       findDecisionById: jest.fn().mockResolvedValue(preDecision),
       findSessionById: jest.fn().mockResolvedValue(activeSession),
-      pushVoteToDecision: jest.fn().mockResolvedValue({ votes: pushedVotes }),
+      pushVoteIfNotVoted: jest.fn().mockResolvedValue({ votes: pushedVotes }),
       getActiveConfig: jest.fn().mockResolvedValue({ quorumMin: 1, approveMajorityRatio: 0.5 }),
-      updateDecisionCounters: jest.fn().mockResolvedValue({ id: '012345678901234567890124' })
+      updateDecisionCounters: jest.fn().mockResolvedValue({ id: '012345678901234567890124' }),
+      finalizeDecisionCountersIfNotTerminal: jest.fn().mockResolvedValue(1)
     }
     const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -259,7 +265,8 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      audit as never
+      audit as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     return { service, boardRepo, audit, state }
   }
@@ -278,7 +285,8 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      audit as never
+      audit as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     await expect(service.castVote('garbage', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toMatchObject({
       status: 404
@@ -310,7 +318,7 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
       await expect(service.castVote('012345678901234567890124', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toBe(
         Errors.DecisionAlreadyFinalizedException
       )
-      expect(boardRepo.pushVoteToDecision).not.toHaveBeenCalled()
+      expect(boardRepo.pushVoteIfNotVoted).not.toHaveBeenCalled()
     }
   )
 
@@ -321,7 +329,7 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
     await expect(service.castVote('012345678901234567890124', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toBe(
       Errors.VotingNotOpenException
     )
-    expect(boardRepo.pushVoteToDecision).not.toHaveBeenCalled()
+    expect(boardRepo.pushVoteIfNotVoted).not.toHaveBeenCalled()
   })
 
   it('castVote rejects an ACTIVE roster member before VOTING without writing a vote', async () => {
@@ -331,7 +339,7 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
     await expect(service.castVote('012345678901234567890124', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toBe(
       Errors.VotingNotOpenException
     )
-    expect(boardRepo.pushVoteToDecision).not.toHaveBeenCalled()
+    expect(boardRepo.pushVoteIfNotVoted).not.toHaveBeenCalled()
   })
 
   it('castVote checks roster before phase so an outsider still receives 403 on PRESENTING', async () => {
@@ -341,7 +349,7 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
     await expect(
       service.castVote('012345678901234567890124', 'outsider', { voteValue: 'APPROVE' } as never)
     ).rejects.toBe(Errors.VoterNotAllowedException)
-    expect(boardRepo.pushVoteToDecision).not.toHaveBeenCalled()
+    expect(boardRepo.pushVoteIfNotVoted).not.toHaveBeenCalled()
   })
 })
 
@@ -459,18 +467,20 @@ describe('BoardService.castVote quorum by session roster (Spec 17)', () => {
         phase: 'VOTING',
         allowedEditorIds: Array.from({ length: rosterSize }, (_, index) => `b${index + 1}`)
       }),
-      pushVoteToDecision: jest.fn().mockResolvedValue({ votes: pushedVotes }),
+      pushVoteIfNotVoted: jest.fn().mockResolvedValue({ votes: pushedVotes }),
       getActiveConfig: jest.fn().mockResolvedValue({ quorumMin: 99, approveMajorityRatio: 0.5 }),
       updateDecisionCounters: jest
         .fn()
-        .mockImplementation((_id, counters) => Promise.resolve({ id: DECISION_ID, ...counters }))
+        .mockImplementation((_id, counters) => Promise.resolve({ id: DECISION_ID, ...counters })),
+      finalizeDecisionCountersIfNotTerminal: jest.fn().mockResolvedValue(1)
     }
     const service = new BoardDecisionWorkflowService(
       boardRepo as never,
       { broadcastVoteProgress: jest.fn() } as never,
       { notifySafe: jest.fn() } as never,
       { emit: jest.fn() } as never,
-      { record: jest.fn() } as never
+      { record: jest.fn() } as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     return { service, boardRepo, voterId, voteValue: pushedVotes.at(-1)!.voteValue }
   }
@@ -488,10 +498,13 @@ describe('BoardService.castVote quorum by session roster (Spec 17)', () => {
 
     await service.castVote(DECISION_ID, voterId, { voteValue })
 
-    expect(boardRepo.updateDecisionCounters).toHaveBeenCalledWith(
-      DECISION_ID,
-      expect.objectContaining({ result: expected })
-    )
+    // O-2: kết quả CHỐT (APPROVED/REJECTED) phải đi qua lệnh ghi có điều kiện; kết quả chưa chốt
+    // vẫn dùng cập nhật thường. Giữ nguyên độ mạnh của assertion cũ, chỉ đổi đích cho đúng nhánh.
+    const writer =
+      expected === 'APPROVED' || expected === 'REJECTED'
+        ? boardRepo.finalizeDecisionCountersIfNotTerminal
+        : boardRepo.updateDecisionCounters
+    expect(writer).toHaveBeenCalledWith(DECISION_ID, expect.objectContaining({ result: expected }))
   })
 })
 
@@ -514,7 +527,7 @@ describe('BoardService.concludeSession (Fix-2 G-7)', () => {
       updateDecisionCounters: jest.fn().mockResolvedValue({}),
       findDecisionById: jest.fn(),
       getActiveConfig: jest.fn(),
-      pushVoteToDecision: jest.fn()
+      pushVoteIfNotVoted: jest.fn()
     }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
     const eventBus = { emit: jest.fn() }
