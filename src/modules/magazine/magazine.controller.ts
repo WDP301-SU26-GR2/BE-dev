@@ -11,15 +11,15 @@ import {
   MagazineEntryResDto,
   MagazineListResDto,
   UpdateMagazineBodyDto
-} from '../dto/magazine.dto'
-import { MagazineMessages } from '../magazine.messages'
+} from './dto/magazine.dto'
+import { MagazineMessages } from './magazine.messages'
 import {
   MagazineAlreadyExistsException,
   MagazineInUseException,
   MagazineNotFoundException,
   PublicationTypeInUseException
-} from '../errors/magazine.errors'
-import { MagazineRegistryService } from '../services/magazine-registry.service'
+} from './errors/magazine.errors'
+import { MagazineRegistryService } from './magazine.service'
 
 // Danh mục tạp chí sống ở AppConfig. GET dùng path `/magazines` (Editor chọn khi mở quyết định
 // serial hoá) nên KHÔNG gom dưới prefix `admin/` — dùng @Controller() + path đầy đủ (convention users.controller).

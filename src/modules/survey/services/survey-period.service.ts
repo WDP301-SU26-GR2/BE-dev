@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { AuditEntityType, NotificationType } from '@prisma/client'
 import { CacheService } from 'src/infrastructure/redis/cache.service'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
+import { normalizeMagazine } from 'src/core/http/schemas/magazine.schema'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { CreateSurveyPeriodBodyDto, SurveyPeriodListQueryDto, UpdateSurveyPeriodStatusBodyDto } from '../dto/survey.dto'
@@ -27,7 +28,7 @@ export class SurveyPeriodService {
   ) {}
 
   async getSurveyPeriods(query: SurveyPeriodListQueryDto) {
-    const filter = { ...query, ...(query.magazine ? { magazine: query.magazine.trim() } : {}) }
+    const filter = { ...query, ...(query.magazine ? { magazine: normalizeMagazine(query.magazine) } : {}) }
     const { items, total } = await this.surveyRepository.findManySurveyPeriods(filter)
     return {
       items: items.map((period) => mapSurveyPeriod(period)),
@@ -63,7 +64,7 @@ export class SurveyPeriodService {
   // `createSurveyPeriod` nên không bao giờ lệch giữa "thứ FE hiển thị" và "thứ BE chấp nhận".
   async getEligibleSeries(query: EligibleSeriesQueryDto) {
     const items = await this.surveyRepository.findVoteEligibleSeries(
-      query.magazine.trim(),
+      normalizeMagazine(query.magazine),
       query.publicationType,
       VOTE_ELIGIBLE_SERIES_STATUSES
     )
@@ -88,7 +89,7 @@ export class SurveyPeriodService {
       await this.cacheService.bumpVersion('ranking')
       return mapSurveyPeriod(surveyPeriod)
     }
-    const magazine = body.magazine.trim()
+    const magazine = normalizeMagazine(body.magazine)
     const duplicate = await this.surveyRepository.findScopedSurveyPeriod(
       magazine,
       body.publicationType,
@@ -102,7 +103,7 @@ export class SurveyPeriodService {
       eligible.some(
         (series) =>
           !VOTE_ELIGIBLE_SERIES_STATUSES.includes(series.status) ||
-          series.magazine?.trim() !== magazine ||
+          (series.magazine ? normalizeMagazine(series.magazine) : null) !== magazine ||
           series.publicationType !== body.publicationType
       )
     ) {

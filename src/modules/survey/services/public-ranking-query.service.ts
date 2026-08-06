@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { PublicationType } from '@prisma/client'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
+import { normalizeMagazine } from 'src/core/http/schemas/magazine.schema'
 import { RANKING_IMMUTABLE_TTL_SEC, VOTE_CTX_TTL_SEC } from 'src/infrastructure/redis/cache.constant'
 import { CacheService } from 'src/infrastructure/redis/cache.service'
 import { SurveyPeriodNotFinalizedException, SurveyPeriodNotFoundException } from '../errors/survey.errors'
@@ -44,7 +45,7 @@ export class PublicRankingQueryService {
         results: base.results
       }
     }
-    const canonicalMagazine = magazine.trim()
+    const canonicalMagazine = normalizeMagazine(magazine)
     const period = await this.cache.getOrSet(
       'ranking',
       `latest-period:${canonicalMagazine}:${publicationType}`,
@@ -83,7 +84,7 @@ export class PublicRankingQueryService {
         return { items: rows.map(toPeriodSummary) }
       })
     }
-    const canonicalMagazine = magazine.trim()
+    const canonicalMagazine = normalizeMagazine(magazine)
     return this.cache.getOrSet(
       'ranking',
       `periods:${canonicalMagazine}:${publicationType}:${limit}`,

@@ -1,5 +1,5 @@
 import { PublicationType } from '@prisma/client'
-import { MagazineRegistryService } from './magazine-registry.service'
+import { MagazineRegistryService } from './magazine.service'
 import {
   MagazineAlreadyExistsException,
   MagazineInUseException,
@@ -7,43 +7,21 @@ import {
   PublicationTypeInUseException,
   MagazineNotRegisteredException,
   PublicationTypeNotSupportedException
-} from '../errors/magazine.errors'
+} from './errors/magazine.errors'
 
 const MAGAZINE_ENTRY = {
   name: 'FT Jump',
   publicationTypes: ['WEEKLY', 'MONTHLY'] as PublicationType[]
 }
 
-const BASE_ROW = {
-  id: '507f1f77bcf86cd799439011',
-  updatedBy: null,
-  coOwnerApprovalGraceDays: 7,
-  storyboardMaxReviewRounds: 8,
-  reputationRecommendThreshold: 4,
-  hiatusTooLongDays: 30,
-  lowVoteReliabilityThreshold: 10,
-  rankingAggregateMinCoverageRatio: 0.5,
-  maxUploadBytes: 15728640,
-  assignmentGraceDays: 0,
-  boardRepClaimGraceDays: 3,
-  taskOverdueGraceHours: 0,
-  magazines: [MAGAZINE_ENTRY],
-  updatedAt: new Date('2026-06-23T00:00:00.000Z')
-}
+const CONFIG_ID = '507f1f77bcf86cd799439011'
 
 function make() {
-  const getDefaultRow = () => ({
-    ...BASE_ROW,
-    magazines: [{ ...MAGAZINE_ENTRY, publicationTypes: [...MAGAZINE_ENTRY.publicationTypes] }]
-  })
-  const repo = {
-    findFirst: jest.fn().mockResolvedValue(getDefaultRow()),
-    createDefaults: jest.fn().mockResolvedValue(getDefaultRow()),
-    existsById: jest.fn().mockResolvedValue(true),
-    update: jest.fn().mockImplementation((_id: string, data: unknown) => ({
-      ...getDefaultRow(),
-      ...(data as Record<string, unknown>)
-    }))
+  const initial = [{ ...MAGAZINE_ENTRY, publicationTypes: [...MAGAZINE_ENTRY.publicationTypes] }]
+  // AppConfig SỞ HỮU field magazines[]; MagazineRegistryService đọc/ghi qua accessor của AppConfigService.
+  const appConfigService = {
+    getMagazines: jest.fn().mockResolvedValue(initial),
+    replaceMagazines: jest.fn().mockImplementation((magazines: unknown) => ({ configId: CONFIG_ID, magazines }))
   }
   const auditService = { record: jest.fn().mockResolvedValue(undefined) }
   const seriesAdapter = {
@@ -55,12 +33,12 @@ function make() {
     countByMagazineAndType: jest.fn().mockResolvedValue(0)
   }
   const service = new MagazineRegistryService(
-    repo as never,
+    appConfigService as never,
     auditService as never,
     seriesAdapter as never,
     surveyAdapter as never
   )
-  return { service, repo, auditService, seriesAdapter, surveyAdapter }
+  return { service, appConfigService, auditService, seriesAdapter, surveyAdapter }
 }
 
 describe('MagazineRegistryService', () => {
@@ -81,8 +59,8 @@ describe('MagazineRegistryService', () => {
     })
 
     it('trả về mảng rỗng khi không có magazines', async () => {
-      const { service, repo } = make()
-      repo.findFirst.mockResolvedValueOnce({ ...BASE_ROW, magazines: [] })
+      const { service, appConfigService } = make()
+      appConfigService.getMagazines.mockResolvedValueOnce([])
       const result = await service.getMagazines()
       expect(result).toEqual([])
     })
@@ -150,26 +128,23 @@ describe('MagazineRegistryService', () => {
 
   describe('createMagazine', () => {
     it('tạo magazine mới thành công', async () => {
-      const { service, repo, auditService } = make()
+      const { service, appConfigService, auditService } = make()
       const result = await service.createMagazine('New Magazine', ['WEEKLY'], 'admin1')
       expect(result.name).toBe('New Magazine')
       expect(result.publicationTypes).toEqual(['WEEKLY'])
-      expect(repo.update).toHaveBeenCalled()
+      expect(appConfigService.replaceMagazines).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ name: 'New Magazine' })]),
+        'admin1'
+      )
       expect(auditService.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'MAGAZINE_CREATE' }))
     })
 
     it('ném MagazineAlreadyExistsException khi tên trùng (case-sensitive)', async () => {
-      const { service } = make()
+      const { service, appConfigService } = make()
       await expect(service.createMagazine('FT Jump', ['WEEKLY'], 'admin1')).rejects.toThrow(
         MagazineAlreadyExistsException
       )
-    })
-
-    it('tạo config mới nếu chưa có', async () => {
-      const { service, repo } = make()
-      repo.findFirst.mockResolvedValueOnce(null)
-      await service.createMagazine('New Magazine', ['WEEKLY'], 'admin1')
-      expect(repo.createDefaults).toHaveBeenCalled()
+      expect(appConfigService.replaceMagazines).not.toHaveBeenCalled()
     })
   })
 
@@ -198,9 +173,9 @@ describe('MagazineRegistryService', () => {
 
   describe('deleteMagazine', () => {
     it('xoá magazine thành công', async () => {
-      const { service, repo, auditService } = make()
+      const { service, appConfigService, auditService } = make()
       await service.deleteMagazine('FT Jump', 'admin1')
-      expect(repo.update).toHaveBeenCalled()
+      expect(appConfigService.replaceMagazines).toHaveBeenCalledWith([], 'admin1')
       expect(auditService.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'MAGAZINE_DELETE' }))
     })
 
@@ -238,8 +213,8 @@ describe('MagazineRegistryService', () => {
     })
 
     it('danh mục rỗng → bypass gate', async () => {
-      const { service, repo } = make()
-      repo.findFirst.mockResolvedValueOnce({ ...BASE_ROW, magazines: [] })
+      const { service, appConfigService } = make()
+      appConfigService.getMagazines.mockResolvedValueOnce([])
       await expect(service.assertSlotAllowed('bất kỳ', 'WEEKLY')).resolves.toBeUndefined()
     })
   })
@@ -263,8 +238,8 @@ describe('MagazineRegistryService', () => {
     })
 
     it('danh mục rỗng → bypass', async () => {
-      const { service, repo } = make()
-      repo.findFirst.mockResolvedValueOnce({ ...BASE_ROW, magazines: [] })
+      const { service, appConfigService } = make()
+      appConfigService.getMagazines.mockResolvedValueOnce([])
       await expect(service.assertPublicationTypeAllowed('FT Jump', 'WEEKLY')).resolves.toBeUndefined()
     })
   })

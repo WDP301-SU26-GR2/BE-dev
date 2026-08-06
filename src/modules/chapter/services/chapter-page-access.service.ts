@@ -30,8 +30,26 @@ export class ChapterPageAccessService {
     if (!isObjectId(chapterId)) throw ChapterNotFoundException
     const chapter = await this.chapterRepository.findChapterById(chapterId)
     if (!chapter) throw ChapterNotFoundException
+    // chapter.seriesId đến từ DB → đã là ObjectId hợp lệ, không cần guard isObjectId lại.
     const series = await this.chapterRepository.findSeriesById(chapter.seriesId)
     if (!series) throw ChapterNotFoundException
+    await this.assertSeriesAccess(series, userId, roleName)
+  }
+
+  // Series-level đọc dùng cho GET /chapters?seriesId= (seriesId do client cung cấp → guard isObjectId).
+  // Cùng luật scoping: chủ sở hữu / editor phụ trách / trợ lý đang cộng tác; Hội đồng + Super Admin toàn quyền đọc.
+  async assertSeriesReadAccess(userId: string, roleName: string, seriesId: string) {
+    if (!isObjectId(seriesId)) throw ChapterNotFoundException
+    const series = await this.chapterRepository.findSeriesById(seriesId)
+    if (!series) throw ChapterNotFoundException
+    await this.assertSeriesAccess(series, userId, roleName)
+  }
+
+  private async assertSeriesAccess(
+    series: { mangakaId: string; editorId: string | null },
+    userId: string,
+    roleName: string
+  ) {
     if (roleName === RoleName.MANGAKA && series.mangakaId !== userId) throw ChapterAccessDeniedException
     if (roleName === RoleName.EDITOR && series.editorId !== userId) throw ChapterAccessDeniedException
     if (roleName === RoleName.ASSISTANT) {

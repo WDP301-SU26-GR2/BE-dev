@@ -33,6 +33,7 @@ import { PaymentModule } from './modules/payment/payment.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { RevisionModule } from './modules/revision/revision.module'
 import { AppConfigModule } from './modules/app-config/app-config.module'
+import { MagazineModule } from './modules/magazine/magazine.module'
 import { PublicationModule } from './modules/publication/publication.module'
 import { PublicModule } from './modules/public/public.module'
 import { DashboardModule } from './modules/dashboard/dashboard.module'
@@ -51,7 +52,8 @@ import { RuntimeMetricsInterceptor } from './core/http/interceptors/runtime-metr
     UsersModule,
     NotificationModule,
     ReviewsModule,
-    AppConfigModule, // @Global — exports AppConfigService + MagazineRegistryService cho toàn hệ thống
+    AppConfigModule, // @Global — exports AppConfigService + AppConfigRepository cho toàn hệ thống
+    MagazineModule, // @Global — danh mục tạp chí (tách khỏi app-config); exports MagazineRegistryService
     SeriesModule,
     SeriesRequestModule,
     StoryboardModule,

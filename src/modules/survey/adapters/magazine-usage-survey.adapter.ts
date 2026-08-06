@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { PublicationType } from '@prisma/client'
-import { MagazineUsagePort } from 'src/modules/app-config/ports/magazine-usage.port'
+import { MagazineUsagePort } from 'src/modules/magazine/ports/magazine-usage.port'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
 
 @Injectable()

@@ -1,6 +1,6 @@
 import { HttpMessages } from '../http.messages'
 import { SecurityMessages } from '../../security/security.messages'
-import { MagazineMessages } from 'src/modules/app-config/magazine.messages'
+import { MagazineMessages } from 'src/modules/magazine/magazine.messages'
 import { AiMessages } from 'src/modules/ai/ai.messages'
 import { AnnotationMessages } from 'src/modules/annotation/annotation.messages'
 import { AuthMessages } from 'src/modules/auth/auth.messages'

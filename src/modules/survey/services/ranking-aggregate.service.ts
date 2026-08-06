@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { RiskLevel } from '@prisma/client'
 import { createHash } from 'crypto'
+import { normalizeMagazine } from 'src/core/http/schemas/magazine.schema'
 import { RANKING_IMMUTABLE_TTL_SEC } from 'src/infrastructure/redis/cache.constant'
 import { CacheService } from 'src/infrastructure/redis/cache.service'
 import { AppConfigService } from 'src/modules/app-config/app-config.service'
@@ -52,7 +53,7 @@ export class RankingAggregateService {
     query: RankingAggregateQuery,
     includeInternalSignals: boolean
   ): Promise<RankingAggregateResult | InternalRankingAggregateResult> {
-    const magazine = query.magazine.trim()
+    const magazine = normalizeMagazine(query.magazine)
     const baseSuffix = this.cacheSuffix({ ...query, magazine })
     const suffix = includeInternalSignals ? `internal:${baseSuffix}` : baseSuffix
 

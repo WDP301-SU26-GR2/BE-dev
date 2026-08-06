@@ -242,6 +242,55 @@ describe('SurveyPeriodService — eligibility theo trạng thái series', () => 
   })
 })
 
+// magazine là KHOÁ LIÊN KẾT chuỗi Series↔SurveyPeriod↔RankingRecord. Write-path dùng normalizeMagazine
+// (trim + collapse khoảng trắng nội bộ); read/compare-path PHẢI chuẩn hoá y hệt, nếu không admin gõ
+// 'FT  Jump' (2 dấu cách) sẽ không khớp Series.magazine='FT Jump' đã collapse → loại series im lặng (§96).
+describe('SurveyPeriodService — chuẩn hoá magazine (collapse khoảng trắng nội bộ)', () => {
+  const dblSpaceBody = {
+    magazine: 'FT  Jump',
+    publicationType: 'WEEKLY',
+    eligibleSeriesIds: ['s1'],
+    issueNumber: 10,
+    startDate: '2026-07-01',
+    endDate: '2026-07-07'
+  } as const
+
+  it('createSurveyPeriod khớp Series.magazine đã collapse + tra scope bằng tên đã collapse', async () => {
+    const deps = makeDeps()
+    deps.repo.findSeriesOwnershipByIds.mockResolvedValue([
+      { id: 's1', status: 'SERIALIZED', magazine: 'FT Jump', publicationType: 'WEEKLY' }
+    ])
+
+    await expect(make(deps).createSurveyPeriod(dblSpaceBody as never)).resolves.toBeDefined()
+    expect(deps.repo.findScopedSurveyPeriod).toHaveBeenCalledWith('FT Jump', 'WEEKLY', 10)
+    expect(deps.repo.createSurveyPeriod).toHaveBeenCalled()
+  })
+
+  it('getEligibleSeries collapse khoảng trắng nội bộ khi tra repo', async () => {
+    const deps = makeDeps()
+    deps.repo.findVoteEligibleSeries.mockResolvedValue([])
+
+    await make(deps).getEligibleSeries({ magazine: 'FT  Jump', publicationType: 'WEEKLY' } as never)
+    expect(deps.repo.findVoteEligibleSeries).toHaveBeenCalledWith('FT Jump', 'WEEKLY', [
+      'SERIALIZED',
+      'CANCELLING',
+      'COMPLETING'
+    ])
+  })
+
+  it('getSurveyPeriods collapse khoảng trắng nội bộ trong bộ lọc magazine', async () => {
+    const deps = makeDeps()
+    await make(deps).getSurveyPeriods({
+      magazine: 'FT  Jump',
+      publicationType: 'WEEKLY',
+      status: 'OPEN',
+      limit: 10,
+      offset: 0
+    } as never)
+    expect(deps.repo.findManySurveyPeriods).toHaveBeenCalledWith(expect.objectContaining({ magazine: 'FT Jump' }))
+  })
+})
+
 describe('SurveyPeriodService.getEligibleSeries', () => {
   it('trim tạp chí + truyền ĐÚNG bộ trạng thái dùng chung với validate lúc tạo kỳ', async () => {
     const deps = makeDeps()

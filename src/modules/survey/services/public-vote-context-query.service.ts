@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { PublicationType } from '@prisma/client'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
+import { normalizeMagazine } from 'src/core/http/schemas/magazine.schema'
 import { VOTE_CTX_TTL_SEC } from 'src/infrastructure/redis/cache.constant'
 import { CacheService } from 'src/infrastructure/redis/cache.service'
 import { SurveyPeriodNotFoundException, SurveyPeriodNotOpenException } from '../errors/survey.errors'
@@ -20,7 +21,7 @@ export class PublicVoteContextQueryService {
   // Trả LIST vì Option B cho phép nhiều kỳ scoped OPEN đồng thời (WEEKLY + MONTHLY).
   // Cache dùng namespace `votectx` — đã được bump sẵn mỗi khi kỳ mở/đóng (survey-period.service).
   async getOpenPeriods(magazine?: string, publicationType?: PublicationType) {
-    const canonicalMagazine = magazine?.trim() || undefined
+    const canonicalMagazine = normalizeMagazine(magazine ?? '') || undefined
     return this.cache.getOrSet(
       'votectx',
       `open:${canonicalMagazine ?? 'ALL'}:${publicationType ?? 'ALL'}`,
