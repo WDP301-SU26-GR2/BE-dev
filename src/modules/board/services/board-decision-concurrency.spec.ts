@@ -62,7 +62,8 @@ describe('BoardDecisionWorkflowService — chống đua khi bỏ phiếu (O-1/O-
       boardGateway as never,
       { notifySafe: jest.fn() } as never,
       eventBus as never,
-      auditService as never
+      auditService as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     return { service, boardRepo, eventBus, auditService, boardGateway }
   }

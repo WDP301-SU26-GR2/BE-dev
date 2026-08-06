@@ -9,12 +9,14 @@ import {
   SeriesListResSchema,
   SeriesResSchema,
   UpdateProposalBodySchema,
-  UpdateSeriesMetadataBodySchema
+  UpdateSeriesMetadataBodySchema,
+  UpdateSeriesSlotBodySchema
 } from '../schemas/series-schemas'
 
 export class CreateProposalBodyDto extends createZodDto(CreateProposalBodySchema) {}
 export class UpdateProposalBodyDto extends createZodDto(UpdateProposalBodySchema) {}
 export class UpdateSeriesMetadataBodyDto extends createZodDto(UpdateSeriesMetadataBodySchema) {}
+export class UpdateSeriesSlotBodyDto extends createZodDto(UpdateSeriesSlotBodySchema) {}
 export class SeriesReasonBodyDto extends createZodDto(ReasonBodySchema) {}
 export class SeriesResDto extends createZodDto(SeriesResSchema) {}
 export class ListSeriesQueryDto extends createZodDto(ListSeriesQuerySchema) {}

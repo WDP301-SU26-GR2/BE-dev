@@ -621,23 +621,33 @@ const main = async () => {
   // Dùng một series SERIALIZED mới từ 01.6a — nhưng `happy` đã COMPLETED. Tạo parent + serieF mới.
   const happyCancelledSetup = await prisma.series.findUnique({ where: { id: happy.seriesId } })
   if (happyCancelledSetup?.status === SeriesStatus.COMPLETED) {
-    // COMPLETED là terminal; verify CANCELLATION listener không phá terminal (không transition).
-    const { decisionId: cancelDecision } = await createSessionWithDecision(
-      saTok,
-      [b1.id, b2.id, b3.id],
-      DecisionType.CANCELLATION,
-      happy.seriesId,
-      2
-    )
-    await approveDecision(cancelDecision, [b1Tok, b2Tok, b3Tok])
-    await sleep(500)
-    const scAfter = await prisma.series.findUnique({ where: { id: happy.seriesId } })
+    // Spec 2026-08-06 C2: CANCELLATION chỉ hợp lệ khi series SERIALIZED/HIATUS. Trên series COMPLETED (terminal)
+    // quyết định bị chặn NGAY KHI TẠO (409), không còn tới listener. Tạo session hợp lệ rồi POST decision → 409.
+    const rSessComp = await req('POST', '/board/sessions', {
+      token: saTok,
+      body: {
+        title: 'FT Cancel Completed ' + Date.now(),
+        startTime: new Date(Date.now() + 60_000).toISOString(),
+        allowedEditorIds: [b1.id, b2.id, b3.id]
+      }
+    })
+    const rCancelCompleted = await req('POST', '/board/decisions', {
+      token: saTok,
+      body: {
+        boardSessionId: rSessComp.json.data.id,
+        decisionType: DecisionType.CANCELLATION,
+        targetSeriesId: happy.seriesId,
+        allowedEditorIds: [b1.id, b2.id, b3.id],
+        details: { endingChapterAllowance: 2 }
+      }
+    })
     ok(
-      '01.6g series COMPLETED giữ nguyên khi CANCELLATION vote (terminal ngăn listener)',
-      scAfter?.status === SeriesStatus.COMPLETED,
-      `got ${scAfter?.status}`
+      '01.6g CANCELLATION trên series COMPLETED → 409 (C2 chặn ở tạo)',
+      rCancelCompleted.status === 409,
+      `got ${rCancelCompleted.status} ${rCancelCompleted.raw.slice(0, 120)}`
     )
-    ok('01.6h listener swallow exception (status không đổi)', scAfter?.status === SeriesStatus.COMPLETED)
+    const scAfter = await prisma.series.findUnique({ where: { id: happy.seriesId } })
+    ok('01.6h series COMPLETED không bị chạm (status giữ nguyên)', scAfter?.status === SeriesStatus.COMPLETED)
 
     // force-cancel: 409 seriesNotInCancellingState (vì COMPLETED)
     const rFC = await req('POST', `/series/${happy.seriesId}/force-cancel`, { token: e1Tok })

@@ -12,7 +12,8 @@ function setup() {
     createSeriesReport: jest.fn().mockResolvedValue({ id: 'report' }),
     findConfigById: jest.fn(),
     findFirstOpenSession: jest.fn(),
-    updateConfig: jest.fn().mockResolvedValue({ id: CONFIG_ID })
+    updateConfig: jest.fn().mockResolvedValue({ id: CONFIG_ID }),
+    findReportByDecisionId: jest.fn().mockResolvedValue([])
   }
   return { repository, service: new BoardGovernanceService(repository as never) }
 }
@@ -50,6 +51,18 @@ describe('BoardGovernanceService report authorization and config locking', () =>
     fixture.repository.findSessionById.mockResolvedValue({ status: 'CONCLUDED', allowedEditorIds: ['editor'] })
 
     await expect(fixture.service.createSeriesReport('editor', report)).rejects.toBe(Errors.SessionClosedReportException)
+    expect(fixture.repository.createSeriesReport).not.toHaveBeenCalled()
+  })
+
+  it('rejects duplicate report for same series in the same decision (C4 gate)', async () => {
+    const fixture = setup()
+    fixture.repository.findDecisionById.mockResolvedValue({ boardSessionId: 'session', targetSeriesId: 'series' })
+    fixture.repository.findSessionById.mockResolvedValue({ status: 'ACTIVE', allowedEditorIds: ['editor'] })
+    fixture.repository.findReportByDecisionId.mockResolvedValue([{ seriesId: 'series', content: 'Previous report' }])
+
+    await expect(fixture.service.createSeriesReport('editor', report)).rejects.toBe(
+      Errors.BoardReportAlreadyExistsException
+    )
     expect(fixture.repository.createSeriesReport).not.toHaveBeenCalled()
   })
 

@@ -1,5 +1,6 @@
 import { PublicationType, SurveyStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import { normalizeMagazine } from 'src/core/http/schemas/magazine.schema'
 import { CreateSurveyPeriodBodyDto, ImportSurveyDataBodyDto } from '../dto/survey.dto'
 
 export class SurveyPeriodRepository {
@@ -8,7 +9,7 @@ export class SurveyPeriodRepository {
   create(data: CreateSurveyPeriodBodyDto) {
     return this.prisma.surveyPeriod.create({
       data: {
-        magazine: data.magazine.trim(),
+        magazine: normalizeMagazine(data.magazine),
         publicationType: data.publicationType,
         eligibleSeriesIds: data.eligibleSeriesIds,
         issueNumber: data.issueNumber,

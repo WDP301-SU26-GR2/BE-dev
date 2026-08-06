@@ -12,6 +12,7 @@ import {
   ContractStatusProgressResSchema,
   ContractPdfResSchema,
   RejectContractBodySchema,
+  VoidContractBodySchema,
   AssignRepresentativeBodySchema,
   CreateContractCommentBodySchema,
   ContractCommentResSchema,
@@ -23,6 +24,7 @@ export class EditorUpdateContractBodyDto extends createZodDto(EditorUpdateContra
 export class SignContractWithOtpBodyDto extends createZodDto(SignContractWithOtpBodySchema) {}
 export class ReportRevenueBodyDto extends createZodDto(ReportRevenueBodySchema) {}
 export class RejectContractBodyDto extends createZodDto(RejectContractBodySchema) {}
+export class VoidContractBodyDto extends createZodDto(VoidContractBodySchema) {}
 export class AssignRepresentativeBodyDto extends createZodDto(AssignRepresentativeBodySchema) {}
 export class CreateContractCommentBodyDto extends createZodDto(CreateContractCommentBodySchema) {}
 export class ContractListItemDto extends createZodDto(ContractListItemSchema) {}

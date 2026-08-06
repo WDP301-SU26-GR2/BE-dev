@@ -18,6 +18,14 @@ export class BoardGovernanceService {
     const session = await this.boardRepo.findSessionById(decision.boardSessionId)
     if (!session) throw Errors.SessionNotFoundException
     if (session.status === 'CONCLUDED') throw Errors.SessionClosedReportException
+
+    // C4: mỗi quyết định chỉ có MỘT báo cáo (SeriesReport.boardDecisionId @unique).
+    // Tiền kiểm để trả lỗi đẹp; @unique vẫn là hàng rào thật chống race.
+    const existingReports = await this.boardRepo.findReportByDecisionId(dto.boardDecisionId)
+    if (existingReports.length > 0) {
+      throw Errors.BoardReportAlreadyExistsException
+    }
+
     const series = await this.boardRepo.findSeriesEditorById(dto.seriesId)
     if (!series) throw Errors.SeriesNotFoundException
     if (series.editorId !== userId) throw Errors.EditorNotAssignedToSeriesException

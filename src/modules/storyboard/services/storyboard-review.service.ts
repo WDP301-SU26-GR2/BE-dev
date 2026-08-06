@@ -62,7 +62,7 @@ export class StoryboardReviewService {
       referenceType: 'STORYBOARD_REVISION_REQUESTED',
       content: N.storyboardRevision(round, reason)
     })
-    return toStoryboardRes(updated)
+    return { ...toStoryboardRes(updated), message: StoryboardMessages.response.storyboardRevisionRequested }
   }
 
   async chapterResubmit(mangakaId: string, chapterId: string, storyboardId: string) {
@@ -129,6 +129,6 @@ export class StoryboardReviewService {
       referenceType: 'STORYBOARD_APPROVED',
       content: N.storyboardApproved
     })
-    return toStoryboardRes(updated)
+    return { ...toStoryboardRes(updated), message: StoryboardMessages.response.storyboardApproved }
   }
 }

@@ -57,3 +57,12 @@ export const DecisionAlreadyFinalizedException = new ConflictException([
   { message: E.decisionAlreadyFinalized, path: 'id' }
 ])
 export const NotSessionParticipantException = new ForbiddenException([{ message: E.notSessionParticipant, path: 'id' }])
+
+// Gate C1/C2/C4 (Spec 2026-08-06)
+export const OpenBoardDecisionExistsException = new ConflictException([E.openBoardDecisionExists])
+export const DecisionTypeNotAllowedForSeriesStatusException = new ConflictException([
+  { message: E.decisionTypeNotAllowedForSeriesStatus, path: 'decisionType' }
+])
+export const BoardReportAlreadyExistsException = new ConflictException([
+  { message: E.boardReportAlreadyExists, path: 'boardDecisionId' }
+])

@@ -1,5 +1,6 @@
 import { HttpMessages } from '../http.messages'
 import { SecurityMessages } from '../../security/security.messages'
+import { MagazineMessages } from 'src/modules/app-config/magazine.messages'
 import { AiMessages } from 'src/modules/ai/ai.messages'
 import { AnnotationMessages } from 'src/modules/annotation/annotation.messages'
 import { AuthMessages } from 'src/modules/auth/auth.messages'
@@ -45,6 +46,7 @@ export const MESSAGE_CATALOGS: NamedMessageCatalog[] = [
   { name: 'chapter', catalog: catalog(ChapterMessages) },
   { name: 'contract', catalog: catalog(ContractMessages) },
   { name: 'deadline', catalog: catalog(DeadlineMessages) },
+  { name: 'app-config', catalog: catalog(MagazineMessages) },
   { name: 'health', catalog: catalog(HealthMessages) },
   { name: 'storyboard', catalog: catalog(StoryboardMessages) },
   { name: 'notification', catalog: catalog(NotificationMessages) },

@@ -69,7 +69,7 @@ describe('BoardRepository Prisma contracts', () => {
     expect(prisma.seriesReport.findUnique).toHaveBeenCalledWith({ where: { id: 'report' } })
     expect(prisma.series.findUnique).toHaveBeenCalledWith({
       where: { id: 'series' },
-      select: { id: true, editorId: true }
+      select: { id: true, editorId: true, status: true, magazine: true }
     })
   })
 

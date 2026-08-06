@@ -1,7 +1,7 @@
 // ⚠ FILE SINH TỰ ĐỘNG bởi _generate-route-roles.ts — ĐỪNG SỬA TAY.
 // Sinh từ Reflect metadata runtime (PATH/METHOD/ROLES/AUTH_TYPE) của dist/ thật.
 // Regenerate: pnpm build && pnpm flowtest:one test/flows/_generate-route-roles.ts
-// Sinh lúc: 2026-08-05T06:58:33.060Z — 285 routes.
+// Sinh lúc: 2026-08-06T09:33:58.559Z — 291 routes.
 //
 // access:
 //   PUBLIC — @IsPublic(), không cần token (none/mọi role đều KHÔNG bị 401/403)
@@ -31,6 +31,16 @@ export const ROLE_FIXTURES_ORDER: RoleCode[] = [
 export const ROUTE_RULES: RouteRule[] = [
   { method: 'GET', path: '/admin/app-config', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   { method: 'PATCH', path: '/admin/app-config', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
+  {
+    method: 'GET',
+    path: '/magazines',
+    access: 'ROLES',
+    allowed: [RoleCode.EDITOR, RoleCode.BOARD_MEMBER, RoleCode.SUPER_ADMIN]
+  },
+  { method: 'POST', path: '/admin/magazines', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
+  { method: 'DELETE', path: '/admin/magazines/:name', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
+  { method: 'PATCH', path: '/admin/magazines/:name', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
+  { method: 'PATCH', path: '/admin/series/:id/slot', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   { method: 'GET', path: '/admin/stats', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   { method: 'GET', path: '/admin/users', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   { method: 'POST', path: '/admin/users', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
@@ -373,6 +383,7 @@ export const ROUTE_RULES: RouteRule[] = [
     access: 'ROLES',
     allowed: [RoleCode.EDITOR, RoleCode.MANGAKA, RoleCode.BOARD_MEMBER]
   },
+  { method: 'POST', path: '/contracts/:id/void', access: 'ROLES', allowed: [RoleCode.EDITOR] },
   { method: 'GET', path: '/contracts/health', access: 'AUTH', allowed: [] },
   { method: 'GET', path: '/dashboard/admin', access: 'ROLES', allowed: [RoleCode.SUPER_ADMIN] },
   { method: 'GET', path: '/dashboard/assistant', access: 'ROLES', allowed: [RoleCode.ASSISTANT] },

@@ -32,7 +32,7 @@ function createService(
     appConfigService as never,
     revisionService as never
   )
-  const contentService = new StoryboardContentService(accessService, repo as never)
+  const contentService = new StoryboardContentService(accessService, repo as never, notificationService as never)
   const queryService = new StoryboardQueryService(repo as never)
   return new StoryboardService(reviewService, contentService, queryService)
 }

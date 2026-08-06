@@ -75,7 +75,7 @@ export class BoardSessionWorkflowService {
         action: 'DECISION_EXPIRED',
         fromState: decision.result ?? 'PENDING',
         toState: 'EXPIRED',
-        reason: 'Board session concluded without quorum'
+        reason: BoardMessages.reason.concludedWithoutQuorum
       })
     }
 

@@ -28,7 +28,10 @@ export class BoardRepository {
   }
 
   findSeriesEditorById(id: string) {
-    return this.prisma.series.findUnique({ where: { id }, select: { id: true, editorId: true } })
+    return this.prisma.series.findUnique({
+      where: { id },
+      select: { id: true, editorId: true, status: true, magazine: true }
+    })
   }
 
   async findManySessions(filter?: { participantId?: string; status?: $Enums.BoardSessionStatus }) {
@@ -85,6 +88,32 @@ export class BoardRepository {
 
   async findReportById(id: string) {
     return this.prisma.seriesReport.findUnique({ where: { id } })
+  }
+
+  /**
+   * Tìm quyết định chưa terminal (không phải APPROVED/REJECTED/EXPIRED) cho một series.
+   * Dùng cho gate C1: chặn tạo decision mới khi đã có pending.
+   *
+   * Sử dụng `notIn` thay vì `in` để match cả null/absent (Prisma MongoDB).
+   */
+  async findOpenDecisionBySeries(targetSeriesId: string) {
+    return this.prisma.boardDecision.findFirst({
+      where: {
+        targetSeriesId,
+        result: { notIn: ['APPROVED', 'REJECTED', 'EXPIRED'] }
+      }
+    })
+  }
+
+  /**
+   * Tìm báo cáo theo boardDecisionId.
+   * Dùng cho gate C4: báo cáo trùng quyết định.
+   */
+  async findReportByDecisionId(boardDecisionId: string) {
+    return this.prisma.seriesReport.findMany({
+      where: { boardDecisionId },
+      orderBy: { createdAt: 'desc' }
+    })
   }
 
   async findExpiredUpcomingSessions() {

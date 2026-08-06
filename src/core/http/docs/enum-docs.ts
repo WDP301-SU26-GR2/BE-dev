@@ -71,7 +71,7 @@ export const ENUM_DOCS = {
   ReprintRevisionMode: 'Reprint revision mode: AS_IS (giữ nguyên) hoặc WITH_REVISION (được sửa)',
   // Spec 9 — Part 5: Board convention (DecisionType + BoardSessionStatus)
   DecisionType:
-    'Board decision type: CONTINUE, CANCEL, HIATUS, ENDING_ALLOWANCE, SERIES_CONTRACT_APPROVAL, SERIALIZATION, CANCELLATION, FORMAT_CHANGE, COMPLETION, REPRINT, TRANSFER, CONTRACT, OTHER',
+    'Loại quyết định Hội đồng: SERIALIZATION (duyệt serial hoá — chỉ khi series PITCHED) | CANCELLATION (huỷ bộ truyện) | COMPLETION (duyệt kết thúc) | FORMAT_CHANGE (đổi hình thức xuất bản) | REPRINT (tái bản) | TRANSFER (chuyển nhượng) | CONTRACT (duyệt hợp đồng/phụ lục) | SERIES_CONTRACT_APPROVAL (nội bộ, không tạo qua API). Ghi nhận "giữ nguyên bộ truyện" = mở CANCELLATION rồi Hội đồng bỏ phiếu REJECT.',
   BoardSessionStatus: 'Board session status: UPCOMING (chờ tới giờ), ACTIVE (đang họp/vote), CONCLUDED (đã bế mạc)',
   BoardSessionPhase:
     'Giai đoạn trong phiên họp Board: PRESENTING (editor trình bày hồ sơ), QA (Board hỏi đáp qua chat), VOTING (chỉ bỏ phiếu — chat bị khóa)',

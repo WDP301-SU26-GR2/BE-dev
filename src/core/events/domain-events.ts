@@ -40,7 +40,7 @@ export interface DomainEventPayload {
   [DomainEvent.RevenueReported]: { contractId: string; revenue: number; period: string }
   [DomainEvent.BoardDecisionFinalized]: {
     decisionId: string
-    decisionType: 'SERIALIZATION' | 'CANCELLATION' | 'COMPLETION' | 'FORMAT_CHANGE' | 'CONTINUE'
+    decisionType: 'SERIALIZATION' | 'CANCELLATION' | 'COMPLETION' | 'FORMAT_CHANGE'
     targetSeriesId: string | null
     result: 'APPROVED' | 'REJECTED'
     details: Record<string, unknown> | null

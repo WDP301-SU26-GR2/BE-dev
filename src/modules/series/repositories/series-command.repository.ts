@@ -1,5 +1,6 @@
 import { FranchiseConsentStatus, ProposalStatus, PublicationType, SeriesStatus } from '@prisma/client'
 import { PrismaService } from 'src/infrastructure/database/prisma.service'
+import { normalizeMagazine } from 'src/core/http/schemas/magazine.schema'
 import { SeriesProposalRepository } from './series-proposal.repository'
 
 export class SeriesCommandRepository {
@@ -104,7 +105,9 @@ export class SeriesCommandRepository {
     await this.prismaService.series.update({
       where: { id: seriesId },
       data: {
-        magazine: slot.magazine,
+        // Chuẩn hoá tại điểm ghi (Spec 2026-08-06 E2): Series.magazine phải dùng CÙNG normalize với
+        // SurveyPeriod.magazine, nếu không findVoteEligibleSeries khớp hụt im lặng (khác khoảng trắng).
+        magazine: normalizeMagazine(slot.magazine),
         startIssueNumber: slot.startIssueNumber,
         publicationType: slot.publicationType as PublicationType
       }

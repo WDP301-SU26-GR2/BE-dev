@@ -41,13 +41,24 @@ export class ContractSigningService {
     const settled = await this.contractRepo.recordRepresentativeSignatureAndSettle(contractId, loggedInUserId)
     if (!settled.signed || !settled.contract) throw ContractErrors.ContractNotInBoardReview()
     await this.auditTransition(contractId, ContractStatus.BOARD_REVIEW, ContractStatus.AWAITING_MANGAKA, loggedInUserId)
+    // Notify Mangaka with series title
     await this.notificationService.notifySafe({
       recipientId: contract.mangakaId,
       type: NotificationType.CONTRACT,
       referenceId: contractId,
       referenceType: 'CONTRACT_AWAITING_MANGAKA',
-      content: ContractMessages.notification.representativeSigned
+      content: ContractMessages.response.representativeSigned(contract.series?.title ?? '')
     })
+    // Notify Editor
+    if (contract.editorId) {
+      await this.notificationService.notifySafe({
+        recipientId: contract.editorId,
+        type: NotificationType.CONTRACT,
+        referenceId: contractId,
+        referenceType: 'CONTRACT_REPRESENTATIVE_SIGNED',
+        content: ContractMessages.notification.representativeSignedEditor
+      })
+    }
     return settled.contract
   }
 

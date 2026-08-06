@@ -94,7 +94,7 @@ export class ManuscriptReviewService {
         content: ChapterMessages.notification.manuscriptSubmitted
       })
     }
-    return result
+    return { ...result, message: ChapterMessages.response.manuscriptSubmitted }
   }
 
   async requestRevision(userId: string, chapterId: string, reason: string) {
@@ -125,7 +125,7 @@ export class ManuscriptReviewService {
       referenceType: 'MANUSCRIPT_REVISION_REQUESTED',
       content: ChapterMessages.notification.editorRequestedRevision(round, reason)
     })
-    return result
+    return { ...result, message: ChapterMessages.response.manuscriptRevisionRequested }
   }
 
   async resubmit(userId: string, chapterId: string) {
@@ -156,7 +156,7 @@ export class ManuscriptReviewService {
         content: ChapterMessages.notification.manuscriptResubmitted(round)
       })
     }
-    return result
+    return { ...result, message: ChapterMessages.response.manuscriptResubmitted }
   }
 
   async approve(userId: string, chapterId: string) {
@@ -173,6 +173,6 @@ export class ManuscriptReviewService {
       referenceType: 'MANUSCRIPT_APPROVED',
       content: ChapterMessages.notification.manuscriptApproved
     })
-    return result
+    return { ...result, message: ChapterMessages.response.manuscriptApproved }
   }
 }

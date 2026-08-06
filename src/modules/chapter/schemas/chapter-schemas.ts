@@ -150,7 +150,8 @@ export const ChapterResSchema = extendApi(
       .nullable()
       .describe('null = chapter is not on hold'),
     manuscriptStatus: zEnum(ManuscriptStatus, 'ManuscriptStatus').nullable(),
-    schedule: ScheduleResSchema.nullable()
+    schedule: ScheduleResSchema.nullable(),
+    message: z.string().optional().describe('Mô tả hành động vừa thực hiện — chỉ có ở response mutation')
   }),
   { title: 'ChapterRes', description: 'Chapter view' }
 )

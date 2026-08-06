@@ -47,7 +47,8 @@ describe('BoardService.castVote → BoardDecisionFinalized emit idempotency', ()
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      auditService as never
+      auditService as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     return { service, eventBus, auditService: { record: auditService.record } }
   }
@@ -147,7 +148,9 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
   function makeDecisionService(sessionOverride: { id: string; creatorId: string; allowedEditorIds: string[] } | null) {
     const boardRepo = {
       findSessionById: jest.fn().mockResolvedValue(sessionOverride),
-      createDecision: jest.fn().mockResolvedValue({ id: 'decision-1' })
+      createDecision: jest.fn().mockResolvedValue({ id: 'decision-1' }),
+      findOpenDecisionBySeries: jest.fn().mockResolvedValue(null),
+      findSeriesEditorById: jest.fn().mockResolvedValue({ id: 'series-1', status: 'PITCHED' })
     }
     const boardGateway = { broadcastVoteProgress: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
@@ -157,7 +160,8 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      auditService as never
+      auditService as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     return { service, boardRepo }
   }
@@ -261,7 +265,8 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      audit as never
+      audit as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     return { service, boardRepo, audit, state }
   }
@@ -280,7 +285,8 @@ describe('BoardService castVote ObjectId guard + DECISION_FINALIZED audit', () =
       boardGateway as never,
       notificationService as never,
       eventBus as never,
-      audit as never
+      audit as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     await expect(service.castVote('garbage', 'b1', { voteValue: 'APPROVE' } as never)).rejects.toMatchObject({
       status: 404
@@ -473,7 +479,8 @@ describe('BoardService.castVote quorum by session roster (Spec 17)', () => {
       { broadcastVoteProgress: jest.fn() } as never,
       { notifySafe: jest.fn() } as never,
       { emit: jest.fn() } as never,
-      { record: jest.fn() } as never
+      { record: jest.fn() } as never,
+      { assertSlotAllowed: jest.fn(), assertPublicationTypeAllowed: jest.fn() } as never
     )
     return { service, boardRepo, voterId, voteValue: pushedVotes.at(-1)!.voteValue }
   }

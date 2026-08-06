@@ -4,11 +4,14 @@
 export const SeriesMessages = {
   response: {
     proposalDeleted: 'Đã xoá bản đề xuất',
-    seriesReopened: 'Đã mở lại hồ sơ — bạn có thể chỉnh sửa và nộp lại',
-    seriesReopenedForReview: 'Đã mở lại vòng chỉnh sửa sau khi hội đồng từ chối'
+    seriesReopened:
+      'Đã mở lại hồ sơ — bạn có thể chỉnh sửa và nộp lại. Hồ sơ sẽ quay lại hàng đợi chung, biên tập viên khác có thể nhận.',
+    seriesReopenedForReview: 'Đã mở lại vòng chỉnh sửa sau khi hội đồng từ chối',
+    slotCorrected: 'Đã cập nhật slot bộ truyện'
   },
   // Internal reasons stored on Series.statusHistory (audit trail) are also user-visible activity text.
   reason: {
+    boardRejectedSerialization: 'Hội đồng đã từ chối serial hoá bộ truyện',
     forceCancelNoEnding: 'Đã huỷ khi chưa có chương kết — tác giả không thể hoàn thành',
     hiatusHold: 'Bộ truyện tạm ngưng theo yêu cầu của tác giả'
   },
@@ -70,7 +73,8 @@ export const SeriesMessages = {
     notOriginalMangaka: 'Error.NotOriginalMangaka',
     notFranchiseConsentTarget: 'Error.NotFranchiseConsentTarget',
     seriesRequestRequired: 'Error.SeriesRequestRequired',
-    mangakaProfileRequired: 'Error.MangakaProfileRequired'
+    mangakaProfileRequired: 'Error.MangakaProfileRequired',
+    seriesSlotNotEditable: 'Error.SeriesSlotNotEditable'
   },
   errorText: {
     'Error.SeriesNotFound': 'Không tìm thấy bộ truyện',
@@ -95,6 +99,8 @@ export const SeriesMessages = {
     'Error.NotFranchiseConsentTarget': 'Yêu cầu đồng ý này không dành cho bạn',
     'Error.SeriesRequestRequired':
       'Hồ sơ đã sẵn sàng trình Hội đồng — vui lòng gửi yêu cầu rút để biên tập viên xem xét',
-    'Error.MangakaProfileRequired': 'Vui lòng hoàn thiện hồ sơ tác giả trước khi nộp để biên tập viên xem xét'
+    'Error.MangakaProfileRequired':
+      'Bạn cần hoàn thiện hồ sơ tác giả (bút danh, thể loại, kinh nghiệm) trước khi nộp bộ truyện. Biên tập viên và Hội đồng dựa vào hồ sơ này để đánh giá năng lực khi xét duyệt.',
+    'Error.SeriesSlotNotEditable': 'Slot bộ truyện chỉ có thể sửa khi bộ truyện đã serial hoá'
   }
 } as const

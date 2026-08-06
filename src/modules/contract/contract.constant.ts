@@ -12,11 +12,12 @@ export const CONTRACT_EVENTS = {
 export const CONTRACT_TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
   [ContractStatus.DRAFT]: [ContractStatus.BOARD_REVIEW, ContractStatus.VOIDED],
   [ContractStatus.BOARD_REVIEW]: [ContractStatus.AWAITING_MANGAKA, ContractStatus.VOIDED],
+  // Spec 2026-08-06 §F: đại diện Hội đồng đã ký (AWAITING_MANGAKA) thì KHÔNG cho huỷ đơn phương (VOIDED) —
+  // phải đi đường Mangaka từ chối (REJECTED_BY_MANGAKA) rồi Editor redraft. Chỉ DRAFT/BOARD_REVIEW → VOIDED.
   [ContractStatus.AWAITING_MANGAKA]: [
     ContractStatus.FULLY_EXECUTED,
     ContractStatus.ACTIVATION_PENDING,
-    ContractStatus.REJECTED_BY_MANGAKA,
-    ContractStatus.VOIDED
+    ContractStatus.REJECTED_BY_MANGAKA
   ],
   [ContractStatus.ACTIVATION_PENDING]: [ContractStatus.FULLY_EXECUTED],
   [ContractStatus.FULLY_EXECUTED]: [

@@ -5,7 +5,8 @@ import {
   CreateContractCommentBodyDto,
   EditorUpdateContractBodyDto,
   RejectContractBodyDto,
-  ReportRevenueBodyDto
+  ReportRevenueBodyDto,
+  VoidContractBodyDto
 } from '../dto/contract.dto'
 import { ContractDraftService } from './contract-draft.service'
 import { ContractPdfService } from './contract-pdf.service'
@@ -109,5 +110,9 @@ export class ContractService {
 
   reportRevenue(contractId: string, userId: string, roleName: string, body: ReportRevenueBodyDto) {
     return this.revenueService.reportRevenue(contractId, userId, roleName, body)
+  }
+
+  voidContract(contractId: string, editorId: string, dto: VoidContractBodyDto) {
+    return this.workflowService.void(contractId, editorId, dto)
   }
 }

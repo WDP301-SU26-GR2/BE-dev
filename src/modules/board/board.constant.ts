@@ -1,4 +1,4 @@
-import { $Enums } from '@prisma/client'
+import { $Enums, SeriesStatus } from '@prisma/client'
 
 /**
  * Các hằng số cấu hình hệ thống mặc định cho Hội đồng ban trị sự
@@ -22,6 +22,17 @@ export const TERMINAL_DECISION_RESULTS = [
   $Enums.BoardDecisionResult.REJECTED,
   $Enums.BoardDecisionResult.EXPIRED
 ]
+
+/**
+ * Loại quyết định chỉ hợp lệ với một số trạng thái bộ truyện.
+ * Loại KHÔNG có trong bảng (REPRINT/TRANSFER/CONTRACT/SERIES_CONTRACT_APPROVAL) do module khác sở hữu vòng đời ⇒ không kiểm.
+ */
+export const DECISION_TYPE_ALLOWED_SERIES_STATUSES: Partial<Record<$Enums.DecisionType, SeriesStatus[]>> = {
+  [$Enums.DecisionType.SERIALIZATION]: [SeriesStatus.PITCHED],
+  [$Enums.DecisionType.CANCELLATION]: [SeriesStatus.SERIALIZED, SeriesStatus.HIATUS],
+  [$Enums.DecisionType.COMPLETION]: [SeriesStatus.SERIALIZED, SeriesStatus.HIATUS],
+  [$Enums.DecisionType.FORMAT_CHANGE]: [SeriesStatus.SERIALIZED, SeriesStatus.HIATUS]
+}
 
 /**
  * Tên các sự kiện (Event Bus) được phát ra toàn hệ thống

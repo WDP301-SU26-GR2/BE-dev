@@ -188,6 +188,25 @@ describe('CreateBoardDecisionBodySchema details validation (Spec 16)', () => {
       ).toBe(true)
     }
   })
+
+  // D2 (Spec 2026-08-06): 4 DecisionType chết đã xoá khỏi enum → zEnum tự chặn (422);
+  // SERIES_CONTRACT_APPROVAL còn trong enum nhưng chỉ dùng nội bộ → superRefine chặn.
+  it('rejects removed DecisionType values (CONTINUE/CANCEL/HIATUS/ENDING_ALLOWANCE)', () => {
+    for (const decisionType of ['CONTINUE', 'CANCEL', 'HIATUS', 'ENDING_ALLOWANCE']) {
+      expect(CreateBoardDecisionBodySchema.safeParse({ ...base, decisionType, details: null }).success).toBe(false)
+    }
+  })
+
+  it('rejects internal-only SERIES_CONTRACT_APPROVAL via API', () => {
+    const parsed = CreateBoardDecisionBodySchema.safeParse({
+      ...base,
+      decisionType: 'SERIES_CONTRACT_APPROVAL',
+      details: null
+    })
+    expect(parsed.success).toBe(false)
+    if (parsed.success) return
+    expect(parsed.error.issues.map((i) => i.path.join('.'))).toContain('decisionType')
+  })
 })
 
 describe('ListBoardSessionsQuerySchema mine parsing (Spec 16)', () => {

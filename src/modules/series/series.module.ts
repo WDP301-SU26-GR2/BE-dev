@@ -2,8 +2,11 @@ import { Module } from '@nestjs/common'
 import { ChapterModule } from '../chapter/chapter.module'
 import { UsersModule } from '../users/users.module'
 import { SeriesController } from './series.controller'
+import { SeriesAdminController } from './series-admin.controller'
 import { SeriesRepository } from './series.repo'
+import { SeriesQueryRepository } from './repositories/series-query.repository'
 import { SeriesService } from './series.service'
+import { SeriesSlotAdminService } from './services/series-slot-admin.service'
 import { SeriesPitchService } from './services/series-pitch.service'
 import { SeriesProposalService } from './services/series-proposal.service'
 import { SeriesClaimService } from './services/series-claim.service'
@@ -27,11 +30,14 @@ import { SeriesWithdrawService } from './services/series-withdraw.service'
 // Spec 28: vòng duyệt proposal gộp với phác thảo thành 1 hành động. Chapter-storyboard
 // được AppModule wire độc lập; series module không phụ thuộc storyboard và không lắng event duyệt.
 @Module({
+  // MagazineRegistryService dùng bởi SeriesSlotAdminService là @Global export của AppConfigModule
+  // (như AppConfigService) → không cần import ở đây.
   imports: [ChapterModule, UsersModule],
-  controllers: [SeriesController],
+  controllers: [SeriesController, SeriesAdminController],
   providers: [
     SeriesService,
     SeriesRepository,
+    SeriesQueryRepository,
     SeriesStateService,
     SeriesProposalService,
     SeriesProposalAccessService,
@@ -45,6 +51,7 @@ import { SeriesWithdrawService } from './services/series-withdraw.service'
     SeriesHiatusService,
     SeriesMetadataService,
     SeriesSerializeService,
+    SeriesSlotAdminService,
     SeriesIntegrationListener,
     HiatusTooLongCron,
     { provide: SeriesOwnershipPort, useClass: SeriesOwnershipAdapter },
