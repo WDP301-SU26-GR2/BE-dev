@@ -7,6 +7,7 @@ import { PublicRateLimitedException } from 'src/core/security/errors/public-rate
 import { PublicRateLimitGuard } from 'src/core/security/guards/public-rate-limit.guard'
 import {
   PublicChapterPagesResDto,
+  PublicMagazineListResDto,
   PublicSeriesDetailResDto,
   PublicSeriesListQueryDto,
   PublicSeriesListResDto
@@ -47,5 +48,17 @@ export class PublicController {
   @ZodResponse({ status: 200, type: PublicChapterPagesResDto })
   getChapterPages(@Param('id') id: string) {
     return this.publicService.getChapterPages(id)
+  }
+
+  @Get('magazines')
+  @IsPublic()
+  @UseGuards(PublicRateLimitGuard)
+  @ApiOperation({
+    summary: 'Public danh mục tạp chí — cho Landing (GUEST) chọn tạp chí trước khi xem ranking tổng hợp'
+  })
+  @ApiErrors(PublicRateLimitedException(0))
+  @ZodResponse({ status: 200, type: PublicMagazineListResDto })
+  listMagazines() {
+    return this.publicService.listMagazines()
   }
 }

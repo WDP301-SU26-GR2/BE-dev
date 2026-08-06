@@ -35,11 +35,17 @@ describe('PublicService', () => {
     findAdjacentPublishedChapter: jest.fn()
   }
   const storage = { createPresignedDownload: jest.fn() }
+  const magazineRegistry = { getMagazines: jest.fn() }
   let service: PublicService
 
   beforeEach(() => {
     jest.clearAllMocks()
-    service = new PublicService(repo as never, storage as never, asCacheService(makeCacheServiceMock()))
+    service = new PublicService(
+      repo as never,
+      storage as never,
+      asCacheService(makeCacheServiceMock()),
+      magazineRegistry as never
+    )
     storage.createPresignedDownload.mockResolvedValue({ downloadUrl: 'https://signed/x', expiresAt: 'e' })
   })
 
@@ -86,6 +92,29 @@ describe('PublicService', () => {
         limit: 5,
         offset: 10
       })
+    })
+  })
+
+  describe('listMagazines', () => {
+    it('returns the catalog from the registry through the cache', async () => {
+      const catalog = [
+        { name: 'WTJ', publicationTypes: ['WEEKLY'] },
+        { name: 'Monthly Shonen', publicationTypes: ['MONTHLY', 'IRREGULAR'] }
+      ]
+      magazineRegistry.getMagazines.mockResolvedValue(catalog)
+
+      const result = await service.listMagazines()
+
+      expect(result).toEqual({ items: catalog })
+      expect(magazineRegistry.getMagazines).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns an empty list when no magazines are registered', async () => {
+      magazineRegistry.getMagazines.mockResolvedValue([])
+
+      const result = await service.listMagazines()
+
+      expect(result).toEqual({ items: [] })
     })
   })
 
