@@ -4,6 +4,7 @@ import envConfig from 'src/core/config/envConfig'
 import { PUB_SERIES_TTL_SEC } from 'src/infrastructure/redis/cache.constant'
 import { CacheService } from 'src/infrastructure/redis/cache.service'
 import { StorageService } from 'src/infrastructure/storage/storage.service'
+import { MagazineRegistryService } from 'src/modules/app-config/services/magazine-registry.service'
 import { PublicChapterNotFoundException, PublicSeriesNotFoundException } from './errors/public.errors'
 import { mapPublicChapter, mapPublicSeriesItem } from './public.mapper'
 import { PublicRepository } from './public.repo'
@@ -14,7 +15,8 @@ export class PublicService {
   constructor(
     private readonly publicRepository: PublicRepository,
     private readonly storageService: StorageService,
-    private readonly cacheService: CacheService
+    private readonly cacheService: CacheService,
+    private readonly magazineRegistryService: MagazineRegistryService
   ) {}
 
   private signCover(key: string | null): Promise<string | null> {
@@ -22,6 +24,20 @@ export class PublicService {
     return this.storageService
       .createPresignedDownload(key, envConfig.PUBLIC_SIGN_TTL_SECONDS)
       .then((result) => result.downloadUrl)
+  }
+
+  // Cache danh mục tạp chí cùng namespace `pubseries` để 1 lệnh FLUSH dọn hết. Admin đổi danh mục
+  // qua PUT/POST/DELETE /admin/magazines không cần invalidate thủ công — TTL 120s là đủ cho UI.
+  async listMagazines() {
+    return this.cacheService.getOrSet(
+      'pubseries',
+      'magazines:list',
+      PUB_SERIES_TTL_SEC,
+      async () => {
+        const items = await this.magazineRegistryService.getMagazines()
+        return { items }
+      }
+    )
   }
 
   async listSeries(query: PublicSeriesListQueryType) {

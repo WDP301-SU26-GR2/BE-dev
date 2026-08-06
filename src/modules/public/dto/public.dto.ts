@@ -1,6 +1,7 @@
 import { createZodDto } from 'nestjs-zod'
 import {
   PublicChapterPagesResSchema,
+  PublicMagazineListResSchema,
   PublicSeriesDetailResSchema,
   PublicSeriesListQuerySchema,
   PublicSeriesListResSchema
@@ -10,3 +11,4 @@ export class PublicSeriesListQueryDto extends createZodDto(PublicSeriesListQuery
 export class PublicSeriesListResDto extends createZodDto(PublicSeriesListResSchema) {}
 export class PublicSeriesDetailResDto extends createZodDto(PublicSeriesDetailResSchema) {}
 export class PublicChapterPagesResDto extends createZodDto(PublicChapterPagesResSchema) {}
+export class PublicMagazineListResDto extends createZodDto(PublicMagazineListResSchema) {}

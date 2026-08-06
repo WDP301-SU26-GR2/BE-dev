@@ -3,6 +3,28 @@ import { Demographic, Genre, PublicationType, SeriesStatus } from '@prisma/clien
 import z from 'zod'
 import { zEnum } from 'src/core/http/docs/enum-docs'
 
+// Spec 15 §2.4 — public danh mục tạp chí để FE Landing (GUEST) chọn tạp chí trước khi xem
+// ranking. Cùng shape với `MagazineEntryResSchema` của app-config, tách riêng để public Swagger
+// không lộ schema nội bộ (CreateMagazineBodyDto/UpdateMagazineBodyDto).
+export const PublicMagazineEntrySchema = z
+  .object({
+    name: z.string(),
+    publicationTypes: z.array(zEnum(PublicationType, 'PublicationType'))
+  })
+  .strict()
+
+export const PublicMagazineListResSchema = extendApi(
+  z
+    .object({
+      items: z.array(PublicMagazineEntrySchema)
+    })
+    .strict(),
+  {
+    title: 'PublicMagazineListRes',
+    description: 'Public danh mục tạp chí (cho GUEST chọn khi xem ranking) — Spec 15 §2.4'
+  }
+)
+
 export const PublicSeriesListQuerySchema = extendApi(
   z
     .object({
