@@ -38,9 +38,15 @@ export class TransferSigningService {
 
   async sign(id: string, actor: ActorContext, dto: SignTransferContractBodyDto) {
     const contract = await this.resourceLoader.loadContract(id)
-    if (!contract.transferRequestId || !contract.seriesId) throw TransferAccessDeniedException
+    // O-3: `finalizeBoardSignature` ghi thẳng `toMangakaId`/`fromMangakaId` vào `Series` khi Hội đồng ký.
+    // Thiếu một trong hai id (dữ liệu bẩn) mà không chặn ở đây thì quyền sở hữu bộ truyện bị ghi rỗng.
+    if (!contract.transferRequestId || !contract.seriesId || !contract.fromMangakaId || !contract.toMangakaId) {
+      throw TransferAccessDeniedException
+    }
     const transferRequestId = contract.transferRequestId
     const seriesId = contract.seriesId
+    const fromMangakaId = contract.fromMangakaId
+    const toMangakaId = contract.toMangakaId
     const request = await this.resourceLoader.loadRequest(transferRequestId)
     const role = this.accessPolicy.deriveSignerRole(actor, {
       fromMangakaId: contract.fromMangakaId ?? null,
@@ -97,7 +103,12 @@ export class TransferSigningService {
             TransferContractStatus.B_SIGNED
           )
         } else {
-          await this.finalizeBoardSignature(context, id, { ...contract, transferRequestId, seriesId }, dependencies)
+          await this.finalizeBoardSignature(
+            context,
+            id,
+            { ...contract, transferRequestId, seriesId, fromMangakaId, toMangakaId },
+            dependencies
+          )
         }
       })
     } catch (error) {
@@ -146,6 +157,8 @@ export class TransferSigningService {
     contract: Awaited<ReturnType<TransferRepo['findTransferContractById']>> & {
       transferRequestId: string
       seriesId: string
+      fromMangakaId: string
+      toMangakaId: string
     },
     dependencies: ReturnType<TransferTransactionService['require']>
   ) {
@@ -163,8 +176,8 @@ export class TransferSigningService {
     )
     await dependencies.series.transferOwnership(context, {
       seriesId: contract.seriesId,
-      mangakaId: contract.toMangakaId!,
-      coOwnerId: contract.transferType === 'PARTIAL_TRANSFER' ? contract.fromMangakaId! : null,
+      mangakaId: contract.toMangakaId,
+      coOwnerId: contract.transferType === 'PARTIAL_TRANSFER' ? contract.fromMangakaId : null,
       coOwnerApprovalRequired: contract.transferType === 'PARTIAL_TRANSFER'
     })
     await dependencies.requestState.transition(

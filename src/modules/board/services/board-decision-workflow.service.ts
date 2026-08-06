@@ -62,12 +62,16 @@ export class BoardDecisionWorkflowService {
     }
     if (decision.votes.some((vote) => vote.voterId === voterId)) throw Errors.VoterAlreadyVotedException
 
-    const updatedDecision = await this.boardRepo.pushVoteToDecision(decisionId, {
+    // O-1: kiểm `votes.some(...)` ở trên chỉ để trả lỗi sớm cho trường hợp thường; hàng rào THẬT là
+    // lệnh ghi có điều kiện dưới đây — hai request của cùng một thành viên về đồng thời thì chỉ một
+    // cái khớp document, cái còn lại nhận `null`.
+    const updatedDecision = await this.boardRepo.pushVoteIfNotVoted(decisionId, {
       voterId,
       voteValue: dto.voteValue,
       note: dto.note ?? null,
       votedAt: new Date()
     })
+    if (!updatedDecision) throw Errors.VoterAlreadyVotedException
     const finalDecision = await this.recalculateDecisionResult(
       decisionId,
       updatedDecision.votes,
@@ -102,19 +106,29 @@ export class BoardDecisionWorkflowService {
     else if (approveCount > winThreshold) result = 'APPROVED'
     else if (rejectCount >= rosterSize - winThreshold || totalVotes >= rosterSize) result = 'REJECTED'
 
-    const updatedDecision = await this.boardRepo.updateDecisionCounters(decisionId, {
+    const terminalResult = result === 'APPROVED' || result === 'REJECTED' ? result : null
+    const counters = {
       quorumMet,
       totalVotes,
       approveCount,
       rejectCount,
       result,
-      decidedAt: result === 'APPROVED' || result === 'REJECTED' ? new Date() : null
-    })
-    if ((result === 'APPROVED' || result === 'REJECTED') && !wasTerminal && before) {
-      this.emitFinalized(before, result)
-      await this.auditFinalized(before, result)
+      decidedAt: terminalResult ? new Date() : null
     }
-    return updatedDecision
+
+    if (!terminalResult || wasTerminal) return this.boardRepo.updateDecisionCounters(decisionId, counters)
+
+    // O-2: giành quyền chốt bằng lệnh ghi CÓ ĐIỀU KIỆN. Hai phiếu cuối về đồng thời thì cả hai đều
+    // thấy `before` chưa terminal, nhưng chỉ một request đổi được document ⇒ chỉ bên thắng mới phát
+    // `BoardDecisionFinalized` (nếu không, listener series chạy hai lượt cho cùng một quyết định).
+    const claimed = await this.boardRepo.finalizeDecisionCountersIfNotTerminal(decisionId, counters)
+    if (claimed > 0 && before) {
+      this.emitFinalized(before, terminalResult)
+      await this.auditFinalized(before, terminalResult)
+    }
+    const current = (await this.boardRepo.findDecisionById(decisionId)) ?? before
+    if (!current) throw Errors.DecisionNotFoundException
+    return current
   }
 
   private emitFinalized(
