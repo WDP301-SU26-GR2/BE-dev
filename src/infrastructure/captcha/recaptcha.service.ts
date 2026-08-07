@@ -40,8 +40,15 @@ export class RecaptchaService {
 
       if (!response.ok) throw new Error(`siteverify HTTP ${response.status}`)
 
-      const data = (await response.json()) as { success: boolean; score?: number }
-      if (!data.success) return { ok: false, score: null, degraded: false }
+      const data = (await response.json()) as { success: boolean; score?: number; 'error-codes'?: string[] }
+      if (!data.success) {
+        // Diagnosability: siteverify chỉ trả success:false — nguyên nhân nằm ở `error-codes`
+        // (vd invalid-input-response = token không khớp cặp với secret; timeout-or-duplicate = token
+        // hết hạn/dùng lại; browser-error/hostname = sai domain). Không log thì 403 trở thành hộp đen.
+        const codes = data['error-codes'] ?? []
+        this.logger.warn(`reCAPTCHA rejected token — error-codes: [${codes.join(', ')}]`)
+        return { ok: false, score: null, degraded: false }
+      }
 
       return {
         ok: true,
