@@ -1,5 +1,6 @@
 import { OtpPurpose } from '../auth.constant'
 import { InvalidOTPException, OTPExpiredException, OtpLockedException } from '../errors/auth.errors'
+import { OtpEmailPurpose } from 'src/infrastructure/email/otp-email-content'
 import { AuthOtpService } from './auth-otp.service'
 
 function makeService(overrides: { otp?: unknown; compare?: boolean }) {
@@ -31,8 +32,24 @@ describe('AuthOtpService.validateOtpCode', () => {
       expect.objectContaining({ email: 'a@b.com', otpCodeHash: 'otp-hash', purpose: OtpPurpose.REGISTER })
     )
     expect(emailQueue.enqueueOtp).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'a@b.com', code: expect.any(String), expiresInMinutes: expect.any(Number) })
+      expect.objectContaining({
+        email: 'a@b.com',
+        code: expect.any(String),
+        expiresInMinutes: expect.any(Number),
+        purpose: OtpEmailPurpose.EMAIL_VERIFICATION
+      })
     )
+  })
+
+  it.each([
+    [OtpPurpose.FORGOT_PASSWORD, OtpEmailPurpose.PASSWORD_RESET],
+    [OtpPurpose.SIGNING_CONTRACT, OtpEmailPurpose.CONTRACT_SIGNATURE]
+  ])('maps %s to the matching email context', async (purpose, emailPurpose) => {
+    const { service, emailQueue } = makeService({ otp: null })
+
+    await service.issueOtp('a@b.com', purpose)
+
+    expect(emailQueue.enqueueOtp).toHaveBeenCalledWith(expect.objectContaining({ purpose: emailPurpose }))
   })
 
   it('throws InvalidOTP when no otp record exists', async () => {

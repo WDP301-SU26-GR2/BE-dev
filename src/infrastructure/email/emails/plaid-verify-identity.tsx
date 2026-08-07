@@ -4,13 +4,21 @@ import { Body, Container, Head, Heading, Html, Img, Section, Text } from './emai
 interface OtpEmailProps {
   code?: string
   title?: string
+  instruction?: string
   appName?: string
   // Use a publicly deployed image URL; local paths do not render in email clients.
   logoUrl?: string
   expiresInMinutes?: number
 }
 
-export const OTPEmail = ({ code, title, appName = 'Mangaka', logoUrl, expiresInMinutes = 5 }: OtpEmailProps) => (
+export const OTPEmail = ({
+  code,
+  title,
+  instruction,
+  appName = 'Mangaka',
+  logoUrl,
+  expiresInMinutes = 5
+}: OtpEmailProps) => (
   <Html>
     <Head>
       <title>{title || `Mã xác thực ${appName} của bạn`}</title>
@@ -24,7 +32,7 @@ export const OTPEmail = ({ code, title, appName = 'Mangaka', logoUrl, expiresInM
         )}
         <Text style={tertiary}>Mã xác thực</Text>
         <Heading style={secondary}>
-          Nhập mã sau vào ứng dụng để xác thực danh tính. Mã hết hạn sau {expiresInMinutes} phút.
+          {instruction ?? 'Nhập mã sau vào ứng dụng để xác thực danh tính.'} Mã hết hạn sau {expiresInMinutes} phút.
         </Heading>
         <Section style={codeContainer}>
           <Text style={codeText}>{code}</Text>
