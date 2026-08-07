@@ -29,15 +29,10 @@ export class PublicService {
   // Cache danh mục tạp chí cùng namespace `pubseries` để 1 lệnh FLUSH dọn hết. Admin đổi danh mục
   // qua PUT/POST/DELETE /admin/magazines không cần invalidate thủ công — TTL 120s là đủ cho UI.
   async listMagazines() {
-    return this.cacheService.getOrSet(
-      'pubseries',
-      'magazines:list',
-      PUB_SERIES_TTL_SEC,
-      async () => {
-        const items = await this.magazineRegistryService.getMagazines()
-        return { items }
-      }
-    )
+    return this.cacheService.getOrSet('pubseries', 'magazines:list', PUB_SERIES_TTL_SEC, async () => {
+      const items = await this.magazineRegistryService.getMagazines()
+      return { items }
+    })
   }
 
   async listSeries(query: PublicSeriesListQueryType) {
