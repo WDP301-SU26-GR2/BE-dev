@@ -381,6 +381,7 @@ describe('BoardRepository Prisma contracts', () => {
       where: { roleId: 'role', status: 'ACTIVE', deletedAt: { isSet: false } },
       select: {
         id: true,
+        name: true,
         displayName: true,
         avatar: true,
         createdAt: true,

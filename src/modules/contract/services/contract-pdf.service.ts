@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { AssetType, ContractAmendmentStatus } from '@prisma/client'
+import { createHash } from 'node:crypto'
 import envConfig from 'src/core/config/envConfig'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { PdfRenderService, type ContractPdfData } from 'src/infrastructure/pdf/pdf-render.service'
@@ -12,7 +13,7 @@ import { ContractQueryService } from './contract-query.service'
 
 // Increment when a renderer change must produce a new immutable PDF for an
 // already-executed contract. The data-version and template-version are kept separate.
-export const CONTRACT_PDF_TEMPLATE_VERSION = 3
+export const CONTRACT_PDF_TEMPLATE_VERSION = 4
 
 @Injectable()
 export class ContractPdfService {
@@ -34,7 +35,8 @@ export class ContractPdfService {
     const executedAmendments = contract.amendments.filter(
       (amendment) => amendment.status === ContractAmendmentStatus.FULLY_EXECUTED
     )
-    const key = `contracts/${contract.id}/contract-v${contract.versions.length}-a${executedAmendments.length}-t${CONTRACT_PDF_TEMPLATE_VERSION}.pdf`
+    const paymentConditionSnapshot = this.paymentConditionSnapshot(contract.conditions)
+    const key = `contracts/${contract.id}/contract-v${contract.versions.length}-a${executedAmendments.length}-p${paymentConditionSnapshot}-t${CONTRACT_PDF_TEMPLATE_VERSION}.pdf`
     let renderedPdf: Buffer | null = null
     const renderPdf = async () => {
       renderedPdf ??= await this.pdfRenderService.renderContractPdf(
@@ -139,5 +141,13 @@ export class ContractPdfService {
           )
           ?.toISOString() ?? null
     }
+  }
+
+  private paymentConditionSnapshot(conditions: Array<{ id: string; status: string }>) {
+    const value = conditions
+      .map((condition) => `${condition.id}:${condition.status}`)
+      .sort()
+      .join('|')
+    return createHash('sha256').update(value).digest('hex').slice(0, 12)
   }
 }

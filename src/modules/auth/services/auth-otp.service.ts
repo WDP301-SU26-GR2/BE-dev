@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { AuthRepository } from '../auth.repo'
 import { HashingService } from 'src/infrastructure/crypto/hashing.service'
 import { EmailQueue } from 'src/infrastructure/email/email.queue'
+import { OtpEmailPurpose } from 'src/infrastructure/email/otp-email-content'
 import { generateOTP } from '../helpers/otp.helper'
 import { parseDurationMs } from '../helpers/duration.helper'
 import { AUTH_OTP_MAX_ATTEMPTS, OtpPurpose, OtpPurposeType } from '../auth.constant'
@@ -51,7 +52,12 @@ export class AuthOtpService {
     })
 
     const expiresInMinutes = Math.max(1, Math.round(this.otpExpiryMs / 60000))
-    await this.emailQueue.enqueueOtp({ email, code, expiresInMinutes })
+    await this.emailQueue.enqueueOtp({
+      email,
+      code,
+      expiresInMinutes,
+      purpose: this.toEmailPurpose(purpose)
+    })
   }
 
   async sendOTPService(body: SendOtpBodyType) {
@@ -99,5 +105,18 @@ export class AuthOtpService {
 
   async burnOtp(email: string, purpose: OtpPurposeType): Promise<void> {
     await this.authRepository.deleteOtpRequest({ email, purpose })
+  }
+
+  private toEmailPurpose(purpose: OtpPurposeType) {
+    switch (purpose) {
+      case OtpPurpose.REGISTER:
+        return OtpEmailPurpose.EMAIL_VERIFICATION
+      case OtpPurpose.FORGOT_PASSWORD:
+        return OtpEmailPurpose.PASSWORD_RESET
+      case OtpPurpose.SIGNING_CONTRACT:
+        return OtpEmailPurpose.CONTRACT_SIGNATURE
+      case OtpPurpose.VOTE:
+        return OtpEmailPurpose.VOTE_CONFIRMATION
+    }
   }
 }

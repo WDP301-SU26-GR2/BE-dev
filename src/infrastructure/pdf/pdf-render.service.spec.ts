@@ -89,7 +89,9 @@ describe('ContractPdfDocument (Spec 24) — nội dung template', () => {
     expect(text).toContain('c1') // mã hệ thống ở footer
     expect(text).toContain('HĐXB-') // mã hợp đồng dễ đọc ở header
     expect(text).toContain('Căn cứ Quyết định của Hội đồng biên tập')
-    expect(text).toContain('BÊN A (Nhà xuất bản)')
+    expect(text).toContain('BÊN A:')
+    expect(text).toContain('Nhà xuất bản')
+    expect(text).toContain(envConfig.NAME_APP)
     expect(text).toContain('BÊN B (Tác giả)')
     expect(text).toContain('Điều 1. Đối tượng hợp đồng')
     expect(text).toContain('Điều 2. Loại hợp đồng & tỷ lệ sở hữu')
@@ -181,7 +183,8 @@ describe('ContractPdfDocument (Spec 24) — nội dung template', () => {
     const text = renderText(fullData)
     expect(text).toContain('Board A')
     expect(text).toContain('Tanaka Aoi')
-    expect(text).toContain('Serial hóa') // decisionType SERIALIZATION đã dịch
+    expect(text).toContain('Phát hành dài kỳ') // decisionType SERIALIZATION đã dịch
+    expect(text).not.toContain('Serial hóa')
     expect(text).toContain('Đã duyệt') // result APPROVED đã dịch
     expect(text).not.toContain('SERIALIZATION') // không rò enum thô
     expect(text).toContain('Phiên serial hoá Q3')

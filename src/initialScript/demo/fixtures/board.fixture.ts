@@ -11,7 +11,8 @@ export const seedLifecycleBoard = async (context: DemoContext, targets: SeriesSe
   const session = await context.prisma.boardSession.create({
     data: {
       title: '[DEMO F5] Hội đồng xử lý 10 series nguy cơ',
-      description: 'Phiên ACTIVE/VOTING để demo quyết định CONTINUE, CHANGE_FORMAT, CANCEL hoặc COMPLETE.',
+      description:
+        'Phiên ACTIVE/VOTING để demo quyết định giữ series bằng reject CANCELLATION, đổi format, huỷ hoặc hoàn tất tự nhiên.',
       creatorId: editor.id,
       status: BoardSessionStatus.ACTIVE,
       phase: BoardSessionPhase.VOTING,
@@ -22,21 +23,28 @@ export const seedLifecycleBoard = async (context: DemoContext, targets: SeriesSe
   })
 
   for (const [index, target] of targets.entries()) {
+    const decisionType = [DecisionType.CANCELLATION, DecisionType.FORMAT_CHANGE, DecisionType.COMPLETION][index % 3]
+    const isCancellation = decisionType === DecisionType.CANCELLATION
+    const isFormatChange = decisionType === DecisionType.FORMAT_CHANGE
     const decision = await context.prisma.boardDecision.create({
       data: {
         targetSeriesId: target.id,
         boardSessionId: session.id,
-        decisionType: index % 2 === 0 ? DecisionType.CANCELLATION : DecisionType.FORMAT_CHANGE,
+        decisionType,
         result: BoardDecisionResult.PENDING,
         totalVotes: 0,
         approveCount: 0,
         rejectCount: 0,
         quorumMet: false,
-        endingChapterAllowance: index % 2 === 0 ? 3 : null,
+        endingChapterAllowance: isCancellation ? 3 : null,
         details: {
           demoRun: index + 1,
-          reason: 'Bottom 1/3 liên tục; xem ranking 14 kỳ và kế hoạch cải thiện.',
-          publicationType: index % 2 === 0 ? null : 'MONTHLY'
+          reason: isCancellation
+            ? 'Bottom 1/3 liên tục; Board cân nhắc huỷ sau ba chương kết.'
+            : isFormatChange
+              ? 'Giảm tần suất để cải thiện chất lượng và ổn định tiến độ.'
+              : 'Mangaka và Editor đề xuất khép lại arc cuối theo kế hoạch tự nhiên.',
+          publicationType: isFormatChange ? 'MONTHLY' : null
         },
         allowedEditorIds: boardIds,
         votes: []
@@ -48,8 +56,11 @@ export const seedLifecycleBoard = async (context: DemoContext, targets: SeriesSe
         boardDecisionId: decision.id,
         preparedBy: target.editorId,
         reportType: 'DEFENSE',
-        content:
-          'Ranking giảm do arc chuyển tiếp. Kế hoạch: rút gọn arc hiện tại trong 3 chương, mở arc mới và tăng hoạt động digital.',
+        content: isCancellation
+          ? 'Ranking giảm liên tục. Báo cáo nêu phương án kết thúc trong ba chương và nghĩa vụ thanh toán còn lại.'
+          : isFormatChange
+            ? 'Đề xuất chuyển Weekly sang Monthly từ chapter kế tiếp, không hồi tố deadline chapter đang sản xuất.'
+            : 'Mangaka đã hoàn tất arc chính; đề xuất chapter cuối dài hơn và kế hoạch thay thế slot sau khi hoàn tất.',
         attachments: [requiredMedia(context.media, 'three-production-versions').key]
       }
     })

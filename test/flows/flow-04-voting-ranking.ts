@@ -12,7 +12,7 @@ const FLOW = 'flow-04-voting-ranking'
 const isoOffset = (ms: number) => new Date(Date.now() + ms).toISOString()
 
 const joinLiveVoteRoom = async (periodId: string) => {
-  const baseUrl = process.env.API_BASE_URL ?? 'http://127.0.0.1:4100'
+  const baseUrl = process.env.API_BASE_URL ?? `http://127.0.0.1:${process.env.PORT ?? '4100'}`
   const socket = io(`${baseUrl}/vote`, { transports: ['websocket'] })
   try {
     return await new Promise<{

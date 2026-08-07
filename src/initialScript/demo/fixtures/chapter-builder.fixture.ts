@@ -43,7 +43,7 @@ export const createChapterBundle = async (
       chapterId: chapter.id,
       status: input.storyboardStatus,
       version: input.storyboardStatus === StoryboardStatus.APPROVED ? 3 : 1,
-      submittedAt: new Date(),
+      submittedAt: input.storyboardStatus === StoryboardStatus.DRAFT ? null : context.now,
       pages: input.storyboardPages
         ? [...input.storyboardPages]
         : [

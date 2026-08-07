@@ -24,7 +24,7 @@ const decisionTypeMap: Record<string, string> = {
   HIATUS: 'Tạm ngưng',
   ENDING_ALLOWANCE: 'Cấp chương kết',
   SERIES_CONTRACT_APPROVAL: 'Duyệt hợp đồng',
-  SERIALIZATION: 'Serial hóa',
+  SERIALIZATION: 'Phát hành dài kỳ',
   FORMAT_CHANGE: 'Đổi hình thức xuất bản',
   COMPLETION: 'Kết thúc series',
   REPRINT: 'Tái bản',

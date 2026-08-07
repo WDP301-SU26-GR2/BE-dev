@@ -1,8 +1,6 @@
 import {
   AiJobStatus,
-  BoardDecisionResult,
   ContractStatus,
-  DecisionType,
   ProposalStatus,
   ProductionStageStatus,
   SeriesStatus,
@@ -104,6 +102,7 @@ export const verifyDemoData = async (prisma: PrismaClient): Promise<DemoVerifica
     rankingRecords,
     pendingBoardDecisions,
     draftContracts,
+    draftContractsWithSerializationDecision,
     fullyExecutedContracts,
     paymentConditions,
     paymentRecords,
@@ -127,6 +126,13 @@ export const verifyDemoData = async (prisma: PrismaClient): Promise<DemoVerifica
     prisma.boardDecision.count({ where: { targetSeriesId: { in: seriesIds }, result: 'PENDING' } }),
     prisma.contract.count({
       where: { seriesId: { in: flowSixSeriesIds }, status: ContractStatus.DRAFT }
+    }),
+    prisma.contract.count({
+      where: {
+        seriesId: { in: flowSixSeriesIds },
+        status: ContractStatus.DRAFT,
+        boardDecisionId: { isSet: true }
+      }
     }),
     prisma.contract.count({ where: { seriesId: { in: seriesIds }, status: ContractStatus.FULLY_EXECUTED } }),
     prisma.paymentCondition.count({ where: { contract: { seriesId: { in: seriesIds } } } }),
@@ -163,40 +169,8 @@ export const verifyDemoData = async (prisma: PrismaClient): Promise<DemoVerifica
     }
   })
   const f1Drafts = series.filter((row) => row.title.startsWith('[DEMO F1-') && row.status === 'DRAFT')
-  const flowSixContracts = await prisma.contract.findMany({
-    where: { seriesId: { in: flowSixSeriesIds }, status: ContractStatus.DRAFT },
-    select: {
-      id: true,
-      seriesId: true,
-      versions: { orderBy: { versionNumber: 'desc' }, take: 1, select: { id: true } }
-    }
-  })
-  const flowSixContractDecisions = await prisma.boardDecision.findMany({
-    where: {
-      targetSeriesId: { in: flowSixSeriesIds },
-      decisionType: DecisionType.CONTRACT,
-      result: BoardDecisionResult.PENDING
-    },
-    select: { targetSeriesId: true, allowedEditorIds: true, details: true }
-  })
-  const validContractDecisionResourceIds = new Set<string>()
-  const contractById = new Map(flowSixContracts.map((contract) => [contract.id, contract]))
-  for (const decision of flowSixContractDecisions) {
-    const details = asRecord(decision.details)
-    const resourceId = typeof details?.resourceId === 'string' ? details.resourceId : null
-    if (!resourceId) continue
-    const contract = contractById.get(resourceId)
-    if (
-      contract &&
-      details?.resourceType === 'PUBLICATION_CONTRACT' &&
-      details.versionId === contract.versions[0]?.id &&
-      decision.targetSeriesId === contract.seriesId &&
-      decision.allowedEditorIds.length >= 3
-    ) {
-      validContractDecisionResourceIds.add(resourceId)
-    }
-  }
-
+  const scopedPeriodCount = (publicationType: 'WEEKLY' | 'MONTHLY', status: SurveyStatus) =>
+    scopedPeriods.filter((period) => period.publicationType === publicationType && period.status === status).length
   const proposalVerification = verifyProposalShowcase(series)
   const checks = {
     accounts: users.length,
@@ -214,9 +188,16 @@ export const verifyDemoData = async (prisma: PrismaClient): Promise<DemoVerifica
     reflectedPeriods,
     closedPeriods,
     openPeriods,
+    weeklyReflectedPeriods: scopedPeriodCount('WEEKLY', SurveyStatus.REFLECTED),
+    weeklyClosedPeriods: scopedPeriodCount('WEEKLY', SurveyStatus.CLOSED),
+    weeklyOpenPeriods: scopedPeriodCount('WEEKLY', SurveyStatus.OPEN),
+    monthlyReflectedPeriods: scopedPeriodCount('MONTHLY', SurveyStatus.REFLECTED),
+    monthlyClosedPeriods: scopedPeriodCount('MONTHLY', SurveyStatus.CLOSED),
+    monthlyOpenPeriods: scopedPeriodCount('MONTHLY', SurveyStatus.OPEN),
     rankingRecords,
     pendingBoardDecisions,
     draftContracts,
+    draftContractsWithSerializationDecision,
     fullyExecutedContracts,
     paymentConditions,
     paymentRecords,
@@ -240,7 +221,6 @@ export const verifyDemoData = async (prisma: PrismaClient): Promise<DemoVerifica
       (period) => period.magazine && period.publicationType && period.eligibleSeriesIds.length > 0
     ).length,
     unassignedFlowOneDrafts: f1Drafts.filter((series) => !series.editorId).length,
-    validPendingContractDecisions: validContractDecisionResourceIds.size,
     contractVersions,
     linkedContracts,
     ...proposalVerification.checks
@@ -248,6 +228,9 @@ export const verifyDemoData = async (prisma: PrismaClient): Promise<DemoVerifica
   const failures: string[] = [...proposalVerification.failures]
   expectAtLeast(failures, 'accounts', checks.accounts, DEMO_ACCOUNTS.length)
   expectAtLeast(failures, 'activeVerifiedAccounts', checks.activeVerifiedAccounts, DEMO_ACCOUNTS.length)
+  expectAtLeast(failures, 'series', checks.series, DEMO_ITERATIONS * 4 + 4)
+  expectAtLeast(failures, 'chapters', checks.chapters, DEMO_ITERATIONS * 18 + 11)
+  expectAtLeast(failures, 'pages', checks.pages, DEMO_ITERATIONS * 19 + 44)
   expectAtLeast(failures, 'mediaAssets', checks.mediaAssets, DEMO_MEDIA.length)
   expectAtLeast(failures, 'tasks', checks.tasks, DEMO_ITERATIONS * 3)
   expectAtLeast(failures, 'assignedTasks', checks.assignedTasks, DEMO_ITERATIONS)
@@ -260,22 +243,33 @@ export const verifyDemoData = async (prisma: PrismaClient): Promise<DemoVerifica
   expectAtLeast(failures, 'productionStagePages', checks.productionStagePages, DEMO_ITERATIONS * 3)
   expectAtLeast(failures, 'stageBoundTasks', checks.stageBoundTasks, DEMO_ITERATIONS * 3)
   expectAtLeast(failures, 'validStageTasks', checks.validStageTasks, checks.stageBoundTasks)
-  expectAtLeast(failures, 'reflectedPeriods', checks.reflectedPeriods, DEMO_HISTORY_DAYS)
-  expectAtLeast(failures, 'closedPeriods', checks.closedPeriods, DEMO_ITERATIONS)
-  expectAtLeast(failures, 'openPeriods', checks.openPeriods, 1)
+  expectAtLeast(failures, 'reflectedPeriods', checks.reflectedPeriods, DEMO_HISTORY_DAYS * 2)
+  expectAtLeast(failures, 'closedPeriods', checks.closedPeriods, DEMO_ITERATIONS * 2)
+  expectAtLeast(failures, 'openPeriods', checks.openPeriods, 2)
+  expectAtLeast(failures, 'weeklyReflectedPeriods', checks.weeklyReflectedPeriods, DEMO_HISTORY_DAYS)
+  expectAtLeast(failures, 'weeklyClosedPeriods', checks.weeklyClosedPeriods, DEMO_ITERATIONS)
+  expectAtLeast(failures, 'weeklyOpenPeriods', checks.weeklyOpenPeriods, 1)
+  expectAtLeast(failures, 'monthlyReflectedPeriods', checks.monthlyReflectedPeriods, DEMO_HISTORY_DAYS)
+  expectAtLeast(failures, 'monthlyClosedPeriods', checks.monthlyClosedPeriods, DEMO_ITERATIONS)
+  expectAtLeast(failures, 'monthlyOpenPeriods', checks.monthlyOpenPeriods, 1)
   expectAtLeast(
     failures,
     'scopedSurveyPeriods',
     checks.scopedSurveyPeriods,
     checks.reflectedPeriods + checks.closedPeriods + checks.openPeriods
   )
-  expectAtLeast(failures, 'rankingRecords', checks.rankingRecords, DEMO_HISTORY_DAYS * (DEMO_ITERATIONS + 1))
+  expectAtLeast(failures, 'rankingRecords', checks.rankingRecords, DEMO_HISTORY_DAYS * (DEMO_ITERATIONS * 2 + 1))
   expectAtLeast(failures, 'pendingBoardDecisions', checks.pendingBoardDecisions, DEMO_ITERATIONS)
-  expectAtLeast(failures, 'validPendingContractDecisions', checks.validPendingContractDecisions, checks.draftContracts)
   expectAtLeast(failures, 'draftContracts', checks.draftContracts, DEMO_ITERATIONS)
-  expectAtLeast(failures, 'fullyExecutedContracts', checks.fullyExecutedContracts, DEMO_ITERATIONS + 1)
-  expectAtLeast(failures, 'paymentConditions', checks.paymentConditions, (DEMO_ITERATIONS + 1) * 2)
-  expectAtLeast(failures, 'paymentRecords', checks.paymentRecords, (DEMO_ITERATIONS + 1) * 2)
+  expectAtLeast(
+    failures,
+    'draftContractsWithSerializationDecision',
+    checks.draftContractsWithSerializationDecision,
+    checks.draftContracts
+  )
+  expectAtLeast(failures, 'fullyExecutedContracts', checks.fullyExecutedContracts, DEMO_ITERATIONS * 2 + 1)
+  expectAtLeast(failures, 'paymentConditions', checks.paymentConditions, (DEMO_ITERATIONS * 2 + 1) * 2)
+  expectAtLeast(failures, 'paymentRecords', checks.paymentRecords, (DEMO_ITERATIONS * 2 + 1) * 2)
   expectAtLeast(failures, 'unassignedFlowOneDrafts', checks.unassignedFlowOneDrafts, DEMO_ITERATIONS)
   expectAtLeast(
     failures,
@@ -296,6 +290,3 @@ export const verifyDemoData = async (prisma: PrismaClient): Promise<DemoVerifica
 const expectAtLeast = (failures: string[], name: string, actual: number, minimum: number) => {
   if (actual < minimum) failures.push(`${name}: expected >= ${minimum}, received ${actual}`)
 }
-
-const asRecord = (value: unknown): Record<string, unknown> | null =>
-  value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null

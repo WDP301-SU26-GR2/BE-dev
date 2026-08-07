@@ -2,11 +2,13 @@ import { Injectable, Logger } from '@nestjs/common'
 import { JOB, QUEUE } from 'src/infrastructure/queue/queue.constant'
 import { QueueService } from 'src/infrastructure/queue/queue.service'
 import { EmailService } from './email.service'
+import { OtpEmailPurposeType } from './otp-email-content'
 
 export interface SendOtpJob {
   email: string
   code: string
   expiresInMinutes: number
+  purpose?: OtpEmailPurposeType
 }
 
 export interface SendAdminCredJob {

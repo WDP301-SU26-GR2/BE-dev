@@ -28,6 +28,19 @@ function makeDeps() {
 const make = (d: ReturnType<typeof makeDeps>) => new BoardRosterService(d.repo as never)
 
 describe('BoardRosterService.suggest', () => {
+  it('falls back to the account name when displayName is null', async () => {
+    const d = makeDeps()
+    d.repo.findActiveBoardMembers.mockResolvedValue([
+      { ...member('a', ['ACTION'], '2020-01-01'), displayName: null, name: 'Board A' },
+      member('b', ['ACTION'], '2020-01-01'),
+      member('c', ['ACTION'], '2020-01-01')
+    ])
+
+    const out = await make(d).suggest(SERIES_ID)
+
+    expect(out.items.find((item) => item.userId === 'a')?.displayName).toBe('Board A')
+  })
+
   it('ranks by number of matched genres, descending', async () => {
     const d = makeDeps()
     d.repo.findActiveBoardMembers.mockResolvedValue([

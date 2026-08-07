@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { EmailService } from 'src/infrastructure/email/email.service'
+import { OtpEmailPurpose } from 'src/infrastructure/email/otp-email-content'
 import { GuestOtpDeliveryCommand, GuestOtpDeliveryPort } from '../ports/guest-otp-delivery.port'
 import envConfig from 'src/core/config/envConfig'
 import { VoteOtpDeliveryFailedException } from '../errors/survey.errors'
@@ -17,7 +18,8 @@ export class GuestEmailOtpDeliveryService implements GuestOtpDeliveryPort {
       const delivery = this.emailService.sendOTP({
         email: command.recipient,
         code: command.code,
-        expiresInMinutes: command.expiresInMinutes
+        expiresInMinutes: command.expiresInMinutes,
+        purpose: OtpEmailPurpose.VOTE_CONFIRMATION
       })
       const result = await Promise.race([
         delivery,

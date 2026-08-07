@@ -70,7 +70,7 @@ describe('ContractPdfService', () => {
 
     const result = await service.exportPdf('507f1f77bcf86cd799439011', 'editor-1', 'EDITOR')
 
-    expect(result.key).toBe('contracts/507f1f77bcf86cd799439011/contract-v1-a0-t3.pdf')
+    expect(result.key).toMatch(/^contracts\/507f1f77bcf86cd799439011\/contract-v1-a0-p[0-9a-f]{12}-t4\.pdf$/)
     expect(result.downloadUrl).toMatch(/^data:application\/pdf;base64,/)
     expect(Buffer.from(result.downloadUrl.split(',')[1], 'base64').subarray(0, 5).toString()).toBe('%PDF-')
     expect(pdfRenderService.renderContractPdf).toHaveBeenCalledTimes(1)
@@ -83,5 +83,17 @@ describe('ContractPdfService', () => {
     objectStorageService.headObjectExists.mockRejectedValueOnce(storageError)
 
     await expect(service.exportPdf('507f1f77bcf86cd799439011', 'editor-1', 'EDITOR')).rejects.toBe(storageError)
+  })
+
+  it('uses a new PDF cache key after a payment condition status changes', async () => {
+    const { service, contractRepo } = makeService()
+    const pending = { ...executedContract(), conditions: [{ id: 'pc-1', status: 'PENDING' }] }
+    const achieved = { ...executedContract(), conditions: [{ id: 'pc-1', status: 'ACHIEVED' }] }
+    contractRepo.findByIdForPdf.mockResolvedValueOnce(pending).mockResolvedValueOnce(achieved)
+
+    const pendingPdf = await service.exportPdf('507f1f77bcf86cd799439011', 'editor-1', 'EDITOR')
+    const achievedPdf = await service.exportPdf('507f1f77bcf86cd799439011', 'editor-1', 'EDITOR')
+
+    expect(pendingPdf.key).not.toBe(achievedPdf.key)
   })
 })

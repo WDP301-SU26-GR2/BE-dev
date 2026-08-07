@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import envConfig from 'src/core/config/envConfig'
 import AccountCredentialsEmail from './emails/account-credentials'
 import OTPEmail from './emails/plaid-verify-identity'
+import { getOtpEmailContent, OtpEmailPurposeType } from './otp-email-content'
 
 @Injectable()
 export class EmailService {
@@ -13,16 +14,17 @@ export class EmailService {
     this.resend = new Resend(envConfig.RESEND_API_KEY)
   }
 
-  async sendOTP(payload: { email: string; code: string; expiresInMinutes: number }) {
-    const subject = `Mã xác thực ${envConfig.NAME_APP} của bạn`
+  async sendOTP(payload: { email: string; code: string; expiresInMinutes: number; purpose?: OtpEmailPurposeType }) {
+    const content = getOtpEmailContent(payload.purpose, `Nhà xuất bản ${envConfig.NAME_APP}`)
     return await this.resend.emails.send({
       from: envConfig.EMAIL_FROM,
       to: [payload.email],
-      subject,
+      subject: content.subject,
       react: (
         <OTPEmail
           code={payload.code}
-          title={subject}
+          title={content.subject}
+          instruction={content.instruction}
           appName={envConfig.NAME_APP}
           logoUrl={envConfig.EMAIL_LOGO_URL}
           expiresInMinutes={payload.expiresInMinutes}

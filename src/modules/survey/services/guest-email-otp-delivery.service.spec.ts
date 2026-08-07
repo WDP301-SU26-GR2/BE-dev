@@ -1,4 +1,5 @@
 import envConfig from 'src/core/config/envConfig'
+import { OtpEmailPurpose } from 'src/infrastructure/email/otp-email-content'
 import { GuestEmailOtpDeliveryService } from './guest-email-otp-delivery.service'
 
 describe('GuestEmailOtpDeliveryService', () => {
@@ -30,7 +31,8 @@ describe('GuestEmailOtpDeliveryService', () => {
     expect(emailService.sendOTP).toHaveBeenCalledWith({
       email: command.recipient,
       code: command.code,
-      expiresInMinutes: command.expiresInMinutes
+      expiresInMinutes: command.expiresInMinutes,
+      purpose: OtpEmailPurpose.VOTE_CONFIRMATION
     })
   })
 

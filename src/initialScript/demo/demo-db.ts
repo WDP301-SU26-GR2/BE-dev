@@ -8,6 +8,8 @@ import { DEMO_MEDIA, DemoMediaSource, demoMediaDownloadUrl, demoMediaKey, demoMe
 const logger = new Logger('DemoSeed')
 const MAX_MEDIA_BYTES = 15 * 1024 * 1024
 const MEDIA_REQUEST_TIMEOUT_MS = 20_000
+const MEDIA_SOURCE_PACING_MS = 3_000
+const MEDIA_DOWNLOAD_MAX_ATTEMPTS = 5
 
 export interface SeededAccount extends DemoAccount {
   id: string
@@ -90,7 +92,10 @@ export const seedDemoMedia = async (prisma: PrismaClient, uploadedBy: string, up
           { abortSignal: AbortSignal.timeout(MEDIA_REQUEST_TIMEOUT_MS) }
         )
         logger.log(`Uploaded media ${source.slug} (${body.length} bytes)`)
-        await delay(1_000)
+        // Commons may return 429 when several originals are fetched in quick
+        // succession. Pacing only applies to the one-time mirror operation;
+        // later reruns read the already mirrored R2 objects and do not wait.
+        await delay(MEDIA_SOURCE_PACING_MS)
       }
     }
     const asset = await prisma.asset.create({
@@ -269,8 +274,7 @@ const objectExists = async (client: S3Client, bucket: string, key: string) => {
 }
 
 const downloadMedia = async (source: DemoMediaSource) => {
-  const maxAttempts = 3
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+  for (let attempt = 1; attempt <= MEDIA_DOWNLOAD_MAX_ATTEMPTS; attempt += 1) {
     const response = await fetch(demoMediaDownloadUrl(source), {
       redirect: 'follow',
       signal: AbortSignal.timeout(MEDIA_REQUEST_TIMEOUT_MS),
@@ -288,14 +292,16 @@ const downloadMedia = async (source: DemoMediaSource) => {
       return buffer
     }
     const retryable = response.status === 429 || response.status >= 500
-    if (!retryable || attempt === maxAttempts) {
+    if (!retryable || attempt === MEDIA_DOWNLOAD_MAX_ATTEMPTS) {
       throw new Error(`Cannot download ${source.slug}: HTTP ${response.status}`)
     }
     const retryAfterSeconds = Number(response.headers.get('retry-after'))
     const waitMs = Number.isFinite(retryAfterSeconds)
-      ? Math.min(10_000, Math.max(1_000, retryAfterSeconds * 1_000))
-      : Math.min(10_000, 2 ** attempt * 1_000)
-    logger.warn(`Media ${source.slug} returned HTTP ${response.status}; retry ${attempt}/${maxAttempts} in ${waitMs}ms`)
+      ? Math.min(60_000, Math.max(MEDIA_SOURCE_PACING_MS, retryAfterSeconds * 1_000))
+      : Math.min(30_000, 5_000 * 2 ** (attempt - 1))
+    logger.warn(
+      `Media ${source.slug} returned HTTP ${response.status}; retry ${attempt}/${MEDIA_DOWNLOAD_MAX_ATTEMPTS} in ${waitMs}ms`
+    )
     await delay(waitMs)
   }
   throw new Error(`Cannot download ${source.slug}`)

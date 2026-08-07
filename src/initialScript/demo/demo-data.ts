@@ -30,6 +30,7 @@ const account = (
 })
 
 export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
+  account('admin.hikari', 'Hikari Sato', RoleCode.SUPER_ADMIN, '0000001'),
   account('mangaka.akari', 'Akari Mori', RoleCode.MANGAKA, '1000001'),
   account('mangaka.ren', 'Ren Takahashi', RoleCode.MANGAKA, '1000002'),
   account('mangaka.sora', 'Sora Nguyen', RoleCode.MANGAKA, '1000003'),
