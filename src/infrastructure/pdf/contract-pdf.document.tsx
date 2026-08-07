@@ -126,8 +126,8 @@ export function ContractPdfDocument({ data }: { data: ContractPdfData }) {
           </Text>
           <Text>Hôm nay, {fmtDate(data.createdAt)}, các bên gồm:</Text>
           <Text style={styles.partyLine}>
-            <Text style={styles.partyLabel}>BÊN A (Nhà xuất bản): </Text>
-            {publisher}
+            <Text style={styles.partyLabel}>BÊN A: </Text>
+            Nhà xuất bản {publisher}
           </Text>
           <Text style={styles.partyLine}>
             <Text style={styles.partyLabel}>BÊN B (Tác giả): </Text>

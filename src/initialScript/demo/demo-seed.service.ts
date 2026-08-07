@@ -6,7 +6,12 @@ import { seedConfigs, seedProfiles } from './fixtures/config-profile.fixture'
 import { seedPortfolioMetadata, seedNotifications } from './fixtures/portfolio-notification.fixture'
 import { seedProductionHero } from './fixtures/production-flow.fixture'
 import { seedRankingsAndVoting } from './fixtures/ranking-voting.fixture'
-import { seedContractRuns, seedFlowOne, seedRankingRoster } from './fixtures/series-flow.fixture'
+import {
+  seedContractRuns,
+  seedFlowOne,
+  seedMonthlyRankingRoster,
+  seedRankingRoster
+} from './fixtures/series-flow.fixture'
 import { buildSummary } from './fixtures/summary.fixture'
 import { DemoContext, DemoSeedSummary } from './fixtures/demo-seed.types'
 
@@ -32,10 +37,11 @@ export const seedDemoBusinessData = async (
   const contractSeries = await seedContractRuns(context)
   logger.log('Phase 5/8: Flow 4 ranking roster and published history')
   const rankingRoster = await seedRankingRoster(context)
-  const rankingSeries = [hero, ...rankingRoster]
+  const monthlyRankingRoster = await seedMonthlyRankingRoster(context)
+  const weeklyRankingSeries = [hero, ...rankingRoster]
 
   logger.log('Phase 6/8: Flow 4 surveys, online/offline votes and ranking history')
-  await seedRankingsAndVoting(context, rankingSeries)
+  await seedRankingsAndVoting(context, weeklyRankingSeries, monthlyRankingRoster)
   logger.log('Phase 7/8: Flow 5 lifecycle Board session, decisions and reports')
   await seedLifecycleBoard(context, rankingRoster)
   logger.log('Phase 8/8: portfolio metadata and notifications')

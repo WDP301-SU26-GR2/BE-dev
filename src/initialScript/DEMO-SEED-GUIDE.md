@@ -4,34 +4,35 @@
 
 ## 1. Phạm vi và tính trung thực của dữ liệu
 
-- 16 tài khoản nội bộ, 35 Series, 111 Chapter, 154 Page, 84 ProductionStage, 206 ProductionStagePage, 30 Task và 10 AI job.
+- 17 tài khoản nội bộ, 44 Series, 191 Chapter, 234 Page, 84 ProductionStage, 206 ProductionStagePage, 30 Task và 10 AI job.
 - 12 file ảnh thật có nguồn/license rõ ràng được mirror vào R2 prefix `demo-seed/v2/`: ảnh mangaka vẽ trực tiếp, rough draft, line art, manga pages, cleaned/lettered output và tài liệu Hokusai.
-- 154 là số **Page record nghiệp vụ**, không phải 154 binary ảnh độc nhất. Các record tái sử dụng có chủ đích 12 file thật để demo ổn định; không có placeholder/base64/URL ảnh giả.
+- 234 là số **Page record nghiệp vụ**, không phải 234 binary ảnh độc nhất. Các record tái sử dụng có chủ đích 12 file thật để demo ổn định; không có placeholder/base64/URL ảnh giả.
 - `Go Go! Encyclopedia Girls` và `Hokusai Manga` là tác phẩm/nguồn thật. Tên proposal khác, ranking, số tiền và điều khoản là dữ liệu nghiệp vụ mô phỏng hợp lý; không được trình bày như hợp đồng/doanh số có thật.
-- Mỗi Flow 1, 2, 3, 5 và 6 có 10 run độc lập (`01`–`10`). Flow 4 có 14 kỳ lịch sử, 10 kỳ chờ finalize và 1 kỳ đang mở.
+- Mỗi Flow 1, 2, 3, 5 và 6 có 10 run độc lập (`01`–`10`). Flow 4 có đủ hai cohort: WEEKLY và MONTHLY, mỗi cohort có 14 kỳ lịch sử, 10 kỳ chờ finalize và 1 kỳ đang mở.
 
 ## 2. Tài khoản demo
 
 Mật khẩu chung: `MangaDemo!2026`
 
-| Vai trò   | Alias            | Email                               |
-| --------- | ---------------- | ----------------------------------- |
-| Mangaka   | `mangaka.akari`  | `mangaka.akari@demo.mangaka.local`  |
-| Mangaka   | `mangaka.ren`    | `mangaka.ren@demo.mangaka.local`    |
-| Mangaka   | `mangaka.sora`   | `mangaka.sora@demo.mangaka.local`   |
-| Assistant | `assistant.yuki` | `assistant.yuki@demo.mangaka.local` |
-| Assistant | `assistant.hana` | `assistant.hana@demo.mangaka.local` |
-| Assistant | `assistant.minh` | `assistant.minh@demo.mangaka.local` |
-| Assistant | `assistant.emi`  | `assistant.emi@demo.mangaka.local`  |
-| Assistant | `assistant.kei`  | `assistant.kei@demo.mangaka.local`  |
-| Assistant | `assistant.linh` | `assistant.linh@demo.mangaka.local` |
-| Editor    | `editor.naomi`   | `editor.naomi@demo.mangaka.local`   |
-| Editor    | `editor.duc`     | `editor.duc@demo.mangaka.local`     |
-| Board     | `board.aya`      | `board.aya@demo.mangaka.local`      |
-| Board     | `board.kenji`    | `board.kenji@demo.mangaka.local`    |
-| Board     | `board.mai`      | `board.mai@demo.mangaka.local`      |
-| Board     | `board.taro`     | `board.taro@demo.mangaka.local`     |
-| Board     | `board.an`       | `board.an@demo.mangaka.local`       |
+| Vai trò     | Alias            | Email                               |
+| ----------- | ---------------- | ----------------------------------- |
+| Super Admin | `admin.hikari`   | `admin.hikari@demo.mangaka.local`   |
+| Mangaka     | `mangaka.akari`  | `mangaka.akari@demo.mangaka.local`  |
+| Mangaka     | `mangaka.ren`    | `mangaka.ren@demo.mangaka.local`    |
+| Mangaka     | `mangaka.sora`   | `mangaka.sora@demo.mangaka.local`   |
+| Assistant   | `assistant.yuki` | `assistant.yuki@demo.mangaka.local` |
+| Assistant   | `assistant.hana` | `assistant.hana@demo.mangaka.local` |
+| Assistant   | `assistant.minh` | `assistant.minh@demo.mangaka.local` |
+| Assistant   | `assistant.emi`  | `assistant.emi@demo.mangaka.local`  |
+| Assistant   | `assistant.kei`  | `assistant.kei@demo.mangaka.local`  |
+| Assistant   | `assistant.linh` | `assistant.linh@demo.mangaka.local` |
+| Editor      | `editor.naomi`   | `editor.naomi@demo.mangaka.local`   |
+| Editor      | `editor.duc`     | `editor.duc@demo.mangaka.local`     |
+| Board       | `board.aya`      | `board.aya@demo.mangaka.local`      |
+| Board       | `board.kenji`    | `board.kenji@demo.mangaka.local`    |
+| Board       | `board.mai`      | `board.mai@demo.mangaka.local`      |
+| Board       | `board.taro`     | `board.taro@demo.mangaka.local`     |
+| Board       | `board.an`       | `board.an@demo.mangaka.local`       |
 
 Tất cả account là `ACTIVE`, đã verify email. Chỉ bật trong cửa sổ demo; sau hai tuần phải khóa hoặc reset/xóa toàn bộ domain demo.
 
@@ -59,13 +60,13 @@ Không dùng `--skip-media-upload` hoặc `--skip-media-check` cho lần nghiệ
 
 Kết quả pass hiện tại phải có tối thiểu:
 
-- `accounts=16`, `mediaAssets=12`, `series=35`, `chapters=111`, `pages=154`;
+- `accounts=17`, `mediaAssets=12`, `series=44`, `chapters=191`, `pages=234`;
 - `productionStages=84`, `productionStagePages=206`, `activeInkingStages=10`;
 - `tasks=30`, chia đều `ASSIGNED/SUBMITTED/REVISION_REQUESTED`, toàn bộ task có stage/type/description hợp lệ;
 - `successfulAiJobs=10`, cả 10 chưa apply và gắn đúng stage input snapshot;
-- `scopedSurveyPeriods=25`, `rankingRecords=154`;
-- `pendingBoardDecisions=20`, trong đó `validPendingContractDecisions=10`, `draftContracts=10`, `fullyExecutedContracts=11`;
-- `contractVersions=21`, `linkedContracts=21`, `paymentConditions=22`, `paymentRecords=22`;
+- `scopedSurveyPeriods=50`, `rankingRecords=294`; trong đó mỗi WEEKLY/MONTHLY có `14 REFLECTED`, `10 CLOSED`, `1 OPEN`;
+- `pendingBoardDecisions=10`, `draftContracts=10` (mỗi contract liên kết quyết định SERIALIZATION), `fullyExecutedContracts=21`;
+- `contractVersions=31`, `linkedContracts=31`, `paymentConditions=42`, `paymentRecords=42`;
 - cuối log: `All demo seed invariants passed` hoặc `Verification complete` mà không có failure.
 
 ## 4. Nạp production an toàn
@@ -95,7 +96,7 @@ pnpm.cmd seed:demo -- --reset
 pnpm.cmd seed:demo:verify
 ```
 
-Khi chạy, terminal phải tiến qua `Media 1/12...12/12` và `Phase 1/8...8/8`. Nếu không có log mới quá 60 giây, dừng và giữ log; không chờ hàng giờ. Media request có timeout, R2 SDK chỉ thử một lần, Wikimedia tối đa ba lần và báo đúng slug lỗi.
+Khi chạy, terminal phải tiến qua `Media 1/12...12/12` và `Phase 1/8...8/8`. Một ảnh nguồn Wikimedia có thể im lặng tối đa khoảng 80 giây khi bị rate-limit: seed pace 3 giây giữa các lần mirror, thử tối đa 5 lần, tôn trọng `Retry-After` đến 60 giây, rồi báo đúng slug lỗi. Không để tiến trình chạy hàng giờ; nếu không đổi log sau 3 phút hoặc terminal báo lỗi, giữ log và xử lý nguyên nhân trước khi chạy lại `--reset`.
 
 Nếu seed fail giữa chừng: sửa nguyên nhân, giữ backup, rồi chạy lại đúng lệnh reset; không chạy seed chồng khi thiếu `--reset`.
 
@@ -149,10 +150,10 @@ API local mặc định `http://localhost:4000`. Login `POST /auth/login`, gửi
 
 ### Flow 4 — Survey scoped, vote online/offline và ranking
 
-1. Public `GET /vote/context`: issue 400 OPEN, cohort cố định `Manga Nexus Weekly/WEEKLY` và danh sách eligible series.
-2. Demo OTP/vote bằng `POST /vote/otp`, `POST /vote`; mỗi identity chỉ một phiếu trong kỳ/type, tối đa ba series.
-3. Issue 300–309 là 10 kỳ CLOSED có cả ReaderVote weighted và SurveyData offline; dùng lần lượt để finalize.
-4. Issue 200–213 là 14 kỳ REFLECTED cho chart hai tuần; 154 RankingRecord có normalized score, previous rank/change và ba series đi đến `SEVERE`.
+1. Public `GET /vote/context`: issue 400 OPEN cho `Manga Nexus Weekly/WEEKLY`; issue 700 OPEN cho `Manga Nexus Monthly/MONTHLY`. Cả hai cohort có danh sách eligible series và lịch sử tách biệt.
+2. Chỉ Super Admin Hikari vận hành kỳ: mở/đổi trạng thái/import offline/finalize qua `/survey-periods` và `/survey-data/import`; Editor chỉ đọc ranking để chuẩn bị report Board.
+3. Demo OTP/vote bằng `POST /vote/otp`, `POST /vote`; mỗi identity chỉ một phiếu trong kỳ/type, tối đa ba series. WEEKLY issue 300–309 và MONTHLY issue 600–609 là 10 kỳ CLOSED có cả ReaderVote weighted và SurveyData offline để Hikari finalize.
+4. WEEKLY issue 200–213 là 14 kỳ REFLECTED cho chart hai tuần; MONTHLY issue 500–513 là 14 kỳ REFLECTED theo nhịp 28 ngày. Tổng 294 RankingRecord có normalized score, previous rank/change và ba series mỗi cohort đi đến `SEVERE`.
 5. Xem live/public/internal qua `/vote/live`, `/vote/results`, `/rankings`, `/rankings/board`, `/rankings/aggregate`.
 
 ### Flow 5 — Board lifecycle decision
@@ -160,7 +161,7 @@ API local mặc định `http://localhost:4000`. Login `POST /auth/login`, gửi
 1. Mở session `[DEMO F5] Hội đồng xử lý 10 series nguy cơ`, ACTIVE/VOTING, roster 5 Board Member.
 2. Decision 01–10 trỏ đến `[DEMO RANK-*]`, có 14 kỳ trend, defense report và attachment thật.
 3. Năm tài khoản Board vote `POST /board/decisions/:id/vote`. Quorum là `ceil(2/3 × 5)=4`; approve cần trên 50% toàn roster, tức tối thiểu 3 approve.
-4. Decision chẵn dùng FORMAT_CHANGE với `details.publicationType=MONTHLY`; decision lẻ dùng CANCELLATION và ending allowance 3. Mỗi buổi chỉ dùng một decision.
+4. Run `01/04/07/10` dùng CANCELLATION với ending allowance 3; `02/05/08` dùng FORMAT_CHANGE với `details.publicationType=MONTHLY`; `03/06/09` dùng COMPLETION. Muốn demo “giữ series”, Board vote REJECT một CANCELLATION; không có decision type CONTINUE.
 
 ### Flow 6 — Contract → Board representative → Mangaka accept/reject → payment
 
@@ -202,6 +203,6 @@ Giữ credit khi trình chiếu. DB chỉ lưu object key; không hotlink source
 - `Found ... demo accounts`: dùng verify nếu muốn giữ dữ liệu; nếu thay bộ cũ, backup và dùng `--reset`.
 - `Production seed is locked`: thiếu `DEMO_SEED_ALLOW_PRODUCTION=YES`.
 - `Missing R2 media objects`: xem đúng slug, kiểm tra Head/Put/Copy permission và prefix v2; không bỏ qua ở production.
-- `HTTP 429`: seed sẽ retry ngắn rồi dừng. Chờ rate limit hoặc copy object v1; không để tiến trình chạy hàng giờ.
+- `HTTP 429`: seed tự pace/retry tối đa 5 lần. Chờ rate limit rồi chạy lại đúng lệnh `--reset`; các object đã mirror vào R2 sẽ được tái sử dụng, không tải lại. Không để tiến trình chạy hàng giờ.
 - `Demo verification failed`: không demo. Giữ log, reset đúng phạm vi và seed lại sau khi sửa.
 - UI không thấy record nhưng verifier pass: kiểm tra token/role/scoping; tìm title theo prefix `[DEMO ...]`.

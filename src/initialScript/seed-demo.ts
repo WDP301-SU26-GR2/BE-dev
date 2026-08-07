@@ -11,8 +11,18 @@ import {
 } from './demo/demo-db'
 import { seedDemoBusinessData } from './demo/demo-seed.service'
 import { verifyDemoData } from './demo/demo-verify'
+import { DEMO_ACCOUNTS } from './demo/demo-data'
 
 const logger = new Logger('DemoSeedCli')
+
+const sanitizedDatabaseTarget = (rawUrl: string | undefined) => {
+  try {
+    const url = new URL(rawUrl ?? '')
+    return `${url.hostname}${url.port ? `:${url.port}` : ''}${url.pathname}`
+  } catch {
+    return 'invalid DATABASE_URL'
+  }
+}
 
 const main = async () => {
   const prisma = new PrismaClient()
@@ -27,6 +37,7 @@ const main = async () => {
 
   try {
     logger.log('Connecting to database...')
+    logger.log(`Target database: ${sanitizedDatabaseTarget(process.env.DATABASE_URL)}`)
     await prisma.$connect()
     const existing = await findDemoAccounts(prisma)
     if (existing.length) {
@@ -39,7 +50,7 @@ const main = async () => {
       await resetDemoData(prisma)
     }
 
-    logger.log('Creating roles and 16 demo accounts...')
+    logger.log(`Creating roles and ${DEMO_ACCOUNTS.length} demo accounts...`)
     await ensureBaseRoles(prisma)
     const accounts = await createDemoAccounts(prisma)
     const uploader = accounts.get('editor.naomi')

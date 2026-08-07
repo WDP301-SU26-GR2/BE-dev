@@ -55,7 +55,7 @@ export class BoardRosterService {
         const matchedGenres = specialtyGenres.filter((g) => seriesGenres.has(g))
         return {
           userId: u.id,
-          displayName: u.displayName ?? null,
+          displayName: u.displayName ?? u.name,
           avatar: u.avatar ?? null,
           specialtyGenres,
           matchedGenres,

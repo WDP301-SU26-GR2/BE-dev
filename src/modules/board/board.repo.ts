@@ -295,6 +295,7 @@ export class BoardRepository {
       where: { roleId, status: 'ACTIVE', deletedAt: { isSet: false } },
       select: {
         id: true,
+        name: true,
         displayName: true,
         avatar: true,
         createdAt: true,

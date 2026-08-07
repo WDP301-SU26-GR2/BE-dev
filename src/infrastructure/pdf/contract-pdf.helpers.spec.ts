@@ -20,7 +20,7 @@ describe('contract-pdf helpers', () => {
 
   describe('enum labels (Vietnamese) with fallback', () => {
     it('decisionTypeLabel', () => {
-      expect(decisionTypeLabel('SERIALIZATION')).toBe('Serial hóa')
+      expect(decisionTypeLabel('SERIALIZATION')).toBe('Phát hành dài kỳ')
       expect(decisionTypeLabel('CANCELLATION')).toBe('Hủy series')
       expect(decisionTypeLabel('WEIRD_VALUE')).toBe('WEIRD_VALUE')
       expect(decisionTypeLabel(null)).toBe('—')
