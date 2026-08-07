@@ -4,6 +4,7 @@ import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName } from 'src/core/security/constants/role.constant'
 import { AuditService } from 'src/modules/audit/audit.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
+import { computeRosterCap } from '../board.constant'
 import { BoardMessages } from '../board.messages'
 import { BoardRepository } from '../board.repo'
 import { CreateBoardSessionBodyDto } from '../dto/board.dto'
@@ -22,13 +23,21 @@ export class BoardSessionWorkflowService {
   ) {}
 
   async createSession(creatorId: string, dto: CreateBoardSessionBodyDto) {
+    const isManual = Boolean(dto.allowedEditorIds && dto.allowedEditorIds.length > 0)
     let roster = dto.allowedEditorIds
-    if (!roster || roster.length === 0) {
+    if (!isManual) {
       if (!dto.seriesId) throw Errors.RosterSourceRequiredException
       const suggestion = await this.rosterService.suggest(dto.seriesId, dto.rosterSize)
       roster = suggestion.items.map((candidate) => candidate.userId)
     }
+    roster = roster ?? []
     if (roster.length === 0 || roster.length % 2 === 0) throw Errors.InvalidBoardMembersException
+    // Nhánh manual: enforce trần max CHUNG với nhánh auto (min 3 + lẻ đã kiểm ở schema/dòng trên).
+    // Nhánh auto đã bị BoardRosterService cap sẵn nên không cần kiểm lại ở đây.
+    if (isManual) {
+      const config = await this.boardRepo.getActiveConfig()
+      if (roster.length > computeRosterCap(config.boardTotalMembers)) throw Errors.RosterSizeTooLargeException
+    }
     if (await this.boardRepo.findActiveSessionByTitle(dto.title)) throw Errors.SessionAlreadyExistsException
 
     const session = await this.boardRepo.createSession(creatorId, dto, roster)

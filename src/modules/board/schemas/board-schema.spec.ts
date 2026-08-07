@@ -209,6 +209,48 @@ describe('CreateBoardDecisionBodySchema details validation (Spec 16)', () => {
   })
 })
 
+describe('UpdateBoardConfigBodySchema hardening (config min/odd/ratio bounds)', () => {
+  const valid = { boardTotalMembers: 5, quorumMin: 3, approveMajorityRatio: 0.5, updatedBy: 'admin' }
+
+  it('accepts a valid odd config', () => {
+    expect(UpdateBoardConfigBodySchema.safeParse(valid).success).toBe(true)
+  })
+
+  it('rejects boardTotalMembers below 3', () => {
+    expect(UpdateBoardConfigBodySchema.safeParse({ ...valid, boardTotalMembers: 1, quorumMin: 1 }).success).toBe(false)
+  })
+
+  it('rejects a non-integer boardTotalMembers', () => {
+    expect(UpdateBoardConfigBodySchema.safeParse({ ...valid, boardTotalMembers: 4.5 }).success).toBe(false)
+  })
+
+  it('keeps rejecting an even boardTotalMembers', () => {
+    expect(UpdateBoardConfigBodySchema.safeParse({ ...valid, boardTotalMembers: 4 }).success).toBe(false)
+  })
+
+  it('rejects quorumMin below 3', () => {
+    expect(UpdateBoardConfigBodySchema.safeParse({ ...valid, quorumMin: 1 }).success).toBe(false)
+  })
+
+  it('rejects a non-integer quorumMin', () => {
+    expect(UpdateBoardConfigBodySchema.safeParse({ ...valid, quorumMin: 3.5 }).success).toBe(false)
+  })
+
+  it('keeps rejecting quorumMin greater than boardTotalMembers', () => {
+    expect(UpdateBoardConfigBodySchema.safeParse({ ...valid, boardTotalMembers: 3, quorumMin: 5 }).success).toBe(false)
+  })
+
+  it('rejects approveMajorityRatio of 1 or higher', () => {
+    expect(UpdateBoardConfigBodySchema.safeParse({ ...valid, approveMajorityRatio: 1 }).success).toBe(false)
+    expect(UpdateBoardConfigBodySchema.safeParse({ ...valid, approveMajorityRatio: 5 }).success).toBe(false)
+  })
+
+  it('rejects approveMajorityRatio of 0 or lower', () => {
+    expect(UpdateBoardConfigBodySchema.safeParse({ ...valid, approveMajorityRatio: 0 }).success).toBe(false)
+    expect(UpdateBoardConfigBodySchema.safeParse({ ...valid, approveMajorityRatio: -0.2 }).success).toBe(false)
+  })
+})
+
 describe('ListBoardSessionsQuerySchema mine parsing (Spec 16)', () => {
   it('parses true and false without truthy string coercion', () => {
     expect(ListBoardSessionsQuerySchema.parse({ mine: 'true' }).mine).toBe(true)
