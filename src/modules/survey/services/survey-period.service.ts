@@ -4,6 +4,7 @@ import { CacheService } from 'src/infrastructure/redis/cache.service'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { normalizeMagazine } from 'src/core/http/schemas/magazine.schema'
 import { AuditService } from 'src/modules/audit/audit.service'
+import { MagazineRegistryService } from 'src/modules/magazine/magazine.service'
 import { NotificationService } from 'src/modules/notification/notification.service'
 import { CreateSurveyPeriodBodyDto, SurveyPeriodListQueryDto, UpdateSurveyPeriodStatusBodyDto } from '../dto/survey.dto'
 import {
@@ -24,7 +25,8 @@ export class SurveyPeriodService {
     private readonly surveyRepository: SurveyRepository,
     private readonly notificationService: NotificationService,
     private readonly auditService: AuditService,
-    private readonly cacheService: CacheService
+    private readonly cacheService: CacheService,
+    private readonly magazineRegistryService: MagazineRegistryService
   ) {}
 
   async getSurveyPeriods(query: SurveyPeriodListQueryDto) {
@@ -90,6 +92,7 @@ export class SurveyPeriodService {
       return mapSurveyPeriod(surveyPeriod)
     }
     const magazine = normalizeMagazine(body.magazine)
+    await this.magazineRegistryService.assertSlotAllowed(magazine, body.publicationType)
     const duplicate = await this.surveyRepository.findScopedSurveyPeriod(
       magazine,
       body.publicationType,

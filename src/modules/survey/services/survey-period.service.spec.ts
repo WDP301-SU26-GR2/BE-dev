@@ -1,4 +1,5 @@
 import { SurveyPeriodService } from './survey-period.service'
+import { MagazineNotRegisteredException } from 'src/modules/magazine/errors/magazine.errors'
 
 const PERIOD_ID = '507f1f77bcf86cd799439011'
 const USER_ID = '507f1f77bcf86cd799439012'
@@ -34,7 +35,8 @@ function makeDeps() {
     },
     notification: { notifySafe: jest.fn().mockResolvedValue(undefined) },
     audit: { record: jest.fn().mockResolvedValue(undefined) },
-    cache: { bumpVersion: jest.fn().mockResolvedValue(undefined) }
+    cache: { bumpVersion: jest.fn().mockResolvedValue(undefined) },
+    magazineRegistry: { assertSlotAllowed: jest.fn().mockResolvedValue(undefined) }
   }
 }
 
@@ -43,7 +45,8 @@ function make(deps: ReturnType<typeof makeDeps>) {
     deps.repo as never,
     deps.notification as never,
     deps.audit as never,
-    deps.cache as never
+    deps.cache as never,
+    deps.magazineRegistry as never
   )
 }
 
@@ -112,6 +115,19 @@ describe('SurveyPeriodService creation scope validation', () => {
       expect.objectContaining({ recipientId: USER_ID, referenceType: 'SURVEY_PERIOD_CREATED' })
     )
     expect(withActor.cache.bumpVersion).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects a period scoped to an unregistered magazine before querying persistence', async () => {
+    const deps = makeDeps()
+    deps.magazineRegistry.assertSlotAllowed.mockRejectedValueOnce(MagazineNotRegisteredException)
+    deps.repo.findSeriesOwnershipByIds.mockResolvedValue([
+      { id: 's1', status: 'SERIALIZED', magazine: 'Jump', publicationType: 'WEEKLY' }
+    ])
+
+    await expect(make(deps).createSurveyPeriod(scopedBody as never)).rejects.toBe(MagazineNotRegisteredException)
+    expect(deps.magazineRegistry.assertSlotAllowed).toHaveBeenCalledWith('Jump', 'WEEKLY')
+    expect(deps.repo.findScopedSurveyPeriod).not.toHaveBeenCalled()
+    expect(deps.repo.createSurveyPeriod).not.toHaveBeenCalled()
   })
 
   it('rejects duplicate magazine/type/issue scopes before checking eligibility', async () => {

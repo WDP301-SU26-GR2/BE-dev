@@ -60,7 +60,7 @@ Không dùng `--skip-media-upload` hoặc `--skip-media-check` cho lần nghiệ
 
 Kết quả pass hiện tại phải có tối thiểu:
 
-- `accounts=17`, `mediaAssets=12`, `series=44`, `chapters=191`, `pages=234`;
+- `accounts=17`, `registeredDemoMagazines=2`, `mediaAssets=12`, `series=44`, `chapters=191`, `pages=234`;
 - `productionStages=84`, `productionStagePages=206`, `activeInkingStages=10`;
 - `tasks=30`, chia đều `ASSIGNED/SUBMITTED/REVISION_REQUESTED`, toàn bộ task có stage/type/description hợp lệ;
 - `successfulAiJobs=10`, cả 10 chưa apply và gắn đúng stage input snapshot;
@@ -93,6 +93,15 @@ $env:NODE_ENV = 'production'
 $env:DEMO_SEED_ALLOW_PRODUCTION = 'YES'
 $env:DEMO_SEED_ALLOW_RESET = 'YES'
 pnpm.cmd seed:demo -- --reset
+pnpm.cmd seed:demo:verify
+```
+
+Nếu production đã seed v2 trước commit bổ sung catalog tạp chí, **không reset dữ liệu**. Chạy lệnh idempotent dưới đây để thêm/đồng bộ `Manga Nexus Weekly/WEEKLY` và `Manga Nexus Monthly/MONTHLY`; các magazine khác đang có được giữ nguyên:
+
+```powershell
+$env:NODE_ENV = 'production'
+$env:DEMO_SEED_ALLOW_PRODUCTION = 'YES'
+pnpm.cmd seed:demo:magazines
 pnpm.cmd seed:demo:verify
 ```
 

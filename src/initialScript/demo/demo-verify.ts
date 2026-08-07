@@ -10,12 +10,34 @@ import {
 import { PrismaClient } from '@prisma/client'
 import { DEMO_ACCOUNTS, DEMO_EMAIL_DOMAIN, DEMO_HISTORY_DAYS, DEMO_ITERATIONS } from './demo-data'
 import { DEMO_MEDIA, demoMediaKey } from './demo-media'
+import { DEMO_MAGAZINES, DemoMagazineEntry } from './fixtures/config-profile.fixture'
+import { normalizeMagazine } from 'src/core/http/schemas/magazine.schema'
 
 const DEMO_MEDIA_KEYS = new Set(DEMO_MEDIA.map(demoMediaKey))
 
 export interface DemoVerificationResult {
   checks: Record<string, number>
   failures: string[]
+}
+
+export const verifyDemoMagazineRegistry = (
+  magazines: readonly DemoMagazineEntry[]
+): Pick<DemoVerificationResult, 'checks' | 'failures'> => {
+  const missing = DEMO_MAGAZINES.filter((required) => {
+    const registered = magazines.find((entry) => normalizeMagazine(entry.name) === normalizeMagazine(required.name))
+    return (
+      !registered ||
+      !required.publicationTypes.every((publicationType) => registered.publicationTypes.includes(publicationType))
+    )
+  })
+  return {
+    checks: { registeredDemoMagazines: DEMO_MAGAZINES.length - missing.length },
+    failures: missing.map(
+      (entry) =>
+        `Demo magazine registry missing ${entry.name} with ${entry.publicationTypes.join('/')}; ` +
+        'seed SurveyPeriod and Series slots must reference a registered catalog entry.'
+    )
+  }
 }
 
 interface ProposalShowcaseRow {
@@ -65,6 +87,8 @@ const hasValidStoryboardPages = (pages: readonly { pageNumber: number; fileUrl: 
   )
 
 export const verifyDemoData = async (prisma: PrismaClient): Promise<DemoVerificationResult> => {
+  const appConfig = await prisma.appConfig.findFirst({ select: { magazines: true } })
+  const magazineVerification = verifyDemoMagazineRegistry(appConfig?.magazines ?? [])
   const users = await prisma.user.findMany({
     where: { email: { endsWith: `@${DEMO_EMAIL_DOMAIN}` } },
     select: { id: true, email: true, status: true, emailVerified: true }
@@ -223,11 +247,13 @@ export const verifyDemoData = async (prisma: PrismaClient): Promise<DemoVerifica
     unassignedFlowOneDrafts: f1Drafts.filter((series) => !series.editorId).length,
     contractVersions,
     linkedContracts,
+    registeredDemoMagazines: magazineVerification.checks.registeredDemoMagazines,
     ...proposalVerification.checks
   }
-  const failures: string[] = [...proposalVerification.failures]
+  const failures: string[] = [...magazineVerification.failures, ...proposalVerification.failures]
   expectAtLeast(failures, 'accounts', checks.accounts, DEMO_ACCOUNTS.length)
   expectAtLeast(failures, 'activeVerifiedAccounts', checks.activeVerifiedAccounts, DEMO_ACCOUNTS.length)
+  expectAtLeast(failures, 'registeredDemoMagazines', checks.registeredDemoMagazines, DEMO_MAGAZINES.length)
   expectAtLeast(failures, 'series', checks.series, DEMO_ITERATIONS * 4 + 4)
   expectAtLeast(failures, 'chapters', checks.chapters, DEMO_ITERATIONS * 18 + 11)
   expectAtLeast(failures, 'pages', checks.pages, DEMO_ITERATIONS * 19 + 44)

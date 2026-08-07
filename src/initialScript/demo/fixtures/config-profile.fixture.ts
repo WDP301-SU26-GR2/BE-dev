@@ -1,27 +1,75 @@
-import { Demographic, Genre, RoleCode, VotingAuthMode } from '@prisma/client'
+import { Demographic, Genre, PublicationType, RoleCode, VotingAuthMode } from '@prisma/client'
+import { normalizeMagazine } from 'src/core/http/schemas/magazine.schema'
 import { DEMO_ACCOUNTS, DEMO_SPECIALIZATIONS } from '../demo-data'
 import { DAY, requiredAccount, requiredMedia } from './demo-seed.helpers'
 import { DemoContext } from './demo-seed.types'
 
-export const seedConfigs = async ({ prisma, accounts }: DemoContext) => {
-  const adminId = requiredAccount(accounts, 'editor.naomi').id
-  const appConfig = await prisma.appConfig.findFirst()
-  if (appConfig) {
-    await prisma.appConfig.update({
-      where: { id: appConfig.id },
-      data: {
-        coOwnerApprovalGraceDays: 7,
-        storyboardMaxReviewRounds: 8,
-        reputationRecommendThreshold: 4,
-        hiatusTooLongDays: 30,
-        lowVoteReliabilityThreshold: 10,
-        maxUploadBytes: 15 * 1024 * 1024,
-        assignmentGraceDays: 2
-      }
-    })
-  } else {
-    await prisma.appConfig.create({ data: { updatedBy: adminId } })
+export interface DemoMagazineEntry {
+  name: string
+  publicationTypes: PublicationType[]
+}
+
+export const DEMO_MAGAZINES: DemoMagazineEntry[] = [
+  { name: 'Manga Nexus Weekly', publicationTypes: [PublicationType.WEEKLY] },
+  { name: 'Manga Nexus Monthly', publicationTypes: [PublicationType.MONTHLY] }
+]
+
+/**
+ * Adds the two demo scopes without deleting an operator's existing magazine catalog.
+ * An existing demo entry retains extra supported cadences but always gains its required cadence.
+ */
+export const mergeDemoMagazines = (current: readonly DemoMagazineEntry[]): DemoMagazineEntry[] => {
+  const requiredByName = new Map(DEMO_MAGAZINES.map((entry) => [normalizeMagazine(entry.name), entry]))
+  const registered = new Set<string>()
+  const merged = current.map((entry) => {
+    const required = requiredByName.get(normalizeMagazine(entry.name))
+    if (!required) return { name: entry.name, publicationTypes: [...entry.publicationTypes] }
+
+    registered.add(normalizeMagazine(required.name))
+    return {
+      name: required.name,
+      publicationTypes: [...new Set([...entry.publicationTypes, ...required.publicationTypes])]
+    }
+  })
+
+  for (const required of DEMO_MAGAZINES) {
+    if (!registered.has(normalizeMagazine(required.name))) {
+      merged.push({ name: required.name, publicationTypes: [...required.publicationTypes] })
+    }
   }
+
+  return merged
+}
+
+export const seedDemoMagazines = async (prisma: DemoContext['prisma'], adminId: string) => {
+  const appConfig = await prisma.appConfig.findFirst({ select: { id: true, magazines: true } })
+  const magazines = mergeDemoMagazines(appConfig?.magazines ?? [])
+  if (appConfig) {
+    await prisma.appConfig.update({ where: { id: appConfig.id }, data: { magazines, updatedBy: adminId } })
+  } else {
+    await prisma.appConfig.create({ data: { updatedBy: adminId, magazines } })
+  }
+  return magazines
+}
+
+export const seedConfigs = async ({ prisma, accounts }: DemoContext) => {
+  const adminId = requiredAccount(accounts, 'admin.hikari').id
+  await seedDemoMagazines(prisma, adminId)
+  const appConfig = await prisma.appConfig.findFirst({ select: { id: true } })
+  if (!appConfig) throw new Error('Demo AppConfig was not created while seeding magazine catalog.')
+  await prisma.appConfig.update({
+    where: { id: appConfig.id },
+    data: {
+      updatedBy: adminId,
+      coOwnerApprovalGraceDays: 7,
+      storyboardMaxReviewRounds: 8,
+      reputationRecommendThreshold: 4,
+      hiatusTooLongDays: 30,
+      lowVoteReliabilityThreshold: 10,
+      maxUploadBytes: 15 * 1024 * 1024,
+      assignmentGraceDays: 2
+    }
+  })
 
   const voting = await prisma.votingConfig.findFirst()
   const votingData = {
