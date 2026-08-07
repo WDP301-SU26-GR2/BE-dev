@@ -92,7 +92,8 @@ describe('BoardService notifications', () => {
   it('sends notifications when a board session is created (odd allowedEditorIds)', async () => {
     const boardRepo = {
       findActiveSessionByTitle: jest.fn().mockResolvedValue(null),
-      createSession: jest.fn().mockResolvedValue({ id: 'session-1' })
+      createSession: jest.fn().mockResolvedValue({ id: 'session-1' }),
+      getActiveConfig: jest.fn().mockResolvedValue({ boardTotalMembers: 5 })
     }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
 
@@ -132,7 +133,8 @@ describe('BoardService odd-size enforcement (B-BRD-05)', () => {
   function makeSessionService() {
     const boardRepo = {
       findActiveSessionByTitle: jest.fn().mockResolvedValue(null),
-      createSession: jest.fn().mockResolvedValue({ id: 'session-1' })
+      createSession: jest.fn().mockResolvedValue({ id: 'session-1' }),
+      getActiveConfig: jest.fn().mockResolvedValue({ boardTotalMembers: 5 })
     }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }
     const service = new BoardSessionWorkflowService(
@@ -599,7 +601,8 @@ describe('BoardService.createSession — roster source (Spec 12)', () => {
   function makeCreateDeps() {
     const boardRepo = {
       findActiveSessionByTitle: jest.fn().mockResolvedValue(null),
-      createSession: jest.fn().mockResolvedValue({ id: '012345678901234567890123' })
+      createSession: jest.fn().mockResolvedValue({ id: '012345678901234567890123' }),
+      getActiveConfig: jest.fn().mockResolvedValue({ boardTotalMembers: 5 })
     }
     const boardRosterService = { suggest: jest.fn() }
     const notificationService = { notifySafe: jest.fn().mockResolvedValue(undefined) }

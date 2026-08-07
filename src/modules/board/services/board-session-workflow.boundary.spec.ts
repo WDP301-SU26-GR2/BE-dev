@@ -27,4 +27,46 @@ describe('BoardSessionWorkflowService focused delegation', () => {
     await expect(service.startSessionManually(SESSION_ID)).resolves.toMatchObject({ status: 'ACTIVE' })
     expect(state.transition).toHaveBeenCalledWith(SESSION_ID, 'ACTIVE', null)
   })
+
+  const makeIds = (n: number) => Array.from({ length: n }, (_, i) => `0123456789abcdef0123456${i}`)
+
+  it('rejects a manual roster larger than the configured cap before touching persistence', async () => {
+    const boardRepo = {
+      getActiveConfig: jest.fn().mockResolvedValue({ boardTotalMembers: 5 }),
+      findActiveSessionByTitle: jest.fn(),
+      createSession: jest.fn()
+    }
+    const service = new BoardSessionWorkflowService(
+      boardRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never
+    )
+    const dto = { title: 'Phien hop lon', startTime: new Date().toISOString(), allowedEditorIds: makeIds(7) }
+
+    await expect(service.createSession('creator', dto as never)).rejects.toBe(Errors.RosterSizeTooLargeException)
+    expect(boardRepo.findActiveSessionByTitle).not.toHaveBeenCalled()
+    expect(boardRepo.createSession).not.toHaveBeenCalled()
+  })
+
+  it('accepts a manual roster equal to the configured cap', async () => {
+    const boardRepo = {
+      getActiveConfig: jest.fn().mockResolvedValue({ boardTotalMembers: 5 }),
+      findActiveSessionByTitle: jest.fn().mockResolvedValue(null),
+      createSession: jest.fn().mockResolvedValue({ id: SESSION_ID })
+    }
+    const notification = { notifySafe: jest.fn().mockResolvedValue(undefined) }
+    const service = new BoardSessionWorkflowService(
+      boardRepo as never,
+      notification as never,
+      {} as never,
+      {} as never,
+      {} as never
+    )
+    const dto = { title: 'Phien hop vua', startTime: new Date().toISOString(), allowedEditorIds: makeIds(5) }
+
+    await expect(service.createSession('creator', dto as never)).resolves.toMatchObject({ id: SESSION_ID })
+    expect(boardRepo.createSession).toHaveBeenCalled()
+  })
 })

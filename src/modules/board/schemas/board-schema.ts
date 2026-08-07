@@ -247,7 +247,21 @@ export const UpdateBoardConfigBodySchema = extendApi(
     updatedAt: true
   })
     .extend({
-      quorumMin: z.number().describe('Sĩ số roster mặc định khi auto-assign; KHÔNG phải quorum đếm phiếu')
+      boardTotalMembers: z
+        .number()
+        .int()
+        .min(3, 'Sĩ số tổng Hội đồng phải từ 3 trở lên')
+        .describe('Sĩ số tổng Hội đồng — số nguyên lẻ, tối thiểu 3'),
+      quorumMin: z
+        .number()
+        .int()
+        .min(3, 'Sĩ số roster mặc định phải từ 3 trở lên')
+        .describe('Sĩ số roster mặc định khi auto-assign; KHÔNG phải quorum đếm phiếu'),
+      approveMajorityRatio: z
+        .number()
+        .gt(0, 'Tỷ lệ đa số phải lớn hơn 0')
+        .lt(1, 'Tỷ lệ đa số phải nhỏ hơn 1')
+        .describe('Tỷ lệ phiếu thuận để duyệt — trong khoảng (0, 1)')
     })
     .strict()
     .superRefine(({ boardTotalMembers, quorumMin }, ctx) => {

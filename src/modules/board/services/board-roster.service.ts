@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { Genre } from '@prisma/client'
 import { isObjectId } from 'src/core/http/schemas/object-id.schema'
 import { RoleName } from 'src/core/security/constants/role.constant'
-import { BOARD_ROSTER_HARD_MAX } from '../board.constant'
+import { BOARD_ROSTER_MIN, computeRosterCap } from '../board.constant'
 import { BoardRepository } from '../board.repo'
 import {
   NotEnoughBoardMembersException,
@@ -13,7 +13,7 @@ import {
 // Ràng buộc cứng từ code có sẵn: CreateBoardSessionBodySchema.allowedEditorIds có .min(3),
 // và board.service.createSession throw nếu roster CHẴN (B-BRD-05, chống hoà phiếu).
 // → roster hợp lệ LUÔN lẻ và >= 3.
-const MIN_ROSTER = 3
+const MIN_ROSTER = BOARD_ROSTER_MIN
 
 export type RosterCandidate = {
   userId: string
@@ -40,8 +40,7 @@ export class BoardRosterService {
 
     const config = await this.boardRepo.getActiveConfig()
     const requested = size ?? config.quorumMin
-    const configuredCap = Math.min(config.boardTotalMembers, BOARD_ROSTER_HARD_MAX)
-    const cap = configuredCap % 2 === 0 ? configuredCap - 1 : configuredCap
+    const cap = computeRosterCap(config.boardTotalMembers)
     if (requested > cap) throw RosterSizeTooLargeException
 
     const roleId = await this.boardRepo.findRoleIdByCode(RoleName.BOARD_MEMBER)
