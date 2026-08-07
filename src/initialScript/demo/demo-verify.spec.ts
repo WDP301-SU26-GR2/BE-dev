@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ProposalStatus, SeriesStatus } from '@prisma/client'
+import { ProposalStatus, PublicationType, SeriesStatus } from '@prisma/client'
 import { DEMO_MEDIA, demoMediaKey } from './demo-media'
-import { verifyProposalShowcase } from './demo-verify'
+import { verifyDemoMagazineRegistry, verifyProposalShowcase } from './demo-verify'
 
 describe('Spec 28 demo proposal fixtures', () => {
   const knownMediaKey = demoMediaKey(DEMO_MEDIA[0])
@@ -130,5 +130,16 @@ describe('Spec 28 demo proposal fixtures', () => {
     expect(source).toContain('proposalStatus?: ProposalStatus')
     expect(source).not.toContain('proposalStatus?: string')
     expect(source).not.toMatch(/createdAt:\s*new Date\(\)\s*\}\s+as never/)
+  })
+})
+
+describe('demo magazine registry verification', () => {
+  it('requires both catalog entries to support the cadence used by seeded periods', () => {
+    const result = verifyDemoMagazineRegistry([
+      { name: 'Manga Nexus Weekly', publicationTypes: [PublicationType.WEEKLY] }
+    ])
+
+    expect(result.checks.registeredDemoMagazines).toBe(1)
+    expect(result.failures.join('\n')).toContain('Manga Nexus Monthly')
   })
 })

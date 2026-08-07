@@ -11,6 +11,7 @@
     "audit:rollout": "ts-node -r tsconfig-paths/register src/initialScript/audit-rollout.ts",
     "seed": "ts-node -r tsconfig-paths/register src/initialScript/seed.ts",
     "seed:demo": "ts-node -r tsconfig-paths/register src/initialScript/seed-demo.ts",
+    "seed:demo:magazines": "ts-node -r tsconfig-paths/register src/initialScript/sync-demo-magazines.ts",
     "seed:demo:verify": "ts-node -r tsconfig-paths/register src/initialScript/verify-demo.ts",
     "seed:demo:otp": "ts-node -r tsconfig-paths/register src/initialScript/issue-demo-signing-otp.ts",
     "build": "nest build",
