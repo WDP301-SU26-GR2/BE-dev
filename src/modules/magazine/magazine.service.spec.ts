@@ -212,10 +212,10 @@ describe('MagazineRegistryService', () => {
       )
     })
 
-    it('danh mục rỗng → bypass gate', async () => {
+    it('danh mục rỗng → 422 (hardening: không serial hoá được khi chưa đăng ký tạp chí nào)', async () => {
       const { service, appConfigService } = make()
       appConfigService.getMagazines.mockResolvedValueOnce([])
-      await expect(service.assertSlotAllowed('bất kỳ', 'WEEKLY')).resolves.toBeUndefined()
+      await expect(service.assertSlotAllowed('bất kỳ', 'WEEKLY')).rejects.toThrow(MagazineNotRegisteredException)
     })
   })
 

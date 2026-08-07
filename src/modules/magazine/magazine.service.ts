@@ -120,10 +120,14 @@ export class MagazineRegistryService {
     })
   }
 
-  /** Gate SERIALIZATION: tên phải trong danh mục VÀ nhịp phải được tạp chí chấp nhận. Danh mục rỗng → bypass. */
+  /**
+   * Gate SERIALIZATION: tên phải trong danh mục VÀ nhịp phải được tạp chí chấp nhận.
+   * KHÔNG bypass khi danh mục rỗng (hardening 2026-08-07): registry rỗng ⇒ mọi tên đều "chưa đăng ký"
+   * ⇒ 422 `MagazineNotRegistered`. Nhờ đó hệ thống mới toanh KHÔNG serial hoá được cho tới khi admin
+   * tạo ≥1 tạp chí — chặn tận gốc việc magazine free-text lọt vào Series thành orphan (xem bug orphan-magazine).
+   */
   async assertSlotAllowed(magazine: string, publicationType: PublicationType): Promise<void> {
     const entries = await this.getMagazines()
-    if (entries.length === 0) return
     const normalized = normalizeMagazine(magazine)
     const current = entries.find((e) => normalizeMagazine(e.name) === normalized)
     if (!current) throw MagazineNotRegisteredException

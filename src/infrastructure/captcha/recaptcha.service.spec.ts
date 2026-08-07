@@ -64,6 +64,17 @@ describe('RecaptchaService', () => {
     await expect(service.verify('bad')).resolves.toEqual({ ok: false, score: null, degraded: false })
   })
 
+  it('logs the Google error-codes when it rejects the token (diagnosability)', async () => {
+    const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined)
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ success: false, 'error-codes': ['invalid-input-response'] })
+    })
+
+    await expect(service.verify('bad')).resolves.toEqual({ ok: false, score: null, degraded: false })
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('invalid-input-response'))
+  })
+
   it('accepts a successful reCAPTCHA v2 response without a score', async () => {
     fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ success: true }) })
 
