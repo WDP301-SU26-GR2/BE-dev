@@ -5,13 +5,13 @@ import { $Enums, SeriesStatus } from '@prisma/client'
  * nếu trong Database chưa khởi tạo bản ghi cấu hình nào.
  */
 export const BOARD_DEFAULT_CONFIG = {
-  TOTAL_MEMBERS: 5, // Sĩ số tổng bắt buộc phải là số lẻ
+  TOTAL_MEMBERS: 17, // Sĩ số tổng bắt buộc phải là số lẻ
   QUORUM_MIN: 3, // Sĩ số tối thiểu để cuộc họp hợp lệ
   APPROVE_MAJORITY_RATIO: 0.51 // Tỷ lệ đồng thuận đạt trên 51%
 }
 
 export const BOARD_ROSTER_MIN = 3
-export const BOARD_ROSTER_HARD_MAX = 9
+export const BOARD_ROSTER_HARD_MAX = 18
 
 /**
  * Trần sĩ số roster của một phiên họp = min(cấu hình boardTotalMembers, trần cứng 9), ép về số lẻ (làm tròn xuống).
