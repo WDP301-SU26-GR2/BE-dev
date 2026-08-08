@@ -11,7 +11,7 @@ export const BOARD_DEFAULT_CONFIG = {
 }
 
 export const BOARD_ROSTER_MIN = 3
-export const BOARD_ROSTER_HARD_MAX = 18
+export const BOARD_ROSTER_HARD_MAX = 17
 
 /**
  * Trần sĩ số roster của một phiên họp = min(cấu hình boardTotalMembers, trần cứng 9), ép về số lẻ (làm tròn xuống).
