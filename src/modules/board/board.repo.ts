@@ -271,9 +271,9 @@ export class BoardRepository {
 
     return this.prisma.boardConfig.create({
       data: {
-        boardTotalMembers: 5,
+        boardTotalMembers: 18,
         quorumMin: 3,
-        approveMajorityRatio: 0.5,
+        approveMajorityRatio: 0.6,
         isDefault: true
       }
     })
